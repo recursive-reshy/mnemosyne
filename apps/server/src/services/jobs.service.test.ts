@@ -20,7 +20,14 @@ import {
   findJob,
   markStatus,
   queueJob,
+  renderTranscript,
 } from './jobs.service.js'
+// Formatters
+import { formatMarkdown } from '../formatters/markdown.formatter.js'
+import { formatSrt } from '../formatters/srt.formatter.js'
+import { formatTxt } from '../formatters/txt.formatter.js'
+// Fixtures
+import { transcriptFixture } from '../test-support/transcript.fixture.js'
 
 const url = 'https://www.youtube.com/watch?v=abc'
 const startTime = new Date( '2026-10-14T10:00:00.000Z' )
@@ -187,4 +194,48 @@ describe( 'failJob', () => {
 
     expect( () => failJob( id, 'late' ) ).toThrow( ConflictError )
   } )
+} )
+
+describe( 'renderTranscript', () => {
+  function queueDoneJob(): string {
+    const { id } = queueJob( url )
+
+    markStatus( id, 'downloading' )
+    markStatus( id, 'converting' )
+    markStatus( id, 'transcribing' )
+    completeJob( id, transcriptFixture )
+
+    return id
+  }
+
+  it.each( [
+    [ 'md', 'Video title.md', 'text/markdown; charset=utf-8', formatMarkdown ],
+    [ 'srt', 'Video title.srt', 'application/x-subrip; charset=utf-8', formatSrt ],
+    [ 'txt', 'Video title.txt', 'text/plain; charset=utf-8', formatTxt ],
+  ] as const )( 'renders a done job as %s', ( format, filename, contentType, formatter ) => {
+    const id = queueDoneJob()
+
+    const rendered = renderTranscript( id, format )
+
+    expect( rendered ).toEqual( {
+      filename,
+      contentType,
+      body: formatter( transcriptFixture ),
+    } )
+  } )
+
+  it( 'throws NotFoundError for an unknown id', () => {
+    expect( () => renderTranscript( 'missing', 'md' ) ).toThrow( NotFoundError )
+  } )
+
+  it.each( [ 'queued', 'downloading', 'converting', 'transcribing', 'failed' ] as const )(
+    'throws ConflictError from %s',
+    ( status ) => {
+      const id = queueJobAt( status )
+
+      expect( () => renderTranscript( id, 'md' ) ).toThrow(
+        new ConflictError( 'Transcript not ready' ),
+      )
+    },
+  )
 } )

@@ -4,10 +4,11 @@ import { Request, Response } from 'express'
 import {
   CreateJobBody,
   CreateJobResponse,
+  DownloadFormat,
   GetJobResponse,
 } from '@mnemosyne/shared'
 // Services
-import { findJob, queueJob } from '../services/jobs.service.js'
+import { findJob, queueJob, renderTranscript } from '../services/jobs.service.js'
 
 export function createJob( { body }: Request, res: Response< CreateJobResponse > ): void {
   const { url } = CreateJobBody.parse( body )
@@ -24,4 +25,16 @@ export function getJob( { params }: Request, res: Response< GetJobResponse > ): 
   const job = findJob( String( params.id ) )
 
   res.status( 200 ).json( { job } )
+}
+
+export function downloadTranscript( { params, query }: Request, res: Response ): void {
+  const format = DownloadFormat.parse( query.format ?? 'md' )
+
+  const { filename, contentType, body } = renderTranscript( String( params.id ), format )
+
+  res
+    .status( 200 )
+    .type( contentType )
+    .attachment( filename )
+    .send( body )
 }

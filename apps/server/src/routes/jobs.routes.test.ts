@@ -12,6 +12,14 @@ import { Job } from '@mnemosyne/shared'
 import { app } from '../app.js'
 // Repositories
 import { clearJobs } from '../repositories/jobStore.repository.js'
+// Services
+import { completeJob, markStatus, queueJob } from '../services/jobs.service.js'
+// Formatters
+import { formatMarkdown } from '../formatters/markdown.formatter.js'
+import { formatSrt } from '../formatters/srt.formatter.js'
+import { formatTxt } from '../formatters/txt.formatter.js'
+// Fixtures
+import { transcriptFixture } from '../test-support/transcript.fixture.js'
 
 const youtubeUrl = 'https://www.youtube.com/watch?v=abc'
 
@@ -107,5 +115,88 @@ describe( 'GET /api/jobs/:id', () => {
     const response = await request( app ).get( '/api/jobs/abc' )
 
     expect( response.status ).toBe( 404 )
+  } )
+} )
+
+describe( 'GET /api/jobs/:id/download', () => {
+  function seedDoneJob( title?: string ): string {
+    const { id } = queueJob( youtubeUrl )
+
+    markStatus( id, 'downloading' )
+    markStatus( id, 'converting' )
+    markStatus( id, 'transcribing' )
+    completeJob( id, {
+      ...transcriptFixture,
+      meta: { ...transcriptFixture.meta, title: title ?? transcriptFixture.meta.title },
+    } )
+
+    return id
+  }
+
+  it.each( [
+    [ 'md', 'text/markdown; charset=utf-8', formatMarkdown ],
+    [ 'srt', 'application/x-subrip; charset=utf-8', formatSrt ],
+    [ 'txt', 'text/plain; charset=utf-8', formatTxt ],
+  ] as const )( 'downloads %s', async ( format, contentType, formatter ) => {
+    const id = seedDoneJob()
+
+    const response = await request( app ).get( `/api/jobs/${ id }/download?format=${ format }` )
+
+    expect( response.status ).toBe( 200 )
+    expect( response.headers[ 'content-type' ] ).toBe( contentType )
+    expect( response.headers[ 'content-disposition' ] ).toBe(
+      `attachment; filename="Video title.${ format }"`,
+    )
+    expect( response.text ).toBe( formatter( transcriptFixture ) )
+  } )
+
+  it( 'defaults to Markdown', async () => {
+    const id = seedDoneJob()
+
+    const response = await request( app ).get( `/api/jobs/${ id }/download` )
+
+    expect( response.status ).toBe( 200 )
+    expect( response.headers[ 'content-type' ] ).toBe( 'text/markdown; charset=utf-8' )
+    expect( response.text ).toBe( formatMarkdown( transcriptFixture ) )
+  } )
+
+  it.each( [ 'format=pdf', 'format=md&format=srt' ] )( 'rejects ?%s with 400', async ( query ) => {
+    const id = seedDoneJob()
+
+    const response = await request( app ).get( `/api/jobs/${ id }/download?${ query }` )
+
+    expect( response.status ).toBe( 400 )
+  } )
+
+  it( 'returns 400 for an invalid format even for an unknown id', async () => {
+    const response = await request( app ).get( '/api/jobs/nope/download?format=pdf' )
+
+    expect( response.status ).toBe( 400 )
+  } )
+
+  it( 'returns 404 for an unknown id', async () => {
+    const response = await request( app ).get( `/api/jobs/${ crypto.randomUUID() }/download` )
+
+    expect( response.status ).toBe( 404 )
+    expect( response.body ).toEqual( { error: 'Job not found' } )
+  } )
+
+  it( 'returns 409 for a queued job', async () => {
+    const { id } = queueJob( youtubeUrl )
+
+    const response = await request( app ).get( `/api/jobs/${ id }/download` )
+
+    expect( response.status ).toBe( 409 )
+    expect( response.body ).toEqual( { error: 'Transcript not ready' } )
+  } )
+
+  it( 'encodes a non-ASCII title with filename*', async () => {
+    const id = seedDoneJob( '日本語のタイトル' )
+
+    const response = await request( app ).get( `/api/jobs/${ id }/download?format=txt` )
+
+    expect( response.headers[ 'content-disposition' ] ).toContain(
+      `filename*=UTF-8''${ encodeURIComponent( '日本語のタイトル.txt' ) }`,
+    )
   } )
 } )

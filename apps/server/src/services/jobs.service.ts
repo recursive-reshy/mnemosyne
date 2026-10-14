@@ -1,7 +1,17 @@
 // Shared
-import { Job, JobStatus, Transcript } from '@mnemosyne/shared'
+import {
+  DownloadFormat,
+  Job,
+  JobStatus,
+  Transcript,
+} from '@mnemosyne/shared'
 // Errors
 import { ConflictError, NotFoundError } from '../errors.js'
+// Formatters
+import { transcriptFilename } from '../formatters/filename.js'
+import { formatMarkdown } from '../formatters/markdown.formatter.js'
+import { formatSrt } from '../formatters/srt.formatter.js'
+import { formatTxt } from '../formatters/txt.formatter.js'
 // Repositories
 import {
   StoredJob,
@@ -17,6 +27,18 @@ const nextStep = {
   downloading: 'converting',
   converting: 'transcribing',
 } as const
+
+const transcriptFormats = {
+  md: { contentType: 'text/markdown; charset=utf-8', formatter: formatMarkdown },
+  srt: { contentType: 'application/x-subrip; charset=utf-8', formatter: formatSrt },
+  txt: { contentType: 'text/plain; charset=utf-8', formatter: formatTxt },
+} as const
+
+type RenderedTranscript = {
+  filename: string
+  contentType: string
+  body: string
+}
 
 const finishedFrom: JobStatus = 'transcribing'
 const finalStatuses: JobStatus[] = [ 'done', 'failed' ]
@@ -112,4 +134,24 @@ export function failJob( id: string, message: string ): Job {
   }
 
   return moveTo( job, 'failed', { error: message } )
+}
+
+export function renderTranscript( id: string, format: DownloadFormat ): RenderedTranscript {
+  const job = requireJob( id )
+
+  if( job.status !== 'done' ) {
+    throw new ConflictError( 'Transcript not ready' )
+  }
+
+  if( job.transcript === null ) {
+    throw new Error( `Job ${ id } is done but has no transcript` )
+  }
+
+  const { contentType, formatter } = transcriptFormats[ format ]
+
+  return {
+    filename: transcriptFilename( job.transcript.meta.title, format ),
+    contentType,
+    body: formatter( job.transcript ),
+  }
 }
