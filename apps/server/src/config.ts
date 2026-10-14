@@ -33,4 +33,13 @@ export function loadConfig( env: NodeJS.ProcessEnv ): Config {
   return result.data
 }
 
-export const config: Config = loadConfig( process.env )
+function loadConfigOrExit( env: NodeJS.ProcessEnv ): Config {
+  try {
+    return loadConfig( env )
+  } catch( error ) {
+    console.error( error instanceof Error ? error.message : error )
+    return process.exit( 1 )
+  }
+}
+
+export const config: Config = loadConfigOrExit( process.env )
