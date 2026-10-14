@@ -16,6 +16,7 @@ import { formatTxt } from '../formatters/txt.formatter.js'
 import {
   StoredJob,
   findJobById,
+  findNextQueuedJob as findNextQueuedStoredJob,
   insertJob,
   updateJob,
 } from '../repositories/jobStore.repository.js'
@@ -101,6 +102,12 @@ export function queueJob( url: string ): Job {
 
 export function findJob( id: string ): Job {
   return toPublicJob( requireJob( id ) )
+}
+
+export function findNextQueuedJob(): Job | undefined {
+  const job = findNextQueuedStoredJob()
+
+  return job === undefined ? undefined : toPublicJob( job )
 }
 
 export function markStatus( id: string, status: StepStatus ): Job {

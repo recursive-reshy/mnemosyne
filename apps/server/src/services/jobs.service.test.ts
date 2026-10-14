@@ -18,6 +18,7 @@ import {
   completeJob,
   failJob,
   findJob,
+  findNextQueuedJob,
   markStatus,
   queueJob,
   renderTranscript,
@@ -238,4 +239,40 @@ describe( 'renderTranscript', () => {
       )
     },
   )
+} )
+
+describe( 'findNextQueuedJob', () => {
+  it( 'returns undefined when no jobs exist', () => {
+    expect( findNextQueuedJob() ).toBeUndefined()
+  } )
+
+  it( 'returns the oldest queued job', () => {
+    const first = queueJob( 'https://example.com/a' )
+    queueJob( 'https://example.com/b' )
+
+    expect( findNextQueuedJob() ).toEqual( first )
+  } )
+
+  it( 'skips jobs that are no longer queued', () => {
+    const first = queueJob( 'https://example.com/a' )
+    const second = queueJob( 'https://example.com/b' )
+    markStatus( first.id, 'downloading' )
+
+    expect( findNextQueuedJob() ).toEqual( second )
+  } )
+
+  it( 'returns undefined when every job has moved on', () => {
+    const first = queueJob( 'https://example.com/a' )
+    const second = queueJob( 'https://example.com/b' )
+    markStatus( first.id, 'downloading' )
+    markStatus( second.id, 'downloading' )
+
+    expect( findNextQueuedJob() ).toBeUndefined()
+  } )
+
+  it( 'returns a job without a transcript field', () => {
+    queueJob( 'https://example.com/a' )
+
+    expect( findNextQueuedJob() ).not.toHaveProperty( 'transcript' )
+  } )
 } )
