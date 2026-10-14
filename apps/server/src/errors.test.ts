@@ -117,3 +117,22 @@ describe( 'errorMiddleware', () => {
     expect( res.json ).not.toHaveBeenCalled()
   } )
 } )
+
+describe( 'errorMiddleware with malformed JSON', () => {
+  it( 'maps a body-parser parse failure to 400 Invalid JSON', async () => {
+    const testApp: Express = express()
+    testApp.use( express.json() )
+    testApp.post( '/echo', ( _req, res ) => {
+      res.json( {} )
+    } )
+    testApp.use( errorMiddleware )
+
+    const response = await request( testApp )
+      .post( '/echo' )
+      .set( 'content-type', 'application/json' )
+      .send( '{"url":' )
+
+    expect( response.status ).toBe( 400 )
+    expect( response.body ).toEqual( { error: 'Invalid JSON' } )
+  } )
+} )

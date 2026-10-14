@@ -30,6 +30,13 @@ function sendError( res: Response, status: number, body: ErrorResponse ): void {
   res.status( status ).json( body )
 }
 
+function isJsonParseFailure( error: unknown ): boolean {
+  return typeof error === 'object'
+    && error !== null
+    && 'type' in error
+    && error.type === 'entity.parse.failed'
+}
+
 export function notFoundHandler( _req: Request, res: Response ): void {
   sendError( res, 404, { error: 'Not Found' } )
 }
@@ -51,6 +58,8 @@ export function errorMiddleware(
     sendError( res, 404, { error: error.message } )
   } else if( error instanceof ConflictError ) {
     sendError( res, 409, { error: error.message } )
+  } else if( isJsonParseFailure( error ) ) {
+    sendError( res, 400, { error: 'Invalid JSON' } )
   } else if( error instanceof ZodError ) {
     sendError( res, 400, { error: 'Invalid request', issues: error.issues } )
   } else {
