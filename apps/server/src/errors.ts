@@ -2,6 +2,8 @@
 import { NextFunction, Request, Response } from 'express'
 // Packages
 import { ZodError } from 'zod'
+// Shared
+import { ErrorResponse } from '@mnemosyne/shared'
 
 export class ValidationError extends Error {
   constructor( message: string ) {
@@ -24,8 +26,12 @@ export class ConflictError extends Error {
   }
 }
 
+function sendError( res: Response, status: number, body: ErrorResponse ): void {
+  res.status( status ).json( body )
+}
+
 export function notFoundHandler( _req: Request, res: Response ): void {
-  res.status( 404 ).json( { error: 'Not Found' } )
+  sendError( res, 404, { error: 'Not Found' } )
 }
 
 export function errorMiddleware(
@@ -40,15 +46,15 @@ export function errorMiddleware(
   }
 
   if( error instanceof ValidationError ) {
-    res.status( 400 ).json( { error: error.message } )
+    sendError( res, 400, { error: error.message } )
   } else if( error instanceof NotFoundError ) {
-    res.status( 404 ).json( { error: error.message } )
+    sendError( res, 404, { error: error.message } )
   } else if( error instanceof ConflictError ) {
-    res.status( 409 ).json( { error: error.message } )
+    sendError( res, 409, { error: error.message } )
   } else if( error instanceof ZodError ) {
-    res.status( 400 ).json( { error: 'Invalid request', issues: error.issues } )
+    sendError( res, 400, { error: 'Invalid request', issues: error.issues } )
   } else {
     console.error( error )
-    res.status( 500 ).json( { error: 'Internal Server Error' } )
+    sendError( res, 500, { error: 'Internal Server Error' } )
   }
 }
