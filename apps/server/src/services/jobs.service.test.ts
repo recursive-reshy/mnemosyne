@@ -1,0 +1,190 @@
+// Packages
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  afterEach,
+} from 'vitest'
+// Shared
+import { JobStatus, Transcript } from '@mnemosyne/shared'
+// Errors
+import { ConflictError, NotFoundError } from '../errors.js'
+// Repositories
+import { clearJobs, findJobById } from '../repositories/jobStore.repository.js'
+// Services
+import {
+  completeJob,
+  failJob,
+  findJob,
+  markStatus,
+  queueJob,
+} from './jobs.service.js'
+
+const url = 'https://www.youtube.com/watch?v=abc'
+const startTime = new Date( '2026-10-14T10:00:00.000Z' )
+const laterTime = new Date( '2026-10-14T10:05:00.000Z' )
+
+const transcript: Transcript = {
+  meta: {
+    title: 'A talk',
+    source: url,
+    channel: 'Some Channel',
+    duration_seconds: 60,
+    transcribed_at: '2026-10-14T10:04:00.000Z',
+    model: 'large-v3',
+  },
+  segments: [ { start: 0, end: 1, text: 'Hello' } ],
+}
+
+function queueJobAt( status: JobStatus ): string {
+  const { id } = queueJob( url )
+  const path: JobStatus[] = [ 'downloading', 'converting', 'transcribing' ]
+
+  for( const step of path ) {
+    if( status === 'queued' ) break
+    markStatus( id, step as 'downloading' | 'converting' | 'transcribing' )
+    if( step === status ) break
+  }
+  if( status === 'done' ) completeJob( id, transcript )
+  if( status === 'failed' ) failJob( id, 'earlier failure' )
+
+  return id
+}
+
+beforeEach( () => {
+  vi.useFakeTimers()
+  vi.setSystemTime( startTime )
+  clearJobs()
+} )
+
+afterEach( () => {
+  vi.useRealTimers()
+} )
+
+describe( 'queueJob', () => {
+  it( 'returns a queued public job', () => {
+    const job = queueJob( url )
+
+    expect( job ).toEqual( {
+      id: expect.stringMatching( /^[0-9a-f-]{36}$/ ) as string,
+      url,
+      status: 'queued',
+      error: null,
+      created_at: startTime.toISOString(),
+      updated_at: startTime.toISOString(),
+    } )
+  } )
+
+  it( 'does not expose a transcript property', () => {
+    expect( queueJob( url ) ).not.toHaveProperty( 'transcript' )
+  } )
+
+  it( 'produces a different id on each call', () => {
+    expect( queueJob( url ).id ).not.toBe( queueJob( url ).id )
+  } )
+} )
+
+describe( 'findJob', () => {
+  it( 'returns the public job', () => {
+    const { id } = queueJob( url )
+
+    const job = findJob( id )
+
+    expect( job.id ).toBe( id )
+    expect( job ).not.toHaveProperty( 'transcript' )
+  } )
+
+  it( 'throws NotFoundError for an unknown id', () => {
+    expect( () => findJob( 'missing' ) ).toThrow( NotFoundError )
+  } )
+} )
+
+describe( 'markStatus', () => {
+  it( 'walks queued to transcribing', () => {
+    const { id } = queueJob( url )
+
+    expect( markStatus( id, 'downloading' ).status ).toBe( 'downloading' )
+    expect( markStatus( id, 'converting' ).status ).toBe( 'converting' )
+    expect( markStatus( id, 'transcribing' ).status ).toBe( 'transcribing' )
+  } )
+
+  it( 'updates updated_at and keeps created_at', () => {
+    const { id } = queueJob( url )
+    vi.setSystemTime( laterTime )
+
+    const job = markStatus( id, 'downloading' )
+
+    expect( job.updated_at ).toBe( laterTime.toISOString() )
+    expect( job.created_at ).toBe( startTime.toISOString() )
+  } )
+
+  it( 'throws ConflictError when skipping a step', () => {
+    const { id } = queueJob( url )
+
+    expect( () => markStatus( id, 'converting' ) ).toThrow( ConflictError )
+    expect( () => markStatus( id, 'converting' ) ).toThrow(
+      'Cannot move job from queued to converting',
+    )
+  } )
+
+  it( 'throws ConflictError when moving backwards', () => {
+    const id = queueJobAt( 'converting' )
+
+    expect( () => markStatus( id, 'downloading' ) ).toThrow( ConflictError )
+  } )
+
+  it( 'throws ConflictError from a final status', () => {
+    const id = queueJobAt( 'failed' )
+
+    expect( () => markStatus( id, 'downloading' ) ).toThrow( ConflictError )
+  } )
+
+  it( 'throws NotFoundError for an unknown id', () => {
+    expect( () => markStatus( 'missing', 'downloading' ) ).toThrow( NotFoundError )
+  } )
+} )
+
+describe( 'completeJob', () => {
+  it( 'marks a transcribing job done and stores the transcript', () => {
+    const id = queueJobAt( 'transcribing' )
+
+    const job = completeJob( id, transcript )
+
+    expect( job.status ).toBe( 'done' )
+    expect( job ).not.toHaveProperty( 'transcript' )
+    expect( findJobById( id )?.transcript ).toEqual( transcript )
+  } )
+
+  it.each( [ 'queued', 'downloading', 'converting', 'done', 'failed' ] as const )(
+    'throws ConflictError from %s and changes nothing',
+    ( status ) => {
+      const id = queueJobAt( status )
+      const before = findJobById( id )
+
+      expect( () => completeJob( id, transcript ) ).toThrow( ConflictError )
+      expect( findJobById( id ) ).toEqual( before )
+    },
+  )
+} )
+
+describe( 'failJob', () => {
+  it.each( [ 'queued', 'downloading', 'converting', 'transcribing' ] as const )(
+    'fails a job from %s with the message',
+    ( status ) => {
+      const id = queueJobAt( status )
+
+      const job = failJob( id, 'yt-dlp exited with 1' )
+
+      expect( job.status ).toBe( 'failed' )
+      expect( job.error ).toBe( 'yt-dlp exited with 1' )
+    },
+  )
+
+  it.each( [ 'done', 'failed' ] as const )( 'throws ConflictError from %s', ( status ) => {
+    const id = queueJobAt( status )
+
+    expect( () => failJob( id, 'late' ) ).toThrow( ConflictError )
+  } )
+} )
