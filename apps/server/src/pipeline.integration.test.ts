@@ -1,0 +1,131 @@
+// Node
+import { access } from 'node:fs/promises'
+import path from 'node:path'
+// Packages
+import request from 'supertest'
+import { z } from 'zod'
+import {
+  describe,
+  it,
+  expect,
+  beforeAll,
+  afterAll,
+} from 'vitest'
+// App
+import { app } from './app.js'
+// Config
+import { config } from './config.js'
+// Repositories
+import { clearJobs, findJobById } from './repositories/jobStore.repository.js'
+// Worker
+import { startWorker } from './worker/worker.js'
+
+const HAPPY_URL = 'https://www.youtube.com/watch?v=cFoaK1OQRhw'
+const MISSING_URL = 'https://www.youtube.com/watch?v=zzzzzzzzzzz'
+const POLL_INTERVAL_MS = 2000
+const JOB_DEADLINE_MS = 5 * 60 * 1000
+
+const JobBody = z.object( {
+  job: z.object( { status: z.string(), error: z.string().nullable() } ),
+} )
+const CreatedBody = z.object( { job_id: z.string() } )
+
+type FinishedJob = { jobId: string, status: string, error: string | null }
+
+let stopWorker: () => void
+
+async function waitForJob( jobId: string ): Promise< FinishedJob > {
+  const deadline = Date.now() + JOB_DEADLINE_MS
+
+  while( Date.now() < deadline ) {
+    const response = await request( app ).get( `/api/jobs/${ jobId }` ).expect( 200 )
+    const { job } = JobBody.parse( response.body )
+
+    if( job.status === 'done' || job.status === 'failed' ) {
+      return { jobId, ...job }
+    }
+
+    await new Promise( ( resolve ) => setTimeout( resolve, POLL_INTERVAL_MS ) )
+  }
+
+  throw new Error( `Job ${ jobId } did not finish within 5 minutes` )
+}
+
+async function queueAndWait( url: string ): Promise< FinishedJob > {
+  const created = await request( app ).post( '/api/jobs' ).send( { url } ).expect( 202 )
+  const { job_id: jobId } = CreatedBody.parse( created.body )
+
+  return waitForJob( jobId )
+}
+
+async function exists( target: string ): Promise< boolean > {
+  return access( target ).then( () => true, () => false )
+}
+
+beforeAll( async () => {
+  try {
+    await fetch( config.whisperUrl, { signal: AbortSignal.timeout( 3000 ) } )
+  } catch( error ) {
+    throw new Error(
+      `whisper-server is not reachable at ${ config.whisperUrl }. `
+      + 'Start it before running the integration tests.',
+      { cause: error },
+    )
+  }
+
+  stopWorker = startWorker()
+} )
+
+afterAll( () => {
+  stopWorker()
+  clearJobs()
+} )
+
+describe( 'pipeline (real yt-dlp, ffmpeg and whisper-server)', () => {
+  let failedJobId = ''
+
+  it( 'fails a job for a video that does not exist and cleans up', async () => {
+    const { jobId, status, error } = await queueAndWait( MISSING_URL )
+    failedJobId = jobId
+
+    expect( status ).toBe( 'failed' )
+    expect( error ).toBeTruthy()
+
+    await request( app ).get( `/api/jobs/${ jobId }/download` ).expect( 409 )
+    expect( await exists( path.join( config.workDir, jobId ) ) ).toBe( false )
+  } )
+
+  it( 'still transcribes a real video after a failure', async () => {
+    expect( failedJobId ).not.toBe( '' )
+
+    const { jobId, status, error } = await queueAndWait( HAPPY_URL )
+
+    expect( status ).toBe( 'done' )
+    expect( error ).toBeNull()
+
+    const markdown = await request( app ).get( `/api/jobs/${ jobId }/download` )
+    expect( markdown.status ).toBe( 200 )
+    expect( markdown.headers[ 'content-type' ] ).toMatch( /text\/markdown/ )
+    expect( markdown.text.startsWith( '---' ) ).toBe( true )
+    expect( markdown.text ).toContain( 'youtu.be/cFoaK1OQRhw?t=' )
+    expect( markdown.text ).toContain( 'model: large-v3-turbo' )
+
+    const srt = await request( app ).get( `/api/jobs/${ jobId }/download?format=srt` )
+    expect( srt.status ).toBe( 200 )
+    expect( srt.text ).toContain( '-->' )
+
+    const txt = await request( app ).get( `/api/jobs/${ jobId }/download?format=txt` )
+    expect( txt.status ).toBe( 200 )
+    expect( txt.text.trim() ).not.toBe( '' )
+
+    const transcript = findJobById( jobId )?.transcript
+    expect( transcript?.meta.title ).toBeTruthy()
+    expect( transcript?.meta.duration_seconds ).toBeGreaterThan( 0 )
+    expect( transcript?.segments.length ).toBeGreaterThan( 0 )
+
+    const starts = transcript?.segments.map( ( segment ) => segment.start ) ?? []
+    expect( starts ).toEqual( [ ...starts ].sort( ( a, b ) => a - b ) )
+
+    expect( await exists( path.join( config.workDir, jobId ) ) ).toBe( false )
+  } )
+} )
