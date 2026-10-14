@@ -45,6 +45,10 @@ export async function transcribeAudio(
       signal: AbortSignal.timeout( REQUEST_TIMEOUT_MS ),
     } )
   } catch( error ) {
+    if( error instanceof Error && error.name === 'TimeoutError' ) {
+      throw new Error( 'whisper-server did not finish within 60 minutes', { cause: error } )
+    }
+
     const reason = error instanceof Error ? error.message : String( error )
 
     throw new Error(

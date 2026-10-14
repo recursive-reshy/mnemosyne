@@ -102,6 +102,14 @@ describe( 'transcribeAudio', () => {
     )
   } )
 
+  it( 'throws a timeout message when the request exceeds the limit', async () => {
+    fetchMock.mockRejectedValue( new DOMException( 'The operation timed out.', 'TimeoutError' ) )
+
+    await expect( transcribeAudio( audioPath, whisperUrl ) ).rejects.toThrow(
+      'whisper-server did not finish within 60 minutes',
+    )
+  } )
+
   it( 'throws on JSON without segments', async () => {
     fetchMock.mockResolvedValue( jsonResponse( { text: 'hi' } ) )
 

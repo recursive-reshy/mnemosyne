@@ -12,6 +12,7 @@ describe( 'loadConfig', () => {
       port: 3100,
       whisperUrl: 'http://localhost:8178',
       workDir: join( tmpdir(), 'mnemosyne' ),
+      whisperModel: 'large-v3-turbo',
     } )
   } )
 
@@ -20,12 +21,14 @@ describe( 'loadConfig', () => {
       PORT: '4000',
       WHISPER_URL: 'http://host.docker.internal:8178',
       WORK_DIR: '/tmp/custom',
+      WHISPER_MODEL: 'large-v3',
     } )
 
     expect( config ).toEqual( {
       port: 4000,
       whisperUrl: 'http://host.docker.internal:8178',
       workDir: '/tmp/custom',
+      whisperModel: 'large-v3',
     } )
   } )
 
@@ -34,6 +37,10 @@ describe( 'loadConfig', () => {
 
     expect( config.port ).toBe( 3100 )
     expect( config.whisperUrl ).toBe( 'http://localhost:8178' )
+  } )
+
+  it( 'falls back to the default model for an empty WHISPER_MODEL', () => {
+    expect( loadConfig( { WHISPER_MODEL: '' } ).whisperModel ).toBe( 'large-v3-turbo' )
   } )
 
   it.each( [ 'abc', '0', '70000' ] )( 'throws naming PORT for PORT=%s', ( port ) => {
