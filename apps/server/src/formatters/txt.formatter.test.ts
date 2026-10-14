@@ -1,0 +1,28 @@
+// Packages
+import { describe, it, expect } from 'vitest'
+// Fixtures
+import { transcriptFixture } from '../test-support/transcript.fixture.js'
+// Formatters
+import { formatTxt } from './txt.formatter.js'
+
+describe( 'formatTxt', () => {
+  it( 'renders paragraphs separated by a blank line', () => {
+    expect( formatTxt( transcriptFixture ) ).toBe(
+      'Welcome to the talk. Today we cover formatters. They are pure functions.\n' +
+        '\n' +
+        'No I/O is involved.\n' +
+        '\n' +
+        'Last, the Markdown output.\n',
+    )
+  } )
+
+  it( 'returns an empty string for an empty transcript', () => {
+    expect( formatTxt( { ...transcriptFixture, segments: [] } ) ).toBe( '' )
+  } )
+
+  it( 'returns an empty string when every segment is empty', () => {
+    const segments = [ { start: 0, end: 1, text: '  ' } ]
+
+    expect( formatTxt( { ...transcriptFixture, segments } ) ).toBe( '' )
+  } )
+} )
