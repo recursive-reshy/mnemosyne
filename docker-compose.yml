@@ -1,0 +1,22 @@
+services:
+  mnemosyne:
+    build: .
+    image: mnemosyne:local
+    ports:
+      - "3100:3100"
+    environment:
+      WHISPER_URL: http://host.docker.internal:8178
+      WHISPER_MODEL: ${WHISPER_MODEL:-large-v3-turbo}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://localhost:3100/api/health').then((r) => process.exit(r.status === 200 ? 0 : 1), () => process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3

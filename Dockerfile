@@ -1,0 +1,53 @@
+# syntax=docker/dockerfile:1
+
+FROM node:24-slim AS build
+
+WORKDIR /repo
+RUN corepack enable && corepack prepare pnpm@11.24.0 --activate
+
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY apps/server/package.json apps/server/tsconfig.json apps/server/tsconfig.build.json apps/server/
+COPY packages/shared/package.json packages/shared/tsconfig.json packages/shared/tsconfig.build.json packages/shared/
+RUN pnpm install --frozen-lockfile
+
+COPY apps/server/src apps/server/src
+COPY packages/shared/src packages/shared/src
+RUN pnpm --filter @mnemosyne/shared --filter @mnemosyne/server build \
+  && pnpm --filter @mnemosyne/server deploy --legacy --prod /deploy
+
+
+FROM node:24-slim
+
+ARG TARGETARCH
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates curl ffmpeg \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN case "${TARGETARCH}" in \
+    amd64) asset=yt-dlp_linux ;; \
+    arm64) asset=yt-dlp_linux_aarch64 ;; \
+    *) echo "Unsupported architecture: ${TARGETARCH}" >&2; exit 1 ;; \
+  esac \
+  && curl -fsSL -o /usr/local/bin/yt-dlp \
+    "https://github.com/yt-dlp/yt-dlp/releases/latest/download/${asset}" \
+  && chown node:node /usr/local/bin/yt-dlp \
+  && chmod 755 /usr/local/bin/yt-dlp \
+  && chown node:node /usr/local/bin \
+  && apt-get purge -y curl && apt-get autoremove -y
+
+RUN echo "--js-runtimes node" > /etc/yt-dlp.conf
+
+ENV NODE_ENV=production \
+    PORT=3100 \
+    WORK_DIR=/tmp/mnemosyne
+
+WORKDIR /app
+COPY --from=build --chown=node:node /deploy ./
+COPY --chown=node:node ops/docker-entrypoint.sh ./ops/docker-entrypoint.sh
+
+USER node
+EXPOSE 3100
+
+ENTRYPOINT [ "./ops/docker-entrypoint.sh" ]
+CMD [ "node", "dist/src/server.js" ]

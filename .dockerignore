@@ -1,0 +1,12 @@
+node_modules
+**/node_modules
+dist
+**/dist
+.git
+.env
+**/.env
+coverage
+*.tsbuildinfo
+.DS_Store
+docs
+ops/*.plist
