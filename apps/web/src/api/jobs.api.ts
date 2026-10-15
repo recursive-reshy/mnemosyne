@@ -14,8 +14,9 @@ async function request< T >(
   init?: RequestInit,
 ): Promise< T > {
   let response: Response
+
   try {
-    response = await ( init ? fetch( input, init ) : fetch( input ) )
+    response = await fetch( input, init )
   } catch{
     throw new ApiError( 'Could not reach the server', null )
   }
@@ -24,6 +25,7 @@ async function request< T >(
 
   if( !response.ok ) {
     const parsedError = ErrorResponse.safeParse( body )
+
     throw new ApiError(
       parsedError.success
         ? parsedError.data.error
@@ -33,9 +35,11 @@ async function request< T >(
   }
 
   const parsed = schema.safeParse( body )
+
   if( !parsed.success ) {
     throw new ApiError( 'Unexpected response from the server', response.status )
   }
+
   return parsed.data
 }
 

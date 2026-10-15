@@ -100,7 +100,7 @@ describe( 'getJob', () => {
 
     await getJob( 'a/b' )
 
-    expect( fetchMock ).toHaveBeenCalledWith( '/api/jobs/a%2Fb' )
+    expect( fetchMock.mock.calls[ 0 ]?.[ 0 ] ).toBe( '/api/jobs/a%2Fb' )
   } )
 
   it( 'returns the parsed job', async () => {
