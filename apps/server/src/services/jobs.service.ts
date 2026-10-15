@@ -5,6 +5,8 @@ import {
   JobStatus,
   Transcript,
 } from '@mnemosyne/shared'
+// Config
+import { config } from '../config.js'
 // Errors
 import { ConflictError, NotFoundError } from '../errors.js'
 // Formatters
@@ -43,7 +45,18 @@ type RenderedTranscript = {
 }
 
 const finishedFrom: JobStatus = 'transcribing'
-const finalStatuses: JobStatus[] = [ 'done', 'failed' ]
+const finalStatuses: JobStatus[] = [
+  'done',
+  'failed',
+  'ready_for_review',
+  'summary_failed',
+  'saved',
+]
+const HOUR_MS = 3_600_000
+
+const expiryFromNow = (): string => {
+  return new Date( Date.now() + config.reviewTtlHours * HOUR_MS ).toISOString()
+}
 
 const toPublicJob = ( job: StoredJob ): Job => {
   return {
@@ -142,6 +155,55 @@ export const completeJob = ( id: string, transcript: Transcript ): Job => {
   }
 
   return moveTo( job, 'done', { transcript } )
+}
+
+export const completeTranscription = ( id: string, transcript: Transcript ): Job => {
+  const job = requireJob( id )
+
+  if( job.status !== 'transcribing' ) {
+    throw conflict( job.status, 'summarizing' )
+  }
+
+  return moveTo( job, 'summarizing', { transcript, title: transcript.meta.title } )
+}
+
+export const completeSummary = (
+  id: string,
+  summaryMarkdown: string,
+  suggestedTags: string[],
+): Job => {
+  const job = requireJob( id )
+
+  if( job.status !== 'summarizing' ) {
+    throw conflict( job.status, 'ready_for_review' )
+  }
+
+  return moveTo( job, 'ready_for_review', {
+    summary_markdown: summaryMarkdown,
+    suggested_tags: suggestedTags,
+    error: null,
+    expires_at: expiryFromNow(),
+  } )
+}
+
+export const failSummary = ( id: string, message: string ): Job => {
+  const job = requireJob( id )
+
+  if( job.status !== 'summarizing' ) {
+    throw conflict( job.status, 'summary_failed' )
+  }
+
+  return moveTo( job, 'summary_failed', { error: message, expires_at: expiryFromNow() } )
+}
+
+export const getTranscript = ( id: string ): Transcript => {
+  const job = requireJob( id )
+
+  if( job.transcript === null ) {
+    throw new Error( `Job ${ id } has no transcript` )
+  }
+
+  return job.transcript
 }
 
 export const failJob = ( id: string, message: string ): Job => {

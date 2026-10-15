@@ -43,7 +43,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 3.2 | Add `@anthropic-ai/sdk`; `SummaryResult` schema; `claude.client.ts` `summarizeTranscript` (SDK mocked in tests; check structured-output API via Context7) | 0014 | ✅ |
 | 3.3 | `summary.cleanup.ts`: verbatim-quote filter, timestamp bounds, tag normalization | 0014 | ✅ |
 | 3.4 | `summary.formatter.ts`: render the note body, YouTube links or plain timestamps | 0014 | ✅ |
-| 3.5 | Service: `completeTranscription` (→ `summarizing`, stores title), `completeSummary` (→ `ready_for_review`, sets `expires_at`), `failSummary`; `failJob` refuses the new end states | 0014, 0015 | ⬜ |
+| 3.5 | Service: `completeTranscription` (→ `summarizing`, stores title), `completeSummary` (→ `ready_for_review`, sets `expires_at`), `failSummary`; `failJob` refuses the new end states | 0014, 0015 | ✅ |
 | 3.6 | Worker: summarize step after transcription; `findNextRunnableJob` picks `queued` or `summarizing` | 0014 | ⬜ |
 | 3.7 | Worker: a `summarizing` job runs the summarize step only (resume after restart, and retries later) | 0014, 0015 | ⬜ |
 | 3.8 | Remove `done`: download allowed in `ready_for_review` / `summary_failed`; web shows downloads in those states | 0015 | ⬜ |
@@ -119,3 +119,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 - 3.2 ✅ Added `@anthropic-ai/sdk` (zod 4 works with `zodOutputFormat`); `claude.client.ts` `summarizeTranscript` via `messages.parse`, `SummaryResult` schema; max_tokens 16000, effort medium, one retry; refusal / max_tokens / unparsable output throw.
 - 3.3 ✅ `cleanSummary`: verbatim-quote filter (whitespace-normalised, case-sensitive), timestamp bounds, tag normalization (cap 5, drops `mnemosyne`).
 - 3.4 ✅ `formatSummary( summary, source )`: Summary / Key points / Notable quotes, YouTube links or plain timestamps; empty key points and quotes sections are omitted (agreed in the plan).
+- 3.5 ✅ Service: `completeTranscription`, `completeSummary`, `failSummary`, `getTranscript`; `failJob` refuses `ready_for_review`, `summary_failed`, `saved`. `completeJob` stays until 3.8.

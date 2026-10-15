@@ -16,9 +16,13 @@ import { clearJobs, findJobById, updateJob } from '../repositories/jobStore.repo
 // Services
 import {
   completeJob,
+  completeSummary,
+  completeTranscription,
   failJob,
+  failSummary,
   findJob,
   findNextQueuedJob,
+  getTranscript,
   markStatus,
   queueJob,
   recoverInterruptedJobs,
@@ -324,5 +328,139 @@ describe( 'recoverInterruptedJobs', () => {
 
   it( 'returns 0 when nothing needs recovery', () => {
     expect( recoverInterruptedJobs() ).toBe( 0 )
+  } )
+} )
+
+const queueSummarizing = (): string => {
+  const id = queueJobAt( 'transcribing' )
+  completeTranscription( id, transcript )
+
+  return id
+}
+
+describe( 'completeTranscription', () => {
+  it( 'moves a transcribing job to summarizing and stores transcript and title', () => {
+    const id = queueJobAt( 'transcribing' )
+
+    const job = completeTranscription( id, transcript )
+
+    expect( job.status ).toBe( 'summarizing' )
+    expect( job.title ).toBe( 'A talk' )
+    expect( job ).not.toHaveProperty( 'transcript' )
+    expect( findJobById( id )?.transcript ).toEqual( transcript )
+  } )
+
+  it.each( [ 'queued', 'downloading', 'converting', 'failed' ] as const )(
+    'throws ConflictError from %s and changes nothing',
+    ( status ) => {
+      const id = queueJobAt( status )
+      const before = findJobById( id )
+
+      expect( () => completeTranscription( id, transcript ) ).toThrow( ConflictError )
+      expect( findJobById( id ) ).toEqual( before )
+    },
+  )
+} )
+
+describe( 'completeSummary', () => {
+  it( 'stores the summary and tags and sets the expiry from the review TTL', () => {
+    const id = queueSummarizing()
+
+    const job = completeSummary( id, '## Summary\nText', [ 'rust' ] )
+
+    expect( job ).toMatchObject( {
+      status: 'ready_for_review',
+      summary_markdown: '## Summary\nText',
+      suggested_tags: [ 'rust' ],
+      error: null,
+      expires_at: new Date( startTime.getTime() + 24 * 3_600_000 ).toISOString(),
+    } )
+  } )
+
+  it.each( [ 'queued', 'transcribing', 'failed' ] as const )(
+    'throws ConflictError from %s',
+    ( status ) => {
+      const id = queueJobAt( status )
+
+      expect( () => completeSummary( id, 'x', [] ) ).toThrow( ConflictError )
+    },
+  )
+
+  it( 'throws ConflictError when called twice', () => {
+    const id = queueSummarizing()
+    completeSummary( id, 'x', [] )
+
+    expect( () => completeSummary( id, 'y', [] ) ).toThrow( ConflictError )
+  } )
+} )
+
+describe( 'failSummary', () => {
+  it( 'moves a summarizing job to summary_failed with the error and an expiry', () => {
+    const id = queueSummarizing()
+
+    const job = failSummary( id, 'Rate limited' )
+
+    expect( job ).toMatchObject( {
+      status: 'summary_failed',
+      error: 'Rate limited',
+      expires_at: new Date( startTime.getTime() + 24 * 3_600_000 ).toISOString(),
+    } )
+    expect( findJobById( id )?.transcript ).toEqual( transcript )
+  } )
+
+  it( 'throws ConflictError from a non-summarizing status', () => {
+    const id = queueJobAt( 'transcribing' )
+
+    expect( () => failSummary( id, 'x' ) ).toThrow( ConflictError )
+  } )
+} )
+
+describe( 'failJob after the summary steps', () => {
+  it.each( [ 'ready_for_review', 'summary_failed' ] as const )(
+    'refuses to fail a job in %s',
+    ( status ) => {
+      const id = queueSummarizing()
+
+      if( status === 'ready_for_review' ) {
+        completeSummary( id, 'x', [] )
+      } else {
+        failSummary( id, 'x' )
+      }
+
+      expect( () => failJob( id, 'late' ) ).toThrow( ConflictError )
+      expect( findJob( id ).status ).toBe( status )
+    },
+  )
+
+  it( 'refuses to fail a saved job', () => {
+    const id = queueSummarizing()
+    completeSummary( id, 'x', [] )
+    updateJob( id, { status: 'saved' } )
+
+    expect( () => failJob( id, 'late' ) ).toThrow( ConflictError )
+  } )
+
+  it( 'can still fail a summarizing job', () => {
+    const id = queueSummarizing()
+
+    expect( failJob( id, 'boom' ).status ).toBe( 'failed' )
+  } )
+} )
+
+describe( 'getTranscript', () => {
+  it( 'returns the stored transcript', () => {
+    const id = queueSummarizing()
+
+    expect( getTranscript( id ) ).toEqual( transcript )
+  } )
+
+  it( 'throws NotFoundError for an unknown job', () => {
+    expect( () => getTranscript( 'missing' ) ).toThrow( NotFoundError )
+  } )
+
+  it( 'throws when the job has no transcript', () => {
+    const { id } = queueJob( url )
+
+    expect( () => getTranscript( id ) ).toThrow( 'has no transcript' )
   } )
 } )
