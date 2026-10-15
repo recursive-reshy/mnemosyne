@@ -268,3 +268,75 @@ describe( 'openJobStore and closeJobStore', () => {
     expect( () => closeJobStore() ).not.toThrow()
   } )
 } )
+
+describe( 'storage', () => {
+  const transcript = {
+    meta: {
+      title: 'Ünïcode "quotes" and\nnewlines 日本語',
+      source: 'https://www.youtube.com/watch?v=abc',
+      channel: 'Some Channel',
+      duration_seconds: 60,
+      transcribed_at: '2026-10-14T10:04:00.000Z',
+      model: 'large-v3',
+    },
+    segments: [ { start: 0, end: 1.5, text: 'Hello' } ],
+  }
+
+  beforeEach( () => {
+    openJobStore( ':memory:' )
+  } )
+
+  afterEach( () => {
+    closeJobStore()
+  } )
+
+  it( 'round-trips the transcript and every summary field', () => {
+    const job = buildJob( {
+      title: transcript.meta.title,
+      summary_markdown: '## Summary\nText',
+      suggested_tags: [ 'machine-learning', 'rust' ],
+      expires_at: '2026-10-15T10:00:00.000Z',
+      saved_path: 'Mnemosyne/A talk.md',
+      transcript,
+    } )
+
+    insertJob( job )
+
+    expect( findJobById( job.id ) ).toEqual( job )
+  } )
+
+  it( 'stores a null transcript when an update sets it to null', () => {
+    const job = buildJob( { transcript } )
+    insertJob( job )
+
+    const updated = updateJob( job.id, { transcript: null } )
+
+    expect( updated?.transcript ).toBeNull()
+    expect( findJobById( job.id )?.transcript ).toBeNull()
+  } )
+
+  it( 'throws when a stored transcript no longer matches the schema', () => {
+    const directory = mkdtempSync( join( tmpdir(), 'mnemosyne-store-' ) )
+    const path = join( directory, 'mnemosyne.db' )
+
+    try {
+      openJobStore( path )
+      const job = buildJob()
+      insertJob( job )
+      const raw = new Database( path )
+      raw.prepare( 'UPDATE jobs SET transcript = ? WHERE id = ?' ).run( '{"nope":1}', job.id )
+      raw.close()
+
+      expect( () => findJobById( job.id ) ).toThrow()
+    } finally {
+      closeJobStore()
+      rmSync( directory, { recursive: true, force: true } )
+    }
+  } )
+
+  it( 'throws a clear error when the store is not open', () => {
+    closeJobStore()
+
+    expect( () => findJobById( crypto.randomUUID() ) ).toThrow( 'Job store is not open' )
+  } )
+} )

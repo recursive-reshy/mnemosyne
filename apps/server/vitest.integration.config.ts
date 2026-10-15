@@ -5,6 +5,7 @@ export default defineConfig( {
     conditions: [ 'development' ],
   },
   test: {
+    setupFiles: [ './src/test-support/jobStore.setup.ts' ],
     include: [ 'src/**/*.integration.test.ts' ],
     passWithNoTests: true,
     testTimeout: 600_000,
