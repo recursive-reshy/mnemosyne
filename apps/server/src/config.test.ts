@@ -13,6 +13,7 @@ describe( 'loadConfig', () => {
       whisperUrl: 'http://localhost:8178',
       workDir: join( tmpdir(), 'mnemosyne' ),
       whisperModel: 'large-v3-turbo',
+      webDir: undefined,
     } )
   } )
 
@@ -22,6 +23,7 @@ describe( 'loadConfig', () => {
       WHISPER_URL: 'http://host.docker.internal:8178',
       WORK_DIR: '/tmp/custom',
       WHISPER_MODEL: 'large-v3',
+      WEB_DIR: '/srv/web',
     } )
 
     expect( config ).toEqual( {
@@ -29,6 +31,7 @@ describe( 'loadConfig', () => {
       whisperUrl: 'http://host.docker.internal:8178',
       workDir: '/tmp/custom',
       whisperModel: 'large-v3',
+      webDir: '/srv/web',
     } )
   } )
 
@@ -41,6 +44,11 @@ describe( 'loadConfig', () => {
 
   it( 'falls back to the default model for an empty WHISPER_MODEL', () => {
     expect( loadConfig( { WHISPER_MODEL: '' } ).whisperModel ).toBe( 'large-v3-turbo' )
+  } )
+
+  it( 'reads WEB_DIR and treats an empty value as unset', () => {
+    expect( loadConfig( { WEB_DIR: '/srv/web' } ).webDir ).toBe( '/srv/web' )
+    expect( loadConfig( { WEB_DIR: '' } ).webDir ).toBeUndefined()
   } )
 
   it.each( [ 'abc', '0', '70000' ] )( 'throws naming PORT for PORT=%s', ( port ) => {

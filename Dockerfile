@@ -8,11 +8,14 @@ RUN corepack enable && corepack prepare pnpm@11.24.0 --activate
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/server/package.json apps/server/tsconfig.json apps/server/tsconfig.build.json apps/server/
 COPY packages/shared/package.json packages/shared/tsconfig.json packages/shared/tsconfig.build.json packages/shared/
+COPY apps/web/package.json apps/web/tsconfig.json apps/web/tsconfig.app.json apps/web/tsconfig.node.json apps/web/vite.config.ts apps/web/index.html apps/web/
 RUN pnpm install --frozen-lockfile
 
 COPY apps/server/src apps/server/src
 COPY packages/shared/src packages/shared/src
+COPY apps/web/src apps/web/src
 RUN pnpm --filter @mnemosyne/shared --filter @mnemosyne/server build \
+  && pnpm --filter @mnemosyne/web build \
   && pnpm --filter @mnemosyne/server deploy --legacy --prod /deploy
 
 
@@ -40,10 +43,12 @@ RUN echo "--js-runtimes node" > /etc/yt-dlp.conf
 
 ENV NODE_ENV=production \
     PORT=3100 \
-    WORK_DIR=/tmp/mnemosyne
+    WORK_DIR=/tmp/mnemosyne \
+    WEB_DIR=/app/web
 
 WORKDIR /app
 COPY --from=build --chown=node:node /deploy ./
+COPY --from=build --chown=node:node /repo/apps/web/dist ./web
 COPY --chown=node:node ops/docker-entrypoint.sh ./ops/docker-entrypoint.sh
 
 USER node

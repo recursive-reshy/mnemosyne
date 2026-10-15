@@ -15,12 +15,14 @@ const EnvSchema = z
     WHISPER_URL: z.preprocess( emptyAsUnset, z.url().default( 'http://localhost:8178' ) ),
     WORK_DIR: z.preprocess( emptyAsUnset, z.string().min( 1 ).default( defaultWorkDir ) ),
     WHISPER_MODEL: z.preprocess( emptyAsUnset, z.string().min( 1 ).default( 'large-v3-turbo' ) ),
+    WEB_DIR: z.preprocess( emptyAsUnset, z.string().min( 1 ).optional() ),
   } )
   .transform( ( env ) => ( {
     port: env.PORT,
     whisperUrl: env.WHISPER_URL,
     workDir: env.WORK_DIR,
     whisperModel: env.WHISPER_MODEL,
+    webDir: env.WEB_DIR,
   } ) )
 
 export type Config = z.infer< typeof EnvSchema >
