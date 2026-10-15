@@ -34,7 +34,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 2.4 | Startup recovery: `markInterruptedJobs` + `recoverInterruptedJobs` (downloading/converting/transcribing → `failed`) | 0012 | ✅ |
 
 ## Checkpoint B: Phase 3 (summarizer)
-**Plan:** ⬜ [`plans/checkpoint-b.md`](plans/checkpoint-b.md)
+**Plan:** ✅ [`plans/checkpoint-b.md`](plans/checkpoint-b.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
