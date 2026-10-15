@@ -32,6 +32,7 @@ const transcript = {
 }
 
 beforeEach( () => {
+  window.localStorage.clear()
   mockedUseTranscript.mockReset()
   mockedUseTranscript.mockReturnValue( { transcript, error: null } )
 } )
@@ -120,5 +121,32 @@ describe( 'ReviewScreen summary and transcript', () => {
     expect( screen.queryByRole( 'textbox', { name: 'Summary' } ) ).not.toBeInTheDocument()
     expect( screen.getByRole( 'region', { name: 'Transcript' } ) )
       .toHaveTextContent( '[00:00] Welcome to the talk.' )
+  } )
+} )
+
+describe( 'ReviewScreen drafts', () => {
+  const key = `mnemosyne:draft:${ reviewJob.id }`
+
+  it( 'stores edits in the draft', async () => {
+    renderWithClient( <ReviewScreen job={ reviewJob } /> )
+    const user = userEvent.setup()
+
+    await user.type( screen.getByRole( 'textbox', { name: 'Summary' } ), '!' )
+
+    const stored = JSON.parse( window.localStorage.getItem( key ) ?? 'null' ) as { body: string }
+    expect( stored.body ).toBe( '## Summary\nText.!' )
+  } )
+
+  it( 'restores a stored draft over the server values', () => {
+    window.localStorage.setItem(
+      key,
+      JSON.stringify( { title: 'My title', tags: [ 'go' ], body: 'My summary' } ),
+    )
+
+    renderWithClient( <ReviewScreen job={ reviewJob } /> )
+
+    expect( screen.getByRole( 'textbox', { name: 'Title' } ) ).toHaveValue( 'My title' )
+    expect( screen.getByRole( 'textbox', { name: 'Summary' } ) ).toHaveValue( 'My summary' )
+    expect( screen.getByRole( 'button', { name: 'Remove tag go' } ) ).toBeInTheDocument()
   } )
 } )

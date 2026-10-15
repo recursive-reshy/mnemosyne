@@ -183,6 +183,26 @@ describe( 'useJob', () => {
     expect( mockedGetJob ).toHaveBeenCalledTimes( 1 )
   } )
 
+  it( 'drops the stored draft of a job that is gone', async () => {
+    window.localStorage.setItem( 'mnemosyne:draft:a', '{"title":"x","tags":[],"body":""}' )
+    mockedGetJob.mockRejectedValue( new ApiError( 'Job not found', 404 ) )
+
+    renderHookWithClient( () => useJob( 'a' ) )
+    await advance( 0 )
+
+    expect( window.localStorage.getItem( 'mnemosyne:draft:a' ) ).toBeNull()
+  } )
+
+  it( 'keeps the stored draft on a transient error', async () => {
+    window.localStorage.setItem( 'mnemosyne:draft:a', '{"title":"x","tags":[],"body":""}' )
+    mockedGetJob.mockRejectedValue( new ApiError( 'Could not reach the server', null ) )
+
+    renderHookWithClient( () => useJob( 'a' ) )
+    await advance( 0 )
+
+    expect( window.localStorage.getItem( 'mnemosyne:draft:a' ) ).not.toBeNull()
+  } )
+
   it( 'ignores a late response for an old id', async () => {
     const jobA = deferred()
     mockedGetJob.mockReturnValueOnce( jobA.promise )

@@ -1,9 +1,9 @@
 // React
-import { useState } from 'react'
 import type { ReactElement } from 'react'
 // Shared
 import type { Job } from '@mnemosyne/shared'
 // App
+import { useDraft } from '#src/hooks/useDraft'
 import { useTranscript } from '#src/hooks/useTranscript'
 import { DownloadLinks } from '../DownloadLinks'
 import { FilenamePreview } from '../FilenamePreview'
@@ -19,9 +19,11 @@ interface ReviewScreenProps {
 
 export function ReviewScreen( { job }: ReviewScreenProps ): ReactElement {
   const hasFailed = job.status === 'summary_failed'
-  const [ title, setTitle ] = useState( job.title ?? '' )
-  const [ tags, setTags ] = useState( job.suggested_tags )
-  const [ summary, setSummary ] = useState( job.summary_markdown ?? '' )
+  const { draft, setTitle, setTags, setBody } = useDraft( job.id, {
+    title: job.title ?? '',
+    tags: job.suggested_tags,
+    body: job.summary_markdown ?? '',
+  } )
   const { transcript, error: transcriptError } = useTranscript( job.id )
 
   return (
@@ -30,14 +32,14 @@ export function ReviewScreen( { job }: ReviewScreenProps ): ReactElement {
       { hasFailed && <p className="alert" role="alert">{ job.error ?? 'Summary failed.' }</p> }
       { !hasFailed && (
         <>
-          <TitleField value={ title } onChange={ setTitle } />
-          <FilenamePreview title={ title } />
-          <TagInput tags={ tags } onChange={ setTags } />
+          <TitleField value={ draft.title } onChange={ setTitle } />
+          <FilenamePreview title={ draft.title } />
+          <TagInput tags={ draft.tags } onChange={ setTags } />
         </>
       ) }
       <div className={ styles.columns }>
         { !hasFailed && (
-          <SummaryEditor value={ summary } onChange={ setSummary } />
+          <SummaryEditor value={ draft.body } onChange={ setBody } />
         ) }
         <TranscriptPane transcript={ transcript } error={ transcriptError } />
       </div>

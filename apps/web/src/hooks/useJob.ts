@@ -1,3 +1,5 @@
+// React
+import { useEffect } from 'react'
 // Packages
 import { useQuery } from '@tanstack/react-query'
 // Shared
@@ -5,6 +7,7 @@ import type { Job } from '@mnemosyne/shared'
 // App
 import { ApiError } from '../api/apiError'
 import { getJob } from '../api/jobs.api'
+import { clearDraft } from './useDraft'
 import { jobKeys } from './queryKeys'
 
 export const POLL_INTERVAL_MS = 2000
@@ -45,11 +48,19 @@ export function useJob( jobId: string | null ): JobState {
     },
   } )
 
+  const hasVanished = isGone( error )
+
+  useEffect( () => {
+    if( hasVanished && jobId !== null ) {
+      clearDraft( jobId )
+    }
+  }, [ hasVanished, jobId ] )
+
   if( jobId === null ) {
     return { job: null, error: null }
   }
 
-  if( isGone( error ) ) {
+  if( hasVanished ) {
     return { job: null, error: JOB_GONE_MESSAGE }
   }
 

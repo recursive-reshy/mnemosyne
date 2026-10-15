@@ -40,7 +40,7 @@ src/
 ## Layers
 
 - **Components** render props and call handlers. No `fetch`, no timers, no URL handling (only the route components touch the router). They may import the URL builders from `api/` (such as `downloadUrl`), never the functions that fetch.
-- **Hooks** hold state and effects, and call `api/`.
+- **Hooks** hold state and effects, and call `api/`. Browser storage (drafts, ADR 0016) is reached only from hooks, always inside try/catch, and the app works without it.
 - **`api/`** is the only code that calls `fetch`. It uses relative `/api/...` URLs, parses every response with a schema from `@mnemosyne/shared`, and throws an `Error` with a readable message on a non-2xx response (using the server's `{ error }` body when it parses) or a network failure.
 - **Route components** (`HomePage`, `JobPage`) own the URL: they read it with `useParams` and change it with `useNavigate` / `Navigate`. Nothing else reads or writes `window.location` or the router.
 - Downloads are `<a href="/api/jobs/:id/download?format=…">` links.
