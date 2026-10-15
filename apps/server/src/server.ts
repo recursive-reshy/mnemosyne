@@ -3,6 +3,8 @@ import { mkdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 // App
 import { app } from './app.js'
+// Clients
+import { assertVaultWritable } from './clients/vault.client.js'
 // Config
 import { config } from './config.js'
 // Repositories
@@ -16,6 +18,13 @@ import { startWorker } from './worker/worker.js'
 
 // Audio is deleted when a job ends, so anything left here belongs to a job cut short by a shutdown.
 await rm( config.workDir, { recursive: true, force: true } )
+
+try {
+  await assertVaultWritable( config.vaultPath )
+} catch( error ) {
+  console.error( error instanceof Error ? error.message : error )
+  process.exit( 1 )
+}
 
 await mkdir( config.dataDir, { recursive: true } )
 openJobStore( join( config.dataDir, 'mnemosyne.db' ) )

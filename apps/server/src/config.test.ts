@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest'
 // Config
 import { loadConfig } from './config.js'
 
-const base = { ANTHROPIC_API_KEY: 'sk-test' }
+const base = { ANTHROPIC_API_KEY: 'sk-test', VAULT_PATH: '/vault' }
 
 describe( 'loadConfig', () => {
   it( 'returns the defaults for a minimal environment', () => {
@@ -18,6 +18,7 @@ describe( 'loadConfig', () => {
       whisperModel: 'large-v3-turbo',
       webDir: undefined,
       anthropicApiKey: 'sk-test',
+      vaultPath: '/vault',
       summaryTimeoutMs: 300_000,
       reviewTtlHours: 24,
     } )
@@ -26,6 +27,7 @@ describe( 'loadConfig', () => {
   it( 'returns overrides, with numbers as numbers', () => {
     const config = loadConfig( {
       ...base,
+      VAULT_PATH: '/Users/x/Vault',
       PORT: '4000',
       WHISPER_URL: 'http://host.docker.internal:8178',
       WORK_DIR: '/tmp/custom',
@@ -44,6 +46,7 @@ describe( 'loadConfig', () => {
       whisperModel: 'large-v3',
       webDir: '/srv/web',
       anthropicApiKey: 'sk-test',
+      vaultPath: '/Users/x/Vault',
       summaryTimeoutMs: 60_000,
       reviewTtlHours: 48,
     } )
@@ -88,6 +91,10 @@ describe( 'loadConfig', () => {
 
   it.each( [ undefined, '' ] )( 'throws naming ANTHROPIC_API_KEY when it is %j', ( key ) => {
     expect( () => loadConfig( { ANTHROPIC_API_KEY: key } ) ).toThrow( /ANTHROPIC_API_KEY/ )
+  } )
+
+  it.each( [ undefined, '' ] )( 'throws naming VAULT_PATH when it is %j', ( path ) => {
+    expect( () => loadConfig( { ...base, VAULT_PATH: path } ) ).toThrow( /VAULT_PATH/ )
   } )
 
   it.each( [ 'abc', '0', '-5', '1.5' ] )( 'throws naming SUMMARY_TIMEOUT_MS for %s', ( value ) => {

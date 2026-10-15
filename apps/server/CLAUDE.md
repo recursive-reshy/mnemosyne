@@ -36,6 +36,7 @@ Parsed once with Zod in `config.ts`; nothing else reads `process.env`.
 - `DATA_DIR`: where `mnemosyne.db` (the SQLite job store) lives; default `<OS temp dir>/mnemosyne-data`.
 - `WHISPER_MODEL`: label stored as the transcript's `model` (whisper-server doesn't report it); default `large-v3-turbo`.
 - `ANTHROPIC_API_KEY`: required; the Claude key used to summarize transcripts. Lives in `.env` only.
+- `VAULT_PATH`: required; the Obsidian vault folder. Notes are written to `<VAULT_PATH>/Mnemosyne/`. It must exist and be writable at startup, or the server exits with a message.
 - `SUMMARY_TIMEOUT_MS`: timeout of one summary request; default `300000`.
 - `REVIEW_TTL_HOURS`: hours a job in review or with a failed summary is kept before deletion; default `24`.
 - `WEB_DIR`: folder with the built web app; leave empty in development (Vite serves it). When set, Express serves it, with an `index.html` fallback for paths without an extension.

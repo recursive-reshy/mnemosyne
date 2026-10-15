@@ -21,6 +21,7 @@ const EnvSchema = z
     WHISPER_MODEL: z.preprocess( emptyAsUnset, z.string().min( 1 ).default( 'large-v3-turbo' ) ),
     WEB_DIR: z.preprocess( emptyAsUnset, z.string().min( 1 ).optional() ),
     ANTHROPIC_API_KEY: z.string().min( 1 ),
+    VAULT_PATH: z.string().min( 1 ),
     SUMMARY_TIMEOUT_MS: z.preprocess( emptyAsUnset, summaryTimeoutSchema ),
     REVIEW_TTL_HOURS: z.preprocess( emptyAsUnset, reviewTtlSchema ),
   } )
@@ -32,6 +33,7 @@ const EnvSchema = z
     whisperModel: env.WHISPER_MODEL,
     webDir: env.WEB_DIR,
     anthropicApiKey: env.ANTHROPIC_API_KEY,
+    vaultPath: env.VAULT_PATH,
     summaryTimeoutMs: env.SUMMARY_TIMEOUT_MS,
     reviewTtlHours: env.REVIEW_TTL_HOURS,
   } ) )
