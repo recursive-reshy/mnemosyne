@@ -136,6 +136,25 @@ describe( 'useJob', () => {
     expect( result.current.error ).toBeNull()
   } )
 
+  it( 'uses a fallback message for a non-Error rejection and keeps polling', async () => {
+    mockedGetJob
+      .mockResolvedValueOnce( jobFixture( { status: 'queued' } ) )
+      .mockRejectedValueOnce( 'boom' )
+      .mockResolvedValueOnce( jobFixture( { status: 'downloading' } ) )
+
+    const { result } = renderHook( () => useJob( 'a' ) )
+    await advance( 0 )
+    await advance( POLL_INTERVAL_MS )
+
+    expect( result.current.job?.status ).toBe( 'queued' )
+    expect( result.current.error ).toBe( 'Unexpected error' )
+
+    await advance( POLL_INTERVAL_MS )
+
+    expect( result.current.job?.status ).toBe( 'downloading' )
+    expect( result.current.error ).toBeNull()
+  } )
+
   it( 'stops on a 404', async () => {
     mockedGetJob.mockRejectedValue( new ApiError( 'Job not found', 404 ) )
 
