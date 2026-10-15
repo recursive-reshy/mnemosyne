@@ -9,6 +9,8 @@ const emptyAsUnset = ( value: unknown ): unknown => ( value === '' ? undefined :
 const defaultWorkDir = join( tmpdir(), 'mnemosyne' )
 const defaultDataDir = join( tmpdir(), 'mnemosyne-data' )
 const portSchema = z.coerce.number().int().min( 1 ).max( 65535 ).default( 3100 )
+const summaryTimeoutSchema = z.coerce.number().int().positive().default( 300_000 )
+const reviewTtlSchema = z.coerce.number().positive().default( 24 )
 
 const EnvSchema = z
   .object( {
@@ -18,6 +20,9 @@ const EnvSchema = z
     DATA_DIR: z.preprocess( emptyAsUnset, z.string().min( 1 ).default( defaultDataDir ) ),
     WHISPER_MODEL: z.preprocess( emptyAsUnset, z.string().min( 1 ).default( 'large-v3-turbo' ) ),
     WEB_DIR: z.preprocess( emptyAsUnset, z.string().min( 1 ).optional() ),
+    ANTHROPIC_API_KEY: z.string().min( 1 ),
+    SUMMARY_TIMEOUT_MS: z.preprocess( emptyAsUnset, summaryTimeoutSchema ),
+    REVIEW_TTL_HOURS: z.preprocess( emptyAsUnset, reviewTtlSchema ),
   } )
   .transform( ( env ) => ( {
     port: env.PORT,
@@ -26,6 +31,9 @@ const EnvSchema = z
     dataDir: env.DATA_DIR,
     whisperModel: env.WHISPER_MODEL,
     webDir: env.WEB_DIR,
+    anthropicApiKey: env.ANTHROPIC_API_KEY,
+    summaryTimeoutMs: env.SUMMARY_TIMEOUT_MS,
+    reviewTtlHours: env.REVIEW_TTL_HOURS,
   } ) )
 
 export type Config = z.infer< typeof EnvSchema >

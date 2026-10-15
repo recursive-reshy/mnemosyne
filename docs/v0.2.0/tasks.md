@@ -39,7 +39,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
 | **Phase 3** | **Summarizer** | | |
-| 3.1 | Config: `ANTHROPIC_API_KEY`, `SUMMARY_TIMEOUT_MS`, `REVIEW_TTL_HOURS`; `settings.ts` with `getSummaryModel()` | 0014 | ⬜ |
+| 3.1 | Config: `ANTHROPIC_API_KEY`, `SUMMARY_TIMEOUT_MS`, `REVIEW_TTL_HOURS`; `settings.ts` with `getSummaryModel()` | 0014 | ✅ |
 | 3.2 | Add `@anthropic-ai/sdk`; `SummaryResult` schema; `claude.client.ts` `summarizeTranscript` (SDK mocked in tests; check structured-output API via Context7) | 0014 | ⬜ |
 | 3.3 | `summary.cleanup.ts`: verbatim-quote filter, timestamp bounds, tag normalization | 0014 | ⬜ |
 | 3.4 | `summary.formatter.ts`: render the note body, YouTube links or plain timestamps | 0014 | ⬜ |
@@ -115,3 +115,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 - 2.2 ✅ Repository functions re-implemented on SQLite (same signatures); transcript and tags stored as JSON and parsed with the shared schemas on read; a Vitest setup file opens `:memory:` per test (also wired into the integration config) so existing tests are untouched.
 - 2.3 ✅ `DATA_DIR` in config (default `<tmp>/mnemosyne-data`); `server.ts` opens `mnemosyne.db` there, `shutdown.ts` closes the store after the worker and server stop (not on timeout). Existing config exact-shape test and the shutdown `build` helper gained the new field. Docker volume wiring is 5.1.
 - 2.4 ✅ `markInterruptedJobs` (repository) and `recoverInterruptedJobs` (service); `server.ts` runs it after opening the store and before starting the worker.
+- 3.1 ✅ Config: required `ANTHROPIC_API_KEY`, `SUMMARY_TIMEOUT_MS` (300000), `REVIEW_TTL_HOURS` (24); `settings.ts` `getSummaryModel()`; Vitest sets a test key. `config.test.ts` rewritten around the new required key and fields.
