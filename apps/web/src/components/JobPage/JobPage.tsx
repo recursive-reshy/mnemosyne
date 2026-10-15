@@ -8,8 +8,8 @@ import { Job } from '@mnemosyne/shared'
 // App
 import { createJob } from '#src/api/jobs.api'
 import { useJob } from '#src/hooks/useJob'
-import { DownloadLinks } from '../DownloadLinks'
 import { JobProgress } from '../JobProgress'
+import { ReviewScreen } from '../ReviewScreen'
 
 const DOWNLOADABLE_STATUSES: Job[ 'status' ][] = [ 'ready_for_review', 'summary_failed' ]
 
@@ -53,14 +53,28 @@ export function JobPage(): ReactElement {
     return <p role="status">Loading job…</p>
   }
 
+  if( job.status === 'saved' ) {
+    return (
+      <>
+        <p role="status">Saved to { job.saved_path }</p>
+        <button type="button" onClick={ handleStartOver }>Transcribe another video</button>
+      </>
+    )
+  }
+
+  const isInReview = DOWNLOADABLE_STATUSES.includes( job.status )
+
   return (
     <>
-      <JobProgress
-        job={ job }
-        connectionError={ error }
-        onRetry={ () => void handleRetry( job.url ) }
-      />
-      { DOWNLOADABLE_STATUSES.includes( job.status ) && <DownloadLinks jobId={ job.id } /> }
+      { isInReview
+        ? <ReviewScreen job={ job } />
+        : (
+          <JobProgress
+            job={ job }
+            connectionError={ error }
+            onRetry={ () => void handleRetry( job.url ) }
+          />
+        ) }
       { submitError && <p className="alert" role="alert">{ submitError }</p> }
       <button type="button" onClick={ handleStartOver }>Transcribe another video</button>
     </>

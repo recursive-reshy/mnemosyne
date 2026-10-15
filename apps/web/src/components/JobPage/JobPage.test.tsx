@@ -132,6 +132,73 @@ describe( 'JobPage', () => {
       .toHaveAttribute( 'href', `/api/jobs/${ jobId }/download?format=md` )
   } )
 
+  describe( 'when the job is ready for review', () => {
+    const reviewJob = jobFixture( {
+      status: 'ready_for_review',
+      title: 'How Rust Works',
+      summary_markdown: '## Summary\nOwnership is central.',
+      suggested_tags: [ 'rust' ],
+      expires_at: '2026-10-16T10:00:00.000Z',
+    } )
+
+    it( 'shows the title, the summary and the transcript regions', () => {
+      showJob( reviewJob )
+      renderPage()
+
+      expect( screen.getByRole( 'heading', { level: 2, name: 'How Rust Works' } ) )
+        .toBeInTheDocument()
+      expect( screen.getByRole( 'region', { name: 'Summary' } ) )
+        .toHaveTextContent( 'Ownership is central.' )
+      expect( screen.getByRole( 'region', { name: 'Transcript' } ) ).toBeInTheDocument()
+      expect( screen.getByRole( 'region', { name: 'Download transcript' } ) )
+        .toBeInTheDocument()
+    } )
+
+    it( 'does not show the progress stages', () => {
+      showJob( reviewJob )
+      renderPage()
+
+      expect( screen.queryByRole( 'list', { name: /stages/i } ) ).not.toBeInTheDocument()
+      expect( screen.queryByLabelText( 'Job progress' ) ).not.toBeInTheDocument()
+    } )
+  } )
+
+  describe( 'when the summary failed', () => {
+    const failedJob = jobFixture( {
+      status: 'summary_failed',
+      title: 'How Rust Works',
+      error: 'Summary request failed: Rate limited',
+    } )
+
+    it( 'shows the reason, the downloads and no summary editor', () => {
+      showJob( failedJob )
+      renderPage()
+
+      expect( screen.getByRole( 'alert' ) )
+        .toHaveTextContent( 'Summary request failed: Rate limited' )
+      expect( screen.getByRole( 'region', { name: 'Download transcript' } ) )
+        .toBeInTheDocument()
+      expect( screen.queryByRole( 'region', { name: 'Summary' } ) ).not.toBeInTheDocument()
+    } )
+  } )
+
+  describe( 'when the job is saved', () => {
+    it( 'shows where the note was saved and a way home', async () => {
+      showJob( jobFixture( { status: 'saved', saved_path: 'Mnemosyne/How Rust Works.md' } ) )
+      const { location } = renderPage()
+      const user = userEvent.setup()
+
+      expect( screen.getByRole( 'status' ) )
+        .toHaveTextContent( 'Saved to Mnemosyne/How Rust Works.md' )
+      expect( screen.queryByRole( 'region', { name: 'Download transcript' } ) )
+        .not.toBeInTheDocument()
+
+      await user.click( screen.getByRole( 'button', { name: 'Transcribe another video' } ) )
+
+      expect( location().pathname ).toBe( '/' )
+    } )
+  } )
+
   it( 'shows a connection error next to the job', () => {
     showJob( jobFixture( { status: 'downloading' } ), 'Could not reach the server' )
     renderPage()

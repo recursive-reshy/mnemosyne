@@ -1,0 +1,25 @@
+.review {
+  display: flex;
+  flex-direction: column;
+  gap: var( --space-3 );
+  width: 100%;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.columns {
+  display: grid;
+  gap: var( --space-3 );
+}
+
+.pane {
+  min-width: 0;
+}
+
+.summary {
+  margin: 0;
+  white-space: pre-wrap;
+}
