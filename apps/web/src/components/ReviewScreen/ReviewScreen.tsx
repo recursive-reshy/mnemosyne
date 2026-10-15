@@ -3,7 +3,9 @@ import type { ReactElement } from 'react'
 // Shared
 import type { Job } from '@mnemosyne/shared'
 // App
+import { useDiscardJob } from '#src/hooks/useDiscardJob'
 import { useDraft } from '#src/hooks/useDraft'
+import { useRetrySummary } from '#src/hooks/useRetrySummary'
 import { useSaveJob } from '#src/hooks/useSaveJob'
 import { useTranscript } from '#src/hooks/useTranscript'
 import { DownloadLinks } from '../DownloadLinks'
@@ -17,9 +19,10 @@ import styles from './ReviewScreen.module.css'
 interface ReviewScreenProps {
   job: Job
   onSaved: ( savedPath: string ) => void
+  onDiscarded: () => void
 }
 
-export function ReviewScreen( { job, onSaved }: ReviewScreenProps ): ReactElement {
+export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps ): ReactElement {
   const hasFailed = job.status === 'summary_failed'
   const { draft, setTitle, setTags, setBody } = useDraft( job.id, {
     title: job.title ?? '',
@@ -28,6 +31,12 @@ export function ReviewScreen( { job, onSaved }: ReviewScreenProps ): ReactElemen
   } )
   const { transcript, error: transcriptError } = useTranscript( job.id )
   const save = useSaveJob( job.id )
+  const discard = useDiscardJob( job.id )
+  const retry = useRetrySummary( job.id )
+
+  const handleDiscard = (): void => {
+    discard.mutate( undefined, { onSuccess: () => onDiscarded() } )
+  }
 
   const handleSave = (): void => {
     save.mutate(
@@ -55,18 +64,34 @@ export function ReviewScreen( { job, onSaved }: ReviewScreenProps ): ReactElemen
       </div>
       <DownloadLinks jobId={ job.id } />
       { save.isError && <p className="alert" role="alert">{ save.error.message }</p> }
-      { !hasFailed && (
-        <div className={ styles.actions }>
-          <button
-            type="button"
-            className={ styles.primary }
-            disabled={ save.isPending || draft.title.trim() === '' }
-            onClick={ handleSave }
-          >
-            { save.isPending ? 'Saving…' : 'Save to vault' }
-          </button>
-        </div>
-      ) }
+      { retry.isError && <p className="alert" role="alert">{ retry.error.message }</p> }
+      { discard.isError && <p className="alert" role="alert">{ discard.error.message }</p> }
+      <div className={ styles.actions }>
+        { hasFailed
+          ? (
+            <button
+              type="button"
+              className={ styles.primary }
+              disabled={ retry.isPending }
+              onClick={ () => retry.mutate() }
+            >
+              { retry.isPending ? 'Retrying…' : 'Retry summary' }
+            </button>
+          )
+          : (
+            <button
+              type="button"
+              className={ styles.primary }
+              disabled={ save.isPending || draft.title.trim() === '' }
+              onClick={ handleSave }
+            >
+              { save.isPending ? 'Saving…' : 'Save to vault' }
+            </button>
+          ) }
+        <button type="button" disabled={ discard.isPending } onClick={ handleDiscard }>
+          Discard
+        </button>
+      </div>
     </div>
   )
 }

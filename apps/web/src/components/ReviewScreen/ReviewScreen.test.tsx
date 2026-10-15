@@ -11,7 +11,7 @@ import {
 } from 'vitest'
 // App
 import { ApiError } from '#src/api/apiError'
-import { saveJob } from '#src/api/jobs.api'
+import { discardJob, retrySummary, saveJob } from '#src/api/jobs.api'
 import { useTranscript } from '#src/hooks/useTranscript'
 import { jobFixture } from '#src/test-support/job.fixture'
 import { renderWithClient } from '#src/test-support/renderWithClient'
@@ -21,6 +21,8 @@ vi.mock( '#src/hooks/useTranscript' )
 vi.mock( '#src/api/jobs.api' )
 
 const mockedSaveJob = vi.mocked( saveJob )
+const mockedDiscardJob = vi.mocked( discardJob )
+const mockedRetrySummary = vi.mocked( retrySummary )
 
 const mockedUseTranscript = vi.mocked( useTranscript )
 
@@ -41,6 +43,8 @@ beforeEach( () => {
   mockedUseTranscript.mockReset()
   mockedUseTranscript.mockReturnValue( { transcript, error: null } )
   mockedSaveJob.mockReset()
+  mockedDiscardJob.mockReset()
+  mockedRetrySummary.mockReset()
 } )
 
 const reviewJob = jobFixture( {
@@ -50,18 +54,20 @@ const reviewJob = jobFixture( {
   suggested_tags: [ 'rust' ],
 } )
 
+const handlers = () => ( { onSaved: vi.fn(), onDiscarded: vi.fn() } )
+
 const failedJob = { ...reviewJob, status: 'summary_failed' as const, error: 'x' }
 
 describe( 'ReviewScreen title', () => {
   it( 'starts with the job title and shows the file name it will get', () => {
-    renderWithClient( <ReviewScreen job={ reviewJob } onSaved={ vi.fn() } /> )
+    renderWithClient( <ReviewScreen job={ reviewJob } { ...handlers() } /> )
 
     expect( screen.getByRole( 'textbox', { name: 'Title' } ) ).toHaveValue( 'How Rust Works' )
     expect( screen.getByText( 'Mnemosyne/How Rust Works.md' ) ).toBeInTheDocument()
   } )
 
   it( 'updates the file name as the title is edited', async () => {
-    renderWithClient( <ReviewScreen job={ reviewJob } onSaved={ vi.fn() } /> )
+    renderWithClient( <ReviewScreen job={ reviewJob } { ...handlers() } /> )
     const user = userEvent.setup()
     const field = screen.getByRole( 'textbox', { name: 'Title' } )
 
@@ -73,7 +79,7 @@ describe( 'ReviewScreen title', () => {
 
   it( 'has no title field when the summary failed', () => {
     renderWithClient(
-      <ReviewScreen job={ failedJob } onSaved={ vi.fn() } />,
+      <ReviewScreen job={ failedJob } { ...handlers() } />,
     )
 
     expect( screen.queryByRole( 'textbox', { name: 'Title' } ) ).not.toBeInTheDocument()
@@ -83,7 +89,7 @@ describe( 'ReviewScreen title', () => {
 describe( 'ReviewScreen tags', () => {
   it( 'starts with mnemosyne and the suggested tags and lets the user edit them', async () => {
     const taggedJob = { ...reviewJob, suggested_tags: [ 'rust', 'go' ] }
-    renderWithClient( <ReviewScreen job={ taggedJob } onSaved={ vi.fn() } /> )
+    renderWithClient( <ReviewScreen job={ taggedJob } { ...handlers() } /> )
     const user = userEvent.setup()
 
     const names = (): string[] => {
@@ -103,7 +109,7 @@ describe( 'ReviewScreen tags', () => {
 
 describe( 'ReviewScreen summary and transcript', () => {
   it( 'edits the summary Markdown', async () => {
-    renderWithClient( <ReviewScreen job={ reviewJob } onSaved={ vi.fn() } /> )
+    renderWithClient( <ReviewScreen job={ reviewJob } { ...handlers() } /> )
     const user = userEvent.setup()
     const editor = screen.getByRole( 'textbox', { name: 'Summary' } )
 
@@ -115,7 +121,7 @@ describe( 'ReviewScreen summary and transcript', () => {
   } )
 
   it( 'shows the transcript next to the summary', () => {
-    renderWithClient( <ReviewScreen job={ reviewJob } onSaved={ vi.fn() } /> )
+    renderWithClient( <ReviewScreen job={ reviewJob } { ...handlers() } /> )
 
     expect( mockedUseTranscript ).toHaveBeenCalledWith( reviewJob.id )
     expect( screen.getByRole( 'region', { name: 'Transcript' } ) )
@@ -124,7 +130,7 @@ describe( 'ReviewScreen summary and transcript', () => {
 
   it( 'keeps the transcript, without the editor, when the summary failed', () => {
     renderWithClient(
-      <ReviewScreen job={ failedJob } onSaved={ vi.fn() } />,
+      <ReviewScreen job={ failedJob } { ...handlers() } />,
     )
 
     expect( screen.queryByRole( 'textbox', { name: 'Summary' } ) ).not.toBeInTheDocument()
@@ -137,7 +143,7 @@ describe( 'ReviewScreen drafts', () => {
   const key = `mnemosyne:draft:${ reviewJob.id }`
 
   it( 'stores edits in the draft', async () => {
-    renderWithClient( <ReviewScreen job={ reviewJob } onSaved={ vi.fn() } /> )
+    renderWithClient( <ReviewScreen job={ reviewJob } { ...handlers() } /> )
     const user = userEvent.setup()
 
     await user.type( screen.getByRole( 'textbox', { name: 'Summary' } ), '!' )
@@ -152,7 +158,7 @@ describe( 'ReviewScreen drafts', () => {
       JSON.stringify( { title: 'My title', tags: [ 'go' ], body: 'My summary' } ),
     )
 
-    renderWithClient( <ReviewScreen job={ reviewJob } onSaved={ vi.fn() } /> )
+    renderWithClient( <ReviewScreen job={ reviewJob } { ...handlers() } /> )
 
     expect( screen.getByRole( 'textbox', { name: 'Title' } ) ).toHaveValue( 'My title' )
     expect( screen.getByRole( 'textbox', { name: 'Summary' } ) ).toHaveValue( 'My summary' )
@@ -167,7 +173,7 @@ describe( 'ReviewScreen save', () => {
   it( 'sends the edited title, tags and summary and reports the saved path', async () => {
     mockedSaveJob.mockResolvedValue( 'Mnemosyne/My Title.md' )
     const onSaved = vi.fn()
-    renderWithClient( <ReviewScreen job={ reviewJob } onSaved={ onSaved } /> )
+    renderWithClient( <ReviewScreen job={ reviewJob } { ...handlers() } onSaved={ onSaved } /> )
     const user = userEvent.setup()
 
     const title = screen.getByRole( 'textbox', { name: 'Title' } )
@@ -190,7 +196,7 @@ describe( 'ReviewScreen save', () => {
     mockedSaveJob.mockReturnValue( new Promise< string >( ( resolver ) => {
       resolve = resolver
     } ) )
-    renderWithClient( <ReviewScreen job={ reviewJob } onSaved={ vi.fn() } /> )
+    renderWithClient( <ReviewScreen job={ reviewJob } { ...handlers() } /> )
     const user = userEvent.setup()
 
     await user.click( saveButton() )
@@ -204,7 +210,7 @@ describe( 'ReviewScreen save', () => {
   it( 'clears the draft and refreshes the job list after saving', async () => {
     mockedSaveJob.mockResolvedValue( 'Mnemosyne/How Rust Works.md' )
     const { queryClient } = renderWithClient(
-      <ReviewScreen job={ reviewJob } onSaved={ vi.fn() } />,
+      <ReviewScreen job={ reviewJob } { ...handlers() } />,
     )
     const invalidate = vi.spyOn( queryClient, 'invalidateQueries' )
     const user = userEvent.setup()
@@ -220,7 +226,7 @@ describe( 'ReviewScreen save', () => {
   it( 'shows the server message on failure and keeps the draft', async () => {
     mockedSaveJob.mockRejectedValue( new ApiError( 'Cannot move job from saved to saved', 409 ) )
     const onSaved = vi.fn()
-    renderWithClient( <ReviewScreen job={ reviewJob } onSaved={ onSaved } /> )
+    renderWithClient( <ReviewScreen job={ reviewJob } { ...handlers() } onSaved={ onSaved } /> )
     const user = userEvent.setup()
     await user.type( screen.getByRole( 'textbox', { name: 'Summary' } ), '!' )
 
@@ -234,7 +240,7 @@ describe( 'ReviewScreen save', () => {
   } )
 
   it( 'disables Save while the title is blank', async () => {
-    renderWithClient( <ReviewScreen job={ reviewJob } onSaved={ vi.fn() } /> )
+    renderWithClient( <ReviewScreen job={ reviewJob } { ...handlers() } /> )
 
     await userEvent.setup().clear( screen.getByRole( 'textbox', { name: 'Title' } ) )
 
@@ -243,9 +249,83 @@ describe( 'ReviewScreen save', () => {
 
   it( 'has no Save button when the summary failed', () => {
     renderWithClient(
-      <ReviewScreen job={ failedJob } onSaved={ vi.fn() } />,
+      <ReviewScreen job={ failedJob } { ...handlers() } />,
     )
 
     expect( screen.queryByRole( 'button', { name: /^Save/ } ) ).not.toBeInTheDocument()
+  } )
+} )
+
+describe( 'ReviewScreen discard', () => {
+  const discardButton = (): HTMLElement => screen.getByRole( 'button', { name: 'Discard' } )
+
+  it( 'discards the job and reports it', async () => {
+    mockedDiscardJob.mockResolvedValue( undefined )
+    const onDiscarded = vi.fn()
+    renderWithClient(
+      <ReviewScreen job={ reviewJob } onSaved={ vi.fn() } onDiscarded={ onDiscarded } />,
+    )
+
+    await userEvent.setup().click( discardButton() )
+
+    expect( mockedDiscardJob ).toHaveBeenCalledExactlyOnceWith( reviewJob.id )
+    await vi.waitFor( () => expect( onDiscarded ).toHaveBeenCalledTimes( 1 ) )
+  } )
+
+  it( 'shows the server message when the discard fails and stays', async () => {
+    mockedDiscardJob.mockRejectedValue( new ApiError( 'Could not reach the server', null ) )
+    const onDiscarded = vi.fn()
+    renderWithClient(
+      <ReviewScreen job={ reviewJob } onSaved={ vi.fn() } onDiscarded={ onDiscarded } />,
+    )
+
+    await userEvent.setup().click( discardButton() )
+
+    expect( await screen.findByRole( 'alert' ) ).toHaveTextContent( 'Could not reach the server' )
+    expect( onDiscarded ).not.toHaveBeenCalled()
+  } )
+
+  it( 'is available when the summary failed too', () => {
+    renderWithClient(
+      <ReviewScreen job={ failedJob } { ...handlers() } />,
+    )
+
+    expect( discardButton() ).toBeInTheDocument()
+  } )
+} )
+
+describe( 'ReviewScreen retry', () => {
+  it( 'is only offered when the summary failed', () => {
+    renderWithClient(
+      <ReviewScreen job={ reviewJob } { ...handlers() } />,
+    )
+
+    expect( screen.queryByRole( 'button', { name: 'Retry summary' } ) ).not.toBeInTheDocument()
+  } )
+
+  it( 'retries the summary of a failed job', async () => {
+    mockedRetrySummary.mockResolvedValue( { ...failedJob, status: 'summarizing', error: null } )
+    renderWithClient(
+      <ReviewScreen job={ failedJob } { ...handlers() } />,
+    )
+
+    await userEvent.setup().click( screen.getByRole( 'button', { name: 'Retry summary' } ) )
+
+    expect( mockedRetrySummary ).toHaveBeenCalledExactlyOnceWith( failedJob.id )
+  } )
+
+  it( 'shows the message when the retry fails', async () => {
+    mockedRetrySummary.mockRejectedValue( new ApiError( 'Cannot move job from queued', 409 ) )
+    renderWithClient(
+      <ReviewScreen job={ failedJob } { ...handlers() } />,
+    )
+
+    await userEvent.setup().click( screen.getByRole( 'button', { name: 'Retry summary' } ) )
+
+    const alerts = await screen.findAllByRole( 'alert' )
+
+    const messages = alerts.map( ( alert ) => alert.textContent )
+
+    expect( messages ).toContain( 'Cannot move job from queued' )
   } )
 } )

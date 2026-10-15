@@ -90,7 +90,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 7.5 | `SummaryEditor` + `TranscriptPane` (`useTranscript`) | 0013 | ✅ |
 | 7.6 | `useDraft`: localStorage drafts, cleared on save/discard | 0016 | ✅ |
 | 7.7 | Save: `useSaveJob`, back to home with the saved path | 0013, 0015 | ✅ |
-| 7.8 | Discard (optimistic) and Retry summary | 0013, 0015 | ⬜ |
+| 7.8 | Discard (optimistic) and Retry summary | 0013, 0015 | ✅ |
 | 7.9 | Caret sync: caret on a timestamp line scrolls the transcript | 0013 | ⬜ |
 | 7.10 | Styling pass for home and review screens | 0011 | ⬜ |
 
@@ -144,3 +144,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 - 7.5 ✅ `formatClock` moved to shared (server formatters import it; its tests moved); `useTranscript` (fetched once), `SummaryEditor` (raw Markdown textarea), `TranscriptPane` (paragraph ids `transcript-<second>`); the pane shows in the review and failed-summary layouts. The 7.2 `JobPage` test now reads the Summary textarea value.
 - 7.6 ✅ `useDraft` (localStorage `mnemosyne:draft:<jobId>`, validated on read, all access in try/catch, written on edits only); `clearDraft`; `useJob` drops the draft when the job is gone (404); the review screen binds title, tags and body to the draft. No `zod` added to the web app: the draft is checked with a small type guard.
 - 7.7 ✅ `useSaveJob` (waits for the server, then clears the draft and invalidates `[jobs]`); Save to vault button (busy, disabled for a blank title, absent when the summary failed); `JobPage` navigates home with `{ savedPath }` and `HomePage` shows "Saved to …". Tags sent are the editable ones.
+- 7.8 ✅ `useDiscardJob` (optimistic removal from the list, rollback on error, clears the draft and drops the job entry on success) and `useRetrySummary` (puts the returned summarizing job in the cache, refreshes the list); Discard in both review layouts, Retry summary in the failed-summary layout. No confirm dialog on Discard (plan point 4).

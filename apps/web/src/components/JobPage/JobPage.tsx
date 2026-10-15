@@ -71,6 +71,7 @@ export function JobPage(): ReactElement {
           <ReviewScreen
             job={ job }
             onSaved={ ( savedPath ) => void navigate( '/', { state: { savedPath } } ) }
+            onDiscarded={ handleStartOver }
           />
         )
         : (
