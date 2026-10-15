@@ -73,7 +73,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
 | **Phase 6** | **Web foundation (refactor, no behaviour change)** | | |
-| 6.1 | Add `@tanstack/react-query`; `QueryClientProvider`; `renderWithClient`; `useJob` becomes a `useQuery` wrapper | 0013 | ⬜ |
+| 6.1 | Add `@tanstack/react-query`; `QueryClientProvider`; `renderWithClient`; `useJob` becomes a `useQuery` wrapper | 0013 | ✅ |
 | 6.2 | Add `react-router`; `/` and `/jobs/:id` replace `?job=<id>`; submitting navigates to the job | 0013 | ⬜ |
 | 6.3 | API client functions for list, transcript, save, retry and discard | 0013 | ⬜ |
 
@@ -134,3 +134,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 - 4.8 ✅ Sweeper: `findExpiredJobs`, `deleteExpiredJobs`, `startSweeper` (runs at start, then every `CLEANUP_INTERVAL_MINUTES`), wired into `server.ts` / `shutdown.ts` (stopped first). Shutdown test `build()` helper gained `stopSweeper`.
 - 5.1 ✅ Root `.env.example`; compose gets `env_file: .env`, `mnemosyne-data:/data` and `${VAULT_HOST_PATH}:/vault`; Dockerfile sets `DATA_DIR`/`VAULT_PATH`, owns `/data` as `node`, and installs `python3 make g++` in the build stage (better-sqlite3 had no prebuilt binary). Verified with `docker build`, then the image run on a spare port with a throwaway volume and vault: health ok, DB created in `/data`, vault writable, DB survives a restart. `docker compose up` itself was not run, to leave the running 0.1.0 container on :3100 alone; `docker compose config` parsed the file.
 - 5.2 ✅ `apps/server/CLAUDE.md` (environment, folder structure, layers, worker flow), README (flow, config table, vault, troubleshooting) and the root `CLAUDE.md` architecture paragraph brought up to date.
+- 6.1 ✅ `@tanstack/react-query`; `createQueryClient`, `QueryClientProvider` in `main.tsx`, `jobKeys`, `renderWithClient` / `renderHookWithClient`; `useJob` is a `useQuery` wrapper with the same `{ job, error }` result. Hook suite kept (render helper swapped, assertions unchanged) plus two sharing tests; the test setup uses a microtask scheduler for TanStack so fake timers work.

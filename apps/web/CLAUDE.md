@@ -8,7 +8,8 @@ The relevant ADRs are 0004, 0006, 0008, 0009, 0011, 0013, 0015 and 0016. Read th
 
 - Vite, React, TypeScript `strict`, ESM.
 - Vitest, React Testing Library, user-event, jest-dom, jsdom.
-- Plain CSS modules. No UI library, no data-fetching library, no router.
+- TanStack Query for server state (ADR 0013); React Router comes with the routing task.
+- Plain CSS modules. No UI library.
 - Shared contracts come from `@mnemosyne/shared`.
 
 Don't add a dependency without it being approved first. Ask instead.
@@ -29,7 +30,8 @@ src/
   global.css        tokens (colours, spacing) for light and dark mode, base element styles; the only non-module stylesheet
   App.tsx           composes the screen; owns the job id from the URL
   api/              <name>.api.ts: fetch wrappers; parse responses with shared schemas
-  hooks/            use<Name>.ts: state and effects (polling)
+  queryClient.ts    createQueryClient(): the app's TanStack Query defaults (no retries, no refetch on focus)
+  hooks/            use<Name>.ts: state and effects, built on TanStack Query; queryKeys.ts holds the cache keys
   components/       <Name>/index.ts, <Name>.tsx, <Name>.module.css, <Name>.test.tsx: one folder per component
   test-support/     shared test helpers and fixtures
 ```
@@ -53,8 +55,8 @@ src/
 - Test-first, as in the root `CLAUDE.md`. Tests sit next to their source as `.test.ts` / `.test.tsx`.
 - Query by role, label or text, as a user would. Never by class name or test id unless nothing else works.
 - Tests import Testing Library from `@testing-library/react` and `userEvent` from `@testing-library/user-event`; matchers such as `toBeInTheDocument` come from the setup file.
-- Use `userEvent` for interaction. Use Vitest fake timers for the polling hook. Never use real sleeps.
-- Mock at the boundary: component tests pass props; hook tests mock the `api/` module; `api/` tests stub `fetch` with `vi.stubGlobal`. No test touches the network or a real server.
+- Use `userEvent` for interaction. Use Vitest fake timers for the polling hook; the test setup hands TanStack results to React from a microtask so fake timers don't stall them. Never use real sleeps.
+- Mock at the boundary: component tests pass props; hook tests mock the `api/` module and render through `renderHookWithClient` (component tests that use queries use `renderWithClient`), both from `test-support/renderWithClient.tsx` with a fresh client; `api/` tests stub `fetch` with `vi.stubGlobal`. No test touches the network or a real server.
 - After a UI slice, run the dev server with the server behind it and look at the page in a browser (screenshot), then say what you saw. Passing unit tests don't prove a page looks right.
 
 ## Style

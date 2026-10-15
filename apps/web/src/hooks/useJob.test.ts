@@ -1,5 +1,5 @@
 // Testing Library
-import { act, renderHook } from '@testing-library/react'
+import { act } from '@testing-library/react'
 // Vitest
 import {
   afterEach,
@@ -15,6 +15,7 @@ import type { Job } from '@mnemosyne/shared'
 import { ApiError } from '../api/apiError'
 import { getJob } from '../api/jobs.api'
 import { jobFixture } from '../test-support/job.fixture'
+import { renderHookWithClient } from '../test-support/renderWithClient'
 import { POLL_INTERVAL_MS, useJob } from './useJob'
 
 vi.mock( '../api/jobs.api' )
@@ -54,7 +55,7 @@ afterEach( () => {
 
 describe( 'useJob', () => {
   it( 'does nothing without a job id', async () => {
-    const { result } = renderHook( () => useJob( null ) )
+    const { result } = renderHookWithClient( () => useJob( null ) )
 
     await advance( 10_000 )
 
@@ -65,7 +66,7 @@ describe( 'useJob', () => {
   it( 'fetches the job at once', async () => {
     mockedGetJob.mockResolvedValue( jobFixture( { status: 'queued' } ) )
 
-    const { result } = renderHook( () => useJob( 'a' ) )
+    const { result } = renderHookWithClient( () => useJob( 'a' ) )
     await advance( 0 )
 
     expect( mockedGetJob ).toHaveBeenCalledTimes( 1 )
@@ -79,7 +80,7 @@ describe( 'useJob', () => {
       .mockResolvedValueOnce( jobFixture( { status: 'downloading' } ) )
       .mockResolvedValueOnce( jobFixture( { status: 'transcribing' } ) )
 
-    const { result } = renderHook( () => useJob( 'a' ) )
+    const { result } = renderHookWithClient( () => useJob( 'a' ) )
     await advance( 0 )
     expect( result.current.job?.status ).toBe( 'queued' )
 
@@ -99,7 +100,7 @@ describe( 'useJob', () => {
   ] )( 'stops polling at %s', async ( status ) => {
     mockedGetJob.mockResolvedValue( jobFixture( { status } ) )
 
-    renderHook( () => useJob( 'a' ) )
+    renderHookWithClient( () => useJob( 'a' ) )
     await advance( 10_000 )
 
     expect( mockedGetJob ).toHaveBeenCalledTimes( 1 )
@@ -108,7 +109,7 @@ describe( 'useJob', () => {
   it( 'keeps polling while summarizing', async () => {
     mockedGetJob.mockResolvedValue( jobFixture( { status: 'summarizing' } ) )
 
-    renderHook( () => useJob( 'a' ) )
+    renderHookWithClient( () => useJob( 'a' ) )
     await advance( POLL_INTERVAL_MS * 2 )
 
     expect( mockedGetJob ).toHaveBeenCalledTimes( 3 )
@@ -119,7 +120,7 @@ describe( 'useJob', () => {
     mockedGetJob.mockReturnValueOnce( first.promise )
     mockedGetJob.mockResolvedValue( jobFixture( { status: 'downloading' } ) )
 
-    renderHook( () => useJob( 'a' ) )
+    renderHookWithClient( () => useJob( 'a' ) )
     await advance( 10_000 )
     expect( mockedGetJob ).toHaveBeenCalledTimes( 1 )
 
@@ -137,7 +138,7 @@ describe( 'useJob', () => {
       .mockRejectedValueOnce( new ApiError( 'Could not reach the server', null ) )
       .mockResolvedValueOnce( jobFixture( { status: 'downloading' } ) )
 
-    const { result } = renderHook( () => useJob( 'a' ) )
+    const { result } = renderHookWithClient( () => useJob( 'a' ) )
     await advance( 0 )
     await advance( POLL_INTERVAL_MS )
 
@@ -156,7 +157,7 @@ describe( 'useJob', () => {
       .mockRejectedValueOnce( 'boom' )
       .mockResolvedValueOnce( jobFixture( { status: 'downloading' } ) )
 
-    const { result } = renderHook( () => useJob( 'a' ) )
+    const { result } = renderHookWithClient( () => useJob( 'a' ) )
     await advance( 0 )
     await advance( POLL_INTERVAL_MS )
 
@@ -172,7 +173,7 @@ describe( 'useJob', () => {
   it( 'stops on a 404', async () => {
     mockedGetJob.mockRejectedValue( new ApiError( 'Job not found', 404 ) )
 
-    const { result } = renderHook( () => useJob( 'a' ) )
+    const { result } = renderHookWithClient( () => useJob( 'a' ) )
     await advance( 10_000 )
 
     expect( result.current ).toEqual( {
@@ -187,7 +188,7 @@ describe( 'useJob', () => {
     mockedGetJob.mockReturnValueOnce( jobA.promise )
     mockedGetJob.mockResolvedValue( jobFixture( { id: 'b', status: 'ready_for_review' } ) )
 
-    const { result, rerender } = renderHook( ( { id } ) => useJob( id ), {
+    const { result, rerender } = renderHookWithClient( ( { id } ) => useJob( id ), {
       initialProps: { id: 'a' },
     } )
     rerender( { id: 'b' } )
@@ -208,7 +209,10 @@ describe( 'useJob', () => {
     mockedGetJob.mockResolvedValue( jobFixture( { status: 'queued' } ) )
 
     const initialProps: { id: string | null } = { id: 'a' }
-    const { result, rerender } = renderHook( ( { id } ) => useJob( id ), { initialProps } )
+    const { result, rerender } = renderHookWithClient(
+      ( { id } ) => useJob( id ),
+      { initialProps },
+    )
     await advance( 0 )
     rerender( { id: null } )
     await advance( 10_000 )
@@ -222,12 +226,38 @@ describe( 'useJob', () => {
     const pending = deferred()
     mockedGetJob.mockReturnValueOnce( pending.promise )
 
-    const { unmount } = renderHook( () => useJob( 'a' ) )
+    const { unmount } = renderHookWithClient( () => useJob( 'a' ) )
     unmount()
     pending.resolve( jobFixture( { status: 'queued' } ) )
     await advance( 10_000 )
 
     expect( mockedGetJob ).toHaveBeenCalledTimes( 1 )
     expect( consoleError ).not.toHaveBeenCalled()
+  } )
+
+  it( 'shares one request between components watching the same job', async () => {
+    mockedGetJob.mockResolvedValue( jobFixture( { status: 'queued' } ) )
+
+    const { result } = renderHookWithClient( () => ( {
+      first: useJob( 'a' ),
+      second: useJob( 'a' ),
+    } ) )
+    await advance( 0 )
+
+    expect( mockedGetJob ).toHaveBeenCalledTimes( 1 )
+    expect( result.current.first.job?.status ).toBe( 'queued' )
+    expect( result.current.second.job?.status ).toBe( 'queued' )
+  } )
+
+  it( 'gives a new observer the cached job straight away', async () => {
+    mockedGetJob.mockResolvedValue( jobFixture( { status: 'downloading' } ) )
+    const first = renderHookWithClient( () => useJob( 'a' ) )
+    await advance( 0 )
+
+    const second = renderHookWithClient( () => useJob( 'a' ), {
+      queryClient: first.queryClient,
+    } )
+
+    expect( second.result.current.job?.status ).toBe( 'downloading' )
   } )
 } )

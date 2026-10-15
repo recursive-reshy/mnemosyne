@@ -1,10 +1,11 @@
-// React
-import { useEffect, useState } from 'react'
+// Packages
+import { useQuery } from '@tanstack/react-query'
 // Shared
 import type { Job } from '@mnemosyne/shared'
 // App
 import { ApiError } from '../api/apiError'
 import { getJob } from '../api/jobs.api'
+import { jobKeys } from './queryKeys'
 
 export const POLL_INTERVAL_MS = 2000
 
@@ -22,64 +23,41 @@ export interface JobState {
   error: string | null
 }
 
-interface StoredState extends JobState {
-  jobId: string | null
+const isGone = ( error: unknown ): boolean => {
+  return error instanceof ApiError && error.status === 404
 }
 
 export function useJob( jobId: string | null ): JobState {
-  const [ stored, setStored ] = useState< StoredState >( { jobId: null, job: null, error: null } )
-
-  useEffect( () => {
-    if( jobId === null ) {
-      return undefined
-    }
-
-    let isCancelled = false
-    let timer: ReturnType< typeof setTimeout > | undefined
-
-    const poll = async ( id: string ): Promise< void > => {
-      let nextState: ( previous: StoredState ) => StoredState
-      let isFinished: boolean
-
-      try {
-        const job = await getJob( id )
-
-        nextState = () => ( { jobId: id, job, error: null } )
-        isFinished = FINISHED_STATUSES.includes( job.status )
-      } catch( caught ) {
-        const isGone = caught instanceof ApiError && caught.status === 404
-        const message = caught instanceof Error ? caught.message : 'Unexpected error'
-
-        nextState = ( previous ) => ( {
-          jobId: id,
-          job: isGone || previous.jobId !== id ? null : previous.job,
-          error: isGone ? JOB_GONE_MESSAGE : message,
-        } )
-        isFinished = isGone
+  const { data, error } = useQuery( {
+    queryKey: jobKeys.detail( jobId ?? '' ),
+    queryFn: () => getJob( jobId ?? '' ),
+    enabled: jobId !== null,
+    refetchInterval: ( query ) => {
+      if( isGone( query.state.error ) ) {
+        return false
       }
 
-      if( isCancelled ) {
-        return
-      }
+      const status = query.state.data?.status
 
-      setStored( nextState )
+      return status !== undefined && FINISHED_STATUSES.includes( status )
+        ? false
+        : POLL_INTERVAL_MS
+    },
+  } )
 
-      if( !isFinished ) {
-        timer = setTimeout( () => void poll( id ), POLL_INTERVAL_MS )
-      }
-    }
-
-    void poll( jobId )
-
-    return () => {
-      isCancelled = true
-      clearTimeout( timer )
-    }
-  }, [ jobId ] )
-
-  if( jobId === null || stored.jobId !== jobId ) {
+  if( jobId === null ) {
     return { job: null, error: null }
   }
 
-  return { job: stored.job, error: stored.error }
+  if( isGone( error ) ) {
+    return { job: null, error: JOB_GONE_MESSAGE }
+  }
+
+  if( error !== null ) {
+    const message = error instanceof Error ? error.message : 'Unexpected error'
+
+    return { job: data ?? null, error: message }
+  }
+
+  return { job: data ?? null, error: null }
 }
