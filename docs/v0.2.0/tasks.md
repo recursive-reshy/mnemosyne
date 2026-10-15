@@ -50,7 +50,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 3.9 | Integration test: one real Claude call in `pnpm test:integration` | 0007, 0014 | ✅ |
 
 ## Checkpoint C: Phases 4–5 (vault, lifecycle, Docker)
-**Plan:** ⬜ [`plans/checkpoint-c.md`](plans/checkpoint-c.md)
+**Plan:** ✅ [`plans/checkpoint-c.md`](plans/checkpoint-c.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
