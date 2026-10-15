@@ -391,3 +391,37 @@ describe( 'POST /api/jobs/:id/save', () => {
     },
   )
 } )
+
+describe( 'POST /api/jobs/:id/retry-summary', () => {
+  it( 'returns 202 with the job back in summarizing', async () => {
+    const id = seedJobAt( 'summary_failed' )
+
+    const response = await request( app ).post( `/api/jobs/${ id }/retry-summary` )
+
+    expect( response.status ).toBe( 202 )
+    expect( Job.parse( ( response.body as { job: unknown } ).job ) ).toMatchObject( {
+      id,
+      status: 'summarizing',
+      error: null,
+      expires_at: null,
+    } )
+  } )
+
+  it( 'returns 404 for an unknown job', async () => {
+    const response = await request( app )
+      .post( `/api/jobs/${ crypto.randomUUID() }/retry-summary` )
+
+    expect( response.status ).toBe( 404 )
+  } )
+
+  it.each( [ 'queued', 'summarizing', 'ready_for_review', 'failed', 'saved' ] as const )(
+    'returns 409 when the job is %s',
+    async ( status ) => {
+      const id = seedJobAt( status )
+
+      const response = await request( app ).post( `/api/jobs/${ id }/retry-summary` )
+
+      expect( response.status ).toBe( 409 )
+    },
+  )
+} )

@@ -28,6 +28,7 @@ import {
   queueJob,
   recoverInterruptedJobs,
   renderTranscript,
+  retrySummary,
   saveJob,
 } from './jobs.service.js'
 // Clients
@@ -604,5 +605,37 @@ describe( 'saveJob', () => {
 
   it( 'throws NotFoundError for an unknown id', async () => {
     await expect( saveJob( 'missing', edits ) ).rejects.toThrow( NotFoundError )
+  } )
+} )
+
+describe( 'retrySummary', () => {
+  it( 'moves a failed summary back to summarizing, clearing error and expiry', () => {
+    const id = queueJobAt( 'summary_failed' )
+
+    const job = retrySummary( id )
+
+    expect( job ).toMatchObject( { status: 'summarizing', error: null, expires_at: null } )
+    expect( findJobById( id )?.transcript ).toEqual( transcript )
+  } )
+
+  it( 'makes the job runnable again', () => {
+    const id = queueJobAt( 'summary_failed' )
+
+    retrySummary( id )
+
+    expect( findNextRunnableJob()?.id ).toBe( id )
+  } )
+
+  it.each( [ 'queued', 'transcribing', 'ready_for_review', 'failed' ] as const )(
+    'throws ConflictError from %s',
+    ( status ) => {
+      const id = queueJobAt( status )
+
+      expect( () => retrySummary( id ) ).toThrow( ConflictError )
+    },
+  )
+
+  it( 'throws NotFoundError for an unknown id', () => {
+    expect( () => retrySummary( 'missing' ) ).toThrow( NotFoundError )
   } )
 } )

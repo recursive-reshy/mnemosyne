@@ -194,6 +194,16 @@ export const failSummary = ( id: string, message: string ): Job => {
   return moveTo( job, 'summary_failed', { error: message, expires_at: expiryFromNow() } )
 }
 
+export const retrySummary = ( id: string ): Job => {
+  const job = requireJob( id )
+
+  if( job.status !== 'summary_failed' ) {
+    throw conflict( job.status, 'summarizing' )
+  }
+
+  return moveTo( job, 'summarizing', { error: null, expires_at: null } )
+}
+
 export const getTranscript = ( id: string ): Transcript => {
   const job = requireJob( id )
 

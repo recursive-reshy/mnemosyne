@@ -7,6 +7,7 @@ import {
   getJob,
   getTranscript,
   listActiveJobs,
+  retryJobSummary,
   saveReviewedJob,
 } from '../controllers/jobs.controller.js'
 
@@ -17,4 +18,5 @@ jobsRoutes.get( '/jobs', listActiveJobs )
 jobsRoutes.get( '/jobs/:id', getJob )
 jobsRoutes.get( '/jobs/:id/transcript', getTranscript )
 jobsRoutes.post( '/jobs/:id/save', saveReviewedJob )
+jobsRoutes.post( '/jobs/:id/retry-summary', retryJobSummary )
 jobsRoutes.get( '/jobs/:id/download', downloadTranscript )

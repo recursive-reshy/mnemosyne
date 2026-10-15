@@ -18,6 +18,7 @@ import {
   listJobs,
   queueJob,
   renderTranscript,
+  retrySummary,
   saveJob,
 } from '../services/jobs.service.js'
 
@@ -60,6 +61,12 @@ export const saveReviewedJob = async (
   const savedPath = await saveJob( String( params.id ), edits )
 
   res.status( 200 ).json( { saved_path: savedPath } )
+}
+
+export const retryJobSummary = ( { params }: Request, res: Response< GetJobResponse > ): void => {
+  const job = retrySummary( String( params.id ) )
+
+  res.status( 202 ).json( { job } )
 }
 
 export const downloadTranscript = ( { params, query }: Request, res: Response ): void => {

@@ -14,6 +14,7 @@ import {
   findJob,
   markStatus,
   queueJob,
+  retrySummary,
 } from '../services/jobs.service.js'
 // Repositories
 import { clearJobs } from '../repositories/jobStore.repository.js'
@@ -109,5 +110,17 @@ describe( 'summarizeJob', () => {
     await expect( summarizeJob( id ) ).resolves.toBeUndefined()
 
     expect( findJob( id ) ).toMatchObject( { status: 'summary_failed', error: message } )
+  } )
+
+  it( 'completes after a failed summary is retried', async () => {
+    const id = queueSummarizing()
+    summarizeMock.mockRejectedValueOnce( new Error( 'Rate limited' ) )
+    await summarizeJob( id )
+    expect( findJob( id ).status ).toBe( 'summary_failed' )
+
+    retrySummary( id )
+    await summarizeJob( id )
+
+    expect( findJob( id ) ).toMatchObject( { status: 'ready_for_review', error: null } )
   } )
 } )
