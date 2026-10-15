@@ -15,7 +15,7 @@ import {
   queueJob,
 } from '../services/jobs.service.js'
 // Repositories
-import { clearJobs } from '../repositories/jobStore.repository.js'
+import { clearJobs, updateJob } from '../repositories/jobStore.repository.js'
 // Worker
 import { runJob } from './runJob.js'
 import { startWorker } from './worker.js'
@@ -66,6 +66,16 @@ afterEach( async () => {
 } )
 
 describe( 'startWorker', () => {
+  it( 'also picks up a job that is already summarizing', async () => {
+    const id = queue()
+    updateJob( id, { status: 'summarizing' } )
+
+    stopWorker = startWorker()
+    await vi.advanceTimersByTimeAsync( 0 )
+
+    expect( runJobMock ).toHaveBeenCalledWith( id )
+  } )
+
   it( 'runs a queued job immediately', async () => {
     const id = queue()
 

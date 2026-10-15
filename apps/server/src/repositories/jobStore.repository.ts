@@ -138,9 +138,10 @@ export const updateJob = (
   return updated
 }
 
-export const findNextQueuedJob = (): StoredJob | undefined => {
+export const findNextRunnableJob = (): StoredJob | undefined => {
   const row = requireDatabase()
-    .prepare( "SELECT * FROM jobs WHERE status = 'queued' ORDER BY rowid LIMIT 1" )
+    .prepare( `SELECT * FROM jobs WHERE status IN ( 'queued', 'summarizing' )
+      ORDER BY rowid LIMIT 1` )
     .get()
 
   return row === undefined ? undefined : toStoredJob( row )

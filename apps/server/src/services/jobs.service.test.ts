@@ -21,7 +21,7 @@ import {
   failJob,
   failSummary,
   findJob,
-  findNextQueuedJob,
+  findNextRunnableJob,
   getTranscript,
   markStatus,
   queueJob,
@@ -270,16 +270,22 @@ describe( 'renderTranscript', () => {
   )
 } )
 
-describe( 'findNextQueuedJob', () => {
+describe( 'findNextRunnableJob', () => {
+  it( 'returns a summarizing job so it can be resumed', () => {
+    const id = queueSummarizing()
+
+    expect( findNextRunnableJob()?.id ).toBe( id )
+  } )
+
   it( 'returns undefined when no jobs exist', () => {
-    expect( findNextQueuedJob() ).toBeUndefined()
+    expect( findNextRunnableJob() ).toBeUndefined()
   } )
 
   it( 'returns the oldest queued job', () => {
     const first = queueJob( 'https://example.com/a' )
     queueJob( 'https://example.com/b' )
 
-    expect( findNextQueuedJob() ).toEqual( first )
+    expect( findNextRunnableJob() ).toEqual( first )
   } )
 
   it( 'skips jobs that are no longer queued', () => {
@@ -287,7 +293,7 @@ describe( 'findNextQueuedJob', () => {
     const second = queueJob( 'https://example.com/b' )
     markStatus( first.id, 'downloading' )
 
-    expect( findNextQueuedJob() ).toEqual( second )
+    expect( findNextRunnableJob() ).toEqual( second )
   } )
 
   it( 'returns undefined when every job has moved on', () => {
@@ -296,13 +302,13 @@ describe( 'findNextQueuedJob', () => {
     markStatus( first.id, 'downloading' )
     markStatus( second.id, 'downloading' )
 
-    expect( findNextQueuedJob() ).toBeUndefined()
+    expect( findNextRunnableJob() ).toBeUndefined()
   } )
 
   it( 'returns a job without a transcript field', () => {
     queueJob( 'https://example.com/a' )
 
-    expect( findNextQueuedJob() ).not.toHaveProperty( 'transcript' )
+    expect( findNextRunnableJob() ).not.toHaveProperty( 'transcript' )
   } )
 } )
 

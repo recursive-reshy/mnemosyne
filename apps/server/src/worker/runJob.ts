@@ -5,7 +5,7 @@ import path from 'node:path'
 import { Transcript } from '@mnemosyne/shared'
 // Services
 import {
-  completeJob,
+  completeTranscription,
   failJob,
   findJob,
   markStatus,
@@ -16,6 +16,8 @@ import { convertToWav } from '../clients/ffmpeg.client.js'
 import { transcribeAudio } from '../clients/whisperServer.client.js'
 // Config
 import { config } from '../config.js'
+// Worker
+import { summarizeJob } from './summarizeJob.js'
 
 const RETRY_DELAY_MS = 3000
 const removeOptions = { recursive: true, force: true }
@@ -62,7 +64,7 @@ export const runJob = async ( jobId: string ): Promise< void > => {
       segments,
     } )
 
-    completeJob( jobId, transcript )
+    completeTranscription( jobId, transcript )
   } catch( error ) {
     failJob( jobId, error instanceof Error ? error.message : 'Unknown error' )
   } finally {
@@ -71,5 +73,9 @@ export const runJob = async ( jobId: string ): Promise< void > => {
     } catch( cleanupError ) {
       console.error( `Could not remove work folder ${ workDir }`, cleanupError )
     }
+  }
+
+  if( findJob( jobId ).status === 'summarizing' ) {
+    await summarizeJob( jobId )
   }
 }

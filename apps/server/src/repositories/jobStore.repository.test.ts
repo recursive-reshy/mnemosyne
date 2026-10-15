@@ -17,7 +17,7 @@ import {
   clearJobs,
   closeJobStore,
   findJobById,
-  findNextQueuedJob,
+  findNextRunnableJob,
   insertJob,
   jobStoreMigrations,
   markInterruptedJobs,
@@ -84,7 +84,7 @@ describe( 'updateJob', () => {
   } )
 } )
 
-describe( 'findNextQueuedJob', () => {
+describe( 'findNextRunnableJob', () => {
   it( 'returns the earliest-inserted queued job, skipping other statuses', () => {
     const downloading = buildJob( { status: 'downloading' } )
     const firstQueued = buildJob()
@@ -93,13 +93,29 @@ describe( 'findNextQueuedJob', () => {
     insertJob( firstQueued )
     insertJob( secondQueued )
 
-    expect( findNextQueuedJob() ).toEqual( firstQueued )
+    expect( findNextRunnableJob() ).toEqual( firstQueued )
   } )
 
-  it( 'returns undefined when no job is queued', () => {
-    insertJob( buildJob( { status: 'done' } ) )
+  it( 'also returns summarizing jobs, oldest first', () => {
+    const summarizing = buildJob( { status: 'summarizing' } )
+    const queued = buildJob()
+    insertJob( buildJob( { status: 'ready_for_review' } ) )
+    insertJob( summarizing )
+    insertJob( queued )
 
-    expect( findNextQueuedJob() ).toBeUndefined()
+    expect( findNextRunnableJob() ).toEqual( summarizing )
+
+    updateJob( summarizing.id, { status: 'summary_failed' } )
+
+    expect( findNextRunnableJob() ).toEqual( queued )
+  } )
+
+  it( 'returns undefined when no job is runnable', () => {
+    insertJob( buildJob( { status: 'done' } ) )
+    insertJob( buildJob( { status: 'summary_failed' } ) )
+    insertJob( buildJob( { status: 'saved' } ) )
+
+    expect( findNextRunnableJob() ).toBeUndefined()
   } )
 } )
 
@@ -133,11 +149,11 @@ describe( 'no shared references', () => {
     expect( findJobById( job.id )?.error ).toBe( 'x' )
   } )
 
-  it( 'ignores mutation of the object returned by findNextQueuedJob', () => {
+  it( 'ignores mutation of the object returned by findNextRunnableJob', () => {
     const job = buildJob()
     insertJob( job )
 
-    const next = findNextQueuedJob()
+    const next = findNextRunnableJob()
     if( next ) next.status = 'failed'
 
     expect( findJobById( job.id )?.status ).toBe( 'queued' )
@@ -172,7 +188,7 @@ describe( 'clearJobs', () => {
     clearJobs()
 
     expect( findJobById( job.id ) ).toBeUndefined()
-    expect( findNextQueuedJob() ).toBeUndefined()
+    expect( findNextRunnableJob() ).toBeUndefined()
   } )
 } )
 

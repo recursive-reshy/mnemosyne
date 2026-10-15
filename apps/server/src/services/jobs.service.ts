@@ -18,7 +18,7 @@ import { formatTxt } from '../formatters/txt.formatter.js'
 import {
   StoredJob,
   findJobById,
-  findNextQueuedJob as findNextQueuedStoredJob,
+  findNextRunnableJob as findNextRunnableStoredJob,
   insertJob,
   markInterruptedJobs,
   updateJob,
@@ -128,8 +128,8 @@ export const findJob = ( id: string ): Job => {
   return toPublicJob( requireJob( id ) )
 }
 
-export const findNextQueuedJob = (): Job | undefined => {
-  const job = findNextQueuedStoredJob()
+export const findNextRunnableJob = (): Job | undefined => {
+  const job = findNextRunnableStoredJob()
 
   return job === undefined ? undefined : toPublicJob( job )
 }

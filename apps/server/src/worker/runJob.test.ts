@@ -21,12 +21,14 @@ import { convertToWav } from '../clients/ffmpeg.client.js'
 import { transcribeAudio } from '../clients/whisperServer.client.js'
 // Worker
 import { runJob } from './runJob.js'
+import { summarizeJob } from './summarizeJob.js'
 // Node
 import { rm } from 'node:fs/promises'
 
 vi.mock( '../clients/ytDlp.client.js' )
 vi.mock( '../clients/ffmpeg.client.js' )
 vi.mock( '../clients/whisperServer.client.js' )
+vi.mock( './summarizeJob.js' )
 vi.mock( 'node:fs/promises' )
 vi.mock( '../config.js', () => ( {
   config: { workDir: '/work', whisperUrl: 'http://whisper:8178', whisperModel: 'test-model' },
@@ -49,6 +51,7 @@ const downloadMock = vi.mocked( downloadAudio )
 const convertMock = vi.mocked( convertToWav )
 const transcribeMock = vi.mocked( transcribeAudio )
 const rmMock = vi.mocked( rm )
+const summarizeJobMock = vi.mocked( summarizeJob )
 
 const queue = (): string => {
   return queueJob( 'https://www.youtube.com/watch?v=abc' ).id
@@ -69,6 +72,7 @@ beforeEach( () => {
   convertMock.mockResolvedValue( '/work/audio.wav' )
   transcribeMock.mockResolvedValue( segments )
   rmMock.mockResolvedValue( undefined )
+  summarizeJobMock.mockResolvedValue( undefined )
 } )
 
 afterEach( () => {
@@ -77,12 +81,12 @@ afterEach( () => {
 } )
 
 describe( 'runJob', () => {
-  it( 'completes the job and stores the transcript', async () => {
+  it( 'moves the job to summarizing and stores the transcript and title', async () => {
     const id = queue()
 
     await runJob( id )
 
-    expect( findJob( id ).status ).toBe( 'done' )
+    expect( findJob( id ) ).toMatchObject( { status: 'summarizing', title: 'A video' } )
     expect( findJobById( id )?.transcript ).toEqual( {
       meta: { ...meta, transcribed_at: NOW, model: 'test-model' },
       segments,
@@ -157,6 +161,26 @@ describe( 'runJob', () => {
     } )
   } )
 
+  it( 'summarizes after the audio is removed', async () => {
+    const id = queue()
+
+    await runJob( id )
+
+    expect( summarizeJobMock ).toHaveBeenCalledWith( id )
+    expect( rmMock.mock.invocationCallOrder[ 0 ] ).toBeLessThan(
+      summarizeJobMock.mock.invocationCallOrder[ 0 ],
+    )
+  } )
+
+  it( 'does not summarize when the pipeline fails', async () => {
+    const id = queue()
+    transcribeMock.mockRejectedValue( new Error( 'boom' ) )
+
+    await runJob( id )
+
+    expect( summarizeJobMock ).not.toHaveBeenCalled()
+  } )
+
   it( 'removes the work folder after success', async () => {
     const id = queue()
 
@@ -165,14 +189,14 @@ describe( 'runJob', () => {
     expect( rmMock ).toHaveBeenCalledWith( `/work/${ id }`, { recursive: true, force: true } )
   } )
 
-  it( 'keeps the job done and resolves when cleanup fails', async () => {
+  it( 'keeps the job summarizing and resolves when cleanup fails', async () => {
     const id = queue()
     const errorSpy = vi.spyOn( console, 'error' ).mockImplementation( () => undefined )
     rmMock.mockRejectedValue( new Error( 'disk' ) )
 
     await expect( runJob( id ) ).resolves.toBeUndefined()
 
-    expect( findJob( id ).status ).toBe( 'done' )
+    expect( findJob( id ).status ).toBe( 'summarizing' )
     expect( errorSpy ).toHaveBeenCalled()
   } )
 
@@ -186,7 +210,7 @@ describe( 'runJob', () => {
     await vi.advanceTimersByTimeAsync( 3000 )
     await run
 
-    expect( findJob( id ).status ).toBe( 'done' )
+    expect( findJob( id ).status ).toBe( 'summarizing' )
     expect( downloadMock ).toHaveBeenCalledTimes( 2 )
     expect( rmMock.mock.invocationCallOrder[ 0 ] ).toBeLessThan(
       downloadMock.mock.invocationCallOrder[ 1 ],

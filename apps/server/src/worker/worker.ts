@@ -1,5 +1,5 @@
 // Services
-import { findNextQueuedJob } from '../services/jobs.service.js'
+import { findNextRunnableJob } from '../services/jobs.service.js'
 // Worker
 import { runJob } from './runJob.js'
 
@@ -12,11 +12,11 @@ export const startWorker = (): ( () => Promise< void > ) => {
 
   const runPass = async (): Promise< void > => {
     try {
-      let job = findNextQueuedJob()
+      let job = findNextRunnableJob()
 
       while( job !== undefined && !stopped ) {
         await runJob( job.id )
-        job = findNextQueuedJob()
+        job = findNextRunnableJob()
       }
     } catch( error ) {
       console.error( 'Worker pass failed', error )
