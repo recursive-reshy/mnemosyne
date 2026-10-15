@@ -1,8 +1,10 @@
 // React
+import { useState } from 'react'
 import type { ReactElement } from 'react'
 // Shared
 import type { Job } from '@mnemosyne/shared'
 // App
+import { parseTimestampSeconds } from '#src/timestamp'
 import { useDiscardJob } from '#src/hooks/useDiscardJob'
 import { useDraft } from '#src/hooks/useDraft'
 import { useRetrySummary } from '#src/hooks/useRetrySummary'
@@ -30,9 +32,18 @@ export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps )
     body: job.summary_markdown ?? '',
   } )
   const { transcript, error: transcriptError } = useTranscript( job.id )
+  const [ focusSecond, setFocusSecond ] = useState< number | null >( null )
   const save = useSaveJob( job.id )
   const discard = useDiscardJob( job.id )
   const retry = useRetrySummary( job.id )
+
+  const handleCaretLine = ( line: string ): void => {
+    const seconds = parseTimestampSeconds( line )
+
+    if( seconds !== null ) {
+      setFocusSecond( seconds )
+    }
+  }
 
   const handleDiscard = (): void => {
     discard.mutate( undefined, { onSuccess: () => onDiscarded() } )
@@ -58,9 +69,17 @@ export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps )
       ) }
       <div className={ styles.columns }>
         { !hasFailed && (
-          <SummaryEditor value={ draft.body } onChange={ setBody } />
+          <SummaryEditor
+            value={ draft.body }
+            onChange={ setBody }
+            onCaretLine={ handleCaretLine }
+          />
         ) }
-        <TranscriptPane transcript={ transcript } error={ transcriptError } />
+        <TranscriptPane
+          transcript={ transcript }
+          error={ transcriptError }
+          focusSecond={ focusSecond }
+        />
       </div>
       <DownloadLinks jobId={ job.id } />
       { save.isError && <p className="alert" role="alert">{ save.error.message }</p> }

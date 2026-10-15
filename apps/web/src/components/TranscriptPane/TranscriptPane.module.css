@@ -1,4 +1,5 @@
 .pane {
+  position: relative;
   min-width: 0;
   max-height: 32rem;
   overflow-y: auto;
@@ -9,6 +10,13 @@
 
 .paragraph {
   margin: 0 0 var( --space-3 );
+  padding-left: var( --space-2 );
+  border-left: 4px solid transparent;
+}
+
+.paragraph[aria-current='true'] {
+  border-left-color: var( --color-accent );
+  font-weight: 600;
 }
 
 .stamp {

@@ -1,5 +1,5 @@
 // Testing Library
-import { screen, within } from '@testing-library/react'
+import { fireEvent, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 // Vitest
 import {
@@ -327,5 +327,54 @@ describe( 'ReviewScreen retry', () => {
     const messages = alerts.map( ( alert ) => alert.textContent )
 
     expect( messages ).toContain( 'Cannot move job from queued' )
+  } )
+} )
+
+describe( 'ReviewScreen caret sync', () => {
+  const syncedJob = {
+    ...reviewJob,
+    summary_markdown: '## Summary\n- Point ([02:15](https://youtu.be/abc?t=135))\nPlain line',
+  }
+  const pointLine = '## Summary\n- Poi'.length
+
+  const moveCaret = ( index: number ): void => {
+    const editor = screen.getByRole< HTMLTextAreaElement >( 'textbox', { name: 'Summary' } )
+
+    editor.setSelectionRange( index, index )
+    fireEvent.select( editor )
+  }
+
+  it( 'marks the transcript paragraph for the timestamp on the caret line', () => {
+    mockedUseTranscript.mockReturnValue( {
+      transcript: {
+        ...transcript,
+        segments: [
+          { start: 0, end: 4, text: 'Welcome to the talk.' },
+          { start: 135, end: 140, text: 'Last, borrowing.' },
+        ],
+      },
+      error: null,
+    } )
+    renderWithClient( <ReviewScreen job={ syncedJob } { ...handlers() } /> )
+
+    moveCaret( pointLine )
+
+    expect( document.getElementById( 'transcript-135' ) ).toHaveAttribute( 'aria-current', 'true' )
+  } )
+
+  it( 'keeps the marker when the caret moves to a line without a timestamp', () => {
+    mockedUseTranscript.mockReturnValue( {
+      transcript: {
+        ...transcript,
+        segments: [ { start: 135, end: 140, text: 'Last, borrowing.' } ],
+      },
+      error: null,
+    } )
+    renderWithClient( <ReviewScreen job={ syncedJob } { ...handlers() } /> )
+    moveCaret( pointLine )
+
+    moveCaret( syncedJob.summary_markdown.length )
+
+    expect( document.getElementById( 'transcript-135' ) ).toHaveAttribute( 'aria-current', 'true' )
   } )
 } )

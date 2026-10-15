@@ -1,7 +1,13 @@
 // Testing Library
 import { render, screen } from '@testing-library/react'
 // Vitest
-import { describe, expect, it } from 'vitest'
+import {
+  afterEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
 // Shared
 import type { Transcript } from '@mnemosyne/shared'
 // App
@@ -25,21 +31,23 @@ const transcript: Transcript = {
 
 describe( 'TranscriptPane', () => {
   it( 'shows a loading status before the transcript arrives', () => {
-    render( <TranscriptPane transcript={ null } error={ null } /> )
+    render( <TranscriptPane transcript={ null } error={ null } focusSecond={ null } /> )
 
     expect( screen.getByRole( 'region', { name: 'Transcript' } ) ).toBeInTheDocument()
     expect( screen.getByRole( 'status' ) ).toHaveTextContent( 'Loading transcript…' )
   } )
 
   it( 'shows the error', () => {
-    render( <TranscriptPane transcript={ null } error="Transcript not ready" /> )
+    render(
+      <TranscriptPane transcript={ null } error="Transcript not ready" focusSecond={ null } />,
+    )
 
     expect( screen.getByRole( 'alert' ) ).toHaveTextContent( 'Transcript not ready' )
     expect( screen.queryByRole( 'status' ) ).not.toBeInTheDocument()
   } )
 
   it( 'shows paragraphs with a clock stamp each', () => {
-    render( <TranscriptPane transcript={ transcript } error={ null } /> )
+    render( <TranscriptPane transcript={ transcript } error={ null } focusSecond={ null } /> )
 
     const pane = screen.getByRole( 'region', { name: 'Transcript' } )
 
@@ -49,9 +57,57 @@ describe( 'TranscriptPane', () => {
   } )
 
   it( 'gives each paragraph an id by its start second', () => {
-    const { container } = render( <TranscriptPane transcript={ transcript } error={ null } /> )
+    const { container } = render(
+      <TranscriptPane transcript={ transcript } error={ null } focusSecond={ null } />,
+    )
 
     expect( container.querySelector( '#transcript-0' ) ).not.toBeNull()
     expect( container.querySelector( '#transcript-135' ) ).not.toBeNull()
+  } )
+
+  describe( 'following the summary caret', () => {
+    afterEach( () => {
+      vi.restoreAllMocks()
+    } )
+
+    const stubOffsets = (): void => {
+      vi.spyOn( HTMLElement.prototype, 'offsetTop', 'get' ).mockImplementation( function get(
+        this: HTMLElement,
+      ) {
+        const tops: Record< string, number > = { 'transcript-0': 0, 'transcript-135': 500 }
+
+        return tops[ this.id ] ?? 0
+      } )
+    }
+
+    it( 'marks and scrolls to the paragraph at or before the second', () => {
+      stubOffsets()
+      const { rerender } = render(
+        <TranscriptPane transcript={ transcript } error={ null } focusSecond={ null } />,
+      )
+      const pane = screen.getByRole( 'region', { name: 'Transcript' } )
+
+      rerender( <TranscriptPane transcript={ transcript } error={ null } focusSecond={ 140 } /> )
+
+      expect( pane.scrollTop ).toBe( 500 )
+      expect( document.getElementById( 'transcript-135' ) )
+        .toHaveAttribute( 'aria-current', 'true' )
+      expect( document.getElementById( 'transcript-0' ) ).not.toHaveAttribute( 'aria-current' )
+    } )
+
+    it( 'picks the earlier paragraph for a second inside it', () => {
+      stubOffsets()
+      render( <TranscriptPane transcript={ transcript } error={ null } focusSecond={ 100 } /> )
+
+      expect( document.getElementById( 'transcript-0' ) ).toHaveAttribute( 'aria-current', 'true' )
+      expect( screen.getByRole( 'region', { name: 'Transcript' } ).scrollTop ).toBe( 0 )
+    } )
+
+    it( 'does nothing without a second', () => {
+      stubOffsets()
+      render( <TranscriptPane transcript={ transcript } error={ null } focusSecond={ null } /> )
+
+      expect( document.querySelector( '[aria-current]' ) ).toBeNull()
+    } )
   } )
 } )
