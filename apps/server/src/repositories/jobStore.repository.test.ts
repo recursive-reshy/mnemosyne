@@ -1,17 +1,26 @@
+// Node
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 // Packages
+import Database from 'better-sqlite3'
 import {
   describe,
   it,
   expect,
   beforeEach,
+  afterEach,
 } from 'vitest'
 // Repositories
 import {
   StoredJob,
   clearJobs,
+  closeJobStore,
   findJobById,
   findNextQueuedJob,
   insertJob,
+  jobStoreMigrations,
+  openJobStore,
   updateJob,
 } from './jobStore.repository.js'
 
@@ -163,5 +172,99 @@ describe( 'clearJobs', () => {
 
     expect( findJobById( job.id ) ).toBeUndefined()
     expect( findNextQueuedJob() ).toBeUndefined()
+  } )
+} )
+
+describe( 'openJobStore and closeJobStore', () => {
+  let directory = ''
+  let databasePath = ''
+
+  beforeEach( () => {
+    directory = mkdtempSync( join( tmpdir(), 'mnemosyne-store-' ) )
+    databasePath = join( directory, 'mnemosyne.db' )
+  } )
+
+  afterEach( () => {
+    closeJobStore()
+    rmSync( directory, { recursive: true, force: true } )
+  } )
+
+  const inspect = < Result >( read: ( database: Database.Database ) => Result ): Result => {
+    const database = new Database( databasePath, { readonly: true } )
+
+    try {
+      return read( database )
+    } finally {
+      database.close()
+    }
+  }
+
+  it( 'creates the jobs table with the columns of the TRD', () => {
+    openJobStore( databasePath )
+
+    const columns = inspect( ( database ) => {
+      return database.pragma( 'table_info(jobs)' ) as { name: string, notnull: number }[]
+    } )
+
+    expect( columns.map( ( { name } ) => name ) ).toEqual( [
+      'id',
+      'url',
+      'status',
+      'error',
+      'title',
+      'transcript',
+      'summary_markdown',
+      'suggested_tags',
+      'saved_path',
+      'expires_at',
+      'created_at',
+      'updated_at',
+    ] )
+  } )
+
+  it( 'records the number of applied migrations in user_version', () => {
+    openJobStore( databasePath )
+
+    const version = inspect( ( database ) => database.pragma( 'user_version', { simple: true } ) )
+
+    expect( version ).toBe( jobStoreMigrations.length )
+  } )
+
+  it( 'turns on WAL mode', () => {
+    openJobStore( databasePath )
+
+    const mode = inspect( ( database ) => database.pragma( 'journal_mode', { simple: true } ) )
+
+    expect( mode ).toBe( 'wal' )
+  } )
+
+  it( 'keeps existing rows and the version when opened again', () => {
+    openJobStore( databasePath )
+    closeJobStore()
+    const writer = new Database( databasePath )
+    writer
+      .prepare( `INSERT INTO jobs ( id, url, status, created_at, updated_at )
+        VALUES ( 'a', 'https://example.com', 'queued', 'now', 'now' )` )
+      .run()
+    writer.close()
+
+    openJobStore( databasePath )
+
+    const result = inspect( ( database ) => ( {
+      rows: database.prepare( 'SELECT COUNT(*) AS count FROM jobs' ).get(),
+      version: database.pragma( 'user_version', { simple: true } ),
+    } ) )
+
+    expect( result ).toEqual( { rows: { count: 1 }, version: jobStoreMigrations.length } )
+  } )
+
+  it( 'closes the previous store when opened twice', () => {
+    openJobStore( databasePath )
+
+    expect( () => openJobStore( databasePath ) ).not.toThrow()
+  } )
+
+  it( 'can be closed when nothing is open', () => {
+    expect( () => closeJobStore() ).not.toThrow()
   } )
 } )

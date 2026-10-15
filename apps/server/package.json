@@ -24,12 +24,14 @@
   },
   "dependencies": {
     "@mnemosyne/shared": "workspace:*",
+    "better-sqlite3": "^13.0.3",
     "express": "^5.3.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@stylistic/eslint-plugin": "^5.10.0",
+    "@types/better-sqlite3": "^9.6.0",
     "@types/express": "^5.0.6",
     "@types/node": "^24",
     "@types/supertest": "^7.2.1",

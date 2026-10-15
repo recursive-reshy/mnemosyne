@@ -28,7 +28,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 1.4 | Move the filename cleaning to shared as `noteBasename`; server `transcriptFilename` uses it | 0008 | ✅ |
 | 1.5 | Move `groupParagraphs` to shared; the Markdown formatter imports it | 0008 | ✅ |
 | **Phase 2** | **SQLite persistence** | | |
-| 2.1 | Add `better-sqlite3` (+ `allowBuilds`); `openJobStore` / `closeJobStore` with `user_version` migrations and the `jobs` table | 0012 | ⬜ |
+| 2.1 | Add `better-sqlite3` (+ `allowBuilds`); `openJobStore` / `closeJobStore` with `user_version` migrations and the `jobs` table | 0012 | ✅ |
 | 2.2 | Re-implement the existing repository functions on SQLite; transcript stored as JSON and parsed with the shared schema; existing tests stay green | 0012 | ⬜ |
 | 2.3 | `DATA_DIR` in config; open the store in `server.ts`, close it in `shutdown.ts` | 0012 | ⬜ |
 | 2.4 | Startup recovery: `markInterruptedJobs` + `recoverInterruptedJobs` (downloading/converting/transcribing → `failed`) | 0012 | ⬜ |
@@ -111,3 +111,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 - 1.3 ✅ Added `ListJobsResponse`, `GetTranscriptResponse`, `SaveJobBody` (title trimmed, non-empty), `SaveJobResponse` to shared `api.ts`.
 - 1.4 ✅ `noteBasename( title, fallback = 'Untitled' )` in shared; server `transcriptFilename` calls it with fallback `transcript`, so download names are unchanged.
 - 1.5 ✅ `groupParagraphs`, `cleanText` and `Paragraph` moved to shared with their tests; the three formatters import them from `@mnemosyne/shared`.
+- 2.1 ✅ Added `better-sqlite3` (+ types, `allowBuilds`); `openJobStore` / `closeJobStore` with `user_version` migrations and the `jobs` table, WAL mode. Functions still run on the Map until 2.2.
