@@ -1,0 +1,179 @@
+// React
+import { Route, Routes } from 'react-router'
+// Testing Library
+import { screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+// Vitest
+import {
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
+// Shared
+import type { Job } from '@mnemosyne/shared'
+// App
+import { ApiError } from '#src/api/apiError'
+import { createJob } from '#src/api/jobs.api'
+import { useJob } from '#src/hooks/useJob'
+import type { JobState } from '#src/hooks/useJob'
+import { jobFixture } from '#src/test-support/job.fixture'
+import { renderWithClient } from '#src/test-support/renderWithClient'
+import { JobPage } from './JobPage'
+
+vi.mock( '#src/hooks/useJob' )
+vi.mock( '#src/api/jobs.api', async ( importOriginal ) => ( {
+  ...await importOriginal< typeof import( '#src/api/jobs.api' ) >(),
+  createJob: vi.fn(),
+} ) )
+
+const mockedUseJob = vi.mocked( useJob )
+const mockedCreateJob = vi.mocked( createJob )
+const jobId = jobFixture().id
+const newJobId = '7a1d9e2c-3b4f-4c5d-8e6f-0a1b2c3d4e5f'
+
+const showJob = ( job: Job | null, error: string | null = null ): void => {
+  const state: JobState = { job, error }
+
+  mockedUseJob.mockImplementation( ( id ) => id === null ? { job: null, error: null } : state )
+}
+
+const renderPage = ( id: string = jobId ): ReturnType< typeof renderWithClient > => {
+  return renderWithClient(
+    <Routes>
+      <Route path="/" element={ <p>Home</p> } />
+      <Route path="/jobs/:id" element={ <JobPage /> } />
+    </Routes>,
+    { route: `/jobs/${ id }` },
+  )
+}
+
+const lastUseJobArgument = (): string | null | undefined => {
+  return mockedUseJob.mock.calls.at( -1 )?.[ 0 ]
+}
+
+beforeEach( () => {
+  mockedUseJob.mockReset()
+  mockedCreateJob.mockReset()
+  showJob( null )
+} )
+
+describe( 'JobPage', () => {
+  it( 'watches the job in the address', () => {
+    showJob( jobFixture( { status: 'downloading' } ) )
+    renderPage()
+
+    expect( lastUseJobArgument() ).toBe( jobId )
+    expect( screen.queryByRole( 'form', { name: 'Transcribe a video' } ) ).not.toBeInTheDocument()
+  } )
+
+  it( 'redirects an invalid job id to the home page', () => {
+    const { location } = renderPage( 'not-a-uuid' )
+
+    expect( location().pathname ).toBe( '/' )
+    expect( screen.getByText( 'Home' ) ).toBeInTheDocument()
+    expect( lastUseJobArgument() ).toBeNull()
+  } )
+
+  it( 'shows a loading status until the job arrives', () => {
+    renderPage()
+
+    expect( screen.getByRole( 'status' ) ).toHaveTextContent( 'Loading job…' )
+  } )
+
+  it( 'shows a vanished job and starts over', async () => {
+    showJob( null, 'This job no longer exists. The server may have restarted.' )
+    const { location } = renderPage()
+    const user = userEvent.setup()
+
+    expect( screen.getByRole( 'alert' ) ).toHaveTextContent( 'This job no longer exists' )
+
+    await user.click( screen.getByRole( 'button', { name: 'Start over' } ) )
+
+    expect( location().pathname ).toBe( '/' )
+  } )
+
+  it( 'shows progress without downloads for a running job', () => {
+    showJob( jobFixture( { status: 'transcribing' } ) )
+    renderPage()
+
+    expect( screen.getByRole( 'status' ) ).toHaveTextContent( 'Transcribing…' )
+    expect( screen.queryByRole( 'region', { name: 'Download transcript' } ) )
+      .not.toBeInTheDocument()
+    expect( screen.getByRole( 'button', { name: 'Transcribe another video' } ) )
+      .toBeInTheDocument()
+  } )
+
+  it.each( [ 'ready_for_review', 'summary_failed' ] as const )(
+    'shows the download links when the job is %s',
+    ( status ) => {
+      showJob( jobFixture( { status } ) )
+      renderPage()
+
+      expect( screen.getByRole( 'region', { name: 'Download transcript' } ) )
+        .toBeInTheDocument()
+    },
+  )
+
+  it( 'hides the download links while summarizing', () => {
+    showJob( jobFixture( { status: 'summarizing' } ) )
+    renderPage()
+
+    expect( screen.queryByRole( 'region', { name: 'Download transcript' } ) )
+      .not.toBeInTheDocument()
+  } )
+
+  it( 'links to the Markdown download for a job ready for review', () => {
+    showJob( jobFixture( { status: 'ready_for_review' } ) )
+    renderPage()
+
+    expect( screen.getByRole( 'link', { name: 'Markdown (.md)' } ) )
+      .toHaveAttribute( 'href', `/api/jobs/${ jobId }/download?format=md` )
+  } )
+
+  it( 'shows a connection error next to the job', () => {
+    showJob( jobFixture( { status: 'downloading' } ), 'Could not reach the server' )
+    renderPage()
+
+    expect( screen.getByRole( 'alert' ) )
+      .toHaveTextContent( 'Could not reach the server. Retrying…' )
+  } )
+
+  it( 'retries a failed job with its URL and moves to the new job', async () => {
+    mockedCreateJob.mockResolvedValue( newJobId )
+    showJob( jobFixture( { status: 'failed', error: 'Video unavailable' } ) )
+    const { location } = renderPage()
+    const user = userEvent.setup()
+
+    await user.click( screen.getByRole( 'button', { name: 'Try again' } ) )
+
+    expect( mockedCreateJob ).toHaveBeenCalledWith( jobFixture().url )
+    expect( location().pathname ).toBe( `/jobs/${ newJobId }` )
+  } )
+
+  it( 'shows a failed retry and stays on the old job', async () => {
+    mockedCreateJob.mockRejectedValue( new ApiError( 'Could not reach the server', null ) )
+    showJob( jobFixture( { status: 'failed', error: 'Video unavailable' } ) )
+    const { location } = renderPage()
+    const user = userEvent.setup()
+
+    await user.click( screen.getByRole( 'button', { name: 'Try again' } ) )
+
+    const message = await screen.findByText( 'Could not reach the server' )
+
+    expect( message ).toHaveAttribute( 'role', 'alert' )
+    expect( location().pathname ).toBe( `/jobs/${ jobId }` )
+    expect( lastUseJobArgument() ).toBe( jobId )
+  } )
+
+  it( 'starts over from a finished job', async () => {
+    showJob( jobFixture( { status: 'ready_for_review' } ) )
+    const { location } = renderPage()
+    const user = userEvent.setup()
+
+    await user.click( screen.getByRole( 'button', { name: 'Transcribe another video' } ) )
+
+    expect( location().pathname ).toBe( '/' )
+  } )
+} )
