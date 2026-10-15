@@ -2,6 +2,10 @@
 
 FROM node:24-slim AS build
 
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends python3 make g++ \
+  && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /repo
 RUN corepack enable && corepack prepare pnpm@11.24.0 --activate
 
@@ -44,7 +48,11 @@ RUN echo "--js-runtimes node" > /etc/yt-dlp.conf
 ENV NODE_ENV=production \
     PORT=3100 \
     WORK_DIR=/tmp/mnemosyne \
+    DATA_DIR=/data \
+    VAULT_PATH=/vault \
     WEB_DIR=/app/web
+
+RUN mkdir -p /data && chown node:node /data
 
 WORKDIR /app
 COPY --from=build --chown=node:node /deploy ./

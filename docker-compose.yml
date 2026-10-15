@@ -4,9 +4,13 @@ services:
     image: mnemosyne:local
     ports:
       - "3100:3100"
+    env_file: .env
     environment:
       WHISPER_URL: http://host.docker.internal:8178
       WHISPER_MODEL: ${WHISPER_MODEL:-large-v3-turbo}
+    volumes:
+      - mnemosyne-data:/data
+      - ${VAULT_HOST_PATH:?Set VAULT_HOST_PATH in .env to your Obsidian vault folder}:/vault
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
@@ -21,3 +25,6 @@ services:
       timeout: 5s
       start_period: 15s
       retries: 3
+
+volumes:
+  mnemosyne-data:
