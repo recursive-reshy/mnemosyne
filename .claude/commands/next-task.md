@@ -1,0 +1,1 @@
+Follow the Workflow section of the root CLAUDE.md from step 1: read the current version's PRD, TRD and tasks file and the ADRs for the next task, say which checkpoint and task is next, then either plan the checkpoint (if its Plan cell is ⬜) or continue from the first unticked task in its saved plan. Stop at the end of the checkpoint and report.
