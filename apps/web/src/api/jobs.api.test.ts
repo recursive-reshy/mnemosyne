@@ -12,7 +12,16 @@ import {
 // App
 import { jobFixture } from '../test-support/job.fixture'
 import { ApiError } from './apiError'
-import { createJob, downloadUrl, getJob } from './jobs.api'
+import {
+  createJob,
+  discardJob,
+  downloadUrl,
+  getJob,
+  getTranscript,
+  listJobs,
+  retrySummary,
+  saveJob,
+} from './jobs.api'
 
 const fetchMock = vi.fn()
 const jobId = '3f2b8c1e-5d4a-4e6f-9a7b-1c2d3e4f5a6b'
@@ -125,6 +134,153 @@ describe( 'getJob', () => {
     const error = await rejection( getJob( jobId ) )
 
     expect( error.message ).toBe( 'Unexpected response from the server' )
+  } )
+} )
+
+const transcript = {
+  meta: {
+    title: 'A talk',
+    source: 'https://www.youtube.com/watch?v=abc',
+    channel: 'Channel',
+    duration_seconds: 60,
+    transcribed_at: '2026-10-15T10:00:00.000Z',
+    model: 'large-v3-turbo',
+  },
+  segments: [ { start: 0, end: 4, text: 'Hello.' } ],
+}
+
+const edits = { title: 'A talk', tags: [ 'rust' ], body: '## Summary' }
+
+describe( 'listJobs', () => {
+  it( 'requests the list and returns the parsed jobs', async () => {
+    fetchMock.mockResolvedValue( jsonResponse( { jobs: [ jobFixture() ] }, 200 ) )
+
+    await expect( listJobs() ).resolves.toEqual( [ jobFixture() ] )
+    expect( fetchMock.mock.calls[ 0 ]?.[ 0 ] ).toBe( '/api/jobs' )
+    expect( fetchMock.mock.calls[ 0 ]?.[ 1 ] ).toBeUndefined()
+  } )
+
+  it( 'rejects a malformed list', async () => {
+    fetchMock.mockResolvedValue( jsonResponse( { jobs: [ { id: 1 } ] }, 200 ) )
+
+    const error = await rejection( listJobs() )
+
+    expect( error.message ).toBe( 'Unexpected response from the server' )
+  } )
+} )
+
+describe( 'getTranscript', () => {
+  it( 'requests the transcript with the id encoded and returns it', async () => {
+    fetchMock.mockResolvedValue( jsonResponse( { transcript }, 200 ) )
+
+    await expect( getTranscript( 'a/b' ) ).resolves.toEqual( transcript )
+    expect( fetchMock.mock.calls[ 0 ]?.[ 0 ] ).toBe( '/api/jobs/a%2Fb/transcript' )
+  } )
+
+  it( 'uses the server message when the transcript is not ready', async () => {
+    fetchMock.mockResolvedValue( jsonResponse( { error: 'Transcript not ready' }, 409 ) )
+
+    const error = await rejection( getTranscript( jobId ) )
+
+    expect( error.message ).toBe( 'Transcript not ready' )
+    expect( error.status ).toBe( 409 )
+  } )
+
+  it( 'rejects a malformed transcript', async () => {
+    fetchMock.mockResolvedValue( jsonResponse( { transcript: { meta: {} } }, 200 ) )
+
+    const error = await rejection( getTranscript( jobId ) )
+
+    expect( error.message ).toBe( 'Unexpected response from the server' )
+  } )
+} )
+
+describe( 'saveJob', () => {
+  it( 'posts the edits as JSON and returns the saved path', async () => {
+    fetchMock.mockResolvedValue( jsonResponse( { saved_path: 'Mnemosyne/A talk.md' }, 200 ) )
+
+    await expect( saveJob( 'a/b', edits ) ).resolves.toBe( 'Mnemosyne/A talk.md' )
+    expect( fetchMock ).toHaveBeenCalledWith( '/api/jobs/a%2Fb/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify( edits ),
+    } )
+  } )
+
+  it( 'uses the server message when the job cannot be saved', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse( { error: 'Cannot move job from saved to saved' }, 409 ),
+    )
+
+    const error = await rejection( saveJob( jobId, edits ) )
+
+    expect( error.message ).toBe( 'Cannot move job from saved to saved' )
+    expect( error.status ).toBe( 409 )
+  } )
+
+  it( 'reports an unreachable server', async () => {
+    fetchMock.mockRejectedValue( new TypeError( 'Failed to fetch' ) )
+
+    const error = await rejection( saveJob( jobId, edits ) )
+
+    expect( error.message ).toBe( 'Could not reach the server' )
+  } )
+
+  it( 'rejects a response without a saved path', async () => {
+    fetchMock.mockResolvedValue( jsonResponse( {}, 200 ) )
+
+    const error = await rejection( saveJob( jobId, edits ) )
+
+    expect( error.message ).toBe( 'Unexpected response from the server' )
+  } )
+} )
+
+describe( 'retrySummary', () => {
+  it( 'posts to the retry endpoint and returns the job', async () => {
+    const job = jobFixture( { status: 'summarizing' } )
+    fetchMock.mockResolvedValue( jsonResponse( { job }, 202 ) )
+
+    await expect( retrySummary( 'a/b' ) ).resolves.toEqual( job )
+    expect( fetchMock ).toHaveBeenCalledWith( '/api/jobs/a%2Fb/retry-summary', {
+      method: 'POST',
+    } )
+  } )
+
+  it( 'uses the server message on a conflict', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse( { error: 'Cannot move job from queued to summarizing' }, 409 ),
+    )
+
+    const error = await rejection( retrySummary( jobId ) )
+
+    expect( error.status ).toBe( 409 )
+    expect( error.message ).toBe( 'Cannot move job from queued to summarizing' )
+  } )
+} )
+
+describe( 'discardJob', () => {
+  it( 'sends DELETE and resolves with nothing on 204', async () => {
+    fetchMock.mockResolvedValue( new Response( null, { status: 204 } ) )
+
+    await expect( discardJob( 'a/b' ) ).resolves.toBeUndefined()
+    expect( fetchMock ).toHaveBeenCalledWith( '/api/jobs/a%2Fb', { method: 'DELETE' } )
+  } )
+
+  it( 'uses the server message for a missing job', async () => {
+    fetchMock.mockResolvedValue( jsonResponse( { error: 'Job not found' }, 404 ) )
+
+    const error = await rejection( discardJob( jobId ) )
+
+    expect( error.message ).toBe( 'Job not found' )
+    expect( error.status ).toBe( 404 )
+  } )
+
+  it( 'reports an unreachable server', async () => {
+    fetchMock.mockRejectedValue( new TypeError( 'Failed to fetch' ) )
+
+    const error = await rejection( discardJob( jobId ) )
+
+    expect( error.message ).toBe( 'Could not reach the server' )
   } )
 } )
 

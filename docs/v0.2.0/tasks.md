@@ -75,7 +75,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | **Phase 6** | **Web foundation (refactor, no behaviour change)** | | |
 | 6.1 | Add `@tanstack/react-query`; `QueryClientProvider`; `renderWithClient`; `useJob` becomes a `useQuery` wrapper | 0013 | ✅ |
 | 6.2 | Add `react-router`; `/` and `/jobs/:id` replace `?job=<id>`; submitting navigates to the job | 0013 | ✅ |
-| 6.3 | API client functions for list, transcript, save, retry and discard | 0013 | ⬜ |
+| 6.3 | API client functions for list, transcript, save, retry and discard | 0013 | ✅ |
 
 ## Checkpoint E: Phase 7 (web features)
 **Plan:** ⬜ [`plans/checkpoint-e.md`](plans/checkpoint-e.md)
@@ -136,3 +136,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 - 5.2 ✅ `apps/server/CLAUDE.md` (environment, folder structure, layers, worker flow), README (flow, config table, vault, troubleshooting) and the root `CLAUDE.md` architecture paragraph brought up to date.
 - 6.1 ✅ `@tanstack/react-query`; `createQueryClient`, `QueryClientProvider` in `main.tsx`, `jobKeys`, `renderWithClient` / `renderHookWithClient`; `useJob` is a `useQuery` wrapper with the same `{ job, error }` result. Hook suite kept (render helper swapped, assertions unchanged) plus two sharing tests; the test setup uses a microtask scheduler for TanStack so fake timers work.
 - 6.2 ✅ `react-router`: `/` → `HomePage`, `/jobs/:id` → `JobPage` (invalid id and unknown paths redirect to `/`); submitting and retrying navigate to the new job. `App.test.tsx` rewritten around routes, with the scenarios split into `HomePage.test.tsx` and `JobPage.test.tsx`; `renderWithClient` takes a `route` and returns `location()`.
+- 6.3 ✅ `listJobs`, `getTranscript`, `saveJob` (returns the saved path), `retrySummary`, `discardJob` (204, no body) in `jobs.api.ts`; the shared `send` helper holds the fetch and error handling.
