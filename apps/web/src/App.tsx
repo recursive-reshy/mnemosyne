@@ -4,6 +4,7 @@ import type { ReactElement } from 'react'
 // Shared
 import { Job } from '@mnemosyne/shared'
 // App
+import styles from './App.module.css'
 import { createJob } from './api/jobs.api'
 import { DownloadLinks } from './components/DownloadLinks'
 import { JobProgress } from './components/JobProgress'
@@ -60,7 +61,7 @@ export function App(): ReactElement {
     if( job === null && error !== null ) {
       return (
         <>
-          <p role="alert">{ error }</p>
+          <p className="alert" role="alert">{ error }</p>
           <button type="button" onClick={ handleStartOver }>Start over</button>
         </>
       )
@@ -78,24 +79,28 @@ export function App(): ReactElement {
           onRetry={ () => void handleSubmit( job.url ) }
         />
         { job.status === 'done' && <DownloadLinks jobId={ job.id } /> }
-        { submitError && <p role="alert">{ submitError }</p> }
+        { submitError && <p className="alert" role="alert">{ submitError }</p> }
         <button type="button" onClick={ handleStartOver }>Transcribe another video</button>
       </>
     )
   }
 
   return (
-    <main>
-      <h1>Mnemosyne</h1>
-      { jobId === null
-        ? (
-          <SubmitForm
-            isSubmitting={ isSubmitting }
-            error={ submitError }
-            onSubmit={ ( url ) => void handleSubmit( url ) }
-          />
-        )
-        : renderJob() }
+    <main className={ styles.page }>
+      <header className={ styles.header }>
+        <h1 className={ styles.heading }>Mnemosyne</h1>
+      </header>
+      <div className={ styles.card }>
+        { jobId === null
+          ? (
+            <SubmitForm
+              isSubmitting={ isSubmitting }
+              error={ submitError }
+              onSubmit={ ( url ) => void handleSubmit( url ) }
+            />
+          )
+          : renderJob() }
+      </div>
     </main>
   )
 }

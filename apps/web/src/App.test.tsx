@@ -176,6 +176,20 @@ describe( 'App', () => {
     expect( window.location.search ).toBe( `?job=${ newJobId }` )
   } )
 
+  it( 'shows a failed retry and keeps the old job id', async () => {
+    mockedCreateJob.mockRejectedValue( new ApiError( 'Could not reach the server', null ) )
+    showJob( jobFixture( { status: 'failed', error: 'Video unavailable' } ) )
+    const user = startApp( `?job=${ jobId }` )
+
+    await user.click( screen.getByRole( 'button', { name: 'Try again' } ) )
+
+    const message = await screen.findByText( 'Could not reach the server' )
+
+    expect( message ).toHaveAttribute( 'role', 'alert' )
+    expect( window.location.search ).toBe( `?job=${ jobId }` )
+    expect( lastUseJobArgument() ).toBe( jobId )
+  } )
+
   it( 'starts over from a finished job', async () => {
     showJob( jobFixture( { status: 'done' } ) )
     const user = startApp( `?job=${ jobId }` )
