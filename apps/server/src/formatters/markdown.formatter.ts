@@ -5,17 +5,17 @@ import { groupParagraphs } from './paragraphs.js'
 import { formatClock } from './timestamps.js'
 import { youTubeVideoId } from './youtube.js'
 
-function singleLine( value: string ): string {
+const singleLine = ( value: string ): string => {
   return value.replace( /\r?\n|\r/g, ' ' )
 }
 
-function quoted( value: string ): string {
+const quoted = ( value: string ): string => {
   const escaped = singleLine( value ).replace( /\\/g, '\\\\' ).replace( /"/g, '\\"' )
 
   return `"${ escaped }"`
 }
 
-export function formatMarkdown( { meta, segments }: Transcript ): string {
+export const formatMarkdown = ( { meta, segments }: Transcript ): string => {
   const videoId = youTubeVideoId( meta.source )
 
   const frontmatter = [

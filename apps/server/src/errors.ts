@@ -26,27 +26,27 @@ export class ConflictError extends Error {
   }
 }
 
-function sendError( res: Response, status: number, body: ErrorResponse ): void {
+const sendError = ( res: Response, status: number, body: ErrorResponse ): void => {
   res.status( status ).json( body )
 }
 
-function isJsonParseFailure( error: unknown ): boolean {
+const isJsonParseFailure = ( error: unknown ): boolean => {
   return typeof error === 'object'
     && error !== null
     && 'type' in error
     && error.type === 'entity.parse.failed'
 }
 
-export function notFoundHandler( _req: Request, res: Response ): void {
+export const notFoundHandler = ( _req: Request, res: Response ): void => {
   sendError( res, 404, { error: 'Not Found' } )
 }
 
-export function errorMiddleware(
+export const errorMiddleware = (
   error: unknown,
   _req: Request,
   res: Response,
   next: NextFunction,
-): void {
+): void => {
   if( res.headersSent ) {
     next( error )
     return

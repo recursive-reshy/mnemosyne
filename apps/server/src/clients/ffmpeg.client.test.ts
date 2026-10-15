@@ -14,7 +14,7 @@ import { runCommand } from './runCommand.js'
 vi.mock( './runCommand.js' )
 vi.mock( 'node:fs/promises' )
 
-function stubStat( size: number ): void {
+const stubStat = ( size: number ): void => {
   vi.mocked( stat ).mockResolvedValue( { size } as Awaited< ReturnType< typeof stat > > )
 }
 

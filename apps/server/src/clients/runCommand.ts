@@ -3,12 +3,12 @@ import { execFile } from 'node:child_process'
 
 const MAX_BUFFER_BYTES = 10 * 1024 * 1024
 
-function describeFailure(
+const describeFailure = (
   command: string,
   error: Error,
   stderr: string,
   timeoutMs: number,
-): Error {
+): Error => {
   const { code, killed } = error as { code?: unknown, killed?: boolean }
 
   if( code === 'ENOENT' ) {
@@ -32,11 +32,11 @@ function describeFailure(
   return new Error( `${ command } failed with exit code ${ String( code ) }` )
 }
 
-export function runCommand(
+export const runCommand = (
   command: string,
   args: string[],
   timeoutMs: number,
-): Promise< { stdout: string, stderr: string } > {
+): Promise< { stdout: string, stderr: string } > => {
   return new Promise( ( resolve, reject ) => {
     execFile(
       command,

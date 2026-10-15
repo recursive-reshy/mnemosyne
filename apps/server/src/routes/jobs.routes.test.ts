@@ -119,7 +119,7 @@ describe( 'GET /api/jobs/:id', () => {
 } )
 
 describe( 'GET /api/jobs/:id/download', () => {
-  function seedDoneJob( title?: string ): string {
+  const seedDoneJob = ( title?: string ): string => {
     const { id } = queueJob( youtubeUrl )
 
     markStatus( id, 'downloading' )

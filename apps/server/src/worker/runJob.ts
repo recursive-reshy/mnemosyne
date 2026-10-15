@@ -20,10 +20,10 @@ import { config } from '../config.js'
 const RETRY_DELAY_MS = 3000
 const removeOptions = { recursive: true, force: true }
 
-async function downloadWithRetry(
+const downloadWithRetry = async (
   url: string,
   workDir: string,
-): ReturnType< typeof downloadAudio > {
+): ReturnType< typeof downloadAudio > => {
   try {
     return await downloadAudio( url, workDir )
   } catch( error ) {
@@ -38,7 +38,7 @@ async function downloadWithRetry(
   return downloadAudio( url, workDir )
 }
 
-export async function runJob( jobId: string ): Promise< void > {
+export const runJob = async ( jobId: string ): Promise< void > => {
   const job = findJob( jobId )
   markStatus( jobId, 'downloading' )
 

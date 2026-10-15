@@ -5,10 +5,10 @@ import { runJob } from './runJob.js'
 
 const POLL_INTERVAL_MS = 1000
 
-export function startWorker(): () => void {
+export const startWorker = (): ( () => void ) => {
   let busy = false
 
-  async function runPass(): Promise< void > {
+  const runPass = async (): Promise< void > => {
     if( busy ) {
       return
     }

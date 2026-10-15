@@ -3,7 +3,7 @@ import { Transcript } from '@mnemosyne/shared'
 // Formatters
 import { groupParagraphs } from './paragraphs.js'
 
-export function formatTxt( { segments }: Transcript ): string {
+export const formatTxt = ( { segments }: Transcript ): string => {
   const paragraphs = groupParagraphs( segments )
 
   if( paragraphs.length === 0 ) {

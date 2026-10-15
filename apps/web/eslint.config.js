@@ -83,6 +83,11 @@ export default tseslint.config(
           selector: 'TSParameterProperty',
           message: 'Parameter properties are not erasable syntax.',
         },
+        {
+          selector: 'FunctionDeclaration[id.name!=/^(?:[A-Z]|use[A-Z])/]',
+          message: 'Only components and hooks are function declarations; '
+            + 'use a const arrow function.',
+        },
       ],
     },
   },

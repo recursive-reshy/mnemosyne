@@ -29,7 +29,7 @@ let gates: Map< string, () => void >
 let hold: boolean
 let stopWorker: () => void
 
-function useRealisticRunJob(): void {
+const useRealisticRunJob = (): void => {
   runJobMock.mockImplementation( async ( id ) => {
     markStatus( id, 'downloading' )
     events.push( `start:${ id }` )
@@ -43,7 +43,7 @@ function useRealisticRunJob(): void {
   } )
 }
 
-function queue(): string {
+const queue = (): string => {
   return queueJob( 'https://example.com/video' ).id
 }
 

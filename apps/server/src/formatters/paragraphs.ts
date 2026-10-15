@@ -7,11 +7,11 @@ const GAP_SECONDS = 2
 const SOFT_SPAN_SECONDS = 45
 const HARD_SPAN_SECONDS = 90
 
-export function cleanText( text: string ): string {
+export const cleanText = ( text: string ): string => {
   return text.replace( /\s+/g, ' ' ).trim()
 }
 
-export function groupParagraphs( segments: Segment[] ): Paragraph[] {
+export const groupParagraphs = ( segments: Segment[] ): Paragraph[] => {
   const paragraphs: Paragraph[] = []
   let texts: string[] = []
   let start = 0

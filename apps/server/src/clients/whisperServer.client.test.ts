@@ -19,7 +19,7 @@ vi.mock( 'node:fs/promises' )
 const whisperUrl = 'http://localhost:8178'
 const audioPath = '/tmp/work/a.wav'
 
-function jsonResponse( body: unknown, status: number = 200 ): Response {
+const jsonResponse = ( body: unknown, status: number = 200 ): Response => {
   return new Response( JSON.stringify( body ), { status } )
 }
 

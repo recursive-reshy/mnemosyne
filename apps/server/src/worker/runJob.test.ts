@@ -50,11 +50,11 @@ const convertMock = vi.mocked( convertToWav )
 const transcribeMock = vi.mocked( transcribeAudio )
 const rmMock = vi.mocked( rm )
 
-function queue(): string {
+const queue = (): string => {
   return queueJob( 'https://www.youtube.com/watch?v=abc' ).id
 }
 
-function expectClientsNotCalled(): void {
+const expectClientsNotCalled = (): void => {
   expect( downloadMock ).not.toHaveBeenCalled()
   expect( convertMock ).not.toHaveBeenCalled()
   expect( transcribeMock ).not.toHaveBeenCalled()

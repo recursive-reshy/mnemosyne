@@ -26,12 +26,12 @@ export function SubmitForm( { isSubmitting, error, onSubmit }: SubmitFormProps )
   const messageId = useId()
   const message = validationMessage ?? error
 
-  function handleChange( event: ChangeEvent< HTMLInputElement > ): void {
+  const handleChange = ( event: ChangeEvent< HTMLInputElement > ): void => {
     setUrl( event.target.value )
     setValidationMessage( null )
   }
 
-  function handleSubmit( event: SyntheticEvent< HTMLFormElement > ): void {
+  const handleSubmit = ( event: SyntheticEvent< HTMLFormElement > ): void => {
     event.preventDefault()
 
     const trimmedUrl = url.trim()

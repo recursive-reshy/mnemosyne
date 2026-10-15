@@ -10,7 +10,7 @@ export type StoredJob = z.infer< typeof StoredJob >
 
 const jobs = new Map< string, StoredJob >()
 
-export function insertJob( job: StoredJob ): void {
+export const insertJob = ( job: StoredJob ): void => {
   if( jobs.has( job.id ) ) {
     throw new Error( `Job ${ job.id } already exists` )
   }
@@ -18,16 +18,16 @@ export function insertJob( job: StoredJob ): void {
   jobs.set( job.id, structuredClone( job ) )
 }
 
-export function findJobById( id: string ): StoredJob | undefined {
+export const findJobById = ( id: string ): StoredJob | undefined => {
   const job = jobs.get( id )
 
   return job === undefined ? undefined : structuredClone( job )
 }
 
-export function updateJob(
+export const updateJob = (
   id: string,
   changes: Partial< Omit< StoredJob, 'id' > >,
-): StoredJob | undefined {
+): StoredJob | undefined => {
   const job = jobs.get( id )
 
   if( job === undefined ) {
@@ -40,7 +40,7 @@ export function updateJob(
   return structuredClone( updated )
 }
 
-export function findNextQueuedJob(): StoredJob | undefined {
+export const findNextQueuedJob = (): StoredJob | undefined => {
   for( const job of jobs.values() ) {
     if( job.status === 'queued' ) {
       return structuredClone( job )
@@ -50,6 +50,6 @@ export function findNextQueuedJob(): StoredJob | undefined {
   return undefined
 }
 
-export function clearJobs(): void {
+export const clearJobs = (): void => {
   jobs.clear()
 }

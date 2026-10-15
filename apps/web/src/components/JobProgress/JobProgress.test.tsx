@@ -22,7 +22,7 @@ const labels = [
   'Transcript ready',
 ]
 
-function setup( job: Job, connectionError: string | null = null ) {
+const setup = ( job: Job, connectionError: string | null = null ) => {
   const onRetry = vi.fn()
 
   render( <JobProgress job={ job } connectionError={ connectionError } onRetry={ onRetry } /> )

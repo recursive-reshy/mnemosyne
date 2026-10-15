@@ -18,10 +18,10 @@ const InferenceBody = z.object( {
   } ) ),
 } )
 
-export async function transcribeAudio(
+export const transcribeAudio = async (
   audioPath: string,
   whisperUrl: string,
-): Promise< Segment[] > {
+): Promise< Segment[] > => {
   let audio: Buffer
 
   try {

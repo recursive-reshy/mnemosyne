@@ -10,7 +10,7 @@ import {
 // Services
 import { findJob, queueJob, renderTranscript } from '../services/jobs.service.js'
 
-export function createJob( { body }: Request, res: Response< CreateJobResponse > ): void {
+export const createJob = ( { body }: Request, res: Response< CreateJobResponse > ): void => {
   const { url } = CreateJobBody.parse( body )
 
   const job = queueJob( url )
@@ -21,13 +21,13 @@ export function createJob( { body }: Request, res: Response< CreateJobResponse >
     .json( { job_id: job.id } )
 }
 
-export function getJob( { params }: Request, res: Response< GetJobResponse > ): void {
+export const getJob = ( { params }: Request, res: Response< GetJobResponse > ): void => {
   const job = findJob( String( params.id ) )
 
   res.status( 200 ).json( { job } )
 }
 
-export function downloadTranscript( { params, query }: Request, res: Response ): void {
+export const downloadTranscript = ( { params, query }: Request, res: Response ): void => {
   const format = DownloadFormat.parse( query.format ?? 'md' )
 
   const { filename, contentType, body } = renderTranscript( String( params.id ), format )

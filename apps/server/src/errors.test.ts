@@ -23,7 +23,7 @@ import {
   notFoundHandler,
 } from './errors.js'
 
-function buildApp(): Express {
+const buildApp = (): Express => {
   const testApp: Express = express()
 
   testApp.get( '/validation', () => {

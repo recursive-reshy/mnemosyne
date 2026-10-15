@@ -27,7 +27,7 @@ interface Deferred {
   resolve: ( job: Job ) => void
 }
 
-function deferred(): Deferred {
+const deferred = (): Deferred => {
   let resolve: ( job: Job ) => void = () => undefined
   const promise = new Promise< Job >( ( resolver ) => {
     resolve = resolver
@@ -36,7 +36,7 @@ function deferred(): Deferred {
   return { promise, resolve }
 }
 
-async function advance( milliseconds: number ): Promise< void > {
+const advance = async ( milliseconds: number ): Promise< void > => {
   await act( async () => {
     await vi.advanceTimersByTimeAsync( milliseconds )
   } )

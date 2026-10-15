@@ -14,7 +14,7 @@ vi.mock( 'node:child_process' )
 
 type Callback = ( error: Error | null, stdout: string, stderr: string ) => void
 
-function mockExecFile( error: Error | null, stdout: string = '', stderr: string = '' ): void {
+const mockExecFile = ( error: Error | null, stdout: string = '', stderr: string = '' ): void => {
   vi.mocked( execFile ).mockImplementation( ( ( ...params: unknown[] ) => {
     const callback = params[ params.length - 1 ] as Callback
 
@@ -22,7 +22,7 @@ function mockExecFile( error: Error | null, stdout: string = '', stderr: string 
   } ) as unknown as typeof execFile )
 }
 
-function failure( properties: Record< string, unknown > ): Error {
+const failure = ( properties: Record< string, unknown > ): Error => {
   return Object.assign( new Error( 'Command failed' ), properties )
 }
 

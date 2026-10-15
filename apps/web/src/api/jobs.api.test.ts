@@ -17,11 +17,11 @@ import { createJob, downloadUrl, getJob } from './jobs.api'
 const fetchMock = vi.fn()
 const jobId = '3f2b8c1e-5d4a-4e6f-9a7b-1c2d3e4f5a6b'
 
-function jsonResponse( body: unknown, status: number ): Response {
+const jsonResponse = ( body: unknown, status: number ): Response => {
   return new Response( JSON.stringify( body ), { status } )
 }
 
-async function rejection( promise: Promise< unknown > ): Promise< ApiError > {
+const rejection = async ( promise: Promise< unknown > ): Promise< ApiError > => {
   const error: unknown = await promise.then( () => null, ( reason: unknown ) => reason )
   expect( error ).toBeInstanceOf( ApiError )
   return error as ApiError

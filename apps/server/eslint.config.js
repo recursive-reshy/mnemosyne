@@ -51,6 +51,7 @@ export default tseslint.config(
         ImportDeclaration: { minProperties: 4, multiline: true },
       } ],
       '@stylistic/indent': [ 'error', 2 ],
+      'func-style': [ 'error', 'expression' ],
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/explicit-module-boundary-types': 'error',
       'no-restricted-syntax': [

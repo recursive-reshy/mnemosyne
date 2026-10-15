@@ -6,7 +6,7 @@ import { runCommand } from './runCommand.js'
 
 const CONVERT_TIMEOUT_MS = 30 * 60 * 1000
 
-export async function convertToWav( inputPath: string ): Promise< string > {
+export const convertToWav = async ( inputPath: string ): Promise< string > => {
   const outputPath = path.join( path.dirname( inputPath ), 'converted.wav' )
 
   await runCommand(

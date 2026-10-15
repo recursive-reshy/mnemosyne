@@ -25,7 +25,7 @@ const EnvSchema = z
 
 export type Config = z.infer< typeof EnvSchema >
 
-export function loadConfig( env: NodeJS.ProcessEnv ): Config {
+export const loadConfig = ( env: NodeJS.ProcessEnv ): Config => {
   const result = EnvSchema.safeParse( env )
 
   if( !result.success ) {
@@ -35,7 +35,7 @@ export function loadConfig( env: NodeJS.ProcessEnv ): Config {
   return result.data
 }
 
-function loadConfigOrExit( env: NodeJS.ProcessEnv ): Config {
+const loadConfigOrExit = ( env: NodeJS.ProcessEnv ): Config => {
   try {
     return loadConfig( env )
   } catch( error ) {

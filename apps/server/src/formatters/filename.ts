@@ -3,7 +3,7 @@ import { DownloadFormat } from '@mnemosyne/shared'
 
 const MAX_LENGTH = 100
 
-export function transcriptFilename( title: string, format: DownloadFormat ): string {
+export const transcriptFilename = ( title: string, format: DownloadFormat ): string => {
   const cleaned = title
     // eslint-disable-next-line no-control-regex
     .replace( /[/\\:*?"<>|#^[\]\u0000-\u001f\u007f-\u009f]/g, ' ' )

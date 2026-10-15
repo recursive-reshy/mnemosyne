@@ -1,8 +1,8 @@
-function pad( value: number, width: number = 2 ): string {
+const pad = ( value: number, width: number = 2 ): string => {
   return String( value ).padStart( width, '0' )
 }
 
-export function formatClock( seconds: number ): string {
+export const formatClock = ( seconds: number ): string => {
   const whole = Math.floor( seconds )
   const hours = Math.floor( whole / 3600 )
   const minutes = Math.floor( ( whole % 3600 ) / 60 )
@@ -15,7 +15,7 @@ export function formatClock( seconds: number ): string {
   return `${ pad( minutes ) }:${ pad( rest ) }`
 }
 
-export function formatSrtTime( seconds: number ): string {
+export const formatSrtTime = ( seconds: number ): string => {
   const totalMilliseconds = Math.round( seconds * 1000 )
   const hours = Math.floor( totalMilliseconds / 3_600_000 )
   const minutes = Math.floor( ( totalMilliseconds % 3_600_000 ) / 60_000 )

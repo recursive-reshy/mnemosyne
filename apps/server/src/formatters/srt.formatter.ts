@@ -4,7 +4,7 @@ import { Transcript } from '@mnemosyne/shared'
 import { cleanText } from './paragraphs.js'
 import { formatSrtTime } from './timestamps.js'
 
-export function formatSrt( { segments }: Transcript ): string {
+export const formatSrt = ( { segments }: Transcript ): string => {
   const cues = segments
     .map( ( segment ) => ( { ...segment, text: cleanText( segment.text ) } ) )
     .filter( ( { text } ) => text !== '' )

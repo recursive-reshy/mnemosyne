@@ -32,17 +32,17 @@ const jobId = jobFixture().id
 const newJobId = '7a1d9e2c-3b4f-4c5d-8e6f-0a1b2c3d4e5f'
 const validUrl = 'https://www.youtube.com/watch?v=cFoaK1OQRhw'
 
-function showJob( job: Job | null, error: string | null = null ): void {
+const showJob = ( job: Job | null, error: string | null = null ): void => {
   const state: JobState = { job, error }
 
   mockedUseJob.mockImplementation( ( id ) => id === null ? { job: null, error: null } : state )
 }
 
-function lastUseJobArgument(): string | null | undefined {
+const lastUseJobArgument = (): string | null | undefined => {
   return mockedUseJob.mock.calls.at( -1 )?.[ 0 ]
 }
 
-function startApp( search = '' ): ReturnType< typeof userEvent.setup > {
+const startApp = ( search = '' ): ReturnType< typeof userEvent.setup > => {
   window.history.replaceState( null, '', `/${ search }` )
   render( <App /> )
 

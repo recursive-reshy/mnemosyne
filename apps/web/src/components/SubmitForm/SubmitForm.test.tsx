@@ -14,7 +14,7 @@ import { SubmitForm } from './SubmitForm'
 const validUrl = 'https://www.youtube.com/watch?v=cFoaK1OQRhw'
 const validationMessage = 'Enter a video URL starting with http:// or https://'
 
-function setup( props: { isSubmitting?: boolean, error?: string | null } = {} ) {
+const setup = ( props: { isSubmitting?: boolean, error?: string | null } = {} ) => {
   const onSubmit = vi.fn()
 
   render( <SubmitForm isSubmitting={ false } error={ null } onSubmit={ onSubmit } { ...props } /> )

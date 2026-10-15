@@ -15,7 +15,7 @@ import {
   updateJob,
 } from './jobStore.repository.js'
 
-function buildJob( overrides: Partial< StoredJob > = {} ): StoredJob {
+const buildJob = ( overrides: Partial< StoredJob > = {} ): StoredJob => {
   return {
     id: crypto.randomUUID(),
     url: 'https://www.youtube.com/watch?v=abc',

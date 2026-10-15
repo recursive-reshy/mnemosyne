@@ -12,7 +12,7 @@ interface RunResult {
   timedOut: boolean
 }
 
-function runServer( env: Record< string, string > ): Promise< RunResult > {
+const runServer = ( env: Record< string, string > ): Promise< RunResult > => {
   return new Promise( ( resolve ) => {
     const child = spawn( tsxBin, [ '--conditions=development', 'src/server.ts' ], {
       cwd: join( import.meta.dirname, '..' ),

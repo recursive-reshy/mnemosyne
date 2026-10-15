@@ -34,7 +34,7 @@ type FinishedJob = { jobId: string, status: string, error: string | null }
 
 let stopWorker: () => void
 
-async function waitForJob( jobId: string ): Promise< FinishedJob > {
+const waitForJob = async ( jobId: string ): Promise< FinishedJob > => {
   const deadline = Date.now() + JOB_DEADLINE_MS
 
   while( Date.now() < deadline ) {
@@ -51,14 +51,14 @@ async function waitForJob( jobId: string ): Promise< FinishedJob > {
   throw new Error( `Job ${ jobId } did not finish within 5 minutes` )
 }
 
-async function queueAndWait( url: string ): Promise< FinishedJob > {
+const queueAndWait = async ( url: string ): Promise< FinishedJob > => {
   const created = await request( app ).post( '/api/jobs' ).send( { url } ).expect( 202 )
   const { job_id: jobId } = CreatedBody.parse( created.body )
 
   return waitForJob( jobId )
 }
 
-async function exists( target: string ): Promise< boolean > {
+const exists = async ( target: string ): Promise< boolean > => {
   return access( target ).then( () => true, () => false )
 }
 

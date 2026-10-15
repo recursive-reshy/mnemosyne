@@ -10,7 +10,7 @@ import { JobProgress } from './components/JobProgress'
 import { SubmitForm } from './components/SubmitForm'
 import { useJob } from './hooks/useJob'
 
-function readJobIdFromUrl(): string | null {
+const readJobIdFromUrl = (): string | null => {
   const jobId = new URLSearchParams( window.location.search ).get( 'job' )
   const parsed = Job.shape.id.safeParse( jobId )
 
@@ -22,7 +22,7 @@ function readJobIdFromUrl(): string | null {
   return parsed.data
 }
 
-function writeJobIdToUrl( jobId: string | null ): void {
+const writeJobIdToUrl = ( jobId: string | null ): void => {
   const search = jobId === null ? '' : `?job=${ encodeURIComponent( jobId ) }`
 
   window.history.replaceState( null, '', `${ window.location.pathname }${ search }` )
@@ -34,7 +34,7 @@ export function App(): ReactElement {
   const [ submitError, setSubmitError ] = useState< string | null >( null )
   const { job, error } = useJob( jobId )
 
-  async function handleSubmit( url: string ): Promise< void > {
+  const handleSubmit = async ( url: string ): Promise< void > => {
     setIsSubmitting( true )
     setSubmitError( null )
 
@@ -50,13 +50,13 @@ export function App(): ReactElement {
     }
   }
 
-  function handleStartOver(): void {
+  const handleStartOver = (): void => {
     setJobId( null )
     setSubmitError( null )
     writeJobIdToUrl( null )
   }
 
-  function renderJob(): ReactElement {
+  const renderJob = (): ReactElement => {
     if( job === null && error !== null ) {
       return (
         <>

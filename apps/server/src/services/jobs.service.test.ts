@@ -46,7 +46,7 @@ const transcript: Transcript = {
   segments: [ { start: 0, end: 1, text: 'Hello' } ],
 }
 
-function queueJobAt( status: JobStatus ): string {
+const queueJobAt = ( status: JobStatus ): string => {
   const { id } = queueJob( url )
   const path: JobStatus[] = [ 'downloading', 'converting', 'transcribing' ]
 
@@ -198,7 +198,7 @@ describe( 'failJob', () => {
 } )
 
 describe( 'renderTranscript', () => {
-  function queueDoneJob(): string {
+  const queueDoneJob = (): string => {
     const { id } = queueJob( url )
 
     markStatus( id, 'downloading' )

@@ -31,7 +31,7 @@ const YtDlpOutput = z.object( {
   duration: z.number().nullish(),
 } )
 
-function parseOutput( stdout: string ): z.infer< typeof YtDlpOutput > {
+const parseOutput = ( stdout: string ): z.infer< typeof YtDlpOutput > => {
   const lastLine = stdout
     .split( '\n' )
     .map( ( line ) => line.trim() )
@@ -55,10 +55,10 @@ function parseOutput( stdout: string ): z.infer< typeof YtDlpOutput > {
   return parsed.data
 }
 
-export async function downloadAudio(
+export const downloadAudio = async (
   url: string,
   outputDir: string,
-): Promise< DownloadedAudio > {
+): Promise< DownloadedAudio > => {
   await mkdir( outputDir, { recursive: true } )
 
   const { stdout } = await runCommand(

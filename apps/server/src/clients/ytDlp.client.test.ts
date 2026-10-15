@@ -22,14 +22,14 @@ const realStdout =
   '"uploader": "beIN SPORTS Asia", "duration": 517, ' +
   '"webpage_url": "https://www.youtube.com/watch?v=cFoaK1OQRhw"}\n'
 
-function stubOutput( stdout: string, files: string[] = [ 'audio.webm' ] ): void {
+const stubOutput = ( stdout: string, files: string[] = [ 'audio.webm' ] ): void => {
   vi.mocked( runCommand ).mockResolvedValue( { stdout, stderr: '' } )
   const names = files as unknown as Awaited< ReturnType< typeof readdir > >
 
   vi.mocked( readdir ).mockResolvedValue( names )
 }
 
-function line( fields: Record< string, unknown > ): string {
+const line = ( fields: Record< string, unknown > ): string => {
   return `${ JSON.stringify( { id: 'abc', webpage_url: url, ...fields } ) }\n`
 }
 

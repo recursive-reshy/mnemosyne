@@ -8,11 +8,11 @@ interface Schema< T > {
   safeParse( data: unknown ): { success: true, data: T } | { success: false }
 }
 
-async function request< T >(
+const request = async < T >(
   input: string,
   schema: Schema< T >,
   init?: RequestInit,
-): Promise< T > {
+): Promise< T > => {
   let response: Response
 
   try {
@@ -43,7 +43,7 @@ async function request< T >(
   return parsed.data
 }
 
-export async function createJob( url: string ): Promise< string > {
+export const createJob = async ( url: string ): Promise< string > => {
   const body: CreateJobBody = { url }
   const { job_id } = await request( '/api/jobs', CreateJobResponse, {
     method: 'POST',
@@ -53,11 +53,11 @@ export async function createJob( url: string ): Promise< string > {
   return job_id
 }
 
-export async function getJob( id: string ): Promise< Job > {
+export const getJob = async ( id: string ): Promise< Job > => {
   const { job } = await request( `/api/jobs/${ encodeURIComponent( id ) }`, GetJobResponse )
   return job
 }
 
-export function downloadUrl( id: string, format: DownloadFormat ): string {
+export const downloadUrl = ( id: string, format: DownloadFormat ): string => {
   return `/api/jobs/${ encodeURIComponent( id ) }/download?format=${ format }`
 }

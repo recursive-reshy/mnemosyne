@@ -30,7 +30,7 @@ export function useJob( jobId: string | null ): JobState {
     let isCancelled = false
     let timer: ReturnType< typeof setTimeout > | undefined
 
-    async function poll( id: string ): Promise< void > {
+    const poll = async ( id: string ): Promise< void > => {
       let nextState: ( previous: StoredState ) => StoredState
       let isFinished: boolean
 

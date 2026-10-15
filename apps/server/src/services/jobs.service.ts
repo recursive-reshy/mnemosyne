@@ -44,7 +44,7 @@ type RenderedTranscript = {
 const finishedFrom: JobStatus = 'transcribing'
 const finalStatuses: JobStatus[] = [ 'done', 'failed' ]
 
-function toPublicJob( job: StoredJob ): Job {
+const toPublicJob = ( job: StoredJob ): Job => {
   return {
     id: job.id,
     url: job.url,
@@ -55,7 +55,7 @@ function toPublicJob( job: StoredJob ): Job {
   }
 }
 
-function requireJob( id: string ): StoredJob {
+const requireJob = ( id: string ): StoredJob => {
   const job = findJobById( id )
 
   if( job === undefined ) {
@@ -65,7 +65,7 @@ function requireJob( id: string ): StoredJob {
   return job
 }
 
-function moveTo( job: StoredJob, status: JobStatus, changes: Partial< StoredJob > ): Job {
+const moveTo = ( job: StoredJob, status: JobStatus, changes: Partial< StoredJob > ): Job => {
   const updated = updateJob( job.id, {
     ...changes,
     status,
@@ -79,11 +79,11 @@ function moveTo( job: StoredJob, status: JobStatus, changes: Partial< StoredJob 
   return toPublicJob( updated )
 }
 
-function conflict( from: JobStatus, to: JobStatus ): ConflictError {
+const conflict = ( from: JobStatus, to: JobStatus ): ConflictError => {
   return new ConflictError( `Cannot move job from ${ from } to ${ to }` )
 }
 
-export function queueJob( url: string ): Job {
+export const queueJob = ( url: string ): Job => {
   const now = new Date().toISOString()
   const job: StoredJob = {
     id: crypto.randomUUID(),
@@ -100,17 +100,17 @@ export function queueJob( url: string ): Job {
   return toPublicJob( job )
 }
 
-export function findJob( id: string ): Job {
+export const findJob = ( id: string ): Job => {
   return toPublicJob( requireJob( id ) )
 }
 
-export function findNextQueuedJob(): Job | undefined {
+export const findNextQueuedJob = (): Job | undefined => {
   const job = findNextQueuedStoredJob()
 
   return job === undefined ? undefined : toPublicJob( job )
 }
 
-export function markStatus( id: string, status: StepStatus ): Job {
+export const markStatus = ( id: string, status: StepStatus ): Job => {
   const job = requireJob( id )
   const allowed = job.status in nextStep
     ? nextStep[ job.status as keyof typeof nextStep ]
@@ -123,7 +123,7 @@ export function markStatus( id: string, status: StepStatus ): Job {
   return moveTo( job, status, {} )
 }
 
-export function completeJob( id: string, transcript: Transcript ): Job {
+export const completeJob = ( id: string, transcript: Transcript ): Job => {
   const job = requireJob( id )
 
   if( job.status !== finishedFrom ) {
@@ -133,7 +133,7 @@ export function completeJob( id: string, transcript: Transcript ): Job {
   return moveTo( job, 'done', { transcript } )
 }
 
-export function failJob( id: string, message: string ): Job {
+export const failJob = ( id: string, message: string ): Job => {
   const job = requireJob( id )
 
   if( finalStatuses.includes( job.status ) ) {
@@ -143,7 +143,7 @@ export function failJob( id: string, message: string ): Job {
   return moveTo( job, 'failed', { error: message } )
 }
 
-export function renderTranscript( id: string, format: DownloadFormat ): RenderedTranscript {
+export const renderTranscript = ( id: string, format: DownloadFormat ): RenderedTranscript => {
   const job = requireJob( id )
 
   if( job.status !== 'done' ) {

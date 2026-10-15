@@ -1,4 +1,4 @@
-export function youTubeVideoId( url: string ): string | undefined {
+export const youTubeVideoId = ( url: string ): string | undefined => {
   const parsed = URL.parse( url )
 
   if( parsed === null ) {

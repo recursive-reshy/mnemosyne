@@ -21,7 +21,7 @@ const STATUS_MESSAGES = {
 
 const FAILED_MESSAGE = 'Transcription failed.'
 
-function stageState( index: number, currentIndex: number ): string {
+const stageState = ( index: number, currentIndex: number ): string => {
   if( index === currentIndex ) {
     return 'current'
   }
