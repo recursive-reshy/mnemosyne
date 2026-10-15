@@ -65,12 +65,13 @@ describe( 'JobProgress', () => {
     expect( states ).toEqual( [ 'complete', 'complete', 'complete', 'current', 'pending' ] )
   } )
 
-  it( 'marks every earlier stage complete when done', () => {
+  it( 'marks every stage complete when done, keeping the last as the current step', () => {
     setup( jobFixture( { status: 'done' } ) )
 
-    const states = screen.getAllByRole( 'listitem' ).map( ( item ) => item.dataset.state )
+    const items = screen.getAllByRole( 'listitem' )
 
-    expect( states ).toEqual( [ 'complete', 'complete', 'complete', 'complete', 'current' ] )
+    expect( items.map( ( item ) => item.dataset.state ) ).toEqual( Array( 5 ).fill( 'complete' ) )
+    expect( items.at( -1 ) ).toHaveAttribute( 'aria-current', 'step' )
   } )
 
   it( 'shows the job URL', () => {

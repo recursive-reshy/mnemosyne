@@ -2,6 +2,8 @@
 import type { ReactElement } from 'react'
 // Shared
 import type { Job } from '@mnemosyne/shared'
+// App
+import styles from './JobProgress.module.css'
 
 const STAGES = [
   { status: 'queued', label: 'Waiting to start' },
@@ -38,10 +40,12 @@ interface JobProgressProps {
 export function JobProgress( { job, connectionError, onRetry }: JobProgressProps ): ReactElement {
   if( job.status === 'failed' ) {
     return (
-      <section aria-label="Job progress">
-        <p>{ job.url }</p>
-        <p role="alert">{ job.error ?? FAILED_MESSAGE }</p>
-        <button type="button" onClick={ onRetry }>Try again</button>
+      <section className={ styles.progress } aria-label="Job progress">
+        <p className={ styles.url }>{ job.url }</p>
+        <p className="alert" role="alert">{ job.error ?? FAILED_MESSAGE }</p>
+        <button className={ styles.retryButton } type="button" onClick={ onRetry }>
+          Try again
+        </button>
       </section>
     )
   }
@@ -49,19 +53,22 @@ export function JobProgress( { job, connectionError, onRetry }: JobProgressProps
   const currentIndex = STAGES.findIndex( ( { status } ) => status === job.status )
 
   return (
-    <section aria-label="Job progress">
-      <p>{ job.url }</p>
-      { connectionError && <p role="alert">{ `${ connectionError }. Retrying…` }</p> }
-      <p role="status">{ STATUS_MESSAGES[ job.status ] }</p>
-      <ol>
+    <section className={ styles.progress } aria-label="Job progress">
+      <p className={ styles.url }>{ job.url }</p>
+      { connectionError && (
+        <p className="alert" role="alert">{ `${ connectionError }. Retrying…` }</p>
+      ) }
+      <p className={ styles.status } role="status">{ STATUS_MESSAGES[ job.status ] }</p>
+      <ol className={ styles.stages }>
         { STAGES.map( ( { status, label }, index ) => {
           const isCurrent = index === currentIndex
 
           return (
             <li
               key={ status }
+              className={ styles.stage }
               aria-current={ isCurrent ? 'step' : undefined }
-              data-state={ stageState( index, currentIndex ) }
+              data-state={ job.status === 'done' ? 'complete' : stageState( index, currentIndex ) }
             >
               { label }
             </li>
