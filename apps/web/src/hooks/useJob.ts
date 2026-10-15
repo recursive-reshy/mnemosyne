@@ -8,6 +8,13 @@ import { getJob } from '../api/jobs.api'
 
 export const POLL_INTERVAL_MS = 2000
 
+const FINISHED_STATUSES: Job[ 'status' ][] = [
+  'ready_for_review',
+  'summary_failed',
+  'saved',
+  'failed',
+]
+
 const JOB_GONE_MESSAGE = 'This job no longer exists. The server may have restarted.'
 
 export interface JobState {
@@ -38,7 +45,7 @@ export function useJob( jobId: string | null ): JobState {
         const job = await getJob( id )
 
         nextState = () => ( { jobId: id, job, error: null } )
-        isFinished = job.status === 'done' || job.status === 'failed'
+        isFinished = FINISHED_STATUSES.includes( job.status )
       } catch( caught ) {
         const isGone = caught instanceof ApiError && caught.status === 404
         const message = caught instanceof Error ? caught.message : 'Unexpected error'

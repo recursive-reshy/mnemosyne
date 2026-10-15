@@ -46,7 +46,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 3.5 | Service: `completeTranscription` (→ `summarizing`, stores title), `completeSummary` (→ `ready_for_review`, sets `expires_at`), `failSummary`; `failJob` refuses the new end states | 0014, 0015 | ✅ |
 | 3.6 | Worker: summarize step after transcription; `findNextRunnableJob` picks `queued` or `summarizing` | 0014 | ✅ |
 | 3.7 | Worker: a `summarizing` job runs the summarize step only (resume after restart, and retries later) | 0014, 0015 | ✅ |
-| 3.8 | Remove `done`: download allowed in `ready_for_review` / `summary_failed`; web shows downloads in those states | 0015 | ⬜ |
+| 3.8 | Remove `done`: download allowed in `ready_for_review` / `summary_failed`; web shows downloads in those states | 0015 | ✅ |
 | 3.9 | Integration test: one real Claude call in `pnpm test:integration` | 0007, 0014 | ⬜ |
 
 ## Checkpoint C: Phases 4–5 (vault, lifecycle, Docker)
@@ -122,3 +122,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 - 3.5 ✅ Service: `completeTranscription`, `completeSummary`, `failSummary`, `getTranscript`; `failJob` refuses `ready_for_review`, `summary_failed`, `saved`. `completeJob` stays until 3.8.
 - 3.6 ✅ `findNextRunnableJob` (queued or summarizing) replaces `findNextQueuedJob` end to end; `summarizeJob` (client → cleanup → format → `completeSummary`, or `failSummary`); `runJob` ends in `completeTranscription` then summarizes after audio cleanup. Existing runJob assertions expecting `done` now expect `summarizing`; the renamed tests keep their cases.
 - 3.7 ✅ `runJob` on a `summarizing` job runs only `summarizeJob` (no clients, no audio folder); queued jobs still run the full pipeline.
+- 3.8 ✅ `done` and `completeJob` removed; downloads allowed in `ready_for_review` / `summary_failed` (409 otherwise, incl. `saved`); web: `useJob` stops polling on the four end states, `JobProgress` has Summarizing and Ready for review stages, `App` shows downloads in review states. Tests that used `done` now use `ready_for_review`; `JobProgress` stage-count assertions went from 5 to 6.

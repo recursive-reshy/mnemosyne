@@ -10,7 +10,6 @@ export const JobStatus = z.enum( [
   'ready_for_review',
   'summary_failed',
   'saved',
-  'done',
   'failed',
 ] )
 export type JobStatus = z.infer< typeof JobStatus >

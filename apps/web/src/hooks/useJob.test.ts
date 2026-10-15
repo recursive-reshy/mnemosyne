@@ -91,13 +91,27 @@ describe( 'useJob', () => {
     expect( mockedGetJob ).toHaveBeenCalledTimes( 3 )
   } )
 
-  it.each< Job[ 'status' ] >( [ 'done', 'failed' ] )( 'stops polling at %s', async ( status ) => {
+  it.each< Job[ 'status' ] >( [
+    'ready_for_review',
+    'summary_failed',
+    'saved',
+    'failed',
+  ] )( 'stops polling at %s', async ( status ) => {
     mockedGetJob.mockResolvedValue( jobFixture( { status } ) )
 
     renderHook( () => useJob( 'a' ) )
     await advance( 10_000 )
 
     expect( mockedGetJob ).toHaveBeenCalledTimes( 1 )
+  } )
+
+  it( 'keeps polling while summarizing', async () => {
+    mockedGetJob.mockResolvedValue( jobFixture( { status: 'summarizing' } ) )
+
+    renderHook( () => useJob( 'a' ) )
+    await advance( POLL_INTERVAL_MS * 2 )
+
+    expect( mockedGetJob ).toHaveBeenCalledTimes( 3 )
   } )
 
   it( 'never overlaps requests', async () => {
@@ -171,7 +185,7 @@ describe( 'useJob', () => {
   it( 'ignores a late response for an old id', async () => {
     const jobA = deferred()
     mockedGetJob.mockReturnValueOnce( jobA.promise )
-    mockedGetJob.mockResolvedValue( jobFixture( { id: 'b', status: 'done' } ) )
+    mockedGetJob.mockResolvedValue( jobFixture( { id: 'b', status: 'ready_for_review' } ) )
 
     const { result, rerender } = renderHook( ( { id } ) => useJob( id ), {
       initialProps: { id: 'a' },
@@ -182,7 +196,7 @@ describe( 'useJob', () => {
     await advance( 0 )
     expect( result.current.job?.id ).toBe( 'b' )
 
-    jobA.resolve( jobFixture( { id: 'a', status: 'done' } ) )
+    jobA.resolve( jobFixture( { id: 'a', status: 'ready_for_review' } ) )
     await advance( 10_000 )
 
     expect( result.current.job?.id ).toBe( 'b' )

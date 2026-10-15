@@ -10,7 +10,8 @@ const STAGES = [
   { status: 'downloading', label: 'Downloading audio' },
   { status: 'converting', label: 'Converting audio' },
   { status: 'transcribing', label: 'Transcribing' },
-  { status: 'done', label: 'Transcript ready' },
+  { status: 'summarizing', label: 'Summarizing' },
+  { status: 'ready_for_review', label: 'Ready for review' },
 ] as const
 
 const STATUS_MESSAGES = {
@@ -22,7 +23,6 @@ const STATUS_MESSAGES = {
   ready_for_review: 'Ready for review',
   summary_failed: 'Summary failed',
   saved: 'Saved',
-  done: 'Transcript ready',
 } as const
 
 const FAILED_MESSAGE = 'Transcription failed.'
@@ -66,13 +66,16 @@ export function JobProgress( { job, connectionError, onRetry }: JobProgressProps
       <ol className={ styles.stages }>
         { STAGES.map( ( { status, label }, index ) => {
           const isCurrent = index === currentIndex
+          const state = job.status === 'ready_for_review'
+            ? 'complete'
+            : stageState( index, currentIndex )
 
           return (
             <li
               key={ status }
               className={ styles.stage }
               aria-current={ isCurrent ? 'step' : undefined }
-              data-state={ job.status === 'done' ? 'complete' : stageState( index, currentIndex ) }
+              data-state={ state }
             >
               { label }
             </li>

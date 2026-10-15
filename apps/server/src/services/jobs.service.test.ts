@@ -15,7 +15,6 @@ import { ConflictError, NotFoundError } from '../errors.js'
 import { clearJobs, findJobById, updateJob } from '../repositories/jobStore.repository.js'
 // Services
 import {
-  completeJob,
   completeSummary,
   completeTranscription,
   failJob,
@@ -60,7 +59,15 @@ const queueJobAt = ( status: JobStatus ): string => {
     markStatus( id, step as 'downloading' | 'converting' | 'transcribing' )
     if( step === status ) break
   }
-  if( status === 'done' ) completeJob( id, transcript )
+  if( status === 'ready_for_review' || status === 'summary_failed' ) {
+    completeTranscription( id, transcript )
+
+    if( status === 'ready_for_review' ) {
+      completeSummary( id, '## Summary', [] )
+    } else {
+      failSummary( id, 'earlier summary failure' )
+    }
+  }
   if( status === 'failed' ) failJob( id, 'earlier failure' )
 
   return id
@@ -183,29 +190,6 @@ describe( 'markStatus', () => {
   } )
 } )
 
-describe( 'completeJob', () => {
-  it( 'marks a transcribing job done and stores the transcript', () => {
-    const id = queueJobAt( 'transcribing' )
-
-    const job = completeJob( id, transcript )
-
-    expect( job.status ).toBe( 'done' )
-    expect( job ).not.toHaveProperty( 'transcript' )
-    expect( findJobById( id )?.transcript ).toEqual( transcript )
-  } )
-
-  it.each( [ 'queued', 'downloading', 'converting', 'done', 'failed' ] as const )(
-    'throws ConflictError from %s and changes nothing',
-    ( status ) => {
-      const id = queueJobAt( status )
-      const before = findJobById( id )
-
-      expect( () => completeJob( id, transcript ) ).toThrow( ConflictError )
-      expect( findJobById( id ) ).toEqual( before )
-    },
-  )
-} )
-
 describe( 'failJob', () => {
   it.each( [ 'queued', 'downloading', 'converting', 'transcribing' ] as const )(
     'fails a job from %s with the message',
@@ -219,7 +203,7 @@ describe( 'failJob', () => {
     },
   )
 
-  it.each( [ 'done', 'failed' ] as const )( 'throws ConflictError from %s', ( status ) => {
+  it.each( [ 'failed' ] as const )( 'throws ConflictError from %s', ( status ) => {
     const id = queueJobAt( status )
 
     expect( () => failJob( id, 'late' ) ).toThrow( ConflictError )
@@ -227,13 +211,19 @@ describe( 'failJob', () => {
 } )
 
 describe( 'renderTranscript', () => {
-  const queueDoneJob = (): string => {
+  const queueReviewJob = ( outcome: 'ready_for_review' | 'summary_failed' ): string => {
     const { id } = queueJob( url )
 
     markStatus( id, 'downloading' )
     markStatus( id, 'converting' )
     markStatus( id, 'transcribing' )
-    completeJob( id, transcriptFixture )
+    completeTranscription( id, transcriptFixture )
+
+    if( outcome === 'ready_for_review' ) {
+      completeSummary( id, '## Summary', [] )
+    } else {
+      failSummary( id, 'Rate limited' )
+    }
 
     return id
   }
@@ -242,8 +232,8 @@ describe( 'renderTranscript', () => {
     [ 'md', 'Video title.md', 'text/markdown; charset=utf-8', formatMarkdown ],
     [ 'srt', 'Video title.srt', 'application/x-subrip; charset=utf-8', formatSrt ],
     [ 'txt', 'Video title.txt', 'text/plain; charset=utf-8', formatTxt ],
-  ] as const )( 'renders a done job as %s', ( format, filename, contentType, formatter ) => {
-    const id = queueDoneJob()
+  ] as const )( 'renders a review job as %s', ( format, filename, contentType, formatter ) => {
+    const id = queueReviewJob( 'ready_for_review' )
 
     const rendered = renderTranscript( id, format )
 
@@ -254,14 +244,36 @@ describe( 'renderTranscript', () => {
     } )
   } )
 
+  it( 'still renders after the summary failed', () => {
+    const id = queueReviewJob( 'summary_failed' )
+
+    expect( renderTranscript( id, 'md' ).body ).toBe( formatMarkdown( transcriptFixture ) )
+  } )
+
+  it( 'throws ConflictError once the job is saved', () => {
+    const id = queueReviewJob( 'ready_for_review' )
+    updateJob( id, { status: 'saved', transcript: null } )
+
+    expect( () => renderTranscript( id, 'md' ) ).toThrow(
+      new ConflictError( 'Transcript not ready' ),
+    )
+  } )
+
   it( 'throws NotFoundError for an unknown id', () => {
     expect( () => renderTranscript( 'missing', 'md' ) ).toThrow( NotFoundError )
   } )
 
-  it.each( [ 'queued', 'downloading', 'converting', 'transcribing', 'failed' ] as const )(
+  it.each( [
+    'queued',
+    'downloading',
+    'converting',
+    'transcribing',
+    'summarizing',
+    'failed',
+  ] as const )(
     'throws ConflictError from %s',
     ( status ) => {
-      const id = queueJobAt( status )
+      const id = status === 'summarizing' ? queueSummarizing() : queueJobAt( status )
 
       expect( () => renderTranscript( id, 'md' ) ).toThrow(
         new ConflictError( 'Transcript not ready' ),
@@ -317,7 +329,7 @@ describe( 'recoverInterruptedJobs', () => {
     const queued = queueJobAt( 'queued' )
     const downloading = queueJobAt( 'downloading' )
     const transcribing = queueJobAt( 'transcribing' )
-    const finished = queueJobAt( 'done' )
+    const finished = queueJobAt( 'ready_for_review' )
     vi.setSystemTime( laterTime )
 
     expect( recoverInterruptedJobs() ).toBe( 2 )
@@ -329,7 +341,7 @@ describe( 'recoverInterruptedJobs', () => {
     } )
     expect( findJob( transcribing ).status ).toBe( 'failed' )
     expect( findJob( queued ).status ).toBe( 'queued' )
-    expect( findJob( finished ).status ).toBe( 'done' )
+    expect( findJob( finished ).status ).toBe( 'ready_for_review' )
   } )
 
   it( 'returns 0 when nothing needs recovery', () => {

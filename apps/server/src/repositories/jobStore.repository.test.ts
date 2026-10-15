@@ -80,7 +80,7 @@ describe( 'updateJob', () => {
   } )
 
   it( 'returns undefined for an unknown id', () => {
-    expect( updateJob( 'missing', { status: 'done' } ) ).toBeUndefined()
+    expect( updateJob( 'missing', { status: 'failed' } ) ).toBeUndefined()
   } )
 } )
 
@@ -111,7 +111,7 @@ describe( 'findNextRunnableJob', () => {
   } )
 
   it( 'returns undefined when no job is runnable', () => {
-    insertJob( buildJob( { status: 'done' } ) )
+    insertJob( buildJob( { status: 'failed' } ) )
     insertJob( buildJob( { status: 'summary_failed' } ) )
     insertJob( buildJob( { status: 'saved' } ) )
 
@@ -368,7 +368,6 @@ describe( 'markInterruptedJobs', () => {
     'ready_for_review',
     'summary_failed',
     'saved',
-    'done',
     'failed',
   ] as const
   const interrupted = [ 'downloading', 'converting', 'transcribing' ]

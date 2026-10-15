@@ -19,7 +19,8 @@ const labels = [
   'Downloading audio',
   'Converting audio',
   'Transcribing',
-  'Transcript ready',
+  'Summarizing',
+  'Ready for review',
 ]
 
 const setup = ( job: Job, connectionError: string | null = null ) => {
@@ -36,7 +37,8 @@ describe( 'JobProgress', () => {
     [ 'downloading', 'Downloading audio…', 'Downloading audio' ],
     [ 'converting', 'Converting audio…', 'Converting audio' ],
     [ 'transcribing', 'Transcribing…', 'Transcribing' ],
-    [ 'done', 'Transcript ready', 'Transcript ready' ],
+    [ 'summarizing', 'Summarizing…', 'Summarizing' ],
+    [ 'ready_for_review', 'Ready for review', 'Ready for review' ],
   ] as const )( 'shows the %s state', ( status, message, label ) => {
     setup( jobFixture( { status } ) )
 
@@ -50,8 +52,6 @@ describe( 'JobProgress', () => {
   } )
 
   it.each( [
-    [ 'summarizing', 'Summarizing…' ],
-    [ 'ready_for_review', 'Ready for review' ],
     [ 'summary_failed', 'Summary failed' ],
     [ 'saved', 'Saved' ],
   ] as const )( 'shows a message for the %s state', ( status, message ) => {
@@ -60,7 +60,7 @@ describe( 'JobProgress', () => {
     expect( screen.getByRole( 'status' ) ).toHaveTextContent( message )
   } )
 
-  it( 'lists the five stages in order', () => {
+  it( 'lists the six stages in order', () => {
     setup( jobFixture( { status: 'queued' } ) )
 
     const items = within( screen.getByRole( 'list' ) ).getAllByRole( 'listitem' )
@@ -73,15 +73,22 @@ describe( 'JobProgress', () => {
 
     const states = screen.getAllByRole( 'listitem' ).map( ( item ) => item.dataset.state )
 
-    expect( states ).toEqual( [ 'complete', 'complete', 'complete', 'current', 'pending' ] )
+    expect( states ).toEqual( [
+      'complete',
+      'complete',
+      'complete',
+      'current',
+      'pending',
+      'pending',
+    ] )
   } )
 
-  it( 'marks every stage complete when done, keeping the last as the current step', () => {
-    setup( jobFixture( { status: 'done' } ) )
+  it( 'marks every stage complete when ready, keeping the last as the current step', () => {
+    setup( jobFixture( { status: 'ready_for_review' } ) )
 
     const items = screen.getAllByRole( 'listitem' )
 
-    expect( items.map( ( item ) => item.dataset.state ) ).toEqual( Array( 5 ).fill( 'complete' ) )
+    expect( items.map( ( item ) => item.dataset.state ) ).toEqual( Array( 6 ).fill( 'complete' ) )
     expect( items.at( -1 ) ).toHaveAttribute( 'aria-current', 'step' )
   } )
 
@@ -121,7 +128,7 @@ describe( 'JobProgress', () => {
 
     expect( screen.getByRole( 'alert' ) )
       .toHaveTextContent( 'Could not reach the server. Retrying…' )
-    expect( screen.getAllByRole( 'listitem' ) ).toHaveLength( 5 )
+    expect( screen.getAllByRole( 'listitem' ) ).toHaveLength( 6 )
   } )
 
   it( 'shows no alert without a connection error', () => {

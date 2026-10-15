@@ -67,7 +67,7 @@ The order is routes → controllers → services → repositories, and every req
 - **Services** hold the business rules, change job state, call repositories and formatters, and throw typed errors.
 - **Repositories** hold and query the in-memory job store and nothing else. The store is a module-level `Map`; jobs are lost on restart (ADR 0006).
 - **Clients** wrap one external tool each: run the command or make the HTTP call, parse the output with Zod, return typed data, and throw on failure. They hold no job logic.
-- **The worker** calls services and clients, never repositories. It processes one job at a time and moves it through `queued → downloading → converting → transcribing → done | failed` via services.
+- **The worker** calls services and clients, never repositories. It processes one job at a time and moves it through `queued → downloading → converting → transcribing → summarizing → ready_for_review | summary_failed` (or `failed`) via services. A job found already `summarizing` runs only the summarize step.
 - **Formatters** are pure functions with no I/O. Only services call them.
 - Nothing imports `routes/` or `controllers/` except `app.ts`.
 - The worker deletes a job's audio files when the job finishes, whether it succeeded or failed.
@@ -78,7 +78,7 @@ The order is routes → controllers → services → repositories, and every req
 - Services throw typed errors from `errors.ts`:
   - `ValidationError` → 400
   - `NotFoundError` → 404
-  - `ConflictError` → 409, e.g. downloading a transcript before the job is `done`
+  - `ConflictError` → 409, e.g. downloading a transcript before the job is `ready_for_review` or `summary_failed`
 - One error middleware in `errors.ts` maps those errors to status codes, and maps a `ZodError` from a controller's parse to 400.
 - Anything else is logged with the error and returns 500 `{ error: 'Internal Server Error' }`.
 - Express 5 forwards rejected promises to that middleware, so controllers don't wrap their bodies in try/catch.

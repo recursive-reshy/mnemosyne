@@ -48,7 +48,7 @@ describe( 'GetJobResponse', () => {
   const job = {
     id: jobId,
     url: 'https://example.com/v',
-    status: 'done',
+    status: 'ready_for_review',
     error: null,
     created_at: '2026-10-14T10:00:00.000Z',
     updated_at: '2026-10-14T10:00:00.000Z',

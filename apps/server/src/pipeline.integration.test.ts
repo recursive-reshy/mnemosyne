@@ -41,7 +41,7 @@ const waitForJob = async ( jobId: string ): Promise< FinishedJob > => {
     const response = await request( app ).get( `/api/jobs/${ jobId }` ).expect( 200 )
     const { job } = JobBody.parse( response.body )
 
-    if( job.status === 'done' || job.status === 'failed' ) {
+    if( [ 'ready_for_review', 'summary_failed', 'failed' ].includes( job.status ) ) {
       return { jobId, ...job }
     }
 
@@ -100,7 +100,7 @@ describe( 'pipeline (real yt-dlp, ffmpeg and whisper-server)', () => {
 
     const { jobId, status, error } = await queueAndWait( HAPPY_URL )
 
-    expect( status ).toBe( 'done' )
+    expect( status ).toBe( 'ready_for_review' )
     expect( error ).toBeNull()
 
     const markdown = await request( app ).get( `/api/jobs/${ jobId }/download` )

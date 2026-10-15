@@ -27,7 +27,6 @@ describe( 'JobStatus', () => {
     'ready_for_review',
     'summary_failed',
     'saved',
-    'done',
     'failed',
   ] )(
     'accepts %s',
@@ -38,6 +37,10 @@ describe( 'JobStatus', () => {
 
   it( 'rejects an unknown status', () => {
     expect( JobStatus.safeParse( 'paused' ).success ).toBe( false )
+  } )
+
+  it( 'no longer accepts done', () => {
+    expect( JobStatus.safeParse( 'done' ).success ).toBe( false )
   } )
 } )
 

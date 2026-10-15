@@ -13,7 +13,12 @@ import { app } from '../app.js'
 // Repositories
 import { clearJobs } from '../repositories/jobStore.repository.js'
 // Services
-import { completeJob, markStatus, queueJob } from '../services/jobs.service.js'
+import {
+  completeSummary,
+  completeTranscription,
+  markStatus,
+  queueJob,
+} from '../services/jobs.service.js'
 // Formatters
 import { formatMarkdown } from '../formatters/markdown.formatter.js'
 import { formatSrt } from '../formatters/srt.formatter.js'
@@ -119,16 +124,17 @@ describe( 'GET /api/jobs/:id', () => {
 } )
 
 describe( 'GET /api/jobs/:id/download', () => {
-  const seedDoneJob = ( title?: string ): string => {
+  const seedReviewJob = ( title?: string ): string => {
     const { id } = queueJob( youtubeUrl )
 
     markStatus( id, 'downloading' )
     markStatus( id, 'converting' )
     markStatus( id, 'transcribing' )
-    completeJob( id, {
+    completeTranscription( id, {
       ...transcriptFixture,
       meta: { ...transcriptFixture.meta, title: title ?? transcriptFixture.meta.title },
     } )
+    completeSummary( id, '## Summary', [] )
 
     return id
   }
@@ -138,7 +144,7 @@ describe( 'GET /api/jobs/:id/download', () => {
     [ 'srt', 'application/x-subrip; charset=utf-8', formatSrt ],
     [ 'txt', 'text/plain; charset=utf-8', formatTxt ],
   ] as const )( 'downloads %s', async ( format, contentType, formatter ) => {
-    const id = seedDoneJob()
+    const id = seedReviewJob()
 
     const response = await request( app ).get( `/api/jobs/${ id }/download?format=${ format }` )
 
@@ -151,7 +157,7 @@ describe( 'GET /api/jobs/:id/download', () => {
   } )
 
   it( 'defaults to Markdown', async () => {
-    const id = seedDoneJob()
+    const id = seedReviewJob()
 
     const response = await request( app ).get( `/api/jobs/${ id }/download` )
 
@@ -161,7 +167,7 @@ describe( 'GET /api/jobs/:id/download', () => {
   } )
 
   it.each( [ 'format=pdf', 'format=md&format=srt' ] )( 'rejects ?%s with 400', async ( query ) => {
-    const id = seedDoneJob()
+    const id = seedReviewJob()
 
     const response = await request( app ).get( `/api/jobs/${ id }/download?${ query }` )
 
@@ -191,7 +197,7 @@ describe( 'GET /api/jobs/:id/download', () => {
   } )
 
   it( 'encodes a non-ASCII title with filename*', async () => {
-    const id = seedDoneJob( '日本語のタイトル' )
+    const id = seedReviewJob( '日本語のタイトル' )
 
     const response = await request( app ).get( `/api/jobs/${ id }/download?format=txt` )
 

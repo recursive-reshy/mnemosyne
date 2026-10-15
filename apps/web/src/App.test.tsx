@@ -148,8 +148,27 @@ describe( 'App', () => {
       .toBeInTheDocument()
   } )
 
-  it( 'shows the download links for a finished job', () => {
-    showJob( jobFixture( { status: 'done' } ) )
+  it.each( [ 'ready_for_review', 'summary_failed' ] as const )(
+    'shows the download links when the job is %s',
+    ( status ) => {
+      showJob( jobFixture( { status } ) )
+      startApp( `?job=${ jobId }` )
+
+      expect( screen.getByRole( 'region', { name: 'Download transcript' } ) )
+        .toBeInTheDocument()
+    },
+  )
+
+  it( 'hides the download links while summarizing', () => {
+    showJob( jobFixture( { status: 'summarizing' } ) )
+    startApp( `?job=${ jobId }` )
+
+    expect( screen.queryByRole( 'region', { name: 'Download transcript' } ) )
+      .not.toBeInTheDocument()
+  } )
+
+  it( 'links to the Markdown download for a job ready for review', () => {
+    showJob( jobFixture( { status: 'ready_for_review' } ) )
     startApp( `?job=${ jobId }` )
 
     expect( screen.getByRole( 'region', { name: 'Download transcript' } ) ).toBeInTheDocument()
@@ -191,7 +210,7 @@ describe( 'App', () => {
   } )
 
   it( 'starts over from a finished job', async () => {
-    showJob( jobFixture( { status: 'done' } ) )
+    showJob( jobFixture( { status: 'ready_for_review' } ) )
     const user = startApp( `?job=${ jobId }` )
 
     await user.click( screen.getByRole( 'button', { name: 'Transcribe another video' } ) )

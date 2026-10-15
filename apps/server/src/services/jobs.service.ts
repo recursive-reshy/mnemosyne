@@ -44,14 +44,13 @@ type RenderedTranscript = {
   body: string
 }
 
-const finishedFrom: JobStatus = 'transcribing'
 const finalStatuses: JobStatus[] = [
-  'done',
   'failed',
   'ready_for_review',
   'summary_failed',
   'saved',
 ]
+const downloadableStatuses: JobStatus[] = [ 'ready_for_review', 'summary_failed' ]
 const HOUR_MS = 3_600_000
 
 const expiryFromNow = (): string => {
@@ -147,16 +146,6 @@ export const markStatus = ( id: string, status: StepStatus ): Job => {
   return moveTo( job, status, {} )
 }
 
-export const completeJob = ( id: string, transcript: Transcript ): Job => {
-  const job = requireJob( id )
-
-  if( job.status !== finishedFrom ) {
-    throw conflict( job.status, 'done' )
-  }
-
-  return moveTo( job, 'done', { transcript } )
-}
-
 export const completeTranscription = ( id: string, transcript: Transcript ): Job => {
   const job = requireJob( id )
 
@@ -223,12 +212,12 @@ export const recoverInterruptedJobs = (): number => {
 export const renderTranscript = ( id: string, format: DownloadFormat ): RenderedTranscript => {
   const job = requireJob( id )
 
-  if( job.status !== 'done' ) {
+  if( !downloadableStatuses.includes( job.status ) ) {
     throw new ConflictError( 'Transcript not ready' )
   }
 
   if( job.transcript === null ) {
-    throw new Error( `Job ${ id } is done but has no transcript` )
+    throw new Error( `Job ${ id } is ${ job.status } but has no transcript` )
   }
 
   const { contentType, formatter } = transcriptFormats[ format ]

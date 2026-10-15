@@ -11,6 +11,8 @@ import { JobProgress } from './components/JobProgress'
 import { SubmitForm } from './components/SubmitForm'
 import { useJob } from './hooks/useJob'
 
+const DOWNLOADABLE_STATUSES: Job[ 'status' ][] = [ 'ready_for_review', 'summary_failed' ]
+
 const readJobIdFromUrl = (): string | null => {
   const jobId = new URLSearchParams( window.location.search ).get( 'job' )
   const parsed = Job.shape.id.safeParse( jobId )
@@ -78,7 +80,7 @@ export function App(): ReactElement {
           connectionError={ error }
           onRetry={ () => void handleSubmit( job.url ) }
         />
-        { job.status === 'done' && <DownloadLinks jobId={ job.id } /> }
+        { DOWNLOADABLE_STATUSES.includes( job.status ) && <DownloadLinks jobId={ job.id } /> }
         { submitError && <p className="alert" role="alert">{ submitError }</p> }
         <button type="button" onClick={ handleStartOver }>Transcribe another video</button>
       </>
