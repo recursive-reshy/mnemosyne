@@ -15,3 +15,13 @@
   gap: var( --space-3 );
 }
 
+
+.actions {
+  display: flex;
+  gap: var( --space-3 );
+}
+
+.primary {
+  background: var( --color-accent );
+  color: var( --color-on-accent );
+}

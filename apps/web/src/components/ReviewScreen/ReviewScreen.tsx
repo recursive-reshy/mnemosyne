@@ -4,6 +4,7 @@ import type { ReactElement } from 'react'
 import type { Job } from '@mnemosyne/shared'
 // App
 import { useDraft } from '#src/hooks/useDraft'
+import { useSaveJob } from '#src/hooks/useSaveJob'
 import { useTranscript } from '#src/hooks/useTranscript'
 import { DownloadLinks } from '../DownloadLinks'
 import { FilenamePreview } from '../FilenamePreview'
@@ -15,9 +16,10 @@ import styles from './ReviewScreen.module.css'
 
 interface ReviewScreenProps {
   job: Job
+  onSaved: ( savedPath: string ) => void
 }
 
-export function ReviewScreen( { job }: ReviewScreenProps ): ReactElement {
+export function ReviewScreen( { job, onSaved }: ReviewScreenProps ): ReactElement {
   const hasFailed = job.status === 'summary_failed'
   const { draft, setTitle, setTags, setBody } = useDraft( job.id, {
     title: job.title ?? '',
@@ -25,6 +27,14 @@ export function ReviewScreen( { job }: ReviewScreenProps ): ReactElement {
     body: job.summary_markdown ?? '',
   } )
   const { transcript, error: transcriptError } = useTranscript( job.id )
+  const save = useSaveJob( job.id )
+
+  const handleSave = (): void => {
+    save.mutate(
+      { title: draft.title, tags: draft.tags, body: draft.body },
+      { onSuccess: ( savedPath ) => onSaved( savedPath ) },
+    )
+  }
 
   return (
     <div className={ styles.review }>
@@ -44,6 +54,19 @@ export function ReviewScreen( { job }: ReviewScreenProps ): ReactElement {
         <TranscriptPane transcript={ transcript } error={ transcriptError } />
       </div>
       <DownloadLinks jobId={ job.id } />
+      { save.isError && <p className="alert" role="alert">{ save.error.message }</p> }
+      { !hasFailed && (
+        <div className={ styles.actions }>
+          <button
+            type="button"
+            className={ styles.primary }
+            disabled={ save.isPending || draft.title.trim() === '' }
+            onClick={ handleSave }
+          >
+            { save.isPending ? 'Saving…' : 'Save to vault' }
+          </button>
+        </div>
+      ) }
     </div>
   )
 }

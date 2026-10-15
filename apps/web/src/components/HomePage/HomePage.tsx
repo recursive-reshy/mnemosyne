@@ -2,15 +2,24 @@
 import { useState } from 'react'
 import type { ReactElement } from 'react'
 // Packages
-import { useNavigate } from 'react-router'
+import { useLocation, useNavigate } from 'react-router'
 // App
 import { createJob } from '#src/api/jobs.api'
 import { useJobs } from '#src/hooks/useJobs'
 import { JobList } from '../JobList'
 import { SubmitForm } from '../SubmitForm'
 
+const readSavedPath = ( state: unknown ): string | null => {
+  if( typeof state !== 'object' || state === null || !( 'savedPath' in state ) ) {
+    return null
+  }
+
+  return typeof state.savedPath === 'string' ? state.savedPath : null
+}
+
 export function HomePage(): ReactElement {
   const navigate = useNavigate()
+  const savedPath = readSavedPath( useLocation().state )
   const { jobs, updatedAt } = useJobs()
   const [ isSubmitting, setIsSubmitting ] = useState( false )
   const [ submitError, setSubmitError ] = useState< string | null >( null )
@@ -32,6 +41,7 @@ export function HomePage(): ReactElement {
 
   return (
     <>
+      { savedPath !== null && <p role="status">Saved to { savedPath }</p> }
       <SubmitForm
         isSubmitting={ isSubmitting }
         error={ submitError }

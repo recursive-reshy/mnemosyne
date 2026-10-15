@@ -49,6 +49,21 @@ describe( 'HomePage', () => {
     expect( screen.getByRole( 'link', { name: 'How Rust Works' } ) ).toBeInTheDocument()
   } )
 
+  it( 'confirms a save with the vault path', () => {
+    renderWithClient( <HomePage />, {
+      route: { pathname: '/', state: { savedPath: 'Mnemosyne/How Rust Works.md' } },
+    } )
+
+    expect( screen.getByRole( 'status' ) )
+      .toHaveTextContent( 'Saved to Mnemosyne/How Rust Works.md' )
+  } )
+
+  it( 'shows no confirmation without a saved path', () => {
+    renderWithClient( <HomePage /> )
+
+    expect( screen.queryByRole( 'status' ) ).not.toBeInTheDocument()
+  } )
+
   it( 'shows no list when there are no jobs', () => {
     renderWithClient( <HomePage /> )
 

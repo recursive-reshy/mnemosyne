@@ -15,7 +15,7 @@ import {
 import type { Job } from '@mnemosyne/shared'
 // App
 import { ApiError } from '#src/api/apiError'
-import { createJob } from '#src/api/jobs.api'
+import { createJob, saveJob } from '#src/api/jobs.api'
 import { useJob } from '#src/hooks/useJob'
 import { useTranscript } from '#src/hooks/useTranscript'
 import type { JobState } from '#src/hooks/useJob'
@@ -28,10 +28,12 @@ vi.mock( '#src/hooks/useTranscript' )
 vi.mock( '#src/api/jobs.api', async ( importOriginal ) => ( {
   ...await importOriginal< typeof import( '#src/api/jobs.api' ) >(),
   createJob: vi.fn(),
+  saveJob: vi.fn(),
 } ) )
 
 const mockedUseJob = vi.mocked( useJob )
 const mockedCreateJob = vi.mocked( createJob )
+const mockedSaveJob = vi.mocked( saveJob )
 const mockedUseTranscript = vi.mocked( useTranscript )
 const jobId = jobFixture().id
 const newJobId = '7a1d9e2c-3b4f-4c5d-8e6f-0a1b2c3d4e5f'
@@ -157,6 +159,17 @@ describe( 'JobPage', () => {
       expect( screen.getByRole( 'region', { name: 'Transcript' } ) ).toBeInTheDocument()
       expect( screen.getByRole( 'region', { name: 'Download transcript' } ) )
         .toBeInTheDocument()
+    } )
+
+    it( 'saves the job and goes home with the saved path', async () => {
+      mockedSaveJob.mockResolvedValue( 'Mnemosyne/How Rust Works.md' )
+      showJob( reviewJob )
+      const { location } = renderPage()
+
+      await userEvent.setup().click( screen.getByRole( 'button', { name: 'Save to vault' } ) )
+
+      await vi.waitFor( () => expect( location().pathname ).toBe( '/' ) )
+      expect( location().state ).toEqual( { savedPath: 'Mnemosyne/How Rust Works.md' } )
     } )
 
     it( 'does not show the progress stages', () => {

@@ -10,12 +10,17 @@ import {
   vi,
 } from 'vitest'
 // App
+import { ApiError } from '#src/api/apiError'
+import { saveJob } from '#src/api/jobs.api'
 import { useTranscript } from '#src/hooks/useTranscript'
 import { jobFixture } from '#src/test-support/job.fixture'
 import { renderWithClient } from '#src/test-support/renderWithClient'
 import { ReviewScreen } from './ReviewScreen'
 
 vi.mock( '#src/hooks/useTranscript' )
+vi.mock( '#src/api/jobs.api' )
+
+const mockedSaveJob = vi.mocked( saveJob )
 
 const mockedUseTranscript = vi.mocked( useTranscript )
 
@@ -35,6 +40,7 @@ beforeEach( () => {
   window.localStorage.clear()
   mockedUseTranscript.mockReset()
   mockedUseTranscript.mockReturnValue( { transcript, error: null } )
+  mockedSaveJob.mockReset()
 } )
 
 const reviewJob = jobFixture( {
@@ -44,16 +50,18 @@ const reviewJob = jobFixture( {
   suggested_tags: [ 'rust' ],
 } )
 
+const failedJob = { ...reviewJob, status: 'summary_failed' as const, error: 'x' }
+
 describe( 'ReviewScreen title', () => {
   it( 'starts with the job title and shows the file name it will get', () => {
-    renderWithClient( <ReviewScreen job={ reviewJob } /> )
+    renderWithClient( <ReviewScreen job={ reviewJob } onSaved={ vi.fn() } /> )
 
     expect( screen.getByRole( 'textbox', { name: 'Title' } ) ).toHaveValue( 'How Rust Works' )
     expect( screen.getByText( 'Mnemosyne/How Rust Works.md' ) ).toBeInTheDocument()
   } )
 
   it( 'updates the file name as the title is edited', async () => {
-    renderWithClient( <ReviewScreen job={ reviewJob } /> )
+    renderWithClient( <ReviewScreen job={ reviewJob } onSaved={ vi.fn() } /> )
     const user = userEvent.setup()
     const field = screen.getByRole( 'textbox', { name: 'Title' } )
 
@@ -65,7 +73,7 @@ describe( 'ReviewScreen title', () => {
 
   it( 'has no title field when the summary failed', () => {
     renderWithClient(
-      <ReviewScreen job={ { ...reviewJob, status: 'summary_failed', error: 'x' } } />,
+      <ReviewScreen job={ failedJob } onSaved={ vi.fn() } />,
     )
 
     expect( screen.queryByRole( 'textbox', { name: 'Title' } ) ).not.toBeInTheDocument()
@@ -74,7 +82,8 @@ describe( 'ReviewScreen title', () => {
 
 describe( 'ReviewScreen tags', () => {
   it( 'starts with mnemosyne and the suggested tags and lets the user edit them', async () => {
-    renderWithClient( <ReviewScreen job={ { ...reviewJob, suggested_tags: [ 'rust', 'go' ] } } /> )
+    const taggedJob = { ...reviewJob, suggested_tags: [ 'rust', 'go' ] }
+    renderWithClient( <ReviewScreen job={ taggedJob } onSaved={ vi.fn() } /> )
     const user = userEvent.setup()
 
     const names = (): string[] => {
@@ -94,7 +103,7 @@ describe( 'ReviewScreen tags', () => {
 
 describe( 'ReviewScreen summary and transcript', () => {
   it( 'edits the summary Markdown', async () => {
-    renderWithClient( <ReviewScreen job={ reviewJob } /> )
+    renderWithClient( <ReviewScreen job={ reviewJob } onSaved={ vi.fn() } /> )
     const user = userEvent.setup()
     const editor = screen.getByRole( 'textbox', { name: 'Summary' } )
 
@@ -106,7 +115,7 @@ describe( 'ReviewScreen summary and transcript', () => {
   } )
 
   it( 'shows the transcript next to the summary', () => {
-    renderWithClient( <ReviewScreen job={ reviewJob } /> )
+    renderWithClient( <ReviewScreen job={ reviewJob } onSaved={ vi.fn() } /> )
 
     expect( mockedUseTranscript ).toHaveBeenCalledWith( reviewJob.id )
     expect( screen.getByRole( 'region', { name: 'Transcript' } ) )
@@ -115,7 +124,7 @@ describe( 'ReviewScreen summary and transcript', () => {
 
   it( 'keeps the transcript, without the editor, when the summary failed', () => {
     renderWithClient(
-      <ReviewScreen job={ { ...reviewJob, status: 'summary_failed', error: 'x' } } />,
+      <ReviewScreen job={ failedJob } onSaved={ vi.fn() } />,
     )
 
     expect( screen.queryByRole( 'textbox', { name: 'Summary' } ) ).not.toBeInTheDocument()
@@ -128,7 +137,7 @@ describe( 'ReviewScreen drafts', () => {
   const key = `mnemosyne:draft:${ reviewJob.id }`
 
   it( 'stores edits in the draft', async () => {
-    renderWithClient( <ReviewScreen job={ reviewJob } /> )
+    renderWithClient( <ReviewScreen job={ reviewJob } onSaved={ vi.fn() } /> )
     const user = userEvent.setup()
 
     await user.type( screen.getByRole( 'textbox', { name: 'Summary' } ), '!' )
@@ -143,10 +152,100 @@ describe( 'ReviewScreen drafts', () => {
       JSON.stringify( { title: 'My title', tags: [ 'go' ], body: 'My summary' } ),
     )
 
-    renderWithClient( <ReviewScreen job={ reviewJob } /> )
+    renderWithClient( <ReviewScreen job={ reviewJob } onSaved={ vi.fn() } /> )
 
     expect( screen.getByRole( 'textbox', { name: 'Title' } ) ).toHaveValue( 'My title' )
     expect( screen.getByRole( 'textbox', { name: 'Summary' } ) ).toHaveValue( 'My summary' )
     expect( screen.getByRole( 'button', { name: 'Remove tag go' } ) ).toBeInTheDocument()
+  } )
+} )
+
+describe( 'ReviewScreen save', () => {
+  const key = `mnemosyne:draft:${ reviewJob.id }`
+  const saveButton = (): HTMLElement => screen.getByRole( 'button', { name: /^Save/ } )
+
+  it( 'sends the edited title, tags and summary and reports the saved path', async () => {
+    mockedSaveJob.mockResolvedValue( 'Mnemosyne/My Title.md' )
+    const onSaved = vi.fn()
+    renderWithClient( <ReviewScreen job={ reviewJob } onSaved={ onSaved } /> )
+    const user = userEvent.setup()
+
+    const title = screen.getByRole( 'textbox', { name: 'Title' } )
+    await user.clear( title )
+    await user.type( title, 'My Title' )
+    await user.type( screen.getByRole( 'textbox', { name: 'Add tag' } ), 'go{Enter}' )
+    await user.type( screen.getByRole( 'textbox', { name: 'Summary' } ), ' Added.' )
+    await user.click( saveButton() )
+
+    expect( mockedSaveJob ).toHaveBeenCalledExactlyOnceWith( reviewJob.id, {
+      title: 'My Title',
+      tags: [ 'rust', 'go' ],
+      body: '## Summary\nText. Added.',
+    } )
+    await vi.waitFor( () => expect( onSaved ).toHaveBeenCalledWith( 'Mnemosyne/My Title.md' ) )
+  } )
+
+  it( 'waits for the server: the button is busy and disabled meanwhile', async () => {
+    let resolve: ( path: string ) => void = () => undefined
+    mockedSaveJob.mockReturnValue( new Promise< string >( ( resolver ) => {
+      resolve = resolver
+    } ) )
+    renderWithClient( <ReviewScreen job={ reviewJob } onSaved={ vi.fn() } /> )
+    const user = userEvent.setup()
+
+    await user.click( saveButton() )
+
+    expect( screen.getByRole( 'button', { name: 'Saving…' } ) ).toBeDisabled()
+
+    resolve( 'Mnemosyne/How Rust Works.md' )
+    await vi.waitFor( () => expect( screen.getByRole( 'button', { name: 'Save to vault' } ) ) )
+  } )
+
+  it( 'clears the draft and refreshes the job list after saving', async () => {
+    mockedSaveJob.mockResolvedValue( 'Mnemosyne/How Rust Works.md' )
+    const { queryClient } = renderWithClient(
+      <ReviewScreen job={ reviewJob } onSaved={ vi.fn() } />,
+    )
+    const invalidate = vi.spyOn( queryClient, 'invalidateQueries' )
+    const user = userEvent.setup()
+    await user.type( screen.getByRole( 'textbox', { name: 'Summary' } ), '!' )
+    expect( window.localStorage.getItem( key ) ).not.toBeNull()
+
+    await user.click( saveButton() )
+
+    await vi.waitFor( () => expect( window.localStorage.getItem( key ) ).toBeNull() )
+    expect( invalidate ).toHaveBeenCalledWith( { queryKey: [ 'jobs' ] } )
+  } )
+
+  it( 'shows the server message on failure and keeps the draft', async () => {
+    mockedSaveJob.mockRejectedValue( new ApiError( 'Cannot move job from saved to saved', 409 ) )
+    const onSaved = vi.fn()
+    renderWithClient( <ReviewScreen job={ reviewJob } onSaved={ onSaved } /> )
+    const user = userEvent.setup()
+    await user.type( screen.getByRole( 'textbox', { name: 'Summary' } ), '!' )
+
+    await user.click( saveButton() )
+
+    expect( await screen.findByRole( 'alert' ) )
+      .toHaveTextContent( 'Cannot move job from saved to saved' )
+    expect( onSaved ).not.toHaveBeenCalled()
+    expect( window.localStorage.getItem( key ) ).not.toBeNull()
+    expect( saveButton() ).toBeEnabled()
+  } )
+
+  it( 'disables Save while the title is blank', async () => {
+    renderWithClient( <ReviewScreen job={ reviewJob } onSaved={ vi.fn() } /> )
+
+    await userEvent.setup().clear( screen.getByRole( 'textbox', { name: 'Title' } ) )
+
+    expect( saveButton() ).toBeDisabled()
+  } )
+
+  it( 'has no Save button when the summary failed', () => {
+    renderWithClient(
+      <ReviewScreen job={ failedJob } onSaved={ vi.fn() } />,
+    )
+
+    expect( screen.queryByRole( 'button', { name: /^Save/ } ) ).not.toBeInTheDocument()
   } )
 } )

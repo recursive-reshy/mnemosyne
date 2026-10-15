@@ -3,7 +3,7 @@ import type { ReactElement, ReactNode } from 'react'
 // Packages
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, useLocation } from 'react-router'
-import type { Location } from 'react-router'
+import type { InitialEntry, Location } from 'react-router'
 // Testing Library
 import { render, renderHook } from '@testing-library/react'
 import type { RenderHookResult, RenderResult } from '@testing-library/react'
@@ -21,7 +21,7 @@ type ClientHookRender< Result, Props > = RenderHookResult< Result, Props > & {
 
 export const renderWithClient = (
   ui: ReactElement,
-  { route = '/' }: { route?: string } = {},
+  { route = '/' }: { route?: InitialEntry } = {},
 ): ClientRender => {
   const queryClient = createQueryClient()
   let current: Location | undefined

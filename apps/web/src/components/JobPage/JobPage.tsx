@@ -67,7 +67,12 @@ export function JobPage(): ReactElement {
   return (
     <>
       { isInReview
-        ? <ReviewScreen job={ job } />
+        ? (
+          <ReviewScreen
+            job={ job }
+            onSaved={ ( savedPath ) => void navigate( '/', { state: { savedPath } } ) }
+          />
+        )
         : (
           <JobProgress
             job={ job }
