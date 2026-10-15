@@ -27,7 +27,7 @@ const runJobMock = vi.mocked( runJob )
 let events: string[]
 let gates: Map< string, () => void >
 let hold: boolean
-let stopWorker: () => void
+let stopWorker: () => Promise< void >
 
 const useRealisticRunJob = (): void => {
   runJobMock.mockImplementation( async ( id ) => {
@@ -54,12 +54,13 @@ beforeEach( () => {
   events = []
   gates = new Map()
   hold = false
-  stopWorker = () => undefined
+  stopWorker = () => Promise.resolve()
   useRealisticRunJob()
 } )
 
-afterEach( () => {
-  stopWorker()
+afterEach( async () => {
+  gates.forEach( ( release ) => release() )
+  await stopWorker()
   vi.useRealTimers()
   vi.restoreAllMocks()
 } )
@@ -173,10 +174,62 @@ describe( 'startWorker', () => {
     stopWorker = startWorker()
     await vi.advanceTimersByTimeAsync( 0 )
 
-    stopWorker()
+    await stopWorker()
     queue()
     await vi.advanceTimersByTimeAsync( 5000 )
 
     expect( runJobMock ).not.toHaveBeenCalled()
+  } )
+
+  it( 'resolves the stop promise at once when idle', async () => {
+    stopWorker = startWorker()
+    await vi.advanceTimersByTimeAsync( 0 )
+
+    await expect( stopWorker() ).resolves.toBeUndefined()
+  } )
+
+  it( 'resolves the stop promise only after the running job finishes', async () => {
+    hold = true
+    const id = queue()
+
+    stopWorker = startWorker()
+    await vi.advanceTimersByTimeAsync( 0 )
+
+    let stopped = false
+    const stopping = stopWorker().then( () => {
+      stopped = true
+    } )
+    await vi.advanceTimersByTimeAsync( 5000 )
+    expect( stopped ).toBe( false )
+
+    gates.get( id )?.()
+    await stopping
+
+    expect( stopped ).toBe( true )
+  } )
+
+  it( 'does not run the next job once stopped', async () => {
+    hold = true
+    const first = queue()
+    queue()
+
+    stopWorker = startWorker()
+    await vi.advanceTimersByTimeAsync( 0 )
+
+    const stopping = stopWorker()
+    gates.get( first )?.()
+    await stopping
+    await vi.advanceTimersByTimeAsync( 5000 )
+
+    expect( events ).toEqual( [ `start:${ first }`, `end:${ first }` ] )
+  } )
+
+  it( 'is safe to stop twice', async () => {
+    stopWorker = startWorker()
+    await vi.advanceTimersByTimeAsync( 0 )
+
+    await stopWorker()
+
+    await expect( stopWorker() ).resolves.toBeUndefined()
   } )
 } )

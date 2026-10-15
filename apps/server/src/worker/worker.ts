@@ -5,32 +5,42 @@ import { runJob } from './runJob.js'
 
 const POLL_INTERVAL_MS = 1000
 
-export const startWorker = (): ( () => void ) => {
+export const startWorker = (): ( () => Promise< void > ) => {
   let busy = false
+  let stopped = false
+  let currentPass: Promise< void > | undefined
 
   const runPass = async (): Promise< void > => {
-    if( busy ) {
-      return
-    }
-
-    busy = true
-
     try {
       let job = findNextQueuedJob()
 
-      while( job !== undefined ) {
+      while( job !== undefined && !stopped ) {
         await runJob( job.id )
         job = findNextQueuedJob()
       }
     } catch( error ) {
       console.error( 'Worker pass failed', error )
-    } finally {
-      busy = false
     }
   }
 
-  void runPass()
-  const timer = setInterval( () => void runPass(), POLL_INTERVAL_MS )
+  const startPass = (): void => {
+    if( busy || stopped ) {
+      return
+    }
 
-  return () => clearInterval( timer )
+    busy = true
+    currentPass = runPass().finally( () => {
+      busy = false
+    } )
+  }
+
+  startPass()
+  const timer = setInterval( startPass, POLL_INTERVAL_MS )
+
+  return async () => {
+    clearInterval( timer )
+    stopped = true
+
+    await currentPass
+  }
 }
