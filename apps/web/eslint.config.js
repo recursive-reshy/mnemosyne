@@ -8,6 +8,7 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   reactHooks.configs.flat.recommended,
+  { rules: { 'react-hooks/exhaustive-deps': 'error' } },
   {
     languageOptions: {
       parserOptions: {
