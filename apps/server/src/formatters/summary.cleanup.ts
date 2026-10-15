@@ -5,7 +5,7 @@ import type { SummaryResult } from '../clients/claude.client.js'
 
 const MAX_TAGS = 5
 
-const normalizeTag = ( tag: string ): string => {
+export const normalizeTag = ( tag: string ): string => {
   return tag
     .toLowerCase()
     .replace( /\s+/g, '-' )

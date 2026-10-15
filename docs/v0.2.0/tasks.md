@@ -55,7 +55,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
 | **Phase 4** | **Vault and lifecycle** | | |
-| 4.1 | Extract `quoted` / `singleLine` to a formatter helper; `note.formatter.ts` (frontmatter + body) | 0005 | ⬜ |
+| 4.1 | Extract `quoted` / `singleLine` to a formatter helper; `note.formatter.ts` (frontmatter + body) | 0005 | ✅ |
 | 4.2 | `VAULT_PATH` in config; `vault.client.ts` `writeNote` (mkdir, exclusive create, ` (2)` suffixes); writable check at startup | 0015 | ⬜ |
 | 4.3 | `GET /api/jobs`: `listActiveJobs`, newest first | 0006 | ⬜ |
 | 4.4 | `GET /api/jobs/:id/transcript` (JSON) | 0006 | ⬜ |
@@ -124,3 +124,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 - 3.7 ✅ `runJob` on a `summarizing` job runs only `summarizeJob` (no clients, no audio folder); queued jobs still run the full pipeline.
 - 3.8 ✅ `done` and `completeJob` removed; downloads allowed in `ready_for_review` / `summary_failed` (409 otherwise, incl. `saved`); web: `useJob` stops polling on the four end states, `JobProgress` has Summarizing and Ready for review stages, `App` shows downloads in review states. Tests that used `done` now use `ready_for_review`; `JobProgress` stage-count assertions went from 5 to 6.
 - 3.9 ✅ `claude.integration.test.ts` (one real call; skipped when `ANTHROPIC_API_KEY` is unset) and the integration config loads `.env`. Skipped on this run: no key was available, so it has not hit the real API yet.
+- 4.1 ✅ `quoted` / `singleLine` moved to `formatters/frontmatter.ts`; `formatNote` renders the vault note (frontmatter + body); tags sanitized with the shared normalization, `mnemosyne` first.

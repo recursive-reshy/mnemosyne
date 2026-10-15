@@ -1,18 +1,9 @@
 // Shared
 import { Transcript, groupParagraphs } from '@mnemosyne/shared'
 // Formatters
+import { quoted, singleLine } from './frontmatter.js'
 import { formatClock } from './timestamps.js'
 import { youTubeVideoId } from './youtube.js'
-
-const singleLine = ( value: string ): string => {
-  return value.replace( /\r?\n|\r/g, ' ' )
-}
-
-const quoted = ( value: string ): string => {
-  const escaped = singleLine( value ).replace( /\\/g, '\\\\' ).replace( /"/g, '\\"' )
-
-  return `"${ escaped }"`
-}
 
 export const formatMarkdown = ( { meta, segments }: Transcript ): string => {
   const videoId = youTubeVideoId( meta.source )
