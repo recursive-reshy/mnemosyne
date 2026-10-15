@@ -17,11 +17,13 @@ let exit: ReturnType< typeof vi.fn< ( code: number ) => void > >
 let stopWorker: ReturnType< typeof vi.fn< () => Promise< void > > >
 let closeServer: ReturnType< typeof vi.fn< () => Promise< void > > >
 let closeStore: ReturnType< typeof vi.fn< () => void > >
+let stopSweeper: ReturnType< typeof vi.fn< () => void > >
 
 const build = (): ( signal: string ) => Promise< void > => createShutdown( {
   stopWorker,
   closeServer,
   closeStore,
+  stopSweeper,
   timeoutMs: TIMEOUT_MS,
   exit,
   log: ( message ) => events.push( `log:${ message }` ),
@@ -35,6 +37,7 @@ beforeEach( () => {
   } )
   stopWorker = vi.fn( () => Promise.resolve() )
   closeServer = vi.fn( () => Promise.resolve() )
+  stopSweeper = vi.fn()
   closeStore = vi.fn( () => {
     events.push( 'closeStore' )
   } )
@@ -63,6 +66,20 @@ describe( 'createShutdown', () => {
       'exit:0',
     ] )
     expect( exit ).toHaveBeenCalledTimes( 1 )
+  } )
+
+  it( 'stops the sweeper before stopping the worker and the server', async () => {
+    const shutdown = build()
+
+    await shutdown( 'SIGTERM' )
+
+    expect( stopSweeper ).toHaveBeenCalledTimes( 1 )
+    expect( stopSweeper.mock.invocationCallOrder[ 0 ] ).toBeLessThan(
+      stopWorker.mock.invocationCallOrder[ 0 ] ?? 0,
+    )
+    expect( stopSweeper.mock.invocationCallOrder[ 0 ] ).toBeLessThan(
+      closeServer.mock.invocationCallOrder[ 0 ] ?? 0,
+    )
   } )
 
   it( 'closes the store only after the worker and the server have stopped', async () => {

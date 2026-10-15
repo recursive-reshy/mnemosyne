@@ -17,6 +17,7 @@ import { clearJobs, findJobById, updateJob } from '../repositories/jobStore.repo
 import {
   completeSummary,
   completeTranscription,
+  deleteExpiredJobs,
   discardJob,
   failJob,
   failSummary,
@@ -672,5 +673,28 @@ describe( 'discardJob', () => {
 
   it( 'throws NotFoundError for an unknown id', () => {
     expect( () => discardJob( 'missing' ) ).toThrow( NotFoundError )
+  } )
+} )
+
+describe( 'deleteExpiredJobs', () => {
+  it( 'deletes jobs past their expiry and returns how many', () => {
+    const expiredReview = queueJobAt( 'ready_for_review' )
+    const expiredFailed = queueJobAt( 'summary_failed' )
+    const fresh = queueJobAt( 'ready_for_review' )
+    updateJob( expiredReview, { expires_at: '2026-10-14T09:00:00.000Z' } )
+    updateJob( expiredFailed, { expires_at: '2026-10-14T09:59:59.000Z' } )
+    updateJob( fresh, { expires_at: '2026-10-14T10:00:01.000Z' } )
+
+    expect( deleteExpiredJobs() ).toBe( 2 )
+
+    expect( findJobById( expiredReview ) ).toBeUndefined()
+    expect( findJobById( expiredFailed ) ).toBeUndefined()
+    expect( findJob( fresh ).status ).toBe( 'ready_for_review' )
+  } )
+
+  it( 'returns 0 when nothing has expired', () => {
+    queueJobAt( 'ready_for_review' )
+
+    expect( deleteExpiredJobs() ).toBe( 0 )
   } )
 } )

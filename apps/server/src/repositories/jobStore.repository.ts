@@ -174,3 +174,12 @@ export const deleteJob = ( id: string ): boolean => {
 
   return changes > 0
 }
+
+export const findExpiredJobs = ( now: string ): StoredJob[] => {
+  return requireDatabase()
+    .prepare( `SELECT * FROM jobs
+      WHERE status IN ( 'ready_for_review', 'summary_failed' )
+        AND expires_at IS NOT NULL AND expires_at <= ?` )
+    .all( now )
+    .map( toStoredJob )
+}

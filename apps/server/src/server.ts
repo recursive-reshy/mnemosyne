@@ -14,6 +14,7 @@ import { recoverInterruptedJobs } from './services/jobs.service.js'
 // Shutdown
 import { SHUTDOWN_TIMEOUT_MS, createShutdown } from './shutdown.js'
 // Worker
+import { startSweeper } from './worker/sweeper.js'
 import { startWorker } from './worker/worker.js'
 
 // Audio is deleted when a job ends, so anything left here belongs to a job cut short by a shutdown.
@@ -35,6 +36,7 @@ if( interrupted > 0 ) {
   console.log( `Marked ${ interrupted } interrupted job(s) as failed` )
 }
 
+const stopSweeper = startSweeper()
 const stopWorker = startWorker()
 
 const server = app.listen( config.port, () => {
@@ -50,6 +52,7 @@ const shutdown = createShutdown( {
   stopWorker,
   closeServer,
   closeStore: closeJobStore,
+  stopSweeper,
   timeoutMs: SHUTDOWN_TIMEOUT_MS,
   exit: ( code ) => process.exit( code ),
   log: ( message ) => console.log( message ),

@@ -22,6 +22,7 @@ import { formatTxt } from '../formatters/txt.formatter.js'
 import {
   StoredJob,
   deleteJob,
+  findExpiredJobs,
   findJobById,
   findNextRunnableJob as findNextRunnableStoredJob,
   insertJob,
@@ -213,6 +214,16 @@ export const discardJob = ( id: string ): void => {
   }
 
   deleteJob( id )
+}
+
+export const deleteExpiredJobs = (): number => {
+  const expired = findExpiredJobs( new Date().toISOString() )
+
+  for( const { id } of expired ) {
+    deleteJob( id )
+  }
+
+  return expired.length
 }
 
 export const getTranscript = ( id: string ): Transcript => {

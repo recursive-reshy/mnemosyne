@@ -11,6 +11,7 @@ const defaultDataDir = join( tmpdir(), 'mnemosyne-data' )
 const portSchema = z.coerce.number().int().min( 1 ).max( 65535 ).default( 3100 )
 const summaryTimeoutSchema = z.coerce.number().int().positive().default( 300_000 )
 const reviewTtlSchema = z.coerce.number().positive().default( 24 )
+const cleanupIntervalSchema = z.coerce.number().positive().default( 15 )
 
 const EnvSchema = z
   .object( {
@@ -24,6 +25,7 @@ const EnvSchema = z
     VAULT_PATH: z.string().min( 1 ),
     SUMMARY_TIMEOUT_MS: z.preprocess( emptyAsUnset, summaryTimeoutSchema ),
     REVIEW_TTL_HOURS: z.preprocess( emptyAsUnset, reviewTtlSchema ),
+    CLEANUP_INTERVAL_MINUTES: z.preprocess( emptyAsUnset, cleanupIntervalSchema ),
   } )
   .transform( ( env ) => ( {
     port: env.PORT,
@@ -36,6 +38,7 @@ const EnvSchema = z
     vaultPath: env.VAULT_PATH,
     summaryTimeoutMs: env.SUMMARY_TIMEOUT_MS,
     reviewTtlHours: env.REVIEW_TTL_HOURS,
+    cleanupIntervalMinutes: env.CLEANUP_INTERVAL_MINUTES,
   } ) )
 
 export type Config = z.infer< typeof EnvSchema >

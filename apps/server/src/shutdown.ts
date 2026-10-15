@@ -4,13 +4,14 @@ interface ShutdownOptions {
   stopWorker: () => Promise< void >
   closeServer: () => Promise< void >
   closeStore: () => void
+  stopSweeper: () => void
   timeoutMs: number
   exit: ( code: number ) => void
   log: ( message: string ) => void
 }
 
 export const createShutdown = (
-  { stopWorker, closeServer, closeStore, timeoutMs, exit, log }: ShutdownOptions,
+  { stopWorker, closeServer, closeStore, stopSweeper, timeoutMs, exit, log }: ShutdownOptions,
 ): ( ( signal: string ) => Promise< void > ) => {
   let shuttingDown = false
 
@@ -24,6 +25,7 @@ export const createShutdown = (
 
     shuttingDown = true
     log( `Received ${ signal }, shutting down…` )
+    stopSweeper()
 
     let timer: ReturnType< typeof setTimeout > | undefined
     const timeout = new Promise< 'timeout' >( ( resolve ) => {

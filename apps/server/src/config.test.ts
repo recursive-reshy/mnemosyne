@@ -21,6 +21,7 @@ describe( 'loadConfig', () => {
       vaultPath: '/vault',
       summaryTimeoutMs: 300_000,
       reviewTtlHours: 24,
+      cleanupIntervalMinutes: 15,
     } )
   } )
 
@@ -36,6 +37,7 @@ describe( 'loadConfig', () => {
       WEB_DIR: '/srv/web',
       SUMMARY_TIMEOUT_MS: '60000',
       REVIEW_TTL_HOURS: '48',
+      CLEANUP_INTERVAL_MINUTES: '5',
     } )
 
     expect( config ).toEqual( {
@@ -49,6 +51,7 @@ describe( 'loadConfig', () => {
       vaultPath: '/Users/x/Vault',
       summaryTimeoutMs: 60_000,
       reviewTtlHours: 48,
+      cleanupIntervalMinutes: 5,
     } )
   } )
 
@@ -74,9 +77,15 @@ describe( 'loadConfig', () => {
     expect( loadConfig( { ...base, WEB_DIR: '' } ).webDir ).toBeUndefined()
   } )
 
-  it( 'treats empty summary settings as unset', () => {
-    const config = loadConfig( { ...base, SUMMARY_TIMEOUT_MS: '', REVIEW_TTL_HOURS: '' } )
+  it( 'treats empty summary and cleanup settings as unset', () => {
+    const config = loadConfig( {
+      ...base,
+      SUMMARY_TIMEOUT_MS: '',
+      REVIEW_TTL_HOURS: '',
+      CLEANUP_INTERVAL_MINUTES: '',
+    } )
 
+    expect( config.cleanupIntervalMinutes ).toBe( 15 )
     expect( config.summaryTimeoutMs ).toBe( 300_000 )
     expect( config.reviewTtlHours ).toBe( 24 )
   } )
@@ -105,6 +114,12 @@ describe( 'loadConfig', () => {
 
   it.each( [ 'abc', '0', '-1' ] )( 'throws naming REVIEW_TTL_HOURS for %s', ( value ) => {
     expect( () => loadConfig( { ...base, REVIEW_TTL_HOURS: value } ) ).toThrow( /REVIEW_TTL_HOURS/ )
+  } )
+
+  it.each( [ 'abc', '0', '-1' ] )( 'throws naming CLEANUP_INTERVAL_MINUTES for %s', ( value ) => {
+    expect( () => loadConfig( { ...base, CLEANUP_INTERVAL_MINUTES: value } ) ).toThrow(
+      /CLEANUP_INTERVAL_MINUTES/,
+    )
   } )
 
   it( 'ignores unrelated variables', () => {

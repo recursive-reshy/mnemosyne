@@ -17,6 +17,7 @@ import {
   clearJobs,
   closeJobStore,
   deleteJob,
+  findExpiredJobs,
   findJobById,
   findNextRunnableJob,
   insertJob,
@@ -469,5 +470,36 @@ describe( 'deleteJob', () => {
 
     expect( deleteJob( 'missing' ) ).toBe( false )
     expect( findJobById( other.id ) ).toEqual( other )
+  } )
+} )
+
+describe( 'findExpiredJobs', () => {
+  const now = '2026-10-15T12:00:00.000Z'
+
+  it( 'returns review and failed-summary jobs whose expiry has passed', () => {
+    const review = buildJob( {
+      status: 'ready_for_review',
+      expires_at: '2026-10-15T11:59:59.000Z',
+    } )
+    const failed = buildJob( { status: 'summary_failed', expires_at: now } )
+    insertJob( review )
+    insertJob( failed )
+
+    expect( findExpiredJobs( now ).map( ( { id } ) => id ).toSorted() ).toEqual(
+      [ review.id, failed.id ].toSorted(),
+    )
+  } )
+
+  it( 'ignores unexpired jobs, null expiry and other statuses', () => {
+    insertJob( buildJob( {
+      status: 'ready_for_review',
+      expires_at: '2026-10-15T12:00:01.000Z',
+    } ) )
+    insertJob( buildJob( { status: 'ready_for_review', expires_at: null } ) )
+    insertJob( buildJob( { status: 'saved', expires_at: '2026-10-01T00:00:00.000Z' } ) )
+    insertJob( buildJob( { status: 'failed', expires_at: '2026-10-01T00:00:00.000Z' } ) )
+    insertJob( buildJob( { status: 'summarizing', expires_at: '2026-10-01T00:00:00.000Z' } ) )
+
+    expect( findExpiredJobs( now ) ).toEqual( [] )
   } )
 } )

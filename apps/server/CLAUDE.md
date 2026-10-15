@@ -39,6 +39,7 @@ Parsed once with Zod in `config.ts`; nothing else reads `process.env`.
 - `VAULT_PATH`: required; the Obsidian vault folder. Notes are written to `<VAULT_PATH>/Mnemosyne/`. It must exist and be writable at startup, or the server exits with a message.
 - `SUMMARY_TIMEOUT_MS`: timeout of one summary request; default `300000`.
 - `REVIEW_TTL_HOURS`: hours a job in review or with a failed summary is kept before deletion; default `24`.
+- `CLEANUP_INTERVAL_MINUTES`: how often the sweeper deletes expired jobs; default `15`.
 - `WEB_DIR`: folder with the built web app; leave empty in development (Vite serves it). When set, Express serves it, with an `index.html` fallback for paths without an extension.
 
 ## Folder structure
