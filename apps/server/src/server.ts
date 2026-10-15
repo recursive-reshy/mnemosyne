@@ -1,16 +1,22 @@
 // Packages
-import { rm } from 'node:fs/promises'
+import { mkdir, rm } from 'node:fs/promises'
+import { join } from 'node:path'
 // App
 import { app } from './app.js'
 // Config
 import { config } from './config.js'
+// Repositories
+import { closeJobStore, openJobStore } from './repositories/jobStore.repository.js'
 // Shutdown
 import { SHUTDOWN_TIMEOUT_MS, createShutdown } from './shutdown.js'
 // Worker
 import { startWorker } from './worker/worker.js'
 
-// Jobs live in memory, so anything left here belongs to a job lost in the last shutdown.
+// Audio is deleted when a job ends, so anything left here belongs to a job cut short by a shutdown.
 await rm( config.workDir, { recursive: true, force: true } )
+
+await mkdir( config.dataDir, { recursive: true } )
+openJobStore( join( config.dataDir, 'mnemosyne.db' ) )
 
 const stopWorker = startWorker()
 
@@ -26,6 +32,7 @@ const closeServer = (): Promise< void > => new Promise( ( resolve, reject ) => {
 const shutdown = createShutdown( {
   stopWorker,
   closeServer,
+  closeStore: closeJobStore,
   timeoutMs: SHUTDOWN_TIMEOUT_MS,
   exit: ( code ) => process.exit( code ),
   log: ( message ) => console.log( message ),

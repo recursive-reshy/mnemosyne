@@ -3,13 +3,14 @@ export const SHUTDOWN_TIMEOUT_MS = 60_000
 interface ShutdownOptions {
   stopWorker: () => Promise< void >
   closeServer: () => Promise< void >
+  closeStore: () => void
   timeoutMs: number
   exit: ( code: number ) => void
   log: ( message: string ) => void
 }
 
 export const createShutdown = (
-  { stopWorker, closeServer, timeoutMs, exit, log }: ShutdownOptions,
+  { stopWorker, closeServer, closeStore, timeoutMs, exit, log }: ShutdownOptions,
 ): ( ( signal: string ) => Promise< void > ) => {
   let shuttingDown = false
 
@@ -37,6 +38,7 @@ export const createShutdown = (
         log( `Shutdown timed out after ${ timeoutMs / 1000 } s; exiting` )
         exit( 1 )
       } else {
+        closeStore()
         log( 'Shutdown complete' )
         exit( 0 )
       }

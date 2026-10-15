@@ -33,6 +33,7 @@ Parsed once with Zod in `config.ts`; nothing else reads `process.env`.
 - `PORT`: default `3100`.
 - `WHISPER_URL`: `http://localhost:8178` natively, `http://host.docker.internal:8178` in Docker.
 - `WORK_DIR`: where downloaded and converted audio lives during a job; default the OS temp directory.
+- `DATA_DIR`: where `mnemosyne.db` (the SQLite job store) lives; default `<OS temp dir>/mnemosyne-data`.
 - `WHISPER_MODEL`: label stored as the transcript's `model` (whisper-server doesn't report it); default `large-v3-turbo`.
 - `WEB_DIR`: folder with the built web app; leave empty in development (Vite serves it). When set, Express serves it, with an `index.html` fallback for paths without an extension.
 

@@ -12,6 +12,7 @@ describe( 'loadConfig', () => {
       port: 3100,
       whisperUrl: 'http://localhost:8178',
       workDir: join( tmpdir(), 'mnemosyne' ),
+      dataDir: join( tmpdir(), 'mnemosyne-data' ),
       whisperModel: 'large-v3-turbo',
       webDir: undefined,
     } )
@@ -22,6 +23,7 @@ describe( 'loadConfig', () => {
       PORT: '4000',
       WHISPER_URL: 'http://host.docker.internal:8178',
       WORK_DIR: '/tmp/custom',
+      DATA_DIR: '/data',
       WHISPER_MODEL: 'large-v3',
       WEB_DIR: '/srv/web',
     } )
@@ -30,6 +32,7 @@ describe( 'loadConfig', () => {
       port: 4000,
       whisperUrl: 'http://host.docker.internal:8178',
       workDir: '/tmp/custom',
+      dataDir: '/data',
       whisperModel: 'large-v3',
       webDir: '/srv/web',
     } )
@@ -40,6 +43,10 @@ describe( 'loadConfig', () => {
 
     expect( config.port ).toBe( 3100 )
     expect( config.whisperUrl ).toBe( 'http://localhost:8178' )
+  } )
+
+  it( 'treats an empty DATA_DIR as unset', () => {
+    expect( loadConfig( { DATA_DIR: '' } ).dataDir ).toBe( join( tmpdir(), 'mnemosyne-data' ) )
   } )
 
   it( 'falls back to the default model for an empty WHISPER_MODEL', () => {

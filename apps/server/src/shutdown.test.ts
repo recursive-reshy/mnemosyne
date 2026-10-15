@@ -16,10 +16,12 @@ let events: string[]
 let exit: ReturnType< typeof vi.fn< ( code: number ) => void > >
 let stopWorker: ReturnType< typeof vi.fn< () => Promise< void > > >
 let closeServer: ReturnType< typeof vi.fn< () => Promise< void > > >
+let closeStore: ReturnType< typeof vi.fn< () => void > >
 
 const build = (): ( signal: string ) => Promise< void > => createShutdown( {
   stopWorker,
   closeServer,
+  closeStore,
   timeoutMs: TIMEOUT_MS,
   exit,
   log: ( message ) => events.push( `log:${ message }` ),
@@ -33,6 +35,9 @@ beforeEach( () => {
   } )
   stopWorker = vi.fn( () => Promise.resolve() )
   closeServer = vi.fn( () => Promise.resolve() )
+  closeStore = vi.fn( () => {
+    events.push( 'closeStore' )
+  } )
 } )
 
 afterEach( () => {
@@ -53,10 +58,53 @@ describe( 'createShutdown', () => {
 
     expect( events ).toEqual( [
       'log:Received SIGTERM, shutting down…',
+      'closeStore',
       'log:Shutdown complete',
       'exit:0',
     ] )
     expect( exit ).toHaveBeenCalledTimes( 1 )
+  } )
+
+  it( 'closes the store only after the worker and the server have stopped', async () => {
+    let finishWorker: () => void = () => undefined
+    stopWorker.mockReturnValue( new Promise< void >( ( resolve ) => {
+      finishWorker = resolve
+    } ) )
+    const shutdown = build()
+
+    const done = shutdown( 'SIGTERM' )
+    await vi.advanceTimersByTimeAsync( 10 )
+    expect( closeStore ).not.toHaveBeenCalled()
+
+    finishWorker()
+    await done
+
+    expect( closeStore ).toHaveBeenCalledTimes( 1 )
+  } )
+
+  it( 'logs the message and exits 1 when closeStore throws', async () => {
+    closeStore.mockImplementation( () => {
+      throw new Error( 'store busy' )
+    } )
+    const shutdown = build()
+
+    await shutdown( 'SIGTERM' )
+
+    expect( events ).toEqual( [
+      'log:Received SIGTERM, shutting down…',
+      'log:store busy',
+      'exit:1',
+    ] )
+  } )
+
+  it( 'does not close the store when shutdown times out', async () => {
+    stopWorker.mockReturnValue( new Promise< void >( () => undefined ) )
+    const shutdown = build()
+
+    void shutdown( 'SIGTERM' )
+    await vi.advanceTimersByTimeAsync( TIMEOUT_MS )
+
+    expect( closeStore ).not.toHaveBeenCalled()
   } )
 
   it( 'exits 1 after exactly the timeout when the worker is still busy', async () => {
