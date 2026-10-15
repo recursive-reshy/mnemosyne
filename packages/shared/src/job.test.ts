@@ -13,7 +13,18 @@ const validJob = {
 }
 
 describe( 'JobStatus', () => {
-  it.each( [ 'queued', 'downloading', 'converting', 'transcribing', 'done', 'failed' ] )(
+  it.each( [
+    'queued',
+    'downloading',
+    'converting',
+    'transcribing',
+    'summarizing',
+    'ready_for_review',
+    'summary_failed',
+    'saved',
+    'done',
+    'failed',
+  ] )(
     'accepts %s',
     ( status ) => {
       expect( JobStatus.safeParse( status ).success ).toBe( true )

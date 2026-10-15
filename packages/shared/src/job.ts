@@ -6,6 +6,10 @@ export const JobStatus = z.enum( [
   'downloading',
   'converting',
   'transcribing',
+  'summarizing',
+  'ready_for_review',
+  'summary_failed',
+  'saved',
   'done',
   'failed',
 ] )

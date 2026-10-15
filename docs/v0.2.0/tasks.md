@@ -22,7 +22,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
 | **Phase 1** | **Shared contracts** | | |
-| 1.1 | Add `summarizing`, `ready_for_review`, `summary_failed`, `saved` to `JobStatus` (keep `done` until 3.8) | 0014, 0015 | ⬜ |
+| 1.1 | Add `summarizing`, `ready_for_review`, `summary_failed`, `saved` to `JobStatus` (keep `done` until 3.8) | 0014, 0015 | ✅ |
 | 1.2 | Extend `Job` with `title`, `summary_markdown`, `suggested_tags`, `expires_at`, `saved_path`; `toPublicJob` returns them | 0014, 0015 | ⬜ |
 | 1.3 | New schemas in `api.ts`: `ListJobsResponse`, `GetTranscriptResponse`, `SaveJobBody`, `SaveJobResponse` | 0008 | ⬜ |
 | 1.4 | Move the filename cleaning to shared as `noteBasename`; server `transcriptFilename` uses it | 0008 | ⬜ |
@@ -106,3 +106,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 ---
 
 ## Log
+- 1.1 ✅ Added `summarizing`, `ready_for_review`, `summary_failed`, `saved` to `JobStatus` (`done` kept); `JobProgress` got messages for them so web typechecks (agreed with Naresh).

@@ -49,6 +49,17 @@ describe( 'JobProgress', () => {
     expect( current[ 0 ] ).toHaveTextContent( label )
   } )
 
+  it.each( [
+    [ 'summarizing', 'Summarizing…' ],
+    [ 'ready_for_review', 'Ready for review' ],
+    [ 'summary_failed', 'Summary failed' ],
+    [ 'saved', 'Saved' ],
+  ] as const )( 'shows a message for the %s state', ( status, message ) => {
+    setup( jobFixture( { status } ) )
+
+    expect( screen.getByRole( 'status' ) ).toHaveTextContent( message )
+  } )
+
   it( 'lists the five stages in order', () => {
     setup( jobFixture( { status: 'queued' } ) )
 

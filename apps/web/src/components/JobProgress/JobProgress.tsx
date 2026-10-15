@@ -18,6 +18,10 @@ const STATUS_MESSAGES = {
   downloading: 'Downloading audio…',
   converting: 'Converting audio…',
   transcribing: 'Transcribing…',
+  summarizing: 'Summarizing…',
+  ready_for_review: 'Ready for review',
+  summary_failed: 'Summary failed',
+  saved: 'Saved',
   done: 'Transcript ready',
 } as const
 
