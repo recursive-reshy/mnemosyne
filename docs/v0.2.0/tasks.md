@@ -45,7 +45,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 3.4 | `summary.formatter.ts`: render the note body, YouTube links or plain timestamps | 0014 | ✅ |
 | 3.5 | Service: `completeTranscription` (→ `summarizing`, stores title), `completeSummary` (→ `ready_for_review`, sets `expires_at`), `failSummary`; `failJob` refuses the new end states | 0014, 0015 | ✅ |
 | 3.6 | Worker: summarize step after transcription; `findNextRunnableJob` picks `queued` or `summarizing` | 0014 | ✅ |
-| 3.7 | Worker: a `summarizing` job runs the summarize step only (resume after restart, and retries later) | 0014, 0015 | ⬜ |
+| 3.7 | Worker: a `summarizing` job runs the summarize step only (resume after restart, and retries later) | 0014, 0015 | ✅ |
 | 3.8 | Remove `done`: download allowed in `ready_for_review` / `summary_failed`; web shows downloads in those states | 0015 | ⬜ |
 | 3.9 | Integration test: one real Claude call in `pnpm test:integration` | 0007, 0014 | ⬜ |
 
@@ -121,3 +121,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 - 3.4 ✅ `formatSummary( summary, source )`: Summary / Key points / Notable quotes, YouTube links or plain timestamps; empty key points and quotes sections are omitted (agreed in the plan).
 - 3.5 ✅ Service: `completeTranscription`, `completeSummary`, `failSummary`, `getTranscript`; `failJob` refuses `ready_for_review`, `summary_failed`, `saved`. `completeJob` stays until 3.8.
 - 3.6 ✅ `findNextRunnableJob` (queued or summarizing) replaces `findNextQueuedJob` end to end; `summarizeJob` (client → cleanup → format → `completeSummary`, or `failSummary`); `runJob` ends in `completeTranscription` then summarizes after audio cleanup. Existing runJob assertions expecting `done` now expect `summarizing`; the renamed tests keep their cases.
+- 3.7 ✅ `runJob` on a `summarizing` job runs only `summarizeJob` (no clients, no audio folder); queued jobs still run the full pipeline.

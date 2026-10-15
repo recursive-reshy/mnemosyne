@@ -12,7 +12,12 @@ import { Segment } from '@mnemosyne/shared'
 // Errors
 import { ConflictError, NotFoundError } from '../errors.js'
 // Services
-import { findJob, markStatus, queueJob } from '../services/jobs.service.js'
+import {
+  completeTranscription,
+  findJob,
+  markStatus,
+  queueJob,
+} from '../services/jobs.service.js'
 // Repositories
 import { clearJobs, findJobById } from '../repositories/jobStore.repository.js'
 // Clients
@@ -247,6 +252,39 @@ describe( 'runJob', () => {
     expectClientsNotCalled()
     expect( rmMock ).not.toHaveBeenCalled()
     expect( findJob( id ).status ).toBe( 'downloading' )
+  } )
+
+  describe( 'when the job is already summarizing', () => {
+    const queueSummarizing = (): string => {
+      const id = queue()
+      markStatus( id, 'downloading' )
+      markStatus( id, 'converting' )
+      markStatus( id, 'transcribing' )
+      completeTranscription( id, {
+        meta: { ...meta, transcribed_at: NOW, model: 'test-model' },
+        segments,
+      } )
+
+      return id
+    }
+
+    it( 'runs only the summarize step', async () => {
+      const id = queueSummarizing()
+
+      await runJob( id )
+
+      expect( summarizeJobMock ).toHaveBeenCalledExactlyOnceWith( id )
+      expectClientsNotCalled()
+      expect( rmMock ).not.toHaveBeenCalled()
+    } )
+
+    it( 'leaves the status to the summarize step', async () => {
+      const id = queueSummarizing()
+
+      await runJob( id )
+
+      expect( findJob( id ).status ).toBe( 'summarizing' )
+    } )
   } )
 
   it( 'rejects with NotFoundError for an unknown id', async () => {

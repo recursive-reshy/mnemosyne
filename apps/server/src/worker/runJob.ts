@@ -42,6 +42,13 @@ const downloadWithRetry = async (
 
 export const runJob = async ( jobId: string ): Promise< void > => {
   const job = findJob( jobId )
+
+  if( job.status === 'summarizing' ) {
+    await summarizeJob( jobId )
+
+    return
+  }
+
   markStatus( jobId, 'downloading' )
 
   const workDir = path.join( config.workDir, jobId )
