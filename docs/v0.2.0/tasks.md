@@ -40,7 +40,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | --- | --- | --- | --- |
 | **Phase 3** | **Summarizer** | | |
 | 3.1 | Config: `ANTHROPIC_API_KEY`, `SUMMARY_TIMEOUT_MS`, `REVIEW_TTL_HOURS`; `settings.ts` with `getSummaryModel()` | 0014 | ✅ |
-| 3.2 | Add `@anthropic-ai/sdk`; `SummaryResult` schema; `claude.client.ts` `summarizeTranscript` (SDK mocked in tests; check structured-output API via Context7) | 0014 | ⬜ |
+| 3.2 | Add `@anthropic-ai/sdk`; `SummaryResult` schema; `claude.client.ts` `summarizeTranscript` (SDK mocked in tests; check structured-output API via Context7) | 0014 | ✅ |
 | 3.3 | `summary.cleanup.ts`: verbatim-quote filter, timestamp bounds, tag normalization | 0014 | ⬜ |
 | 3.4 | `summary.formatter.ts`: render the note body, YouTube links or plain timestamps | 0014 | ⬜ |
 | 3.5 | Service: `completeTranscription` (→ `summarizing`, stores title), `completeSummary` (→ `ready_for_review`, sets `expires_at`), `failSummary`; `failJob` refuses the new end states | 0014, 0015 | ⬜ |
@@ -116,3 +116,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 - 2.3 ✅ `DATA_DIR` in config (default `<tmp>/mnemosyne-data`); `server.ts` opens `mnemosyne.db` there, `shutdown.ts` closes the store after the worker and server stop (not on timeout). Existing config exact-shape test and the shutdown `build` helper gained the new field. Docker volume wiring is 5.1.
 - 2.4 ✅ `markInterruptedJobs` (repository) and `recoverInterruptedJobs` (service); `server.ts` runs it after opening the store and before starting the worker.
 - 3.1 ✅ Config: required `ANTHROPIC_API_KEY`, `SUMMARY_TIMEOUT_MS` (300000), `REVIEW_TTL_HOURS` (24); `settings.ts` `getSummaryModel()`; Vitest sets a test key. `config.test.ts` rewritten around the new required key and fields.
+- 3.2 ✅ Added `@anthropic-ai/sdk` (zod 4 works with `zodOutputFormat`); `claude.client.ts` `summarizeTranscript` via `messages.parse`, `SummaryResult` schema; max_tokens 16000, effort medium, one retry; refusal / max_tokens / unparsable output throw.

@@ -23,6 +23,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.133.0",
     "@mnemosyne/shared": "workspace:*",
     "better-sqlite3": "^13.0.3",
     "express": "^5.3.0",
