@@ -20,6 +20,7 @@ import {
   findNextQueuedJob,
   insertJob,
   jobStoreMigrations,
+  markInterruptedJobs,
   openJobStore,
   updateJob,
 } from './jobStore.repository.js'
@@ -338,5 +339,55 @@ describe( 'storage', () => {
     closeJobStore()
 
     expect( () => findJobById( crypto.randomUUID() ) ).toThrow( 'Job store is not open' )
+  } )
+} )
+
+describe( 'markInterruptedJobs', () => {
+  const statuses = [
+    'queued',
+    'downloading',
+    'converting',
+    'transcribing',
+    'summarizing',
+    'ready_for_review',
+    'summary_failed',
+    'saved',
+    'done',
+    'failed',
+  ] as const
+  const interrupted = [ 'downloading', 'converting', 'transcribing' ]
+
+  it( 'fails only the download, convert and transcribe jobs', () => {
+    const ids = new Map( statuses.map( ( status ) => {
+      const job = buildJob( { status } )
+      insertJob( job )
+
+      return [ status, job.id ] as const
+    } ) )
+
+    const count = markInterruptedJobs( 'Interrupted by restart', '2026-10-15T09:00:00.000Z' )
+
+    expect( count ).toBe( 3 )
+
+    for( const status of statuses ) {
+      const job = findJobById( ids.get( status ) ?? '' )
+
+      if( interrupted.includes( status ) ) {
+        expect( job ).toMatchObject( {
+          status: 'failed',
+          error: 'Interrupted by restart',
+          updated_at: '2026-10-15T09:00:00.000Z',
+        } )
+      } else {
+        expect( job ).toMatchObject( { status, error: null } )
+        expect( job?.updated_at ).toBe( '2026-10-14T10:00:00.000Z' )
+      }
+    }
+  } )
+
+  it( 'returns 0 when nothing was interrupted', () => {
+    insertJob( buildJob() )
+
+    expect( markInterruptedJobs( 'x', '2026-10-15T09:00:00.000Z' ) ).toBe( 0 )
   } )
 } )

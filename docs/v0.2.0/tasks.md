@@ -31,7 +31,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 2.1 | Add `better-sqlite3` (+ `allowBuilds`); `openJobStore` / `closeJobStore` with `user_version` migrations and the `jobs` table | 0012 | ✅ |
 | 2.2 | Re-implement the existing repository functions on SQLite; transcript stored as JSON and parsed with the shared schema; existing tests stay green | 0012 | ✅ |
 | 2.3 | `DATA_DIR` in config; open the store in `server.ts`, close it in `shutdown.ts` | 0012 | ✅ |
-| 2.4 | Startup recovery: `markInterruptedJobs` + `recoverInterruptedJobs` (downloading/converting/transcribing → `failed`) | 0012 | ⬜ |
+| 2.4 | Startup recovery: `markInterruptedJobs` + `recoverInterruptedJobs` (downloading/converting/transcribing → `failed`) | 0012 | ✅ |
 
 ## Checkpoint B: Phase 3 (summarizer)
 **Plan:** ⬜ [`plans/checkpoint-b.md`](plans/checkpoint-b.md)
@@ -114,3 +114,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 - 2.1 ✅ Added `better-sqlite3` (+ types, `allowBuilds`); `openJobStore` / `closeJobStore` with `user_version` migrations and the `jobs` table, WAL mode. Functions still run on the Map until 2.2.
 - 2.2 ✅ Repository functions re-implemented on SQLite (same signatures); transcript and tags stored as JSON and parsed with the shared schemas on read; a Vitest setup file opens `:memory:` per test (also wired into the integration config) so existing tests are untouched.
 - 2.3 ✅ `DATA_DIR` in config (default `<tmp>/mnemosyne-data`); `server.ts` opens `mnemosyne.db` there, `shutdown.ts` closes the store after the worker and server stop (not on timeout). Existing config exact-shape test and the shutdown `build` helper gained the new field. Docker volume wiring is 5.1.
+- 2.4 ✅ `markInterruptedJobs` (repository) and `recoverInterruptedJobs` (service); `server.ts` runs it after opening the store and before starting the worker.

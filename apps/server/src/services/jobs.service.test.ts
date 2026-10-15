@@ -21,6 +21,7 @@ import {
   findNextQueuedJob,
   markStatus,
   queueJob,
+  recoverInterruptedJobs,
   renderTranscript,
 } from './jobs.service.js'
 // Formatters
@@ -298,5 +299,30 @@ describe( 'findNextQueuedJob', () => {
     queueJob( 'https://example.com/a' )
 
     expect( findNextQueuedJob() ).not.toHaveProperty( 'transcript' )
+  } )
+} )
+
+describe( 'recoverInterruptedJobs', () => {
+  it( 'fails jobs left mid-processing and returns how many', () => {
+    const queued = queueJobAt( 'queued' )
+    const downloading = queueJobAt( 'downloading' )
+    const transcribing = queueJobAt( 'transcribing' )
+    const finished = queueJobAt( 'done' )
+    vi.setSystemTime( laterTime )
+
+    expect( recoverInterruptedJobs() ).toBe( 2 )
+
+    expect( findJob( downloading ) ).toMatchObject( {
+      status: 'failed',
+      error: 'Interrupted by restart',
+      updated_at: laterTime.toISOString(),
+    } )
+    expect( findJob( transcribing ).status ).toBe( 'failed' )
+    expect( findJob( queued ).status ).toBe( 'queued' )
+    expect( findJob( finished ).status ).toBe( 'done' )
+  } )
+
+  it( 'returns 0 when nothing needs recovery', () => {
+    expect( recoverInterruptedJobs() ).toBe( 0 )
   } )
 } )

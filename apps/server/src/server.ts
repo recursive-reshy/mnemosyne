@@ -7,6 +7,8 @@ import { app } from './app.js'
 import { config } from './config.js'
 // Repositories
 import { closeJobStore, openJobStore } from './repositories/jobStore.repository.js'
+// Services
+import { recoverInterruptedJobs } from './services/jobs.service.js'
 // Shutdown
 import { SHUTDOWN_TIMEOUT_MS, createShutdown } from './shutdown.js'
 // Worker
@@ -17,6 +19,12 @@ await rm( config.workDir, { recursive: true, force: true } )
 
 await mkdir( config.dataDir, { recursive: true } )
 openJobStore( join( config.dataDir, 'mnemosyne.db' ) )
+
+const interrupted = recoverInterruptedJobs()
+
+if( interrupted > 0 ) {
+  console.log( `Marked ${ interrupted } interrupted job(s) as failed` )
+}
 
 const stopWorker = startWorker()
 

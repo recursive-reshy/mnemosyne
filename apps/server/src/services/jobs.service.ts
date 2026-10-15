@@ -18,6 +18,7 @@ import {
   findJobById,
   findNextQueuedJob as findNextQueuedStoredJob,
   insertJob,
+  markInterruptedJobs,
   updateJob,
 } from '../repositories/jobStore.repository.js'
 
@@ -151,6 +152,10 @@ export const failJob = ( id: string, message: string ): Job => {
   }
 
   return moveTo( job, 'failed', { error: message } )
+}
+
+export const recoverInterruptedJobs = (): number => {
+  return markInterruptedJobs( 'Interrupted by restart', new Date().toISOString() )
 }
 
 export const renderTranscript = ( id: string, format: DownloadFormat ): RenderedTranscript => {

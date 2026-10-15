@@ -149,3 +149,12 @@ export const findNextQueuedJob = (): StoredJob | undefined => {
 export const clearJobs = (): void => {
   requireDatabase().exec( 'DELETE FROM jobs' )
 }
+
+export const markInterruptedJobs = ( message: string, now: string ): number => {
+  const { changes } = requireDatabase()
+    .prepare( `UPDATE jobs SET status = 'failed', error = ?, updated_at = ?
+      WHERE status IN ( 'downloading', 'converting', 'transcribing' )` )
+    .run( message, now )
+
+  return changes
+}
