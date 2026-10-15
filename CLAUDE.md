@@ -1,6 +1,6 @@
 # CLAUDE.md — Mnemosyne (repo root)
 
-Mnemosyne is a single-user, local-first app that turns a video URL (YouTube and anything else yt-dlp supports) into a timestamped Markdown transcript, ready for Obsidian. Later it may summarise transcripts and write notes straight into an Obsidian vault. It runs on Naresh's Mac: the app in one Docker container, and whisper-server natively on the host.
+Mnemosyne is a single-user, local-first app that turns a video URL (YouTube and anything else yt-dlp supports) into a timestamped Markdown transcript, ready for Obsidian. Later it may summarise transcripts and write notes straight into an Obsidian vault. It runs on Naresh's Mac: the app in one Docker container (with a data volume and the vault mounted), and whisper-server natively on the host.
 
 This file holds only what is true everywhere. Each app has its own `CLAUDE.md` with its language, style and local rules, so read that one before working in the folder.
 
@@ -16,7 +16,7 @@ This file holds only what is true everywhere. Each app has its own `CLAUDE.md` w
 
 ## Architecture
 
-The web app submits a URL to `POST /api/jobs`. The server queues a job and its worker runs it in the background, one at a time: yt-dlp downloads the audio and metadata, ffmpeg converts it to 16 kHz mono WAV, and the WAV is sent over HTTP to whisper-server on the host (reached through `WHISPER_URL`). The transcript is stored as metadata plus timestamped segments, and formatters render it as Markdown (default), SRT or TXT. The web app polls the job's status and offers the downloads.
+The web app submits a URL to `POST /api/jobs`. The server queues a job and its worker runs it in the background, one at a time: yt-dlp downloads the audio and metadata, ffmpeg converts it to 16 kHz mono WAV, and the WAV is sent over HTTP to whisper-server on the host (reached through `WHISPER_URL`). The transcript is stored as metadata plus timestamped segments, and formatters render it as Markdown (default), SRT or TXT. The worker then sends the transcript to Claude for a summary (title, key points, quotes, tags). Naresh reviews and edits it in the web app, and saving writes a note into the Obsidian vault (a mounted folder) and deletes the transcript; jobs are stored in SQLite, and unreviewed ones expire after 24 hours. The web app polls the job's status and offers the downloads.
 
 The reasons behind each part are in `docs/decisions/`. Read the ADRs a task lists before starting.
 

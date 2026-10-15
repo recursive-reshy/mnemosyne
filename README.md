@@ -1,26 +1,30 @@
 # Mnemosyne
 
-Paste a video URL (YouTube or anything yt-dlp supports) and get a timestamped transcript as Markdown (ready for Obsidian), SRT or TXT. It runs on your Mac; nothing leaves the machine except the video download.
+Paste a video URL (YouTube or anything yt-dlp supports) and get a timestamped transcript, plus a Claude-written summary that you review and save as a note in your Obsidian vault. It runs on your Mac; the video download and the transcript text sent to the Claude API for the summary are the only things that leave the machine.
 
 ## How it works
 
-You submit a URL in the browser. The Express server queues a job, and a worker runs one job at a time: yt-dlp downloads the audio, ffmpeg converts it to 16 kHz mono WAV, and the WAV is sent over HTTP to whisper-server. The transcript is stored in memory and rendered to Markdown, SRT or TXT when you download it. The browser polls the job's status.
+You submit a URL in the browser. The Express server queues a job, and a worker runs one job at a time: yt-dlp downloads the audio, ffmpeg converts it to 16 kHz mono WAV, and the WAV is sent over HTTP to whisper-server. The transcript is stored in a SQLite database and rendered to Markdown, SRT or TXT when you download it. The worker then sends the transcript to the Claude API for a summary (key points, quotes, tags). You review the summary, and saving writes a note to `Mnemosyne/` in your vault and deletes the transcript. Jobs you leave in review are deleted after 24 hours. The browser polls the job's status.
 
 ```text
 browser ──> Express + worker (Docker, :3100)
                 │
                 ├─ yt-dlp   download audio
                 ├─ ffmpeg   convert to WAV
-                └─ whisper-server (native on the Mac, Metal GPU, :8178)
+                ├─ whisper-server (native on the Mac, Metal GPU, :8178)
+                ├─ Claude API   summarize the transcript
+                └─ vault folder  save the reviewed note (bind mount)
                         │
                         v
-              transcript ──> Markdown / SRT / TXT downloads
+         transcript ──> downloads; summary ──> Obsidian note
 ```
 
 ## Requirements
 
 - macOS on Apple Silicon
 - Docker Desktop
+- An Anthropic API key (summaries cost a small amount per video)
+- An Obsidian vault folder on this Mac
 - Homebrew `whisper-cpp`, which provides `whisper-server`:
   ```sh
   brew install whisper-cpp
@@ -47,7 +51,7 @@ brew install yt-dlp ffmpeg
 
    Logs are in `~/Library/Logs/whisper-server.log`. `ops/README.md` has the check, stop and remove commands.
 
-2. Start the app:
+2. Copy `.env.example` to `.env` and fill in `ANTHROPIC_API_KEY` and `VAULT_HOST_PATH` (the absolute path of your vault). Then start the app:
 
    ```sh
    docker compose up -d --build
@@ -59,10 +63,12 @@ brew install yt-dlp ffmpeg
 ## Using it
 
 1. Paste a video URL and submit.
-2. Watch the stages: queued, downloading, converting, transcribing, done.
-3. Download the transcript as Markdown, SRT or TXT.
+2. Watch the stages: queued, downloading, converting, transcribing, summarizing, ready for review.
+3. Download the transcript as Markdown, SRT or TXT while the job is in review.
 
-The page address carries the job (`?job=<id>`), so refreshing the page keeps you on the same job. Jobs are kept in memory only: restarting the container forgets them, so download what you need first.
+The page address carries the job (`?job=<id>`), so refreshing the page keeps you on the same job. Jobs and their transcripts live in a SQLite database on a Docker volume, so they survive a container restart or rebuild. A job that was downloading, converting or transcribing when the app stopped is marked failed on the next start.
+
+The API also supports listing jobs, saving a reviewed summary to the vault, retrying a failed summary and discarding a job (`GET /api/jobs`, `POST /api/jobs/:id/save`, `POST /api/jobs/:id/retry-summary`, `DELETE /api/jobs/:id`); the review screen in the web app that uses them comes in a later checkpoint of 0.2.0.
 
 ## Output formats
 
@@ -79,13 +85,21 @@ The server reads these environment variables. Empty values count as unset.
 | `PORT` | `3100` | `3100` |
 | `WHISPER_URL` | `http://localhost:8178` | `http://host.docker.internal:8178` |
 | `WORK_DIR` | `<OS temp dir>/mnemosyne` | `/tmp/mnemosyne` |
+| `DATA_DIR` | `<OS temp dir>/mnemosyne-data` | `/data` (volume `mnemosyne-data`) |
+| `VAULT_PATH` | required | `/vault` (bind mount of `VAULT_HOST_PATH`) |
+| `ANTHROPIC_API_KEY` | required | from `.env` |
+| `SUMMARY_TIMEOUT_MS` | `300000` | default |
+| `REVIEW_TTL_HOURS` | `24` | default |
+| `CLEANUP_INTERVAL_MINUTES` | `15` | default |
 | `WHISPER_MODEL` | `large-v3-turbo` | `${WHISPER_MODEL:-large-v3-turbo}` |
 | `WEB_DIR` | unset (Vite serves the web app) | `/app/web` |
 
 - `WORK_DIR` holds audio files while a job runs; the folder is emptied when the server starts.
 - `WHISPER_MODEL` is only the label stored on each transcript (whisper-server doesn't report its model). Keep it in step with the model the agent runs.
 - `WEB_DIR` is the folder with the built web app; when set, Express serves it.
-- For development, copy `apps/server/.env.example` to `apps/server/.env`. The file is optional, and `pnpm dev` loads it when present.
+- `DATA_DIR` holds `mnemosyne.db`. `VAULT_PATH` must exist and be writable at startup, or the server exits with a message; notes go to `<vault>/Mnemosyne/`.
+- `ANTHROPIC_API_KEY` lives in `.env` only, never in the repo. In Docker, `.env` at the repo root feeds both compose and the container.
+- For development, copy `apps/server/.env.example` to `apps/server/.env` and set `ANTHROPIC_API_KEY` and `VAULT_PATH` (any folder works for trying it out). `pnpm dev` loads it, and the integration tests load it too.
 
 ## Development
 
@@ -99,7 +113,7 @@ pnpm typecheck
 pnpm build
 ```
 
-Stop the container first (`docker compose stop`): the dev server and the container both use port 3100. Open <http://localhost:5173> while developing. The integration tests need whisper-server running.
+Stop the container first (`docker compose stop`): the dev server and the container both use port 3100. Open <http://localhost:5173> while developing. The integration tests need whisper-server running; the Claude integration test also needs `ANTHROPIC_API_KEY` and is skipped without it.
 
 Layout: `apps/server` (Express API, worker, tool clients, formatters), `apps/web` (React UI), `packages/shared` (Zod schemas used by both), `ops/` (launchd plist and entrypoint).
 
@@ -109,13 +123,15 @@ Layout: `apps/server` (Express API, worker, tool clients, formatters), `apps/web
 docker compose stop
 ```
 
-On a stop signal the server stops taking work and lets a running job finish, for up to 60 seconds, then exits. Docker allows 75 seconds before it kills the container. A second signal exits immediately: press Ctrl+C twice under `pnpm dev`, or run `docker compose kill` for the container. A killed job is lost.
+On a stop signal the server stops taking work and lets a running job finish, for up to 60 seconds, then exits. Docker allows 75 seconds before it kills the container. A second signal exits immediately: press Ctrl+C twice under `pnpm dev`, or run `docker compose kill` for the container. A killed job that was mid-transcription is marked failed on the next start; a job that was summarizing is resumed.
 
 ## Troubleshooting
 
 - **Jobs fail at transcribing, but the container shows healthy.** The health check only covers the server, not whisper-server. Check the agent with `launchctl print gui/$(id -u)/com.naresh.whisper-server` and `curl http://127.0.0.1:8178`, and read `~/Library/Logs/whisper-server.log`.
 - **whisper-server isn't reachable from the container.** The container reaches it at `host.docker.internal:8178`, and the agent listens on `127.0.0.1`, which works through Docker Desktop. If `curl http://127.0.0.1:8178` fails on the Mac, the agent isn't running.
 - **Port 3100 is already in use.** The container and `pnpm dev` use the same port. Run `docker compose stop` before `pnpm dev`, or stop the dev server before `docker compose up`.
+- **The server exits at startup with a `VAULT_PATH` message.** The vault folder is missing or not writable. In Docker, check `VAULT_HOST_PATH` in `.env` points at an existing folder that Docker Desktop is allowed to share.
+- **A job shows "summary failed".** The transcript is kept; the reason is on the job (`GET /api/jobs/:id`). Retry with `POST /api/jobs/:id/retry-summary`.
 - **A YouTube video fails with HTTP 403.** The server retries once after three seconds. If it still fails, submit the URL again later. The container updates yt-dlp each time it starts, so `docker compose restart` can also help.
 
 ## Status and roadmap

@@ -1,6 +1,6 @@
 # apps/server
 
-Express API for Mnemosyne. It owns the job store, the worker that runs jobs one at a time, the clients for yt-dlp, ffmpeg and whisper-server, and the formatters that render transcripts. The root `CLAUDE.md` covers the workflow, precedence, cross-app rules, git and secrets; this file does not repeat them.
+Express API for Mnemosyne. It owns the SQLite job store, the worker that runs jobs one at a time (transcribe, then summarize), the sweeper that deletes expired jobs, the clients for yt-dlp, ffmpeg, whisper-server, Claude and the Obsidian vault, and the formatters that render transcripts, summaries and notes. The root `CLAUDE.md` covers the workflow, precedence, cross-app rules, git and secrets; this file does not repeat them.
 
 The relevant ADRs are 0003–0009, 0012, 0014 and 0015 in `docs/decisions/`. Read the ones a task lists before changing behaviour they describe. If a task conflicts with an ADR, stop and report it; don't pick one.
 
@@ -11,7 +11,8 @@ The relevant ADRs are 0003–0009, 0012, 0014 and 0015 in `docs/decisions/`. Rea
 - pnpm workspaces. Shared contracts come from `@mnemosyne/shared`.
 - Vitest and Supertest.
 - `tsc` builds `src/` to `dist/`, and production runs `node dist/src/server.js`. In development, `tsx` runs the source directly.
-- External tools: `yt-dlp` and `ffmpeg` on the PATH, whisper-server over HTTP.
+- better-sqlite3 for the job store, `@anthropic-ai/sdk` for summaries.
+- External tools: `yt-dlp` and `ffmpeg` on the PATH, whisper-server over HTTP, the Claude API, and the vault folder on disk.
 
 Don't add a dependency without it being approved first. Ask instead.
 
@@ -33,10 +34,10 @@ Parsed once with Zod in `config.ts`; nothing else reads `process.env`.
 - `PORT`: default `3100`.
 - `WHISPER_URL`: `http://localhost:8178` natively, `http://host.docker.internal:8178` in Docker.
 - `WORK_DIR`: where downloaded and converted audio lives during a job; default the OS temp directory.
-- `DATA_DIR`: where `mnemosyne.db` (the SQLite job store) lives; default `<OS temp dir>/mnemosyne-data`.
+- `DATA_DIR`: where `mnemosyne.db` (the SQLite job store) lives; default `<OS temp dir>/mnemosyne-data`. In Docker it is `/data`, a named volume.
 - `WHISPER_MODEL`: label stored as the transcript's `model` (whisper-server doesn't report it); default `large-v3-turbo`.
 - `ANTHROPIC_API_KEY`: required; the Claude key used to summarize transcripts. Lives in `.env` only.
-- `VAULT_PATH`: required; the Obsidian vault folder. Notes are written to `<VAULT_PATH>/Mnemosyne/`. It must exist and be writable at startup, or the server exits with a message.
+- `VAULT_PATH`: required; the Obsidian vault folder. Notes are written to `<VAULT_PATH>/Mnemosyne/`. It must exist and be writable at startup, or the server exits with a message. In Docker it is `/vault`, bind-mounted from `VAULT_HOST_PATH`.
 - `SUMMARY_TIMEOUT_MS`: timeout of one summary request; default `300000`.
 - `REVIEW_TTL_HOURS`: hours a job in review or with a failed summary is kept before deletion; default `24`.
 - `CLEANUP_INTERVAL_MINUTES`: how often the sweeper deletes expired jobs; default `15`.
@@ -46,18 +47,19 @@ Parsed once with Zod in `config.ts`; nothing else reads `process.env`.
 
 ```
 src/
-  server.ts          boot only: load config → start worker → listen
+  server.ts          boot only: load config → check the vault → open the store → recover interrupted jobs → start sweeper and worker → listen
   app.ts             builds the Express app and mounts routes and the error middleware; tests import this, not server.ts
   config.ts          env parsed with Zod
-  shutdown.ts        signal handling: stop the worker, close the server, exit; with a timeout
+  settings.ts        values that may later become user settings (the summary model)
+  shutdown.ts        signal handling: stop the sweeper, the worker and the server, close the store, exit; with a timeout
   errors.ts          typed errors and the error middleware
   routes/            <name>.routes.ts: an Express Router wiring paths to controller functions, nothing else
   controllers/       <name>.controller.ts: HTTP only (parse the request with Zod, call a service, send the response)
   services/          <name>.service.ts: business rules and job state changes
-  repositories/      <name>.repository.ts: the in-memory job store, and nothing else
-  clients/           ytDlp.client.ts, ffmpeg.client.ts, whisperServer.client.ts: one external tool each
-  worker/            worker.ts, runJob.ts: takes the next queued job and runs it through the clients
-  formatters/        markdown.formatter.ts, srt.formatter.ts, txt.formatter.ts: pure transcript → string
+  repositories/      <name>.repository.ts: the SQLite job store, and nothing else
+  clients/           ytDlp, ffmpeg, whisperServer, claude, vault: one external tool each (`<name>.client.ts`)
+  worker/            worker.ts, runJob.ts, summarizeJob.ts, sweeper.ts: runs the next runnable job; deletes expired jobs
+  formatters/        markdown, srt, txt, summary, note: pure data → string; summary.cleanup.ts filters the model's output
 ```
 
 ## Layers
@@ -67,8 +69,9 @@ The order is routes → controllers → services → repositories, and every req
 - **Routes** map a method and path to a controller function. They hold no logic, validation or try/catch.
 - **Controllers** read `params`, `query` and `body`, validate them with a Zod schema, call one service function, and send the response with an explicit status code. They never touch the job store, a client or the worker.
 - **Services** hold the business rules, change job state, call repositories and formatters, and throw typed errors.
-- **Repositories** hold and query the in-memory job store and nothing else. The store is a module-level `Map`; jobs are lost on restart (ADR 0006).
+- **Repositories** hold and query the job store and nothing else. The store is SQLite (better-sqlite3, ADR 0012) behind synchronous free functions; `openJobStore` / `closeJobStore` are called from `server.ts` and `shutdown.ts`, and tests open `':memory:'` through the Vitest setup file.
 - **Clients** wrap one external tool each: run the command or make the HTTP call, parse the output with Zod, return typed data, and throw on failure. They hold no job logic.
+- **The sweeper** calls one service function on a timer and deletes expired jobs; it never touches repositories.
 - **The worker** calls services and clients, never repositories. It processes one job at a time and moves it through `queued → downloading → converting → transcribing → summarizing → ready_for_review | summary_failed` (or `failed`) via services. A job found already `summarizing` runs only the summarize step.
 - **Formatters** are pure functions with no I/O. Only services call them.
 - Nothing imports `routes/` or `controllers/` except `app.ts`.

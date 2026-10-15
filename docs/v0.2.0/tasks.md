@@ -65,7 +65,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 4.8 | Sweeper: `findExpiredJobs`, `deleteExpiredJobs`, `startSweeper` wired into `server.ts` / `shutdown.ts`; `CLEANUP_INTERVAL_MINUTES` | 0015 | ✅ |
 | **Phase 5** | **Config and Docker** | | |
 | 5.1 | `.env.example`, compose (`env_file`, `mnemosyne-data:/data`, `${VAULT_HOST_PATH}:/vault`), Dockerfile `/data` owned by `node`; verify with a build and a healthy container | 0004, 0012 | ✅ |
-| 5.2 | Update `apps/server/CLAUDE.md` (environment, repositories, worker flow) and the README | 0012, 0014 | ⬜ |
+| 5.2 | Update `apps/server/CLAUDE.md` (environment, repositories, worker flow) and the README | 0012, 0014 | ✅ |
 
 ## Checkpoint D: Phase 6 (web foundation)
 **Plan:** ⬜ [`plans/checkpoint-d.md`](plans/checkpoint-d.md)
@@ -133,3 +133,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 - 4.7 ✅ `DELETE /api/jobs/:id`: `deleteJob` (repository) and `discardJob`; 204, 404 unknown, 409 unless `ready_for_review` / `summary_failed`.
 - 4.8 ✅ Sweeper: `findExpiredJobs`, `deleteExpiredJobs`, `startSweeper` (runs at start, then every `CLEANUP_INTERVAL_MINUTES`), wired into `server.ts` / `shutdown.ts` (stopped first). Shutdown test `build()` helper gained `stopSweeper`.
 - 5.1 ✅ Root `.env.example`; compose gets `env_file: .env`, `mnemosyne-data:/data` and `${VAULT_HOST_PATH}:/vault`; Dockerfile sets `DATA_DIR`/`VAULT_PATH`, owns `/data` as `node`, and installs `python3 make g++` in the build stage (better-sqlite3 had no prebuilt binary). Verified with `docker build`, then the image run on a spare port with a throwaway volume and vault: health ok, DB created in `/data`, vault writable, DB survives a restart. `docker compose up` itself was not run, to leave the running 0.1.0 container on :3100 alone; `docker compose config` parsed the file.
+- 5.2 ✅ `apps/server/CLAUDE.md` (environment, folder structure, layers, worker flow), README (flow, config table, vault, troubleshooting) and the root `CLAUDE.md` architecture paragraph brought up to date.
