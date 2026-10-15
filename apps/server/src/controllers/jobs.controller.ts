@@ -8,6 +8,8 @@ import {
   GetJobResponse,
   GetTranscriptResponse,
   ListJobsResponse,
+  SaveJobBody,
+  SaveJobResponse,
 } from '@mnemosyne/shared'
 // Services
 import {
@@ -16,6 +18,7 @@ import {
   listJobs,
   queueJob,
   renderTranscript,
+  saveJob,
 } from '../services/jobs.service.js'
 
 export const createJob = ( { body }: Request, res: Response< CreateJobResponse > ): void => {
@@ -46,6 +49,17 @@ export const getTranscript = (
   const transcript = findTranscript( String( params.id ) )
 
   res.status( 200 ).json( { transcript } )
+}
+
+export const saveReviewedJob = async (
+  { params, body }: Request,
+  res: Response< SaveJobResponse >,
+): Promise< void > => {
+  const edits = SaveJobBody.parse( body )
+
+  const savedPath = await saveJob( String( params.id ), edits )
+
+  res.status( 200 ).json( { saved_path: savedPath } )
 }
 
 export const downloadTranscript = ( { params, query }: Request, res: Response ): void => {

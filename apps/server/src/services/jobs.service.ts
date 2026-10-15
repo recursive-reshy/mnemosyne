@@ -3,8 +3,11 @@ import {
   DownloadFormat,
   Job,
   JobStatus,
+  SaveJobBody,
   Transcript,
 } from '@mnemosyne/shared'
+// Clients
+import { writeNote } from '../clients/vault.client.js'
 // Config
 import { config } from '../config.js'
 // Errors
@@ -12,6 +15,7 @@ import { ConflictError, NotFoundError } from '../errors.js'
 // Formatters
 import { transcriptFilename } from '../formatters/filename.js'
 import { formatMarkdown } from '../formatters/markdown.formatter.js'
+import { formatNote } from '../formatters/note.formatter.js'
 import { formatSrt } from '../formatters/srt.formatter.js'
 import { formatTxt } from '../formatters/txt.formatter.js'
 // Repositories
@@ -226,6 +230,35 @@ export const findTranscript = ( id: string ): Transcript => {
   }
 
   return job.transcript
+}
+
+export const saveJob = async ( id: string, edits: SaveJobBody ): Promise< string > => {
+  const job = requireJob( id )
+
+  if( job.status !== 'ready_for_review' ) {
+    throw conflict( job.status, 'saved' )
+  }
+
+  if( job.transcript === null ) {
+    throw new Error( `Job ${ id } is ${ job.status } but has no transcript` )
+  }
+
+  const note = formatNote( {
+    ...edits,
+    meta: job.transcript.meta,
+    created: new Date().toISOString().slice( 0, 10 ),
+  } )
+
+  const savedPath = await writeNote( config.vaultPath, edits.title, note )
+
+  moveTo( job, 'saved', {
+    saved_path: savedPath,
+    title: edits.title,
+    transcript: null,
+    expires_at: null,
+  } )
+
+  return savedPath
 }
 
 export const renderTranscript = ( id: string, format: DownloadFormat ): RenderedTranscript => {

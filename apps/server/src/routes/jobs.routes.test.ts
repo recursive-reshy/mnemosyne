@@ -1,3 +1,6 @@
+// Node
+import { readFile, rm } from 'node:fs/promises'
+import { join } from 'node:path'
 // Packages
 import {
   describe,
@@ -15,6 +18,7 @@ import {
 } from '@mnemosyne/shared'
 // App
 import { app } from '../app.js'
+import { config } from '../config.js'
 // Repositories
 import { clearJobs, updateJob } from '../repositories/jobStore.repository.js'
 // Services
@@ -72,8 +76,9 @@ const seedJobAt = ( status: JobStatus ): string => {
   return id
 }
 
-beforeEach( () => {
+beforeEach( async () => {
   clearJobs()
+  await rm( config.vaultPath, { recursive: true, force: true } )
 } )
 
 describe( 'POST /api/jobs', () => {
@@ -314,4 +319,75 @@ describe( 'GET /api/jobs/:id/transcript', () => {
 
     expect( response.status ).toBe( 404 )
   } )
+} )
+
+describe( 'POST /api/jobs/:id/save', () => {
+  const edits = { title: 'What Is RAG: A Primer', tags: [ 'rag' ], body: '## Summary\nEdited.' }
+
+  it( 'writes the note into the vault and returns its path', async () => {
+    const id = seedJobAt( 'ready_for_review' )
+
+    const response = await request( app ).post( `/api/jobs/${ id }/save` ).send( edits )
+
+    expect( response.status ).toBe( 200 )
+    expect( response.body ).toEqual( { saved_path: 'Mnemosyne/What Is RAG A Primer.md' } )
+
+    const notePath = join( config.vaultPath, 'Mnemosyne/What Is RAG A Primer.md' )
+    const note = await readFile( notePath, 'utf8' )
+    expect( note ).toContain( 'title: "What Is RAG: A Primer"' )
+    expect( note ).toContain( 'tags: [mnemosyne, rag]' )
+    expect( note.endsWith( '## Summary\nEdited.\n' ) ).toBe( true )
+  } )
+
+  it( 'removes the transcript: the job is saved and downloads are refused', async () => {
+    const id = seedJobAt( 'ready_for_review' )
+    await request( app ).post( `/api/jobs/${ id }/save` ).send( edits )
+
+    const job = await request( app ).get( `/api/jobs/${ id }` )
+    const download = await request( app ).get( `/api/jobs/${ id }/download` )
+
+    expect( job.body ).toMatchObject( { job: { status: 'saved' } } )
+    expect( download.status ).toBe( 409 )
+  } )
+
+  it( 'suffixes the file name when the title is already in the vault', async () => {
+    const first = seedJobAt( 'ready_for_review' )
+    const second = seedJobAt( 'ready_for_review' )
+
+    await request( app ).post( `/api/jobs/${ first }/save` ).send( edits )
+    const response = await request( app ).post( `/api/jobs/${ second }/save` ).send( edits )
+
+    expect( response.body ).toEqual( { saved_path: 'Mnemosyne/What Is RAG A Primer (2).md' } )
+  } )
+
+  it.each( [
+    [ 'a blank title', { ...edits, title: '   ' } ],
+    [ 'missing tags', { title: 'T', body: 'x' } ],
+    [ 'a non-string body', { ...edits, body: 5 } ],
+  ] )( 'returns 400 for %s', async ( _name, body ) => {
+    const id = seedJobAt( 'ready_for_review' )
+
+    const response = await request( app ).post( `/api/jobs/${ id }/save` ).send( body )
+
+    expect( response.status ).toBe( 400 )
+  } )
+
+  it( 'returns 404 for an unknown job', async () => {
+    const response = await request( app )
+      .post( `/api/jobs/${ crypto.randomUUID() }/save` )
+      .send( edits )
+
+    expect( response.status ).toBe( 404 )
+  } )
+
+  it.each( [ 'queued', 'summarizing', 'summary_failed', 'saved' ] as const )(
+    'returns 409 when the job is %s',
+    async ( status ) => {
+      const id = seedJobAt( status )
+
+      const response = await request( app ).post( `/api/jobs/${ id }/save` ).send( edits )
+
+      expect( response.status ).toBe( 409 )
+    },
+  )
 } )

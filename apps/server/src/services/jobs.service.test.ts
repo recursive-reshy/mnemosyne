@@ -28,13 +28,21 @@ import {
   queueJob,
   recoverInterruptedJobs,
   renderTranscript,
+  saveJob,
 } from './jobs.service.js'
+// Clients
+import { writeNote } from '../clients/vault.client.js'
 // Formatters
+import { formatNote } from '../formatters/note.formatter.js'
 import { formatMarkdown } from '../formatters/markdown.formatter.js'
 import { formatSrt } from '../formatters/srt.formatter.js'
 import { formatTxt } from '../formatters/txt.formatter.js'
 // Fixtures
 import { transcriptFixture } from '../test-support/transcript.fixture.js'
+
+vi.mock( '../clients/vault.client.js' )
+
+const writeNoteMock = vi.mocked( writeNote )
 
 const url = 'https://www.youtube.com/watch?v=abc'
 const startTime = new Date( '2026-10-14T10:00:00.000Z' )
@@ -79,6 +87,8 @@ beforeEach( () => {
   vi.useFakeTimers()
   vi.setSystemTime( startTime )
   clearJobs()
+  writeNoteMock.mockReset()
+  writeNoteMock.mockResolvedValue( 'Mnemosyne/Edited title.md' )
 } )
 
 afterEach( () => {
@@ -524,5 +534,75 @@ describe( 'findTranscript', () => {
 
   it( 'throws NotFoundError for an unknown id', () => {
     expect( () => findTranscript( 'missing' ) ).toThrow( NotFoundError )
+  } )
+} )
+
+describe( 'saveJob', () => {
+  const edits = { title: 'Edited title', tags: [ 'rust' ], body: '## Summary\nEdited.' }
+
+  it( 'writes the formatted note to the vault', async () => {
+    const id = queueJobAt( 'ready_for_review' )
+
+    await saveJob( id, edits )
+
+    expect( writeNoteMock ).toHaveBeenCalledExactlyOnceWith(
+      expect.any( String ),
+      'Edited title',
+      formatNote( { ...edits, meta: transcript.meta, created: '2026-10-14' } ),
+    )
+  } )
+
+  it( 'marks the job saved, keeps the edited title and drops the transcript', async () => {
+    const id = queueJobAt( 'ready_for_review' )
+
+    const savedPath = await saveJob( id, edits )
+
+    expect( savedPath ).toBe( 'Mnemosyne/Edited title.md' )
+    expect( findJob( id ) ).toMatchObject( {
+      status: 'saved',
+      saved_path: 'Mnemosyne/Edited title.md',
+      title: 'Edited title',
+      expires_at: null,
+    } )
+    expect( findJobById( id )?.transcript ).toBeNull()
+  } )
+
+  it( 'uses the path the vault returns, collision suffix included', async () => {
+    const id = queueJobAt( 'ready_for_review' )
+    writeNoteMock.mockResolvedValue( 'Mnemosyne/Edited title (2).md' )
+
+    await expect( saveJob( id, edits ) ).resolves.toBe( 'Mnemosyne/Edited title (2).md' )
+  } )
+
+  it( 'keeps the job in review with its transcript when the write fails', async () => {
+    const id = queueJobAt( 'ready_for_review' )
+    writeNoteMock.mockRejectedValue( new Error( 'EACCES' ) )
+
+    await expect( saveJob( id, edits ) ).rejects.toThrow( 'EACCES' )
+
+    expect( findJob( id ).status ).toBe( 'ready_for_review' )
+    expect( findJobById( id )?.transcript ).toEqual( transcript )
+  } )
+
+  it.each( [ 'queued', 'transcribing', 'summary_failed', 'failed' ] as const )(
+    'throws ConflictError from %s without writing',
+    async ( status ) => {
+      const id = queueJobAt( status )
+
+      await expect( saveJob( id, edits ) ).rejects.toThrow( ConflictError )
+      expect( writeNoteMock ).not.toHaveBeenCalled()
+    },
+  )
+
+  it( 'throws ConflictError when saved twice', async () => {
+    const id = queueJobAt( 'ready_for_review' )
+    await saveJob( id, edits )
+
+    await expect( saveJob( id, edits ) ).rejects.toThrow( ConflictError )
+    expect( writeNoteMock ).toHaveBeenCalledTimes( 1 )
+  } )
+
+  it( 'throws NotFoundError for an unknown id', async () => {
+    await expect( saveJob( 'missing', edits ) ).rejects.toThrow( NotFoundError )
   } )
 } )
