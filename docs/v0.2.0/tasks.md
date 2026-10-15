@@ -68,7 +68,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 5.2 | Update `apps/server/CLAUDE.md` (environment, repositories, worker flow) and the README | 0012, 0014 | ✅ |
 
 ## Checkpoint D: Phase 6 (web foundation)
-**Plan:** ⬜ [`plans/checkpoint-d.md`](plans/checkpoint-d.md)
+**Plan:** ✅ [`plans/checkpoint-d.md`](plans/checkpoint-d.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
