@@ -12,7 +12,7 @@ import { JobStatus, Transcript } from '@mnemosyne/shared'
 // Errors
 import { ConflictError, NotFoundError } from '../errors.js'
 // Repositories
-import { clearJobs, findJobById } from '../repositories/jobStore.repository.js'
+import { clearJobs, findJobById, updateJob } from '../repositories/jobStore.repository.js'
 // Services
 import {
   completeJob,
@@ -82,6 +82,11 @@ describe( 'queueJob', () => {
       error: null,
       created_at: startTime.toISOString(),
       updated_at: startTime.toISOString(),
+      title: null,
+      summary_markdown: null,
+      suggested_tags: [],
+      expires_at: null,
+      saved_path: null,
     } )
   } )
 
@@ -102,6 +107,25 @@ describe( 'findJob', () => {
 
     expect( job.id ).toBe( id )
     expect( job ).not.toHaveProperty( 'transcript' )
+  } )
+
+  it( 'returns the summary fields of a stored job', () => {
+    const { id } = queueJob( url )
+    updateJob( id, {
+      title: 'A talk',
+      summary_markdown: '## Summary',
+      suggested_tags: [ 'rust' ],
+      expires_at: laterTime.toISOString(),
+      saved_path: 'Mnemosyne/A talk.md',
+    } )
+
+    expect( findJob( id ) ).toMatchObject( {
+      title: 'A talk',
+      summary_markdown: '## Summary',
+      suggested_tags: [ 'rust' ],
+      expires_at: laterTime.toISOString(),
+      saved_path: 'Mnemosyne/A talk.md',
+    } )
   } )
 
   it( 'throws NotFoundError for an unknown id', () => {

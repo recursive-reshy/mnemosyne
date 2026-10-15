@@ -10,6 +10,11 @@ const validJob = {
   error: null,
   created_at: '2026-10-14T10:00:00.000Z',
   updated_at: '2026-10-14T10:00:00.000Z',
+  title: null,
+  summary_markdown: null,
+  suggested_tags: [],
+  expires_at: null,
+  saved_path: null,
 }
 
 describe( 'JobStatus', () => {
@@ -66,5 +71,37 @@ describe( 'Job', () => {
     delete withoutError.error
 
     expect( Job.safeParse( withoutError ).success ).toBe( false )
+  } )
+
+  it( 'accepts summary fields once they are set', () => {
+    const summarized = {
+      ...validJob,
+      status: 'ready_for_review',
+      title: 'A talk',
+      summary_markdown: '## Summary\nText',
+      suggested_tags: [ 'machine-learning' ],
+      expires_at: '2026-10-15T10:00:00.000Z',
+      saved_path: 'Mnemosyne/A talk.md',
+    }
+
+    expect( Job.safeParse( summarized ).success ).toBe( true )
+  } )
+
+  it.each( [ 'title', 'summary_markdown', 'suggested_tags', 'expires_at', 'saved_path' ] )(
+    'rejects a missing %s field',
+    ( field ) => {
+      const without: Record< string, unknown > = { ...validJob }
+      delete without[ field ]
+
+      expect( Job.safeParse( without ).success ).toBe( false )
+    },
+  )
+
+  it( 'rejects a non-ISO expires_at', () => {
+    expect( Job.safeParse( { ...validJob, expires_at: 'tomorrow' } ).success ).toBe( false )
+  } )
+
+  it( 'rejects non-string tags', () => {
+    expect( Job.safeParse( { ...validJob, suggested_tags: [ 1 ] } ).success ).toBe( false )
   } )
 } )

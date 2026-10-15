@@ -32,7 +32,7 @@ const CreatedBody = z.object( { job_id: z.string() } )
 
 type FinishedJob = { jobId: string, status: string, error: string | null }
 
-let stopWorker: () => void
+let stopWorker: () => Promise< void >
 
 const waitForJob = async ( jobId: string ): Promise< FinishedJob > => {
   const deadline = Date.now() + JOB_DEADLINE_MS
@@ -76,8 +76,8 @@ beforeAll( async () => {
   stopWorker = startWorker()
 } )
 
-afterAll( () => {
-  stopWorker()
+afterAll( async () => {
+  await stopWorker()
   clearJobs()
 } )
 

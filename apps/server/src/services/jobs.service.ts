@@ -52,6 +52,11 @@ const toPublicJob = ( job: StoredJob ): Job => {
     error: job.error,
     created_at: job.created_at,
     updated_at: job.updated_at,
+    title: job.title,
+    summary_markdown: job.summary_markdown,
+    suggested_tags: job.suggested_tags,
+    expires_at: job.expires_at,
+    saved_path: job.saved_path,
   }
 }
 
@@ -92,6 +97,11 @@ export const queueJob = ( url: string ): Job => {
     error: null,
     created_at: now,
     updated_at: now,
+    title: null,
+    summary_markdown: null,
+    suggested_tags: [],
+    expires_at: null,
+    saved_path: null,
     transcript: null,
   }
 

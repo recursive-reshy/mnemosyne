@@ -22,5 +22,10 @@ export const Job = z.object( {
   error: z.string().nullable(),
   created_at: z.iso.datetime(),
   updated_at: z.iso.datetime(),
+  title: z.string().nullable(),
+  summary_markdown: z.string().nullable(),
+  suggested_tags: z.array( z.string() ),
+  expires_at: z.iso.datetime().nullable(),
+  saved_path: z.string().nullable(),
 } )
 export type Job = z.infer< typeof Job >
