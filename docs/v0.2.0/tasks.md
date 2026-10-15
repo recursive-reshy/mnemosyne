@@ -25,7 +25,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 1.1 | Add `summarizing`, `ready_for_review`, `summary_failed`, `saved` to `JobStatus` (keep `done` until 3.8) | 0014, 0015 | ✅ |
 | 1.2 | Extend `Job` with `title`, `summary_markdown`, `suggested_tags`, `expires_at`, `saved_path`; `toPublicJob` returns them | 0014, 0015 | ✅ |
 | 1.3 | New schemas in `api.ts`: `ListJobsResponse`, `GetTranscriptResponse`, `SaveJobBody`, `SaveJobResponse` | 0008 | ✅ |
-| 1.4 | Move the filename cleaning to shared as `noteBasename`; server `transcriptFilename` uses it | 0008 | ⬜ |
+| 1.4 | Move the filename cleaning to shared as `noteBasename`; server `transcriptFilename` uses it | 0008 | ✅ |
 | 1.5 | Move `groupParagraphs` to shared; the Markdown formatter imports it | 0008 | ⬜ |
 | **Phase 2** | **SQLite persistence** | | |
 | 2.1 | Add `better-sqlite3` (+ `allowBuilds`); `openJobStore` / `closeJobStore` with `user_version` migrations and the `jobs` table | 0012 | ⬜ |
@@ -109,3 +109,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 - 1.1 ✅ Added `summarizing`, `ready_for_review`, `summary_failed`, `saved` to `JobStatus` (`done` kept); `JobProgress` got messages for them so web typechecks (agreed with Naresh).
 - 1.2 ✅ `Job` extended with `title`, `summary_markdown`, `suggested_tags`, `expires_at`, `saved_path`; `toPublicJob` returns them. Test literals/fixtures updated (shared api, server service and repository, web fixture); the `queueJob` exact-shape assertion gained the new fields. Also fixed a pre-existing lint error in `pipeline.integration.test.ts` (`afterAll` now awaits `stopWorker`).
 - 1.3 ✅ Added `ListJobsResponse`, `GetTranscriptResponse`, `SaveJobBody` (title trimmed, non-empty), `SaveJobResponse` to shared `api.ts`.
+- 1.4 ✅ `noteBasename( title, fallback = 'Untitled' )` in shared; server `transcriptFilename` calls it with fallback `transcript`, so download names are unchanged.

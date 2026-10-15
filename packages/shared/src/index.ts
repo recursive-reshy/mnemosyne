@@ -1,4 +1,5 @@
 export * from './api.js'
 export * from './error.js'
+export * from './filename.js'
 export * from './job.js'
 export * from './transcript.js'
