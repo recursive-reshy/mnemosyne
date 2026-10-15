@@ -95,7 +95,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 7.10 | Styling pass for home and review screens | 0011 | ✅ |
 
 ## Checkpoint F: Phase 8 (verification)
-**Plan:** ⬜ [`plans/checkpoint-f.md`](plans/checkpoint-f.md)
+**Plan:** ✅ [`plans/checkpoint-f.md`](plans/checkpoint-f.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
