@@ -3,6 +3,8 @@ import { useId, useState } from 'react'
 import type { ChangeEvent, ReactElement, SyntheticEvent } from 'react'
 // Shared
 import { CreateJobBody } from '@mnemosyne/shared'
+// App
+import styles from './SubmitForm.module.css'
 
 const TEXT = {
   formName: 'Transcribe a video',
@@ -45,9 +47,15 @@ export function SubmitForm( { isSubmitting, error, onSubmit }: SubmitFormProps )
   }
 
   return (
-    <form aria-label={ TEXT.formName } noValidate onSubmit={ handleSubmit }>
-      <label htmlFor={ inputId }>{ TEXT.inputLabel }</label>
+    <form
+      className={ styles.form }
+      aria-label={ TEXT.formName }
+      noValidate
+      onSubmit={ handleSubmit }
+    >
+      <label className={ styles.label } htmlFor={ inputId }>{ TEXT.inputLabel }</label>
       <input
+        className={ styles.input }
         id={ inputId }
         type="url"
         value={ url }
@@ -58,10 +66,10 @@ export function SubmitForm( { isSubmitting, error, onSubmit }: SubmitFormProps )
         aria-describedby={ message ? messageId : undefined }
         onChange={ handleChange }
       />
-      <button type="submit" disabled={ isSubmitting }>
+      <button className={ styles.submitButton } type="submit" disabled={ isSubmitting }>
         { isSubmitting ? TEXT.submitting : TEXT.submit }
       </button>
-      { message && <p id={ messageId } role="alert">{ message }</p> }
+      { message && <p className="alert" id={ messageId } role="alert">{ message }</p> }
     </form>
   )
 }
