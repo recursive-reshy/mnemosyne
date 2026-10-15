@@ -22,6 +22,7 @@ import {
   findJob,
   findNextRunnableJob,
   getTranscript,
+  listJobs,
   markStatus,
   queueJob,
   recoverInterruptedJobs,
@@ -480,5 +481,26 @@ describe( 'getTranscript', () => {
     const { id } = queueJob( url )
 
     expect( () => getTranscript( id ) ).toThrow( 'has no transcript' )
+  } )
+} )
+
+describe( 'listJobs', () => {
+  it( 'returns public jobs, newest first', () => {
+    const first = queueJob( url )
+    vi.setSystemTime( laterTime )
+    const second = queueJob( url )
+
+    const jobs = listJobs()
+
+    expect( jobs.map( ( { id } ) => id ) ).toEqual( [ second.id, first.id ] )
+    expect( jobs[ 0 ] ).not.toHaveProperty( 'transcript' )
+  } )
+
+  it( 'leaves out failed and saved jobs', () => {
+    const failed = queueJobAt( 'failed' )
+    const review = queueJobAt( 'ready_for_review' )
+
+    expect( listJobs().map( ( { id } ) => id ) ).toEqual( [ review ] )
+    expect( listJobs().map( ( { id } ) => id ) ).not.toContain( failed )
   } )
 } )

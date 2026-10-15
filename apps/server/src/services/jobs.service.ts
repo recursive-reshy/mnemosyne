@@ -20,6 +20,7 @@ import {
   findJobById,
   findNextRunnableJob as findNextRunnableStoredJob,
   insertJob,
+  listActiveJobs,
   markInterruptedJobs,
   updateJob,
 } from '../repositories/jobStore.repository.js'
@@ -125,6 +126,10 @@ export const queueJob = ( url: string ): Job => {
 
 export const findJob = ( id: string ): Job => {
   return toPublicJob( requireJob( id ) )
+}
+
+export const listJobs = (): Job[] => {
+  return listActiveJobs().map( toPublicJob )
 }
 
 export const findNextRunnableJob = (): Job | undefined => {

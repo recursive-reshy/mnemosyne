@@ -159,3 +159,12 @@ export const markInterruptedJobs = ( message: string, now: string ): number => {
 
   return changes
 }
+
+export const listActiveJobs = (): StoredJob[] => {
+  return requireDatabase()
+    .prepare( `SELECT * FROM jobs
+      WHERE status NOT IN ( 'failed', 'saved' )
+      ORDER BY created_at DESC, rowid DESC` )
+    .all()
+    .map( toStoredJob )
+}

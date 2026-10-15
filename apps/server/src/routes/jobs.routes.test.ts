@@ -7,7 +7,7 @@ import {
 } from 'vitest'
 import request from 'supertest'
 // Shared
-import { Job } from '@mnemosyne/shared'
+import { Job, ListJobsResponse } from '@mnemosyne/shared'
 // App
 import { app } from '../app.js'
 // Repositories
@@ -16,6 +16,7 @@ import { clearJobs } from '../repositories/jobStore.repository.js'
 import {
   completeSummary,
   completeTranscription,
+  failJob,
   markStatus,
   queueJob,
 } from '../services/jobs.service.js'
@@ -92,6 +93,37 @@ describe( 'POST /api/jobs', () => {
       .send( { url: youtubeUrl, extra: 'ignored' } )
 
     expect( response.status ).toBe( 202 )
+  } )
+} )
+
+describe( 'GET /api/jobs', () => {
+  it( 'returns an empty list when there are no jobs', async () => {
+    const response = await request( app ).get( '/api/jobs' )
+
+    expect( response.status ).toBe( 200 )
+    expect( response.body ).toEqual( { jobs: [] } )
+  } )
+
+  it( 'lists active jobs newest first, without transcripts', async () => {
+    const first = queueJob( youtubeUrl )
+    const second = queueJob( 'https://www.youtube.com/watch?v=def' )
+    markStatus( second.id, 'downloading' )
+
+    const response = await request( app ).get( '/api/jobs' )
+
+    const { jobs } = ListJobsResponse.parse( response.body )
+    expect( response.status ).toBe( 200 )
+    expect( jobs.map( ( { id } ) => id ) ).toEqual( [ second.id, first.id ] )
+    expect( JSON.stringify( response.body ) ).not.toContain( 'transcript"' )
+  } )
+
+  it( 'leaves out failed jobs', async () => {
+    const { id } = queueJob( youtubeUrl )
+    failJob( id, 'boom' )
+
+    const response = await request( app ).get( '/api/jobs' )
+
+    expect( response.body ).toEqual( { jobs: [] } )
   } )
 } )
 

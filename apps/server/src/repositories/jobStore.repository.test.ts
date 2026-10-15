@@ -20,6 +20,7 @@ import {
   findNextRunnableJob,
   insertJob,
   jobStoreMigrations,
+  listActiveJobs,
   markInterruptedJobs,
   openJobStore,
   updateJob,
@@ -404,5 +405,50 @@ describe( 'markInterruptedJobs', () => {
     insertJob( buildJob() )
 
     expect( markInterruptedJobs( 'x', '2026-10-15T09:00:00.000Z' ) ).toBe( 0 )
+  } )
+} )
+
+describe( 'listActiveJobs', () => {
+  const active = [
+    'queued',
+    'downloading',
+    'converting',
+    'transcribing',
+    'summarizing',
+    'ready_for_review',
+    'summary_failed',
+  ] as const
+
+  it( 'returns in-progress, review and failed-summary jobs only', () => {
+    const inactive = [ 'failed', 'saved' ] as const
+
+    for( const status of [ ...active, ...inactive ] ) {
+      insertJob( buildJob( { status } ) )
+    }
+
+    const statuses = listActiveJobs().map( ( { status } ) => status )
+
+    expect( statuses.toSorted() ).toEqual( [ ...active ].toSorted() )
+  } )
+
+  it( 'returns newest first, breaking ties by insertion order', () => {
+    const old = buildJob( { created_at: '2026-10-14T10:00:00.000Z' } )
+    const newer = buildJob( { created_at: '2026-10-15T10:00:00.000Z' } )
+    const tieFirst = buildJob( { created_at: '2026-10-16T10:00:00.000Z' } )
+    const tieSecond = buildJob( { created_at: '2026-10-16T10:00:00.000Z' } )
+    for( const job of [ old, newer, tieFirst, tieSecond ] ) {
+      insertJob( job )
+    }
+
+    expect( listActiveJobs().map( ( { id } ) => id ) ).toEqual( [
+      tieSecond.id,
+      tieFirst.id,
+      newer.id,
+      old.id,
+    ] )
+  } )
+
+  it( 'returns an empty list for an empty store', () => {
+    expect( listActiveJobs() ).toEqual( [] )
   } )
 } )
