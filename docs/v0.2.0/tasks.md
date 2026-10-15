@@ -42,7 +42,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 3.1 | Config: `ANTHROPIC_API_KEY`, `SUMMARY_TIMEOUT_MS`, `REVIEW_TTL_HOURS`; `settings.ts` with `getSummaryModel()` | 0014 | ✅ |
 | 3.2 | Add `@anthropic-ai/sdk`; `SummaryResult` schema; `claude.client.ts` `summarizeTranscript` (SDK mocked in tests; check structured-output API via Context7) | 0014 | ✅ |
 | 3.3 | `summary.cleanup.ts`: verbatim-quote filter, timestamp bounds, tag normalization | 0014 | ✅ |
-| 3.4 | `summary.formatter.ts`: render the note body, YouTube links or plain timestamps | 0014 | ⬜ |
+| 3.4 | `summary.formatter.ts`: render the note body, YouTube links or plain timestamps | 0014 | ✅ |
 | 3.5 | Service: `completeTranscription` (→ `summarizing`, stores title), `completeSummary` (→ `ready_for_review`, sets `expires_at`), `failSummary`; `failJob` refuses the new end states | 0014, 0015 | ⬜ |
 | 3.6 | Worker: summarize step after transcription; `findNextRunnableJob` picks `queued` or `summarizing` | 0014 | ⬜ |
 | 3.7 | Worker: a `summarizing` job runs the summarize step only (resume after restart, and retries later) | 0014, 0015 | ⬜ |
@@ -118,3 +118,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 - 3.1 ✅ Config: required `ANTHROPIC_API_KEY`, `SUMMARY_TIMEOUT_MS` (300000), `REVIEW_TTL_HOURS` (24); `settings.ts` `getSummaryModel()`; Vitest sets a test key. `config.test.ts` rewritten around the new required key and fields.
 - 3.2 ✅ Added `@anthropic-ai/sdk` (zod 4 works with `zodOutputFormat`); `claude.client.ts` `summarizeTranscript` via `messages.parse`, `SummaryResult` schema; max_tokens 16000, effort medium, one retry; refusal / max_tokens / unparsable output throw.
 - 3.3 ✅ `cleanSummary`: verbatim-quote filter (whitespace-normalised, case-sensitive), timestamp bounds, tag normalization (cap 5, drops `mnemosyne`).
+- 3.4 ✅ `formatSummary( summary, source )`: Summary / Key points / Notable quotes, YouTube links or plain timestamps; empty key points and quotes sections are omitted (agreed in the plan).
