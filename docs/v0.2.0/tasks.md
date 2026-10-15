@@ -85,7 +85,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | **Phase 7** | **Web features** | | |
 | 7.1 | `useJobs` + `JobList` on home: status, expiry countdown, link to review | 0013, 0015 | ✅ |
 | 7.2 | Review page shell: in-progress, `ready_for_review` and `summary_failed` layouts | 0013 | ✅ |
-| 7.3 | `TitleField` + `FilenamePreview` (shared `noteBasename`) | 0013 | ⬜ |
+| 7.3 | `TitleField` + `FilenamePreview` (shared `noteBasename`) | 0013 | ✅ |
 | 7.4 | `TagInput` (`mnemosyne` fixed) | 0013 | ⬜ |
 | 7.5 | `SummaryEditor` + `TranscriptPane` (`useTranscript`) | 0013 | ⬜ |
 | 7.6 | `useDraft`: localStorage drafts, cleared on save/discard | 0016 | ⬜ |
@@ -139,3 +139,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 - 6.3 ✅ `listJobs`, `getTranscript`, `saveJob` (returns the saved path), `retrySummary`, `discardJob` (204, no body) in `jobs.api.ts`; the shared `send` helper holds the fetch and error handling.
 - 7.1 ✅ `useJobs` (2 s while anything is in progress, else 30 s; returns `updatedAt` so the countdown needs no impure render), `formatExpiry`, `JobList` on the home page.
 - 7.2 ✅ `ReviewScreen` shell (title, Summary and Transcript regions, downloads; failure reason for `summary_failed`); `JobPage` picks progress, review or saved layout by status.
+- 7.3 ✅ `TitleField` and `FilenamePreview` (shared `noteBasename`) in the review screen; the title starts as the job title.

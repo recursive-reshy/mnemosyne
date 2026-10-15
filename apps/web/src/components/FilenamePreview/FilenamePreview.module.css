@@ -1,0 +1,9 @@
+.preview {
+  margin: 0;
+  color: var( --color-muted );
+  font-size: 0.875rem;
+}
+
+.path {
+  overflow-wrap: anywhere;
+}
