@@ -12,17 +12,23 @@ import {
 // App
 import { ApiError } from '#src/api/apiError'
 import { createJob } from '#src/api/jobs.api'
+import { useJobs } from '#src/hooks/useJobs'
+import { jobFixture } from '#src/test-support/job.fixture'
 import { renderWithClient } from '#src/test-support/renderWithClient'
 import { HomePage } from './HomePage'
 
 vi.mock( '#src/api/jobs.api' )
+vi.mock( '#src/hooks/useJobs' )
 
 const mockedCreateJob = vi.mocked( createJob )
+const mockedUseJobs = vi.mocked( useJobs )
 const newJobId = '7a1d9e2c-3b4f-4c5d-8e6f-0a1b2c3d4e5f'
 const validUrl = 'https://www.youtube.com/watch?v=cFoaK1OQRhw'
 
 beforeEach( () => {
   mockedCreateJob.mockReset()
+  mockedUseJobs.mockReset()
+  mockedUseJobs.mockReturnValue( { jobs: [], error: null, updatedAt: 0 } )
 } )
 
 describe( 'HomePage', () => {
@@ -30,6 +36,23 @@ describe( 'HomePage', () => {
     renderWithClient( <HomePage /> )
 
     expect( screen.getByRole( 'form', { name: 'Transcribe a video' } ) ).toBeInTheDocument()
+  } )
+
+  it( 'lists the jobs under the form', () => {
+    mockedUseJobs.mockReturnValue( {
+      jobs: [ jobFixture( { title: 'How Rust Works', status: 'summarizing' } ) ],
+      error: null,
+      updatedAt: Date.now(),
+    } )
+    renderWithClient( <HomePage /> )
+
+    expect( screen.getByRole( 'link', { name: 'How Rust Works' } ) ).toBeInTheDocument()
+  } )
+
+  it( 'shows no list when there are no jobs', () => {
+    renderWithClient( <HomePage /> )
+
+    expect( screen.queryByRole( 'list', { name: 'Jobs' } ) ).not.toBeInTheDocument()
   } )
 
   it( 'creates a job and navigates to it', async () => {

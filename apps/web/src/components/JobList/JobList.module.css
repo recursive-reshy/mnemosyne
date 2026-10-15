@@ -1,0 +1,33 @@
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var( --space-2 );
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var( --space-1 ) var( --space-3 );
+  align-items: baseline;
+  padding: var( --space-2 ) var( --space-3 );
+  border: 1px solid var( --color-border );
+  border-radius: var( --radius );
+}
+
+.link {
+  flex: 1 1 12rem;
+  overflow-wrap: anywhere;
+}
+
+.status {
+  font-weight: 600;
+}
+
+.expiry {
+  color: var( --color-muted );
+  font-size: 0.875rem;
+}

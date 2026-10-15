@@ -5,10 +5,13 @@ import type { ReactElement } from 'react'
 import { useNavigate } from 'react-router'
 // App
 import { createJob } from '#src/api/jobs.api'
+import { useJobs } from '#src/hooks/useJobs'
+import { JobList } from '../JobList'
 import { SubmitForm } from '../SubmitForm'
 
 export function HomePage(): ReactElement {
   const navigate = useNavigate()
+  const { jobs, updatedAt } = useJobs()
   const [ isSubmitting, setIsSubmitting ] = useState( false )
   const [ submitError, setSubmitError ] = useState< string | null >( null )
 
@@ -28,10 +31,13 @@ export function HomePage(): ReactElement {
   }
 
   return (
-    <SubmitForm
-      isSubmitting={ isSubmitting }
-      error={ submitError }
-      onSubmit={ ( url ) => void handleSubmit( url ) }
-    />
+    <>
+      <SubmitForm
+        isSubmitting={ isSubmitting }
+        error={ submitError }
+        onSubmit={ ( url ) => void handleSubmit( url ) }
+      />
+      <JobList jobs={ jobs ?? [] } now={ updatedAt } />
+    </>
   )
 }

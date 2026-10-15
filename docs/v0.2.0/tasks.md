@@ -83,7 +83,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
 | **Phase 7** | **Web features** | | |
-| 7.1 | `useJobs` + `JobList` on home: status, expiry countdown, link to review | 0013, 0015 | ⬜ |
+| 7.1 | `useJobs` + `JobList` on home: status, expiry countdown, link to review | 0013, 0015 | ✅ |
 | 7.2 | Review page shell: in-progress, `ready_for_review` and `summary_failed` layouts | 0013 | ⬜ |
 | 7.3 | `TitleField` + `FilenamePreview` (shared `noteBasename`) | 0013 | ⬜ |
 | 7.4 | `TagInput` (`mnemosyne` fixed) | 0013 | ⬜ |
@@ -137,3 +137,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 - 6.1 ✅ `@tanstack/react-query`; `createQueryClient`, `QueryClientProvider` in `main.tsx`, `jobKeys`, `renderWithClient` / `renderHookWithClient`; `useJob` is a `useQuery` wrapper with the same `{ job, error }` result. Hook suite kept (render helper swapped, assertions unchanged) plus two sharing tests; the test setup uses a microtask scheduler for TanStack so fake timers work.
 - 6.2 ✅ `react-router`: `/` → `HomePage`, `/jobs/:id` → `JobPage` (invalid id and unknown paths redirect to `/`); submitting and retrying navigate to the new job. `App.test.tsx` rewritten around routes, with the scenarios split into `HomePage.test.tsx` and `JobPage.test.tsx`; `renderWithClient` takes a `route` and returns `location()`.
 - 6.3 ✅ `listJobs`, `getTranscript`, `saveJob` (returns the saved path), `retrySummary`, `discardJob` (204, no body) in `jobs.api.ts`; the shared `send` helper holds the fetch and error handling.
+- 7.1 ✅ `useJobs` (2 s while anything is in progress, else 30 s; returns `updatedAt` so the countdown needs no impure render), `formatExpiry`, `JobList` on the home page.

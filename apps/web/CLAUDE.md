@@ -30,6 +30,7 @@ src/
   global.css        tokens (colours, spacing) for light and dark mode, base element styles; the only non-module stylesheet
   App.tsx           page chrome and the routes: `/` → HomePage, `/jobs/:id` → JobPage
   api/              <name>.api.ts: fetch wrappers; parse responses with shared schemas
+  expiry.ts         pure display helpers sit next to main.tsx as small camelCase modules (expiry.ts, later timestamp.ts)
   queryClient.ts    createQueryClient(): the app's TanStack Query defaults (no retries, no refetch on focus)
   hooks/            use<Name>.ts: state and effects, built on TanStack Query; queryKeys.ts holds the cache keys
   components/       <Name>/index.ts, <Name>.tsx, <Name>.module.css, <Name>.test.tsx: one folder per component; HomePage and JobPage are the route components
