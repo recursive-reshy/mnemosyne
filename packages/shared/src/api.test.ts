@@ -6,6 +6,10 @@ import {
   CreateJobResponse,
   DownloadFormat,
   GetJobResponse,
+  GetTranscriptResponse,
+  ListJobsResponse,
+  SaveJobBody,
+  SaveJobResponse,
 } from './api.js'
 
 const jobId = '3f2b8c1e-6d1a-4b8e-9a53-0c1d2e3f4a5b'
@@ -71,5 +75,101 @@ describe( 'DownloadFormat', () => {
 
   it( 'rejects pdf', () => {
     expect( DownloadFormat.safeParse( 'pdf' ).success ).toBe( false )
+  } )
+} )
+
+const jobFields = {
+  url: 'https://www.youtube.com/watch?v=abc',
+  status: 'ready_for_review',
+  error: null,
+  created_at: '2026-10-14T10:00:00.000Z',
+  updated_at: '2026-10-14T10:00:00.000Z',
+  title: 'A talk',
+  summary_markdown: '## Summary',
+  suggested_tags: [ 'rust' ],
+  expires_at: '2026-10-15T10:00:00.000Z',
+  saved_path: null,
+}
+
+const transcript = {
+  meta: {
+    title: 'A talk',
+    source: 'https://www.youtube.com/watch?v=abc',
+    channel: 'Some Channel',
+    duration_seconds: 60,
+    transcribed_at: '2026-10-14T10:04:00.000Z',
+    model: 'large-v3',
+  },
+  segments: [ { start: 0, end: 1, text: 'Hello' } ],
+}
+
+describe( 'ListJobsResponse', () => {
+  it( 'accepts a list of jobs, including an empty one', () => {
+    expect( ListJobsResponse.safeParse( { jobs: [] } ).success ).toBe( true )
+    expect(
+      ListJobsResponse.safeParse( { jobs: [ { id: jobId, ...jobFields } ] } ).success,
+    ).toBe( true )
+  } )
+
+  it( 'rejects an invalid job in the list', () => {
+    expect(
+      ListJobsResponse.safeParse( { jobs: [ { id: 'x', ...jobFields } ] } ).success,
+    ).toBe( false )
+  } )
+
+  it( 'rejects a missing jobs field', () => {
+    expect( ListJobsResponse.safeParse( {} ).success ).toBe( false )
+  } )
+} )
+
+describe( 'GetTranscriptResponse', () => {
+  it( 'accepts a transcript', () => {
+    expect( GetTranscriptResponse.safeParse( { transcript } ).success ).toBe( true )
+  } )
+
+  it( 'rejects a transcript without segments', () => {
+    const { meta } = transcript
+
+    expect( GetTranscriptResponse.safeParse( { transcript: { meta } } ).success ).toBe( false )
+  } )
+} )
+
+describe( 'SaveJobBody', () => {
+  const body = { title: 'A talk', tags: [ 'mnemosyne', 'rust' ], body: '## Summary' }
+
+  it( 'accepts a title, tags and a body', () => {
+    expect( SaveJobBody.safeParse( body ).success ).toBe( true )
+  } )
+
+  it( 'accepts an empty body and no tags', () => {
+    expect( SaveJobBody.safeParse( { ...body, tags: [], body: '' } ).success ).toBe( true )
+  } )
+
+  it.each( [ '', '   ' ] )( 'rejects the blank title %j', ( title ) => {
+    expect( SaveJobBody.safeParse( { ...body, title } ).success ).toBe( false )
+  } )
+
+  it( 'rejects non-string tags', () => {
+    expect( SaveJobBody.safeParse( { ...body, tags: [ 1 ] } ).success ).toBe( false )
+  } )
+
+  it.each( [ 'title', 'tags', 'body' ] )( 'rejects a missing %s', ( field ) => {
+    const without: Record< string, unknown > = { ...body }
+    delete without[ field ]
+
+    expect( SaveJobBody.safeParse( without ).success ).toBe( false )
+  } )
+} )
+
+describe( 'SaveJobResponse', () => {
+  it( 'accepts a saved path', () => {
+    expect( SaveJobResponse.safeParse( { saved_path: 'Mnemosyne/A talk.md' } ).success ).toBe(
+      true,
+    )
+  } )
+
+  it( 'rejects an empty or missing saved path', () => {
+    expect( SaveJobResponse.safeParse( { saved_path: '' } ).success ).toBe( false )
+    expect( SaveJobResponse.safeParse( {} ).success ).toBe( false )
   } )
 } )
