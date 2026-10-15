@@ -6,11 +6,13 @@ import {
   CreateJobResponse,
   DownloadFormat,
   GetJobResponse,
+  GetTranscriptResponse,
   ListJobsResponse,
 } from '@mnemosyne/shared'
 // Services
 import {
   findJob,
+  findTranscript,
   listJobs,
   queueJob,
   renderTranscript,
@@ -35,6 +37,15 @@ export const getJob = ( { params }: Request, res: Response< GetJobResponse > ): 
   const job = findJob( String( params.id ) )
 
   res.status( 200 ).json( { job } )
+}
+
+export const getTranscript = (
+  { params }: Request,
+  res: Response< GetTranscriptResponse >,
+): void => {
+  const transcript = findTranscript( String( params.id ) )
+
+  res.status( 200 ).json( { transcript } )
 }
 
 export const downloadTranscript = ( { params, query }: Request, res: Response ): void => {

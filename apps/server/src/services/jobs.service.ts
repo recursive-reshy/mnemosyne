@@ -214,7 +214,7 @@ export const recoverInterruptedJobs = (): number => {
   return markInterruptedJobs( 'Interrupted by restart', new Date().toISOString() )
 }
 
-export const renderTranscript = ( id: string, format: DownloadFormat ): RenderedTranscript => {
+export const findTranscript = ( id: string ): Transcript => {
   const job = requireJob( id )
 
   if( !downloadableStatuses.includes( job.status ) ) {
@@ -225,11 +225,16 @@ export const renderTranscript = ( id: string, format: DownloadFormat ): Rendered
     throw new Error( `Job ${ id } is ${ job.status } but has no transcript` )
   }
 
+  return job.transcript
+}
+
+export const renderTranscript = ( id: string, format: DownloadFormat ): RenderedTranscript => {
+  const transcript = findTranscript( id )
   const { contentType, formatter } = transcriptFormats[ format ]
 
   return {
-    filename: transcriptFilename( job.transcript.meta.title, format ),
+    filename: transcriptFilename( transcript.meta.title, format ),
     contentType,
-    body: formatter( job.transcript ),
+    body: formatter( transcript ),
   }
 }

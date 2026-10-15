@@ -58,7 +58,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 4.1 | Extract `quoted` / `singleLine` to a formatter helper; `note.formatter.ts` (frontmatter + body) | 0005 | ✅ |
 | 4.2 | `VAULT_PATH` in config; `vault.client.ts` `writeNote` (mkdir, exclusive create, ` (2)` suffixes); writable check at startup | 0015 | ✅ |
 | 4.3 | `GET /api/jobs`: `listActiveJobs`, newest first | 0006 | ✅ |
-| 4.4 | `GET /api/jobs/:id/transcript` (JSON) | 0006 | ⬜ |
+| 4.4 | `GET /api/jobs/:id/transcript` (JSON) | 0006 | ✅ |
 | 4.5 | `POST /api/jobs/:id/save`: `saveJob` writes the note, marks `saved`, nulls the transcript | 0015 | ⬜ |
 | 4.6 | `POST /api/jobs/:id/retry-summary`: `retrySummary` → `summarizing` | 0014, 0015 | ⬜ |
 | 4.7 | `DELETE /api/jobs/:id`: `discardJob` | 0015 | ⬜ |
@@ -127,3 +127,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 - 4.1 ✅ `quoted` / `singleLine` moved to `formatters/frontmatter.ts`; `formatNote` renders the vault note (frontmatter + body); tags sanitized with the shared normalization, `mnemosyne` first.
 - 4.2 ✅ Required `VAULT_PATH`; `vault.client.ts` `writeNote` (mkdir, exclusive create, (2)/(3) suffixes) and `assertVaultWritable`, called at startup before the store opens.
 - 4.3 ✅ `GET /api/jobs`: `listActiveJobs` (everything except `failed` and `saved`), newest first.
+- 4.4 ✅ `GET /api/jobs/:id/transcript` via `findTranscript` (same downloadable-status rule as downloads; `renderTranscript` now uses it).

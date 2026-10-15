@@ -7,16 +7,22 @@ import {
 } from 'vitest'
 import request from 'supertest'
 // Shared
-import { Job, ListJobsResponse } from '@mnemosyne/shared'
+import {
+  GetTranscriptResponse,
+  Job,
+  JobStatus,
+  ListJobsResponse,
+} from '@mnemosyne/shared'
 // App
 import { app } from '../app.js'
 // Repositories
-import { clearJobs } from '../repositories/jobStore.repository.js'
+import { clearJobs, updateJob } from '../repositories/jobStore.repository.js'
 // Services
 import {
   completeSummary,
   completeTranscription,
   failJob,
+  failSummary,
   markStatus,
   queueJob,
 } from '../services/jobs.service.js'
@@ -28,6 +34,43 @@ import { formatTxt } from '../formatters/txt.formatter.js'
 import { transcriptFixture } from '../test-support/transcript.fixture.js'
 
 const youtubeUrl = 'https://www.youtube.com/watch?v=abc'
+
+const seedJobAt = ( status: JobStatus ): string => {
+  const { id } = queueJob( youtubeUrl )
+  const steps = [ 'downloading', 'converting', 'transcribing' ] as const
+
+  if( status === 'queued' ) {
+    return id
+  }
+
+  for( const step of steps ) {
+    markStatus( id, step )
+
+    if( step === status ) {
+      return id
+    }
+  }
+
+  if( status === 'failed' ) {
+    failJob( id, 'boom' )
+
+    return id
+  }
+
+  completeTranscription( id, transcriptFixture )
+
+  if( status === 'ready_for_review' || status === 'saved' ) {
+    completeSummary( id, '## Summary', [] )
+  } else if( status === 'summary_failed' ) {
+    failSummary( id, 'Rate limited' )
+  }
+
+  if( status === 'saved' ) {
+    updateJob( id, { status: 'saved', transcript: null } )
+  }
+
+  return id
+}
 
 beforeEach( () => {
   clearJobs()
@@ -236,5 +279,39 @@ describe( 'GET /api/jobs/:id/download', () => {
     expect( response.headers[ 'content-disposition' ] ).toContain(
       `filename*=UTF-8''${ encodeURIComponent( '日本語のタイトル.txt' ) }`,
     )
+  } )
+} )
+
+describe( 'GET /api/jobs/:id/transcript', () => {
+  it.each( [ 'ready_for_review', 'summary_failed' ] as const )(
+    'returns the transcript when the job is %s',
+    async ( status ) => {
+      const id = seedJobAt( status )
+
+      const response = await request( app ).get( `/api/jobs/${ id }/transcript` )
+
+      expect( response.status ).toBe( 200 )
+      expect( GetTranscriptResponse.parse( response.body ) ).toEqual( {
+        transcript: transcriptFixture,
+      } )
+    },
+  )
+
+  it.each( [ 'queued', 'transcribing', 'summarizing', 'failed', 'saved' ] as const )(
+    'returns 409 when the job is %s',
+    async ( status ) => {
+      const id = seedJobAt( status )
+
+      const response = await request( app ).get( `/api/jobs/${ id }/transcript` )
+
+      expect( response.status ).toBe( 409 )
+      expect( response.body ).toEqual( { error: 'Transcript not ready' } )
+    },
+  )
+
+  it( 'returns 404 for an unknown job', async () => {
+    const response = await request( app ).get( `/api/jobs/${ crypto.randomUUID() }/transcript` )
+
+    expect( response.status ).toBe( 404 )
   } )
 } )

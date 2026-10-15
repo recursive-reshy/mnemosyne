@@ -20,6 +20,7 @@ import {
   failJob,
   failSummary,
   findJob,
+  findTranscript,
   findNextRunnableJob,
   getTranscript,
   listJobs,
@@ -502,5 +503,26 @@ describe( 'listJobs', () => {
 
     expect( listJobs().map( ( { id } ) => id ) ).toEqual( [ review ] )
     expect( listJobs().map( ( { id } ) => id ) ).not.toContain( failed )
+  } )
+} )
+
+describe( 'findTranscript', () => {
+  it.each( [ 'ready_for_review', 'summary_failed' ] as const )(
+    'returns the transcript when the job is %s',
+    ( status ) => {
+      const id = queueJobAt( status )
+
+      expect( findTranscript( id ) ).toEqual( transcript )
+    },
+  )
+
+  it( 'throws ConflictError while summarizing', () => {
+    const id = queueSummarizing()
+
+    expect( () => findTranscript( id ) ).toThrow( new ConflictError( 'Transcript not ready' ) )
+  } )
+
+  it( 'throws NotFoundError for an unknown id', () => {
+    expect( () => findTranscript( 'missing' ) ).toThrow( NotFoundError )
   } )
 } )
