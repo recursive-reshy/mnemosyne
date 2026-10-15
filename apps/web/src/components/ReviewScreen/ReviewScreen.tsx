@@ -67,7 +67,7 @@ export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps )
           <TagInput tags={ draft.tags } onChange={ setTags } />
         </>
       ) }
-      <div className={ styles.columns }>
+      <div className={ `${ styles.columns } ${ hasFailed ? styles.single : '' }` }>
         { !hasFailed && (
           <SummaryEditor
             value={ draft.body }
@@ -107,7 +107,12 @@ export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps )
               { save.isPending ? 'Saving…' : 'Save to vault' }
             </button>
           ) }
-        <button type="button" disabled={ discard.isPending } onClick={ handleDiscard }>
+        <button
+          type="button"
+          className={ styles.secondary }
+          disabled={ discard.isPending }
+          onClick={ handleDiscard }
+        >
           Discard
         </button>
       </div>

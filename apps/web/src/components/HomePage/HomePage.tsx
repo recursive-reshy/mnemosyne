@@ -8,6 +8,7 @@ import { createJob } from '#src/api/jobs.api'
 import { useJobs } from '#src/hooks/useJobs'
 import { JobList } from '../JobList'
 import { SubmitForm } from '../SubmitForm'
+import styles from './HomePage.module.css'
 
 const readSavedPath = ( state: unknown ): string | null => {
   if( typeof state !== 'object' || state === null || !( 'savedPath' in state ) ) {
@@ -40,14 +41,16 @@ export function HomePage(): ReactElement {
   }
 
   return (
-    <>
-      { savedPath !== null && <p role="status">Saved to { savedPath }</p> }
+    <div className={ styles.home }>
+      { savedPath !== null && (
+        <p className={ styles.saved } role="status">Saved to { savedPath }</p>
+      ) }
       <SubmitForm
         isSubmitting={ isSubmitting }
         error={ submitError }
         onSubmit={ ( url ) => void handleSubmit( url ) }
       />
       <JobList jobs={ jobs ?? [] } now={ updatedAt } />
-    </>
+    </div>
   )
 }

@@ -92,7 +92,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 7.7 | Save: `useSaveJob`, back to home with the saved path | 0013, 0015 | ✅ |
 | 7.8 | Discard (optimistic) and Retry summary | 0013, 0015 | ✅ |
 | 7.9 | Caret sync: caret on a timestamp line scrolls the transcript | 0013 | ✅ |
-| 7.10 | Styling pass for home and review screens | 0011 | ⬜ |
+| 7.10 | Styling pass for home and review screens | 0011 | ✅ |
 
 ## Checkpoint F: Phase 8 (verification)
 **Plan:** ⬜ [`plans/checkpoint-f.md`](plans/checkpoint-f.md)
@@ -146,3 +146,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 - 7.7 ✅ `useSaveJob` (waits for the server, then clears the draft and invalidates `[jobs]`); Save to vault button (busy, disabled for a blank title, absent when the summary failed); `JobPage` navigates home with `{ savedPath }` and `HomePage` shows "Saved to …". Tags sent are the editable ones.
 - 7.8 ✅ `useDiscardJob` (optimistic removal from the list, rollback on error, clears the draft and drops the job entry on success) and `useRetrySummary` (puts the returned summarizing job in the cache, refreshes the list); Discard in both review layouts, Retry summary in the failed-summary layout. No confirm dialog on Discard (plan point 4).
 - 7.9 ✅ `parseTimestampSeconds` / `lineAt`; the editor reports the caret line on select; the transcript pane marks (`aria-current`) and scrolls (`scrollTop`, no page jump) to the paragraph at or before the stamp, and keeps the marker when the caret line has none.
+- 7.10 ✅ Styling from the existing tokens: page width 64rem with the home content at 40rem, two review columns from 48rem (single column below, and for a failed summary), monospace editor, muted fixed tag, primary Save/Retry and secondary Discard, saved confirmation. Not looked at in a browser (none available here); build, tests and lint pass.

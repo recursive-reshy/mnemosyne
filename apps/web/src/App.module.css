@@ -1,5 +1,5 @@
 .page {
-  max-width: 40rem;
+  max-width: 64rem;
   margin: 0 auto;
   padding: var( --space-4 ) var( --space-3 );
 }

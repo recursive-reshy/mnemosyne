@@ -48,7 +48,7 @@ export function TagInput( { tags, onChange }: TagInputProps ): ReactElement {
     <div className={ styles.field }>
       <label className={ styles.label } htmlFor={ inputId }>Add tag</label>
       <ul className={ styles.tags } aria-label="Tags">
-        <li className={ styles.tag }>{ FIXED_TAG }</li>
+        <li className={ `${ styles.tag } ${ styles.fixed }` }>{ FIXED_TAG }</li>
         { tags.map( ( tag ) => (
           <li key={ tag } className={ styles.tag }>
             { tag }
