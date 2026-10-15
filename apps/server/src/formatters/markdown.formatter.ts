@@ -1,7 +1,6 @@
 // Shared
-import { Transcript } from '@mnemosyne/shared'
+import { Transcript, groupParagraphs } from '@mnemosyne/shared'
 // Formatters
-import { groupParagraphs } from './paragraphs.js'
 import { formatClock } from './timestamps.js'
 import { youTubeVideoId } from './youtube.js'
 

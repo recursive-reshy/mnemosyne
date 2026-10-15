@@ -1,5 +1,5 @@
-// Shared
-import { Segment } from '@mnemosyne/shared'
+// Transcript
+import { Segment } from './transcript.js'
 
 export type Paragraph = { start: number, text: string }
 

@@ -1,7 +1,5 @@
 // Shared
-import { Transcript } from '@mnemosyne/shared'
-// Formatters
-import { groupParagraphs } from './paragraphs.js'
+import { Transcript, groupParagraphs } from '@mnemosyne/shared'
 
 export const formatTxt = ( { segments }: Transcript ): string => {
   const paragraphs = groupParagraphs( segments )

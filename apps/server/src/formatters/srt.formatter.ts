@@ -1,7 +1,6 @@
 // Shared
-import { Transcript } from '@mnemosyne/shared'
+import { Transcript, cleanText } from '@mnemosyne/shared'
 // Formatters
-import { cleanText } from './paragraphs.js'
 import { formatSrtTime } from './timestamps.js'
 
 export const formatSrt = ( { segments }: Transcript ): string => {
