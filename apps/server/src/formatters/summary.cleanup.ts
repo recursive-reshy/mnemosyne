@@ -1,18 +1,9 @@
 // Shared
-import { Transcript, cleanText } from '@mnemosyne/shared'
+import { Transcript, cleanText, normalizeTag } from '@mnemosyne/shared'
 // Clients
 import type { SummaryResult } from '../clients/claude.client.js'
 
 const MAX_TAGS = 5
-
-export const normalizeTag = ( tag: string ): string => {
-  return tag
-    .toLowerCase()
-    .replace( /\s+/g, '-' )
-    .replace( /[^a-z0-9-]/g, '' )
-    .replace( /-+/g, '-' )
-    .replace( /^-|-$/g, '' )
-}
 
 export const cleanSummary = (
   summary: SummaryResult,

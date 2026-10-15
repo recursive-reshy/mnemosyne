@@ -86,7 +86,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 7.1 | `useJobs` + `JobList` on home: status, expiry countdown, link to review | 0013, 0015 | ✅ |
 | 7.2 | Review page shell: in-progress, `ready_for_review` and `summary_failed` layouts | 0013 | ✅ |
 | 7.3 | `TitleField` + `FilenamePreview` (shared `noteBasename`) | 0013 | ✅ |
-| 7.4 | `TagInput` (`mnemosyne` fixed) | 0013 | ⬜ |
+| 7.4 | `TagInput` (`mnemosyne` fixed) | 0013 | ✅ |
 | 7.5 | `SummaryEditor` + `TranscriptPane` (`useTranscript`) | 0013 | ⬜ |
 | 7.6 | `useDraft`: localStorage drafts, cleared on save/discard | 0016 | ⬜ |
 | 7.7 | Save: `useSaveJob`, back to home with the saved path | 0013, 0015 | ⬜ |
@@ -140,3 +140,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 - 7.1 ✅ `useJobs` (2 s while anything is in progress, else 30 s; returns `updatedAt` so the countdown needs no impure render), `formatExpiry`, `JobList` on the home page.
 - 7.2 ✅ `ReviewScreen` shell (title, Summary and Transcript regions, downloads; failure reason for `summary_failed`); `JobPage` picks progress, review or saved layout by status.
 - 7.3 ✅ `TitleField` and `FilenamePreview` (shared `noteBasename`) in the review screen; the title starts as the job title.
+- 7.4 ✅ `normalizeTag` moved to shared (server imports it; cleanup tests unchanged); `TagInput` with the fixed `mnemosyne` chip, removable chips, Enter / comma / blur to add. The tags sent on save will be the editable ones; the server prepends `mnemosyne`.

@@ -1,5 +1,5 @@
 // Testing Library
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 // Vitest
 import { describe, expect, it } from 'vitest'
@@ -40,5 +40,25 @@ describe( 'ReviewScreen title', () => {
     )
 
     expect( screen.queryByRole( 'textbox', { name: 'Title' } ) ).not.toBeInTheDocument()
+  } )
+} )
+
+describe( 'ReviewScreen tags', () => {
+  it( 'starts with mnemosyne and the suggested tags and lets the user edit them', async () => {
+    renderWithClient( <ReviewScreen job={ { ...reviewJob, suggested_tags: [ 'rust', 'go' ] } } /> )
+    const user = userEvent.setup()
+
+    const names = (): string[] => {
+      return within( screen.getByRole( 'list', { name: 'Tags' } ) )
+        .getAllByRole( 'listitem' )
+        .map( ( item ) => ( item.textContent ?? '' ).replace( '×', '' ) )
+    }
+
+    expect( names().join( ',' ) ).toBe( 'mnemosyne,rust,go' )
+
+    await user.click( screen.getByRole( 'button', { name: 'Remove tag rust' } ) )
+    await user.type( screen.getByRole( 'textbox', { name: 'Add tag' } ), 'ai{Enter}' )
+
+    expect( names().join( ',' ) ).toBe( 'mnemosyne,go,ai' )
   } )
 } )

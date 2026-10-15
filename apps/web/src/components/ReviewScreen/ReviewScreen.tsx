@@ -6,6 +6,7 @@ import type { Job } from '@mnemosyne/shared'
 // App
 import { DownloadLinks } from '../DownloadLinks'
 import { FilenamePreview } from '../FilenamePreview'
+import { TagInput } from '../TagInput'
 import { TitleField } from '../TitleField'
 import styles from './ReviewScreen.module.css'
 
@@ -16,6 +17,7 @@ interface ReviewScreenProps {
 export function ReviewScreen( { job }: ReviewScreenProps ): ReactElement {
   const hasFailed = job.status === 'summary_failed'
   const [ title, setTitle ] = useState( job.title ?? '' )
+  const [ tags, setTags ] = useState( job.suggested_tags )
 
   return (
     <div className={ styles.review }>
@@ -25,6 +27,7 @@ export function ReviewScreen( { job }: ReviewScreenProps ): ReactElement {
         <>
           <TitleField value={ title } onChange={ setTitle } />
           <FilenamePreview title={ title } />
+          <TagInput tags={ tags } onChange={ setTags } />
         </>
       ) }
       <div className={ styles.columns }>
