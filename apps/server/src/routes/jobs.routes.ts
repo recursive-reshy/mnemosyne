@@ -3,6 +3,7 @@ import { Router } from 'express'
 // Controllers
 import {
   createJob,
+  discardReviewedJob,
   downloadTranscript,
   getJob,
   getTranscript,
@@ -19,4 +20,5 @@ jobsRoutes.get( '/jobs/:id', getJob )
 jobsRoutes.get( '/jobs/:id/transcript', getTranscript )
 jobsRoutes.post( '/jobs/:id/save', saveReviewedJob )
 jobsRoutes.post( '/jobs/:id/retry-summary', retryJobSummary )
+jobsRoutes.delete( '/jobs/:id', discardReviewedJob )
 jobsRoutes.get( '/jobs/:id/download', downloadTranscript )

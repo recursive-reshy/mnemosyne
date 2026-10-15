@@ -13,6 +13,7 @@ import {
 } from '@mnemosyne/shared'
 // Services
 import {
+  discardJob,
   findJob,
   findTranscript,
   listJobs,
@@ -67,6 +68,12 @@ export const retryJobSummary = ( { params }: Request, res: Response< GetJobRespo
   const job = retrySummary( String( params.id ) )
 
   res.status( 202 ).json( { job } )
+}
+
+export const discardReviewedJob = ( { params }: Request, res: Response ): void => {
+  discardJob( String( params.id ) )
+
+  res.status( 204 ).end()
 }
 
 export const downloadTranscript = ( { params, query }: Request, res: Response ): void => {

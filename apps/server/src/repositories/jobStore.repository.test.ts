@@ -16,6 +16,7 @@ import {
   StoredJob,
   clearJobs,
   closeJobStore,
+  deleteJob,
   findJobById,
   findNextRunnableJob,
   insertJob,
@@ -450,5 +451,23 @@ describe( 'listActiveJobs', () => {
 
   it( 'returns an empty list for an empty store', () => {
     expect( listActiveJobs() ).toEqual( [] )
+  } )
+} )
+
+describe( 'deleteJob', () => {
+  it( 'removes the job and reports it', () => {
+    const job = buildJob()
+    insertJob( job )
+
+    expect( deleteJob( job.id ) ).toBe( true )
+    expect( findJobById( job.id ) ).toBeUndefined()
+  } )
+
+  it( 'returns false for an unknown id and leaves other jobs alone', () => {
+    const other = buildJob()
+    insertJob( other )
+
+    expect( deleteJob( 'missing' ) ).toBe( false )
+    expect( findJobById( other.id ) ).toEqual( other )
   } )
 } )

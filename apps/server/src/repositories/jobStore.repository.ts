@@ -168,3 +168,9 @@ export const listActiveJobs = (): StoredJob[] => {
     .all()
     .map( toStoredJob )
 }
+
+export const deleteJob = ( id: string ): boolean => {
+  const { changes } = requireDatabase().prepare( 'DELETE FROM jobs WHERE id = ?' ).run( id )
+
+  return changes > 0
+}

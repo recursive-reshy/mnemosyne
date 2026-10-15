@@ -21,6 +21,7 @@ import { formatTxt } from '../formatters/txt.formatter.js'
 // Repositories
 import {
   StoredJob,
+  deleteJob,
   findJobById,
   findNextRunnableJob as findNextRunnableStoredJob,
   insertJob,
@@ -202,6 +203,16 @@ export const retrySummary = ( id: string ): Job => {
   }
 
   return moveTo( job, 'summarizing', { error: null, expires_at: null } )
+}
+
+export const discardJob = ( id: string ): void => {
+  const job = requireJob( id )
+
+  if( !downloadableStatuses.includes( job.status ) ) {
+    throw new ConflictError( `Cannot discard a job that is ${ job.status }` )
+  }
+
+  deleteJob( id )
 }
 
 export const getTranscript = ( id: string ): Transcript => {

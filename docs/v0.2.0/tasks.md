@@ -61,7 +61,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 4.4 | `GET /api/jobs/:id/transcript` (JSON) | 0006 | ✅ |
 | 4.5 | `POST /api/jobs/:id/save`: `saveJob` writes the note, marks `saved`, nulls the transcript | 0015 | ✅ |
 | 4.6 | `POST /api/jobs/:id/retry-summary`: `retrySummary` → `summarizing` | 0014, 0015 | ✅ |
-| 4.7 | `DELETE /api/jobs/:id`: `discardJob` | 0015 | ⬜ |
+| 4.7 | `DELETE /api/jobs/:id`: `discardJob` | 0015 | ✅ |
 | 4.8 | Sweeper: `findExpiredJobs`, `deleteExpiredJobs`, `startSweeper` wired into `server.ts` / `shutdown.ts`; `CLEANUP_INTERVAL_MINUTES` | 0015 | ⬜ |
 | **Phase 5** | **Config and Docker** | | |
 | 5.1 | `.env.example`, compose (`env_file`, `mnemosyne-data:/data`, `${VAULT_HOST_PATH}:/vault`), Dockerfile `/data` owned by `node`; verify with a build and a healthy container | 0004, 0012 | ⬜ |
@@ -130,3 +130,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 - 4.4 ✅ `GET /api/jobs/:id/transcript` via `findTranscript` (same downloadable-status rule as downloads; `renderTranscript` now uses it).
 - 4.5 ✅ `POST /api/jobs/:id/save`: `saveJob` formats the note, writes it to the vault, then marks `saved` (path, edited title, transcript nulled, expiry cleared); a failed write leaves the job in review.
 - 4.6 ✅ `POST /api/jobs/:id/retry-summary`: `retrySummary` (summary_failed → summarizing, clears error and expiry), `202 { job }`; the worker needs no change.
+- 4.7 ✅ `DELETE /api/jobs/:id`: `deleteJob` (repository) and `discardJob`; 204, 404 unknown, 409 unless `ready_for_review` / `summary_failed`.

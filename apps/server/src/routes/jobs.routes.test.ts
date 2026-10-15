@@ -425,3 +425,36 @@ describe( 'POST /api/jobs/:id/retry-summary', () => {
     },
   )
 } )
+
+describe( 'DELETE /api/jobs/:id', () => {
+  it.each( [ 'ready_for_review', 'summary_failed' ] as const )(
+    'discards a job that is %s with 204',
+    async ( status ) => {
+      const id = seedJobAt( status )
+
+      const response = await request( app ).delete( `/api/jobs/${ id }` )
+
+      expect( response.status ).toBe( 204 )
+      expect( ( await request( app ).get( `/api/jobs/${ id }` ) ).status ).toBe( 404 )
+      expect( ( await request( app ).get( '/api/jobs' ) ).body ).toEqual( { jobs: [] } )
+    },
+  )
+
+  it( 'returns 404 for an unknown job', async () => {
+    const response = await request( app ).delete( `/api/jobs/${ crypto.randomUUID() }` )
+
+    expect( response.status ).toBe( 404 )
+  } )
+
+  it.each( [ 'queued', 'transcribing', 'summarizing', 'failed', 'saved' ] as const )(
+    'returns 409 when the job is %s',
+    async ( status ) => {
+      const id = seedJobAt( status )
+
+      const response = await request( app ).delete( `/api/jobs/${ id }` )
+
+      expect( response.status ).toBe( 409 )
+      expect( ( await request( app ).get( `/api/jobs/${ id }` ) ).status ).toBe( 200 )
+    },
+  )
+} )

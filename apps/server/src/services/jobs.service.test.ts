@@ -17,6 +17,7 @@ import { clearJobs, findJobById, updateJob } from '../repositories/jobStore.repo
 import {
   completeSummary,
   completeTranscription,
+  discardJob,
   failJob,
   failSummary,
   findJob,
@@ -637,5 +638,39 @@ describe( 'retrySummary', () => {
 
   it( 'throws NotFoundError for an unknown id', () => {
     expect( () => retrySummary( 'missing' ) ).toThrow( NotFoundError )
+  } )
+} )
+
+describe( 'discardJob', () => {
+  it.each( [ 'ready_for_review', 'summary_failed' ] as const )(
+    'deletes a job that is %s',
+    ( status ) => {
+      const id = queueJobAt( status )
+
+      discardJob( id )
+
+      expect( findJobById( id ) ).toBeUndefined()
+      expect( () => findJob( id ) ).toThrow( NotFoundError )
+    },
+  )
+
+  it.each( [ 'queued', 'transcribing', 'failed' ] as const )(
+    'throws ConflictError from %s and keeps the job',
+    ( status ) => {
+      const id = queueJobAt( status )
+
+      expect( () => discardJob( id ) ).toThrow( ConflictError )
+      expect( findJob( id ).status ).toBe( status )
+    },
+  )
+
+  it( 'throws ConflictError for a summarizing job', () => {
+    const id = queueSummarizing()
+
+    expect( () => discardJob( id ) ).toThrow( ConflictError )
+  } )
+
+  it( 'throws NotFoundError for an unknown id', () => {
+    expect( () => discardJob( 'missing' ) ).toThrow( NotFoundError )
   } )
 } )
