@@ -1,7 +1,8 @@
+// Shared
+import { formatClock } from '@mnemosyne/shared'
 // Clients
 import type { SummaryResult } from '../clients/claude.client.js'
 // Formatters
-import { formatClock } from './timestamps.js'
 import { youTubeVideoId } from './youtube.js'
 
 type Timestamped = SummaryResult[ 'key_points' ][ number ]

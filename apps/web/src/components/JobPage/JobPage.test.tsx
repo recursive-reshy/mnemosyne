@@ -17,12 +17,14 @@ import type { Job } from '@mnemosyne/shared'
 import { ApiError } from '#src/api/apiError'
 import { createJob } from '#src/api/jobs.api'
 import { useJob } from '#src/hooks/useJob'
+import { useTranscript } from '#src/hooks/useTranscript'
 import type { JobState } from '#src/hooks/useJob'
 import { jobFixture } from '#src/test-support/job.fixture'
 import { renderWithClient } from '#src/test-support/renderWithClient'
 import { JobPage } from './JobPage'
 
 vi.mock( '#src/hooks/useJob' )
+vi.mock( '#src/hooks/useTranscript' )
 vi.mock( '#src/api/jobs.api', async ( importOriginal ) => ( {
   ...await importOriginal< typeof import( '#src/api/jobs.api' ) >(),
   createJob: vi.fn(),
@@ -30,6 +32,7 @@ vi.mock( '#src/api/jobs.api', async ( importOriginal ) => ( {
 
 const mockedUseJob = vi.mocked( useJob )
 const mockedCreateJob = vi.mocked( createJob )
+const mockedUseTranscript = vi.mocked( useTranscript )
 const jobId = jobFixture().id
 const newJobId = '7a1d9e2c-3b4f-4c5d-8e6f-0a1b2c3d4e5f'
 
@@ -56,6 +59,8 @@ const lastUseJobArgument = (): string | null | undefined => {
 beforeEach( () => {
   mockedUseJob.mockReset()
   mockedCreateJob.mockReset()
+  mockedUseTranscript.mockReset()
+  mockedUseTranscript.mockReturnValue( { transcript: null, error: null } )
   showJob( null )
 } )
 
@@ -147,8 +152,8 @@ describe( 'JobPage', () => {
 
       expect( screen.getByRole( 'heading', { level: 2, name: 'How Rust Works' } ) )
         .toBeInTheDocument()
-      expect( screen.getByRole( 'region', { name: 'Summary' } ) )
-        .toHaveTextContent( 'Ownership is central.' )
+      expect( screen.getByRole( 'textbox', { name: 'Summary' } ) )
+        .toHaveValue( '## Summary\nOwnership is central.' )
       expect( screen.getByRole( 'region', { name: 'Transcript' } ) ).toBeInTheDocument()
       expect( screen.getByRole( 'region', { name: 'Download transcript' } ) )
         .toBeInTheDocument()
@@ -178,7 +183,7 @@ describe( 'JobPage', () => {
         .toHaveTextContent( 'Summary request failed: Rate limited' )
       expect( screen.getByRole( 'region', { name: 'Download transcript' } ) )
         .toBeInTheDocument()
-      expect( screen.queryByRole( 'region', { name: 'Summary' } ) ).not.toBeInTheDocument()
+      expect( screen.queryByRole( 'textbox', { name: 'Summary' } ) ).not.toBeInTheDocument()
     } )
   } )
 

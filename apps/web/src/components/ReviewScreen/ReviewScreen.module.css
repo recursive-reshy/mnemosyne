@@ -15,11 +15,3 @@
   gap: var( --space-3 );
 }
 
-.pane {
-  min-width: 0;
-}
-
-.summary {
-  margin: 0;
-  white-space: pre-wrap;
-}

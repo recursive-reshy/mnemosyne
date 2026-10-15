@@ -1,8 +1,7 @@
 // Shared
-import { Transcript, groupParagraphs } from '@mnemosyne/shared'
+import { Transcript, formatClock, groupParagraphs } from '@mnemosyne/shared'
 // Formatters
 import { quoted, singleLine } from './frontmatter.js'
-import { formatClock } from './timestamps.js'
 import { youTubeVideoId } from './youtube.js'
 
 export const formatMarkdown = ( { meta, segments }: Transcript ): string => {

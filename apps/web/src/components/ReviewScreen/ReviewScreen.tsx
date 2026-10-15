@@ -4,10 +4,13 @@ import type { ReactElement } from 'react'
 // Shared
 import type { Job } from '@mnemosyne/shared'
 // App
+import { useTranscript } from '#src/hooks/useTranscript'
 import { DownloadLinks } from '../DownloadLinks'
 import { FilenamePreview } from '../FilenamePreview'
+import { SummaryEditor } from '../SummaryEditor'
 import { TagInput } from '../TagInput'
 import { TitleField } from '../TitleField'
+import { TranscriptPane } from '../TranscriptPane'
 import styles from './ReviewScreen.module.css'
 
 interface ReviewScreenProps {
@@ -18,6 +21,8 @@ export function ReviewScreen( { job }: ReviewScreenProps ): ReactElement {
   const hasFailed = job.status === 'summary_failed'
   const [ title, setTitle ] = useState( job.title ?? '' )
   const [ tags, setTags ] = useState( job.suggested_tags )
+  const [ summary, setSummary ] = useState( job.summary_markdown ?? '' )
+  const { transcript, error: transcriptError } = useTranscript( job.id )
 
   return (
     <div className={ styles.review }>
@@ -32,13 +37,9 @@ export function ReviewScreen( { job }: ReviewScreenProps ): ReactElement {
       ) }
       <div className={ styles.columns }>
         { !hasFailed && (
-          <section className={ styles.pane } aria-label="Summary">
-            <p className={ styles.summary }>{ job.summary_markdown }</p>
-          </section>
+          <SummaryEditor value={ summary } onChange={ setSummary } />
         ) }
-        <section className={ styles.pane } aria-label="Transcript">
-          <p>Transcript</p>
-        </section>
+        <TranscriptPane transcript={ transcript } error={ transcriptError } />
       </div>
       <DownloadLinks jobId={ job.id } />
     </div>

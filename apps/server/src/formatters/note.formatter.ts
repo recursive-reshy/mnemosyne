@@ -1,8 +1,7 @@
 // Shared
-import { TranscriptMeta, normalizeTag } from '@mnemosyne/shared'
+import { TranscriptMeta, formatClock, normalizeTag } from '@mnemosyne/shared'
 // Formatters
 import { quoted } from './frontmatter.js'
-import { formatClock } from './timestamps.js'
 
 interface NoteInput {
   title: string

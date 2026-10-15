@@ -87,7 +87,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 7.2 | Review page shell: in-progress, `ready_for_review` and `summary_failed` layouts | 0013 | ✅ |
 | 7.3 | `TitleField` + `FilenamePreview` (shared `noteBasename`) | 0013 | ✅ |
 | 7.4 | `TagInput` (`mnemosyne` fixed) | 0013 | ✅ |
-| 7.5 | `SummaryEditor` + `TranscriptPane` (`useTranscript`) | 0013 | ⬜ |
+| 7.5 | `SummaryEditor` + `TranscriptPane` (`useTranscript`) | 0013 | ✅ |
 | 7.6 | `useDraft`: localStorage drafts, cleared on save/discard | 0016 | ⬜ |
 | 7.7 | Save: `useSaveJob`, back to home with the saved path | 0013, 0015 | ⬜ |
 | 7.8 | Discard (optimistic) and Retry summary | 0013, 0015 | ⬜ |
@@ -141,3 +141,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 - 7.2 ✅ `ReviewScreen` shell (title, Summary and Transcript regions, downloads; failure reason for `summary_failed`); `JobPage` picks progress, review or saved layout by status.
 - 7.3 ✅ `TitleField` and `FilenamePreview` (shared `noteBasename`) in the review screen; the title starts as the job title.
 - 7.4 ✅ `normalizeTag` moved to shared (server imports it; cleanup tests unchanged); `TagInput` with the fixed `mnemosyne` chip, removable chips, Enter / comma / blur to add. The tags sent on save will be the editable ones; the server prepends `mnemosyne`.
+- 7.5 ✅ `formatClock` moved to shared (server formatters import it; its tests moved); `useTranscript` (fetched once), `SummaryEditor` (raw Markdown textarea), `TranscriptPane` (paragraph ids `transcript-<second>`); the pane shows in the review and failed-summary layouts. The 7.2 `JobPage` test now reads the Summary textarea value.
