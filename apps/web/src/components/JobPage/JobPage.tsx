@@ -2,6 +2,10 @@
 import { useState } from 'react'
 import type { ReactElement } from 'react'
 // Packages
+import Alert from '@mui/material/Alert'
+import Button from '@mui/material/Button'
+import Stack from '@mui/material/Stack'
+import Typography from '@mui/material/Typography'
 import { Navigate, useNavigate, useParams } from 'react-router'
 // Shared
 import { Job } from '@mnemosyne/shared'
@@ -12,6 +16,8 @@ import { JobProgress } from '../JobProgress'
 import { ReviewScreen } from '../ReviewScreen'
 
 const DOWNLOADABLE_STATUSES: Job[ 'status' ][] = [ 'ready_for_review', 'summary_failed' ]
+
+const STACK_SX = { width: '100%', alignItems: 'flex-start' } as const
 
 export function JobPage(): ReactElement {
   const navigate = useNavigate()
@@ -42,30 +48,30 @@ export function JobPage(): ReactElement {
 
   if( job === null && error !== null ) {
     return (
-      <>
-        <p className="alert" role="alert">{ error }</p>
-        <button type="button" onClick={ handleStartOver }>Start over</button>
-      </>
+      <Stack spacing={ 2 } sx={ STACK_SX }>
+        <Alert severity="error">{ error }</Alert>
+        <Button variant="outlined" onClick={ handleStartOver }>Start over</Button>
+      </Stack>
     )
   }
 
   if( job === null ) {
-    return <p role="status">Loading job…</p>
+    return <Typography role="status">Loading job…</Typography>
   }
 
   if( job.status === 'saved' ) {
     return (
-      <>
-        <p role="status">Saved to { job.saved_path }</p>
-        <button type="button" onClick={ handleStartOver }>Transcribe another video</button>
-      </>
+      <Stack spacing={ 2 } sx={ STACK_SX }>
+        <Alert severity="success" role="status">Saved to { job.saved_path }</Alert>
+        <Button variant="outlined" onClick={ handleStartOver }>Transcribe another video</Button>
+      </Stack>
     )
   }
 
   const isInReview = DOWNLOADABLE_STATUSES.includes( job.status )
 
   return (
-    <>
+    <Stack spacing={ 2 } sx={ STACK_SX }>
       { isInReview
         ? (
           <ReviewScreen
@@ -81,8 +87,8 @@ export function JobPage(): ReactElement {
             onRetry={ () => void handleRetry( job.url ) }
           />
         ) }
-      { submitError && <p className="alert" role="alert">{ submitError }</p> }
-      <button type="button" onClick={ handleStartOver }>Transcribe another video</button>
-    </>
+      { submitError && <Alert severity="error">{ submitError }</Alert> }
+      <Button variant="outlined" onClick={ handleStartOver }>Transcribe another video</Button>
+    </Stack>
   )
 }

@@ -260,9 +260,10 @@ describe( 'JobPage', () => {
 
     await user.click( screen.getByRole( 'button', { name: 'Try again' } ) )
 
-    const message = await screen.findByText( 'Could not reach the server' )
+    await screen.findByText( 'Could not reach the server' )
 
-    expect( message ).toHaveAttribute( 'role', 'alert' )
+    expect( screen.getAllByRole( 'alert' ).map( ( alert ) => alert.textContent ) )
+      .toContain( 'Could not reach the server' )
     expect( location().pathname ).toBe( `/jobs/${ jobId }` )
     expect( lastUseJobArgument() ).toBe( jobId )
   } )
