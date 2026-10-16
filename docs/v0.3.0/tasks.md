@@ -74,7 +74,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
 | **Phase 7** | **Web folder picker** | | |
-| 7.1 | `useFolders()` (`['vault', 'folders']`, fetched once per review screen) | 0022 | ⬜ |
+| 7.1 | `useFolders()` (`['vault', 'folders']`, fetched once per review screen) | 0022 | ✅ |
 | 7.2 | `FolderPicker`: tree with the default selected when `target_folder` is null, filter box (matches shown with their ancestors), "New folder" validated with `isValidFolderName` and created client-side only; choosing sets `target_folder` and flushes autosave | 0022 | ⬜ |
 | 7.3 | `FilenamePreview` shows `<folder>/<noteBasename(title)>.md`; the destination survives a reload | 0022 | ⬜ |
 | **Phase 8** | **Clean-up and verification** | | |
@@ -111,3 +111,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 - 6.4: caret sync in both modes (rich: block holding the DOM selection; source: CodeMirror active line) via `onCaretText`; `SummaryEditor` removed; web `CLAUDE.md` Stack updated.
 - Follow-up (not in checkpoint E): timestamp click / caret sync not working in a real browser (passes in jsdom).
 - Follow-up: lazy-load NoteEditor (bundle size).
+- 7.1: `useFolders()` on `['vault', 'folders']`, no polling.
