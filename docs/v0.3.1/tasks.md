@@ -61,7 +61,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 5.3 | `FolderPicker` on `SimpleTreeView` (controlled selection and expansion, vault root first, "new" `Chip`, filter and new-folder form as today); `FolderTree` rewritten; `treeNodes.ts` unchanged; `FolderPicker.test.tsx` rewritten for tree roles, covering every 0.3.0 behaviour; `FolderPicker.module.css` deleted | 0024 | ✅ |
 
 ## Checkpoint D: Phase 6 (clean-up and verification)
-**Plan:** ⬜ [`plans/checkpoint-d.md`](plans/checkpoint-d.md)
+**Plan:** ✅ [`plans/checkpoint-d.md`](plans/checkpoint-d.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
