@@ -1,6 +1,11 @@
 // React
 import { useState } from 'react'
 import type { ReactElement } from 'react'
+// Packages
+import Alert from '@mui/material/Alert'
+import Box from '@mui/material/Box'
+import Stack from '@mui/material/Stack'
+import Typography from '@mui/material/Typography'
 // Shared
 import { parseNote } from '@mnemosyne/shared'
 import type { Job } from '@mnemosyne/shared'
@@ -19,7 +24,6 @@ import type { NoteEditorMode } from '../NoteEditor'
 import { PropertiesPanel } from '../PropertiesPanel'
 import { ReviewActions } from '../ReviewActions'
 import { TranscriptPane } from '../TranscriptPane'
-import styles from './ReviewScreen.module.css'
 
 interface ReviewScreenProps {
   job: Job
@@ -32,6 +36,18 @@ const STATUS_LABELS: Record< Exclude< AutosaveStatus, 'error' >, string > = {
   saving: 'Saving…',
   unsaved: 'Unsaved changes',
 }
+
+const COLUMNS_SX = {
+  display: 'grid',
+  gap: 2,
+  gridTemplateColumns: 'minmax( 0, 1fr )',
+} as const
+
+const TWO_COLUMNS_SX = {
+  ...COLUMNS_SX,
+  alignItems: 'start',
+  gridTemplateColumns: { xs: 'minmax( 0, 1fr )', lg: 'repeat( 2, minmax( 0, 1fr ) )' },
+} as const
 
 const noteTitle = ( note: string ): string | null => {
   try {
@@ -82,9 +98,11 @@ export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps )
   }
 
   return (
-    <div className={ styles.review }>
-      <h2 className={ styles.title }>{ job.title ?? job.url }</h2>
-      { hasFailed && <p className="alert" role="alert">{ job.error ?? 'Summary failed.' }</p> }
+    <Stack spacing={ 2 } sx={ { width: '100%' } }>
+      <Typography variant="h6" component="h2" sx={ { overflowWrap: 'anywhere' } }>
+        { job.title ?? job.url }
+      </Typography>
+      { hasFailed && <Alert severity="error">{ job.error ?? 'Summary failed.' }</Alert> }
       { !hasFailed && (
         <>
           { mode === 'rich-text' && (
@@ -97,7 +115,7 @@ export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps )
           />
         </>
       ) }
-      <div className={ `${ styles.columns } ${ hasFailed ? styles.single : '' }` }>
+      <Box sx={ hasFailed ? COLUMNS_SX : TWO_COLUMNS_SX }>
         { !hasFailed && (
           <NoteEditor
             value={ autosave.note }
@@ -112,19 +130,19 @@ export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps )
           error={ transcriptError }
           focusSecond={ focusSecond }
         />
-      </div>
+      </Box>
       { !hasFailed && autosave.status === 'error' && (
-        <p className="alert" role="alert">{ `Not saved: ${ autosave.message ?? '' }` }</p>
+        <Alert severity="error">{ `Not saved: ${ autosave.message ?? '' }` }</Alert>
       ) }
       { !hasFailed && autosave.status !== 'error' && (
-        <p role="status">{ STATUS_LABELS[ autosave.status ] }</p>
+        <Typography role="status">{ STATUS_LABELS[ autosave.status ] }</Typography>
       ) }
       <DownloadLinks jobId={ job.id } />
       { save.isError && autosave.status !== 'error' && (
-        <p className="alert" role="alert">{ save.error.message }</p>
+        <Alert severity="error">{ save.error.message }</Alert>
       ) }
-      { retry.isError && <p className="alert" role="alert">{ retry.error.message }</p> }
-      { discard.isError && <p className="alert" role="alert">{ discard.error.message }</p> }
+      { retry.isError && <Alert severity="error">{ retry.error.message }</Alert> }
+      { discard.isError && <Alert severity="error">{ discard.error.message }</Alert> }
       <ReviewActions
         hasFailed={ hasFailed }
         canSave={ title !== null && title.trim() !== '' }
@@ -135,6 +153,6 @@ export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps )
         onRetry={ () => retry.mutate() }
         onDiscard={ handleDiscard }
       />
-    </div>
+    </Stack>
   )
 }
