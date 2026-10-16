@@ -75,7 +75,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | --- | --- | --- | --- |
 | **Phase 7** | **Web folder picker** | | |
 | 7.1 | `useFolders()` (`['vault', 'folders']`, fetched once per review screen) | 0022 | ✅ |
-| 7.2 | `FolderPicker`: tree with the default selected when `target_folder` is null, filter box (matches shown with their ancestors), "New folder" validated with `isValidFolderName` and created client-side only; choosing sets `target_folder` and flushes autosave | 0022 | ⬜ |
+| 7.2 | `FolderPicker`: tree with the default selected when `target_folder` is null, filter box (matches shown with their ancestors), "New folder" validated with `isValidFolderName` and created client-side only; choosing sets `target_folder` and flushes autosave | 0022 | ✅ |
 | 7.3 | `FilenamePreview` shows `<folder>/<noteBasename(title)>.md`; the destination survives a reload | 0022 | ⬜ |
 | **Phase 8** | **Clean-up and verification** | | |
 | 8.1 | Migration 3 drops `summary_markdown` and `suggested_tags` (tested from `user_version = 2`); `completeSummary` stops writing them | 0021 | ⬜ |
@@ -112,3 +112,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 - Follow-up (not in checkpoint E): timestamp click / caret sync not working in a real browser (passes in jsdom).
 - Follow-up: lazy-load NoteEditor (bundle size).
 - 7.1: `useFolders()` on `['vault', 'folders']`, no polling.
+- 7.2: `FolderPicker` (disclosure, filter with ancestors, vault root, client-side new folders, pending destinations shown as new); default folder reports `null`.
