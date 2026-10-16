@@ -21,6 +21,7 @@ import {
   listJobs,
   retrySummary,
   saveJob,
+  updateDraft,
 } from './jobs.api'
 
 const fetchMock = vi.fn()
@@ -149,8 +150,6 @@ const transcript = {
   segments: [ { start: 0, end: 4, text: 'Hello.' } ],
 }
 
-const edits = { title: 'A talk', tags: [ 'rust' ], body: '## Summary' }
-
 describe( 'listJobs', () => {
   it( 'requests the list and returns the parsed jobs', async () => {
     fetchMock.mockResolvedValue( jsonResponse( { jobs: [ jobFixture() ] }, 200 ) )
@@ -195,16 +194,55 @@ describe( 'getTranscript', () => {
   } )
 } )
 
+describe( 'updateDraft', () => {
+  const draft = { note_markdown: '---\n---\n', target_folder: 'Learning/AI' }
+
+  it( 'patches the draft as JSON and returns the job', async () => {
+    const job = jobFixture( { status: 'ready_for_review', note_markdown: 'x' } )
+    fetchMock.mockResolvedValue( jsonResponse( { job }, 200 ) )
+
+    await expect( updateDraft( 'a/b', draft ) ).resolves.toEqual( job )
+    expect( fetchMock ).toHaveBeenCalledWith( '/api/jobs/a%2Fb/draft', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify( draft ),
+    } )
+  } )
+
+  it( 'uses the server message for invalid front-matter', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse( { error: 'front-matter invalid: bad YAML' }, 400 ),
+    )
+
+    const error = await rejection( updateDraft( jobId, draft ) )
+
+    expect( error.message ).toBe( 'front-matter invalid: bad YAML' )
+    expect( error.status ).toBe( 400 )
+  } )
+
+  it( 'uses the server message when the job is no longer in review', async () => {
+    fetchMock.mockResolvedValue( jsonResponse( { error: 'Cannot move job' }, 409 ) )
+
+    const error = await rejection( updateDraft( jobId, draft ) )
+
+    expect( error.status ).toBe( 409 )
+  } )
+
+  it( 'rejects a response without a job', async () => {
+    fetchMock.mockResolvedValue( jsonResponse( {}, 200 ) )
+
+    const error = await rejection( updateDraft( jobId, draft ) )
+
+    expect( error.message ).toBe( 'Unexpected response from the server' )
+  } )
+} )
+
 describe( 'saveJob', () => {
-  it( 'posts the edits as JSON and returns the saved path', async () => {
+  it( 'posts with no body and returns the saved path', async () => {
     fetchMock.mockResolvedValue( jsonResponse( { saved_path: 'Mnemosyne/A talk.md' }, 200 ) )
 
-    await expect( saveJob( 'a/b', edits ) ).resolves.toBe( 'Mnemosyne/A talk.md' )
-    expect( fetchMock ).toHaveBeenCalledWith( '/api/jobs/a%2Fb/save', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify( edits ),
-    } )
+    await expect( saveJob( 'a/b' ) ).resolves.toBe( 'Mnemosyne/A talk.md' )
+    expect( fetchMock ).toHaveBeenCalledWith( '/api/jobs/a%2Fb/save', { method: 'POST' } )
   } )
 
   it( 'uses the server message when the job cannot be saved', async () => {
@@ -212,7 +250,7 @@ describe( 'saveJob', () => {
       jsonResponse( { error: 'Cannot move job from saved to saved' }, 409 ),
     )
 
-    const error = await rejection( saveJob( jobId, edits ) )
+    const error = await rejection( saveJob( jobId ) )
 
     expect( error.message ).toBe( 'Cannot move job from saved to saved' )
     expect( error.status ).toBe( 409 )
@@ -221,7 +259,7 @@ describe( 'saveJob', () => {
   it( 'reports an unreachable server', async () => {
     fetchMock.mockRejectedValue( new TypeError( 'Failed to fetch' ) )
 
-    const error = await rejection( saveJob( jobId, edits ) )
+    const error = await rejection( saveJob( jobId ) )
 
     expect( error.message ).toBe( 'Could not reach the server' )
   } )
@@ -229,7 +267,7 @@ describe( 'saveJob', () => {
   it( 'rejects a response without a saved path', async () => {
     fetchMock.mockResolvedValue( jsonResponse( {}, 200 ) )
 
-    const error = await rejection( saveJob( jobId, edits ) )
+    const error = await rejection( saveJob( jobId ) )
 
     expect( error.message ).toBe( 'Unexpected response from the server' )
   } )

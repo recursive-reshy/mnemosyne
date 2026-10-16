@@ -1,3 +1,5 @@
+// Shared
+import { parseNote, serializeNote } from '@mnemosyne/shared'
 // Testing Library
 import { fireEvent, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -11,7 +13,12 @@ import {
 } from 'vitest'
 // App
 import { ApiError } from '#src/api/apiError'
-import { discardJob, retrySummary, saveJob } from '#src/api/jobs.api'
+import {
+  discardJob,
+  retrySummary,
+  saveJob,
+  updateDraft,
+} from '#src/api/jobs.api'
 import { useTranscript } from '#src/hooks/useTranscript'
 import { jobFixture } from '#src/test-support/job.fixture'
 import { renderWithClient } from '#src/test-support/renderWithClient'
@@ -21,6 +28,7 @@ vi.mock( '#src/hooks/useTranscript' )
 vi.mock( '#src/api/jobs.api' )
 
 const mockedSaveJob = vi.mocked( saveJob )
+const mockedUpdateDraft = vi.mocked( updateDraft )
 const mockedDiscardJob = vi.mocked( discardJob )
 const mockedRetrySummary = vi.mocked( retrySummary )
 
@@ -43,6 +51,7 @@ beforeEach( () => {
   mockedUseTranscript.mockReset()
   mockedUseTranscript.mockReturnValue( { transcript, error: null } )
   mockedSaveJob.mockReset()
+  mockedUpdateDraft.mockReset()
   mockedDiscardJob.mockReset()
   mockedRetrySummary.mockReset()
 } )
@@ -52,6 +61,17 @@ const reviewJob = jobFixture( {
   title: 'How Rust Works',
   summary_markdown: '## Summary\nText.',
   suggested_tags: [ 'rust' ],
+  note_markdown: serializeNote( {
+    properties: {
+      title: 'How Rust Works',
+      source: 'https://www.youtube.com/watch?v=abc',
+      channel: 'Channel',
+      duration: '05:00',
+      created: '2026-10-15',
+      tags: [ 'mnemosyne', 'rust' ],
+    },
+    body: '## Summary\nText.\n',
+  } ),
 } )
 
 const handlers = () => ( { onSaved: vi.fn(), onDiscarded: vi.fn() } )
@@ -183,11 +203,18 @@ describe( 'ReviewScreen save', () => {
     await user.type( screen.getByRole( 'textbox', { name: 'Summary' } ), ' Added.' )
     await user.click( saveButton() )
 
-    expect( mockedSaveJob ).toHaveBeenCalledExactlyOnceWith( reviewJob.id, {
-      title: 'My Title',
-      tags: [ 'rust', 'go' ],
-      body: '## Summary\nText. Added.',
-    } )
+    expect( mockedSaveJob ).toHaveBeenCalledExactlyOnceWith( reviewJob.id )
+    expect( mockedUpdateDraft ).toHaveBeenCalledExactlyOnceWith(
+      reviewJob.id,
+      { note_markdown: expect.any( String ) as string },
+    )
+
+    const sent = mockedUpdateDraft.mock.calls[ 0 ]?.[ 1 ].note_markdown ?? ''
+    const note = parseNote( sent )
+    expect( note.properties.title ).toBe( 'My Title' )
+    expect( note.properties.tags ).toEqual( [ 'mnemosyne', 'rust', 'go' ] )
+    expect( note.properties.source ).toBe( 'https://www.youtube.com/watch?v=abc' )
+    expect( note.body ).toBe( '## Summary\nText. Added.\n' )
     await vi.waitFor( () => expect( onSaved ).toHaveBeenCalledWith( 'Mnemosyne/My Title.md' ) )
   } )
 

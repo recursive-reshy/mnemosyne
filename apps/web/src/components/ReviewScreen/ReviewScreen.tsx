@@ -33,7 +33,7 @@ export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps )
   } )
   const { transcript, error: transcriptError } = useTranscript( job.id )
   const [ focusSecond, setFocusSecond ] = useState< number | null >( null )
-  const save = useSaveJob( job.id )
+  const save = useSaveJob( job.id, job.note_markdown )
   const discard = useDiscardJob( job.id )
   const retry = useRetrySummary( job.id )
 

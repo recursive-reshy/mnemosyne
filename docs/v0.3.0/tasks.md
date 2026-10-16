@@ -51,7 +51,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
 | **Phase 5** | **Web drafts** | | |
-| 5.1 | `jobs.api.ts`: `updateDraft`, `saveJob` with no body; new `vault.api.ts` with `listFolders` | 0020 | ⬜ |
+| 5.1 | `jobs.api.ts`: `updateDraft`, `saveJob` with no body; new `vault.api.ts` with `listFolders` | 0020 | ✅ |
 | 5.2 | `useAutosaveDraft`: debounce 1500 ms, `flush()`, at most one request in flight, latest values win, status `saved \| saving \| unsaved \| error`, updates `['jobs', id]` with the returned job; fake-timer tests | 0020 | ⬜ |
 | 5.3 | `PropertiesPanel` (title, `TagInput`, read-only source/channel/duration, created "on save") reading and writing the note with `parseNote` / `serializeNote`; "front-matter invalid" state; replaces `TitleField` | 0021 | ⬜ |
 | 5.4 | Review screen on the server draft: the existing textarea edits the whole `note_markdown`, the panel above it, a save-status line (`role="status"`), flush on blur, `beforeunload` warning while unsaved; caret sync keeps working on the textarea | 0020 | ⬜ |
@@ -99,3 +99,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 - 4.2: `GET /api/vault/folders` (shared `FolderNode`, `ListFoldersResponse`; `listFolderTree`; vault route/controller/service).
 - 4.3: `PATCH /api/jobs/:id/draft` (`updateDraft`: front-matter validated, locked properties re-applied with the stored `created`, title synced, folder validated, expiry restarted).
 - 4.4: `saveJob( id )` writes the stored draft to `target_folder ?? DEFAULT_NOTE_FOLDER` through `resolveFolder`; `NOTES_FOLDER` and the save body are gone from the server.
+- 5.1: web `updateDraft`, `saveJob( id )` with no body, `vault.api.listFolders`; `useSaveJob` has an interim shim that PATCHes the edited note before saving (removed in 5.4).

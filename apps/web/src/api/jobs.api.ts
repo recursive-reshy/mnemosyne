@@ -6,13 +6,14 @@ import {
   GetTranscriptResponse,
   ListJobsResponse,
   SaveJobResponse,
+  UpdateDraftResponse,
 } from '@mnemosyne/shared'
 import type {
   CreateJobBody,
   DownloadFormat,
   Job,
-  SaveJobBody,
   Transcript,
+  UpdateDraftBody,
 } from '@mnemosyne/shared'
 // App
 import { ApiError } from './apiError'
@@ -88,11 +89,18 @@ export const getTranscript = async ( id: string ): Promise< Transcript > => {
   return transcript
 }
 
-export const saveJob = async ( id: string, edits: SaveJobBody ): Promise< string > => {
+export const updateDraft = async ( id: string, draft: UpdateDraftBody ): Promise< Job > => {
+  const { job } = await request( `${ jobPath( id ) }/draft`, UpdateDraftResponse, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify( draft ),
+  } )
+  return job
+}
+
+export const saveJob = async ( id: string ): Promise< string > => {
   const { saved_path } = await request( `${ jobPath( id ) }/save`, SaveJobResponse, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify( edits ),
   } )
   return saved_path
 }
