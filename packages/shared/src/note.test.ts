@@ -1,7 +1,13 @@
 // Packages
 import { describe, it, expect } from 'vitest'
 // Note
-import { NoteParseError, parseNote, serializeNote } from './note.js'
+import {
+  NoteParseError,
+  applyLockedProperties,
+  parseNote,
+  serializeNote,
+} from './note.js'
+import type { ParsedNote } from './note.js'
 
 const fixture = [
   '---',
@@ -97,5 +103,55 @@ describe( 'serializeNote', () => {
     const note = parseNote( serializeNote( { ...parseNote( fixture ), body } ) )
 
     expect( note.body ).toBe( body )
+  } )
+} )
+
+describe( 'applyLockedProperties', () => {
+  const locked = {
+    source: 'https://example.com/real',
+    channel: 'Real Channel',
+    duration: '10:00',
+    created: '2026-10-16',
+  }
+
+  const note: ParsedNote = {
+    properties: {
+      title: 'Mine',
+      source: 'edited',
+      channel: 'edited',
+      duration: 'edited',
+      created: 'edited',
+      tags: [ 'rust', 'mnemosyne', 'Rust', 'Big Idea', '!!' ],
+    },
+    body: 'Body\n',
+  }
+
+  it( 'overwrites source, channel, duration and created', () => {
+    const { properties } = applyLockedProperties( note, locked )
+
+    expect( properties ).toMatchObject( locked )
+  } )
+
+  it( 'puts mnemosyne first, normalizes and dedupes the tags', () => {
+    const { properties } = applyLockedProperties( note, locked )
+
+    expect( properties.tags ).toEqual( [ 'mnemosyne', 'rust', 'big-idea' ] )
+  } )
+
+  it( 'adds mnemosyne when it is missing', () => {
+    const { properties } = applyLockedProperties(
+      { ...note, properties: { ...note.properties, tags: [] } },
+      locked,
+    )
+
+    expect( properties.tags ).toEqual( [ 'mnemosyne' ] )
+  } )
+
+  it( 'leaves the title and body alone and does not mutate the input', () => {
+    const result = applyLockedProperties( note, locked )
+
+    expect( result.properties.title ).toBe( 'Mine' )
+    expect( result.body ).toBe( 'Body\n' )
+    expect( note.properties.source ).toBe( 'edited' )
   } )
 } )

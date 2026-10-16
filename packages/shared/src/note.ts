@@ -7,6 +7,8 @@ import {
   parse,
 } from 'yaml'
 import { z } from 'zod'
+// Tags
+import { normalizeTag } from './tags.js'
 
 export const NoteProperties = z.object( {
   title: z.string(),
@@ -96,4 +98,22 @@ export const serializeNote = ( { properties, body }: ParsedNote ): string => {
   const frontmatter = document.toString( { lineWidth: 0, flowCollectionPadding: false } )
 
   return `${ OPENING }${ frontmatter }---\n\n${ body }`
+}
+
+export type LockedProperties = Pick< NoteProperties, 'source' | 'channel' | 'duration' | 'created' >
+
+const FIXED_TAG = 'mnemosyne'
+
+export const applyLockedProperties = (
+  { properties, body }: ParsedNote,
+  locked: LockedProperties,
+): ParsedNote => {
+  const tags = properties.tags
+    .map( normalizeTag )
+    .filter( ( tag ) => tag !== '' && tag !== FIXED_TAG )
+
+  return {
+    properties: { ...properties, ...locked, tags: [ ...new Set( [ FIXED_TAG, ...tags ] ) ] },
+    body,
+  }
 }

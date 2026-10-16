@@ -26,7 +26,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 1.1 | `docs/README.md`: v0.3.0 is current (v0.2.0 marked done); add ADRs 0019–0022 to the index as Accepted (and set their Status lines); mark 0016 "Superseded by 0020" in the index and in its file | 0019–0022 | ✅ |
 | **Phase 2** | **Shared** | | |
 | 2.1 | Add `yaml` to `packages/shared`; `parseNote` / `serializeNote` in `note.ts`: byte-identical round-trip, 0.2.0 front-matter layout pinned by a fixture, invalid or missing front-matter throws `NoteParseError` | 0021 | ✅ |
-| 2.2 | `applyLockedProperties`: overwrites source, channel, duration, created; `mnemosyne` first; tags normalized and deduped | 0021 | ⬜ |
+| 2.2 | `applyLockedProperties`: overwrites source, channel, duration, created; `mnemosyne` first; tags normalized and deduped | 0021 | ✅ |
 | 2.3 | `isValidFolderName` and `parseFolderPath` in `folders.ts` (`''` = vault root) | 0022 | ⬜ |
 | 2.4 | Server `formatNote` becomes a thin wrapper over `serializeNote`; existing note formatter tests stay green unchanged | 0021 | ⬜ |
 | **Phase 3** | **Server data** | | |
@@ -89,3 +89,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 
 - 1.1: README points at v0.3.0; ADRs 0019–0022 Accepted; 0016 superseded by 0020.
 - 2.1: shared `note.ts` (`parseNote`, `serializeNote`, `NoteParseError`) on `yaml`; 0.2.0 layout pinned.
+- 2.2: `applyLockedProperties` (locked fields overwritten, `mnemosyne` first, tags normalized and deduped).
