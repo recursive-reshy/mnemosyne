@@ -1,12 +1,15 @@
 // React
 import type { ReactElement } from 'react'
 // Packages
-import { Link } from 'react-router'
+import Link from '@mui/material/Link'
+import List from '@mui/material/List'
+import ListItem from '@mui/material/ListItem'
+import Typography from '@mui/material/Typography'
+import { Link as RouterLink } from 'react-router'
 // Shared
 import type { Job } from '@mnemosyne/shared'
 // App
 import { formatExpiry } from '#src/expiry'
-import styles from './JobList.module.css'
 
 const STATUS_LABELS = {
   queued: 'Queued',
@@ -22,6 +25,21 @@ const STATUS_LABELS = {
 
 const EXPIRING_STATUSES: Job[ 'status' ][] = [ 'ready_for_review', 'summary_failed' ]
 
+const LIST_SX = { display: 'flex', flexDirection: 'column', gap: 1, width: '100%' } as const
+
+const ITEM_SX = {
+  flexWrap: 'wrap',
+  alignItems: 'baseline',
+  gap: '0.25rem 1rem',
+  px: 2,
+  py: 1,
+  border: 1,
+  borderColor: 'divider',
+  borderRadius: 1,
+} as const
+
+const LINK_SX = { flex: '1 1 12rem', overflowWrap: 'anywhere' } as const
+
 interface JobListProps {
   jobs: Job[]
   now: number
@@ -33,18 +51,22 @@ export function JobList( { jobs, now }: JobListProps ): ReactElement | null {
   }
 
   return (
-    <ul className={ styles.list } aria-label="Jobs">
+    <List aria-label="Jobs" disablePadding sx={ LIST_SX }>
       { jobs.map( ( job ) => (
-        <li key={ job.id } className={ styles.item }>
-          <Link className={ styles.link } to={ `/jobs/${ job.id }` }>
+        <ListItem key={ job.id } sx={ ITEM_SX }>
+          <Link component={ RouterLink } to={ `/jobs/${ job.id }` } sx={ LINK_SX }>
             { job.title ?? job.url }
           </Link>
-          <span className={ styles.status }>{ STATUS_LABELS[ job.status ] }</span>
+          <Typography component="span" sx={ { fontWeight: 600 } }>
+            { STATUS_LABELS[ job.status ] }
+          </Typography>
           { job.expires_at !== null && EXPIRING_STATUSES.includes( job.status ) && (
-            <span className={ styles.expiry }>{ formatExpiry( job.expires_at, now ) }</span>
+            <Typography component="span" variant="body2" color="text.secondary">
+              { formatExpiry( job.expires_at, now ) }
+            </Typography>
           ) }
-        </li>
+        </ListItem>
       ) ) }
-    </ul>
+    </List>
   )
 }
