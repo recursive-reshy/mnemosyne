@@ -11,8 +11,6 @@ const validJob = {
   created_at: '2026-10-14T10:00:00.000Z',
   updated_at: '2026-10-14T10:00:00.000Z',
   title: null,
-  summary_markdown: null,
-  suggested_tags: [],
   note_markdown: null,
   target_folder: null,
   expires_at: null,
@@ -91,13 +89,12 @@ describe( 'Job', () => {
     expect( Job.safeParse( without ).success ).toBe( false )
   } )
 
-  it( 'accepts summary fields once they are set', () => {
+  it( 'accepts a reviewed job with an expiry and a saved path', () => {
     const summarized = {
       ...validJob,
       status: 'ready_for_review',
       title: 'A talk',
-      summary_markdown: '## Summary\nText',
-      suggested_tags: [ 'machine-learning' ],
+      note_markdown: '---\ntitle: "A talk"\n---\n\nText\n',
       expires_at: '2026-10-15T10:00:00.000Z',
       saved_path: 'Mnemosyne/A talk.md',
     }
@@ -105,7 +102,7 @@ describe( 'Job', () => {
     expect( Job.safeParse( summarized ).success ).toBe( true )
   } )
 
-  it.each( [ 'title', 'summary_markdown', 'suggested_tags', 'expires_at', 'saved_path' ] )(
+  it.each( [ 'title', 'expires_at', 'saved_path' ] )(
     'rejects a missing %s field',
     ( field ) => {
       const without: Record< string, unknown > = { ...validJob }
@@ -119,7 +116,10 @@ describe( 'Job', () => {
     expect( Job.safeParse( { ...validJob, expires_at: 'tomorrow' } ).success ).toBe( false )
   } )
 
-  it( 'rejects non-string tags', () => {
-    expect( Job.safeParse( { ...validJob, suggested_tags: [ 1 ] } ).success ).toBe( false )
+  it( 'no longer carries the 0.2.0 summary fields', () => {
+    const parsed = Job.parse( { ...validJob, summary_markdown: 'old', suggested_tags: [ 'x' ] } )
+
+    expect( parsed ).not.toHaveProperty( 'summary_markdown' )
+    expect( parsed ).not.toHaveProperty( 'suggested_tags' )
   } )
 } )

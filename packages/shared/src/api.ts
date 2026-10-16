@@ -30,13 +30,6 @@ export const GetTranscriptResponse = z.object( {
 } )
 export type GetTranscriptResponse = z.infer< typeof GetTranscriptResponse >
 
-export const SaveJobBody = z.object( {
-  title: z.string().trim().min( 1 ),
-  tags: z.array( z.string() ),
-  body: z.string(),
-} )
-export type SaveJobBody = z.infer< typeof SaveJobBody >
-
 export const SaveJobResponse = z.object( {
   saved_path: z.string().min( 1 ),
 } )

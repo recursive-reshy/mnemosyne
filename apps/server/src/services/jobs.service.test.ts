@@ -111,8 +111,6 @@ describe( 'queueJob', () => {
       created_at: startTime.toISOString(),
       updated_at: startTime.toISOString(),
       title: null,
-      summary_markdown: null,
-      suggested_tags: [],
       note_markdown: null,
       target_folder: null,
       expires_at: null,

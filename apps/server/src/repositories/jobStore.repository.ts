@@ -144,11 +144,8 @@ const requireDatabase = (): Database.Database => {
 const toStoredJob = ( raw: unknown ): StoredJob => {
   const row = JobRow.parse( raw )
 
-  // The two fields go from the Job contract in task 8.2.
   return StoredJob.parse( {
     ...row,
-    summary_markdown: null,
-    suggested_tags: [],
     transcript: row.transcript === null ? null : JSON.parse( row.transcript ) as unknown,
   } )
 }

@@ -22,8 +22,6 @@ export const Job = z.object( {
   created_at: z.iso.datetime(),
   updated_at: z.iso.datetime(),
   title: z.string().nullable(),
-  summary_markdown: z.string().nullable(),
-  suggested_tags: z.array( z.string() ),
   note_markdown: z.string().nullable(),
   target_folder: z.string().nullable(),
   expires_at: z.iso.datetime().nullable(),

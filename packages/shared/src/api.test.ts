@@ -10,7 +10,6 @@ import {
   GetTranscriptResponse,
   ListFoldersResponse,
   ListJobsResponse,
-  SaveJobBody,
   SaveJobResponse,
   UpdateDraftBody,
   UpdateDraftResponse,
@@ -57,8 +56,6 @@ describe( 'GetJobResponse', () => {
     created_at: '2026-10-14T10:00:00.000Z',
     updated_at: '2026-10-14T10:00:00.000Z',
     title: null,
-    summary_markdown: null,
-    suggested_tags: [],
     note_markdown: null,
     target_folder: null,
     expires_at: null,
@@ -91,8 +88,6 @@ const jobFields = {
   created_at: '2026-10-14T10:00:00.000Z',
   updated_at: '2026-10-14T10:00:00.000Z',
   title: 'A talk',
-  summary_markdown: '## Summary',
-  suggested_tags: [ 'rust' ],
   note_markdown: null,
   target_folder: null,
   expires_at: '2026-10-15T10:00:00.000Z',
@@ -142,30 +137,11 @@ describe( 'GetTranscriptResponse', () => {
   } )
 } )
 
-describe( 'SaveJobBody', () => {
-  const body = { title: 'A talk', tags: [ 'mnemosyne', 'rust' ], body: '## Summary' }
+describe( 'the 0.2.0 save body', () => {
+  it( 'is gone: saving takes no body', async () => {
+    const api = await import( './api.js' )
 
-  it( 'accepts a title, tags and a body', () => {
-    expect( SaveJobBody.safeParse( body ).success ).toBe( true )
-  } )
-
-  it( 'accepts an empty body and no tags', () => {
-    expect( SaveJobBody.safeParse( { ...body, tags: [], body: '' } ).success ).toBe( true )
-  } )
-
-  it.each( [ '', '   ' ] )( 'rejects the blank title %j', ( title ) => {
-    expect( SaveJobBody.safeParse( { ...body, title } ).success ).toBe( false )
-  } )
-
-  it( 'rejects non-string tags', () => {
-    expect( SaveJobBody.safeParse( { ...body, tags: [ 1 ] } ).success ).toBe( false )
-  } )
-
-  it.each( [ 'title', 'tags', 'body' ] )( 'rejects a missing %s', ( field ) => {
-    const without: Record< string, unknown > = { ...body }
-    delete without[ field ]
-
-    expect( SaveJobBody.safeParse( without ).success ).toBe( false )
+    expect( api ).not.toHaveProperty( 'SaveJobBody' )
   } )
 } )
 
