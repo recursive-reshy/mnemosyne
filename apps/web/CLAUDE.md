@@ -2,7 +2,7 @@
 
 React UI for Mnemosyne: submit a video URL, follow the job, download the transcript. Screens only: all data and rules live in the server. The root `CLAUDE.md` covers the workflow, precedence, cross-app rules, git and secrets; this file does not repeat them. The server's style rules in `apps/server/CLAUDE.md` apply here too unless this file says otherwise.
 
-The relevant ADRs are 0004, 0006, 0008, 0009, 0011, 0013, 0015, 0019, 0020, 0021 and 0023. Read the ones a task lists.
+The relevant ADRs are 0004, 0006, 0008, 0009, 0011, 0013, 0015, 0019, 0020, 0021, 0022 and 0023. Read the ones a task lists.
 
 ## Stack
 

@@ -4,7 +4,7 @@ Paste a video URL (YouTube or anything yt-dlp supports) and get a timestamped tr
 
 ## How it works
 
-You submit a URL in the browser. The Express server queues a job, and a worker runs one job at a time: yt-dlp downloads the audio, ffmpeg converts it to 16 kHz mono WAV, and the WAV is sent over HTTP to whisper-server. The transcript is stored in a SQLite database and rendered to Markdown, SRT or TXT when you download it. The worker then sends the transcript to the Claude API for a summary (key points, quotes, tags). You review the summary, and saving writes a note to `Mnemosyne/` in your vault and deletes the transcript. Jobs you leave in review are deleted after 24 hours. The browser polls the job's status.
+You submit a URL in the browser. The Express server queues a job, and a worker runs one job at a time: yt-dlp downloads the audio, ffmpeg converts it to 16 kHz mono WAV, and the WAV is sent over HTTP to whisper-server. The transcript is stored in a SQLite database and rendered to Markdown, SRT or TXT when you download it. The worker then sends the transcript to the Claude API for a summary (key points, quotes, tags). You review the note in the browser, where every edit is saved to the server as a draft, pick the vault folder it goes to, and saving writes it there and deletes the transcript. Jobs you leave in review are deleted after 24 hours; every edit starts the 24 hours again. The browser polls the job's status.
 
 ```text
 browser ──> Express + worker (Docker, :3100)
@@ -65,10 +65,15 @@ brew install yt-dlp ffmpeg
 1. Paste a video URL and submit.
 2. Watch the stages: queued, downloading, converting, transcribing, summarizing, ready for review.
 3. Download the transcript as Markdown, SRT or TXT while the job is in review.
+4. Review the note. It opens in a rendered editor with a properties panel (title and tags); switch to source mode to see and edit the raw Markdown, front-matter included. The transcript sits beside it.
+5. Choose where the note goes with **Change folder**: filter the vault's folders (hidden folders are not shown), pick one, or type a new folder name under the chosen folder. A new folder is created only when you save. Without a choice the note goes to `DEFAULT_NOTE_FOLDER`.
+6. **Save to vault** writes the note and deletes the transcript, or **Discard** deletes the job.
+
+Edits are saved to the server about a second and a half after you stop typing, when you switch editor mode, leave the editor or choose a folder, and before saving, so a refresh, a crash or another browser shows your latest draft. The status line under the editor reads Saved, Saving… or Not saved, with the reason.
 
 The page address carries the job (`?job=<id>`), so refreshing the page keeps you on the same job. Jobs and their transcripts live in a SQLite database on a Docker volume, so they survive a container restart or rebuild. A job that was downloading, converting or transcribing when the app stopped is marked failed on the next start.
 
-The API also supports listing jobs, saving a reviewed summary to the vault, retrying a failed summary and discarding a job (`GET /api/jobs`, `POST /api/jobs/:id/save`, `POST /api/jobs/:id/retry-summary`, `DELETE /api/jobs/:id`); the review screen in the web app that uses them comes in a later checkpoint of 0.2.0.
+The API also supports listing jobs, listing the vault's folders, updating a review draft, saving it, retrying a failed summary and discarding a job (`GET /api/jobs`, `GET /api/vault/folders`, `PATCH /api/jobs/:id/draft`, `POST /api/jobs/:id/save` with no body, `POST /api/jobs/:id/retry-summary`, `DELETE /api/jobs/:id`).
 
 ## Output formats
 
@@ -87,6 +92,7 @@ The server reads these environment variables. Empty values count as unset.
 | `WORK_DIR` | `<OS temp dir>/mnemosyne` | `/tmp/mnemosyne` |
 | `DATA_DIR` | `<OS temp dir>/mnemosyne-data` | `/data` (volume `mnemosyne-data`) |
 | `VAULT_PATH` | required | `/vault` (bind mount of `VAULT_HOST_PATH`) |
+| `DEFAULT_NOTE_FOLDER` | `Mnemosyne` | from `.env`, default `Mnemosyne` |
 | `ANTHROPIC_API_KEY` | required | from `.env` |
 | `SUMMARY_TIMEOUT_MS` | `300000` | default |
 | `REVIEW_TTL_HOURS` | `24` | default |
@@ -97,7 +103,8 @@ The server reads these environment variables. Empty values count as unset.
 - `WORK_DIR` holds audio files while a job runs; the folder is emptied when the server starts.
 - `WHISPER_MODEL` is only the label stored on each transcript (whisper-server doesn't report its model). Keep it in step with the model the agent runs.
 - `WEB_DIR` is the folder with the built web app; when set, Express serves it.
-- `DATA_DIR` holds `mnemosyne.db`. `VAULT_PATH` must exist and be writable at startup, or the server exits with a message; notes go to `<vault>/Mnemosyne/`.
+- `DATA_DIR` holds `mnemosyne.db`. `VAULT_PATH` must exist and be writable at startup, or the server exits with a message.
+- `DEFAULT_NOTE_FOLDER` is the vault folder notes go to unless you pick another in the review screen. It is relative to the vault, is created at startup if missing, and must be a plain path such as `Notes/Videos` (no `..`, no leading `/`, no folder starting with a dot). The server never writes outside the vault, whatever folder is asked for.
 - `ANTHROPIC_API_KEY` lives in `.env` only, never in the repo. In Docker, `.env` at the repo root feeds both compose and the container.
 - For development, copy `apps/server/.env.example` to `apps/server/.env` and set `ANTHROPIC_API_KEY` and `VAULT_PATH` (any folder works for trying it out). `pnpm dev` loads it, and the integration tests load it too.
 
