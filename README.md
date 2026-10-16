@@ -143,10 +143,15 @@ On a stop signal the server stops taking work and lets a running job finish, for
 
 ## Status and roadmap
 
-Version 0.1.0. A single-user tool: one job at a time, jobs held in memory, no accounts.
+Version 0.3.0. A single-user tool: one job at a time, jobs kept in SQLite, no accounts.
+
+Known issue: in a real browser, clicking a timestamp in the summary doesn't open the video, and moving the cursor in the editor doesn't scroll the transcript to the matching moment (it works in the unit tests).
 
 Possible next steps:
 
-- Write transcripts straight into an Obsidian vault.
-- Summarise transcripts.
+- Lazy-load the note editor (the web bundle is about 1.5 MB).
+- Choose the Claude model from the UI.
+- Add `[[wikilinks]]` to related notes with an agent that knows the vault.
+- Remember the last-used folder, or pick a folder by tag.
 - Live progress with Server-Sent Events instead of polling.
+- Query past notes through an MCP server.
