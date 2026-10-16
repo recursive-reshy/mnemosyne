@@ -33,7 +33,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 1.6 | `AppShell` + `NavDrawer`: top bar (hamburger with `aria-expanded` / `aria-controls`, `h1` "Mnemosyne"), mini-variant permanent drawer on wide windows, temporary drawer on narrow ones, Transcriber item (`NavLink`, current on `/` and `/jobs/*`), colour mode at the bottom. `App.tsx` renders the routes inside `AppShell`; `App.module.css` deleted; `App.test.tsx` unchanged and green. Update `apps/web/CLAUDE.md` (Stack, router exception for the shell, ADR list) | 0024, 0025 | ✅ |
 
 ## Checkpoint B: Phases 2–3 (home and job screens)
-**Plan:** ⬜ [`plans/checkpoint-b.md`](plans/checkpoint-b.md)
+**Plan:** ✅ [`plans/checkpoint-b.md`](plans/checkpoint-b.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
