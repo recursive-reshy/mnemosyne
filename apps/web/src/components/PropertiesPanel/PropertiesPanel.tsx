@@ -1,14 +1,28 @@
 // React
-import { useId } from 'react'
+import { Fragment } from 'react'
 import type { ChangeEvent, ReactElement } from 'react'
+// Packages
+import Alert from '@mui/material/Alert'
+import Box from '@mui/material/Box'
+import Stack from '@mui/material/Stack'
+import TextField from '@mui/material/TextField'
+import Typography from '@mui/material/Typography'
 // Shared
 import { NoteParseError, parseNote, serializeNote } from '@mnemosyne/shared'
 import type { ParsedNote } from '@mnemosyne/shared'
 // App
 import { TagInput } from '../TagInput'
-import styles from './PropertiesPanel.module.css'
 
 const FIXED_TAG = 'mnemosyne'
+
+const READ_ONLY_SX = {
+  display: 'grid',
+  gridTemplateColumns: 'max-content 1fr',
+  gap: '0.25rem 0.5rem',
+  m: 0,
+} as const
+
+const VALUE_SX = { m: 0, overflowWrap: 'anywhere' } as const
 
 interface PropertiesPanelProps {
   note: string
@@ -28,14 +42,19 @@ const tryParse = ( note: string ): ParsedNote | null => {
 }
 
 export function PropertiesPanel( { note, onChange }: PropertiesPanelProps ): ReactElement {
-  const titleId = useId()
   const parsed = tryParse( note )
 
   if( parsed === null ) {
-    return <p className="alert" role="status">front-matter invalid</p>
+    return <Alert severity="warning" role="status">front-matter invalid</Alert>
   }
 
   const { properties } = parsed
+  const rows = [
+    [ 'Source', properties.source ],
+    [ 'Channel', properties.channel ],
+    [ 'Duration', properties.duration ],
+    [ 'Created', 'on save' ],
+  ]
 
   const update = ( changes: Partial< ParsedNote[ 'properties' ] > ): void => {
     onChange( serializeNote( { ...parsed, properties: { ...properties, ...changes } } ) )
@@ -46,30 +65,20 @@ export function PropertiesPanel( { note, onChange }: PropertiesPanelProps ): Rea
   }
 
   return (
-    <div className={ styles.panel }>
-      <div className={ styles.field }>
-        <label className={ styles.label } htmlFor={ titleId }>Title</label>
-        <input
-          id={ titleId }
-          type="text"
-          value={ properties.title }
-          onChange={ handleTitle }
-        />
-      </div>
+    <Stack spacing={ 2 } sx={ { width: '100%' } }>
+      <TextField label="Title" value={ properties.title } onChange={ handleTitle } />
       <TagInput
         tags={ properties.tags.filter( ( tag ) => tag !== FIXED_TAG ) }
         onChange={ ( tags ) => update( { tags: [ FIXED_TAG, ...tags ] } ) }
       />
-      <dl className={ styles.readOnly }>
-        <dt>Source</dt>
-        <dd>{ properties.source }</dd>
-        <dt>Channel</dt>
-        <dd>{ properties.channel }</dd>
-        <dt>Duration</dt>
-        <dd>{ properties.duration }</dd>
-        <dt>Created</dt>
-        <dd>on save</dd>
-      </dl>
-    </div>
+      <Box component="dl" sx={ READ_ONLY_SX }>
+        { rows.map( ( [ term, value ] ) => (
+          <Fragment key={ term }>
+            <Typography component="dt" sx={ { fontWeight: 600 } }>{ term }</Typography>
+            <Typography component="dd" sx={ VALUE_SX }>{ value }</Typography>
+          </Fragment>
+        ) ) }
+      </Box>
+    </Stack>
   )
 }
