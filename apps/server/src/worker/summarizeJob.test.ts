@@ -7,7 +7,7 @@ import {
   beforeEach,
 } from 'vitest'
 // Shared
-import { Transcript } from '@mnemosyne/shared'
+import { Transcript, parseNote } from '@mnemosyne/shared'
 // Services
 import {
   completeTranscription,
@@ -80,24 +80,25 @@ describe( 'summarizeJob', () => {
 
     await summarizeJob( id )
 
-    expect( findJob( id ) ).toMatchObject( {
-      status: 'ready_for_review',
-      suggested_tags: [ 'rust-lang' ],
-      summary_markdown: [
-        '## Summary',
-        '',
-        'An overview.',
-        '',
-        '## Key points',
-        '',
-        '- Ownership ([00:02](https://youtu.be/abc123?t=2))',
-        '',
-        '## Notable quotes',
-        '',
-        '> "Memory safety comes free." ([00:05](https://youtu.be/abc123?t=5))',
-        '',
-      ].join( '\n' ),
-    } )
+    const job = findJob( id )
+    const note = parseNote( job.note_markdown ?? '' )
+
+    expect( job.status ).toBe( 'ready_for_review' )
+    expect( note.properties.tags ).toEqual( [ 'mnemosyne', 'rust-lang' ] )
+    expect( note.body ).toBe( [
+      '## Summary',
+      '',
+      'An overview.',
+      '',
+      '## Key points',
+      '',
+      '- Ownership ([00:02](https://youtu.be/abc123?t=2))',
+      '',
+      '## Notable quotes',
+      '',
+      '> "Memory safety comes free." ([00:05](https://youtu.be/abc123?t=5))',
+      '',
+    ].join( '\n' ) )
   } )
 
   it.each( [

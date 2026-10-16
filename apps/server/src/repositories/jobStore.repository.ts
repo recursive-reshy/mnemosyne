@@ -78,6 +78,8 @@ export const jobStoreMigrations: Migration[] = [
     updated_at TEXT NOT NULL
   )`,
   addNoteColumns,
+  `ALTER TABLE jobs DROP COLUMN summary_markdown;
+  ALTER TABLE jobs DROP COLUMN suggested_tags;`,
 ]
 
 let database: Database.Database | undefined
@@ -123,8 +125,6 @@ const JobRow = z.object( {
   error: z.string().nullable(),
   title: z.string().nullable(),
   transcript: z.string().nullable(),
-  summary_markdown: z.string().nullable(),
-  suggested_tags: z.string(),
   note_markdown: z.string().nullable(),
   target_folder: z.string().nullable(),
   saved_path: z.string().nullable(),
@@ -144,18 +144,29 @@ const requireDatabase = (): Database.Database => {
 const toStoredJob = ( raw: unknown ): StoredJob => {
   const row = JobRow.parse( raw )
 
+  // The two fields go from the Job contract in task 8.2.
   return StoredJob.parse( {
     ...row,
-    suggested_tags: JSON.parse( row.suggested_tags ) as unknown,
+    summary_markdown: null,
+    suggested_tags: [],
     transcript: row.transcript === null ? null : JSON.parse( row.transcript ) as unknown,
   } )
 }
 
 const toRow = ( job: StoredJob ): Record< string, string | null > => {
   return {
-    ...job,
-    suggested_tags: JSON.stringify( job.suggested_tags ),
+    id: job.id,
+    url: job.url,
+    status: job.status,
+    error: job.error,
+    title: job.title,
     transcript: job.transcript === null ? null : JSON.stringify( job.transcript ),
+    note_markdown: job.note_markdown,
+    target_folder: job.target_folder,
+    saved_path: job.saved_path,
+    expires_at: job.expires_at,
+    created_at: job.created_at,
+    updated_at: job.updated_at,
   }
 }
 
@@ -167,13 +178,11 @@ export const insertJob = ( job: StoredJob ): void => {
   }
 
   db.prepare( `INSERT INTO jobs (
-      id, url, status, error, title, transcript, summary_markdown,
-      suggested_tags, note_markdown, target_folder, saved_path, expires_at,
-      created_at, updated_at
+      id, url, status, error, title, transcript, note_markdown, target_folder,
+      saved_path, expires_at, created_at, updated_at
     ) VALUES (
-      @id, @url, @status, @error, @title, @transcript, @summary_markdown,
-      @suggested_tags, @note_markdown, @target_folder, @saved_path, @expires_at,
-      @created_at, @updated_at
+      @id, @url, @status, @error, @title, @transcript, @note_markdown, @target_folder,
+      @saved_path, @expires_at, @created_at, @updated_at
     )` ).run( toRow( job ) )
 }
 
@@ -197,8 +206,7 @@ export const updateJob = (
 
   requireDatabase().prepare( `UPDATE jobs SET
       url = @url, status = @status, error = @error, title = @title,
-      transcript = @transcript, summary_markdown = @summary_markdown,
-      suggested_tags = @suggested_tags, note_markdown = @note_markdown,
+      transcript = @transcript, note_markdown = @note_markdown,
       target_folder = @target_folder, saved_path = @saved_path,
       expires_at = @expires_at, created_at = @created_at, updated_at = @updated_at
     WHERE id = @id` ).run( toRow( updated ) )

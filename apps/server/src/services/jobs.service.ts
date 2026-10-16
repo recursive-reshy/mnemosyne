@@ -191,8 +191,6 @@ export const completeSummary = (
   const { meta } = getTranscript( id )
 
   return moveTo( job, 'ready_for_review', {
-    summary_markdown: summaryMarkdown,
-    suggested_tags: suggestedTags,
     note_markdown: formatNote( {
       title: job.title ?? meta.title,
       tags: suggestedTags,

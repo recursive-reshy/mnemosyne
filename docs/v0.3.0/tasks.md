@@ -78,7 +78,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 7.2 | `FolderPicker`: tree with the default selected when `target_folder` is null, filter box (matches shown with their ancestors), "New folder" validated with `isValidFolderName` and created client-side only; choosing sets `target_folder` and flushes autosave | 0022 | ✅ |
 | 7.3 | `FilenamePreview` shows `<folder>/<noteBasename(title)>.md`; the destination survives a reload | 0022 | ✅ |
 | **Phase 8** | **Clean-up and verification** | | |
-| 8.1 | Migration 3 drops `summary_markdown` and `suggested_tags` (tested from `user_version = 2`); `completeSummary` stops writing them | 0021 | ⬜ |
+| 8.1 | Migration 3 drops `summary_markdown` and `suggested_tags` (tested from `user_version = 2`); `completeSummary` stops writing them | 0021 | ✅ |
 | 8.2 | Remove `summary_markdown`, `suggested_tags` from the `Job` DTO and `SaveJobBody` from shared; remove `TitleField` if unused; fix every reference in both apps | 0020, 0021 | ⬜ |
 | 8.3 | Docs: README (review flow, folder picker, `DEFAULT_NOTE_FOLDER`), root `CLAUDE.md` architecture paragraph, ADR lists in both app `CLAUDE.md` files | — | ⬜ |
 | 8.4 | Manual checklist (report results, don't tick until Naresh confirms): real video → edit in both modes → nested new folder → reload mid-edit → open in a second browser → expiry moves after edits → save → note in the right folder, opens cleanly in Obsidian; migrations run against a copy of the real 0.2.0 database | — | ⬜ |
@@ -114,3 +114,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 - 7.1: `useFolders()` on `['vault', 'folders']`, no polling.
 - 7.2: `FolderPicker` (disclosure, filter with ancestors, vault root, client-side new folders, pending destinations shown as new); default folder reports `null`.
 - 7.3: `FilenamePreview` shows `<folder>/<name>.md` ("default folder" wording until known); `NoteDestination` wires picker, preview and folder-load errors into the review screen; `ReviewActions` split out of `ReviewScreen`.
+- 8.1: migration 3 drops `summary_markdown` and `suggested_tags` (tested from `user_version = 2`); the repository no longer reads or writes them (constants fill the DTO until 8.2); `completeSummary` stores only the note.

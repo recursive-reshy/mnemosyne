@@ -139,20 +139,16 @@ describe( 'findJob', () => {
     expect( job ).not.toHaveProperty( 'transcript' )
   } )
 
-  it( 'returns the summary fields of a stored job', () => {
+  it( 'returns the stored fields of a job', () => {
     const { id } = queueJob( url )
     updateJob( id, {
       title: 'A talk',
-      summary_markdown: '## Summary',
-      suggested_tags: [ 'rust' ],
       expires_at: laterTime.toISOString(),
       saved_path: 'Mnemosyne/A talk.md',
     } )
 
     expect( findJob( id ) ).toMatchObject( {
       title: 'A talk',
-      summary_markdown: '## Summary',
-      suggested_tags: [ 'rust' ],
       expires_at: laterTime.toISOString(),
       saved_path: 'Mnemosyne/A talk.md',
     } )
@@ -399,15 +395,13 @@ describe( 'completeTranscription', () => {
 } )
 
 describe( 'completeSummary', () => {
-  it( 'stores the summary and tags and sets the expiry from the review TTL', () => {
+  it( 'stores the note and sets the expiry from the review TTL', () => {
     const id = queueSummarizing()
 
     const job = completeSummary( id, '## Summary\nText', [ 'rust' ] )
 
     expect( job ).toMatchObject( {
       status: 'ready_for_review',
-      summary_markdown: '## Summary\nText',
-      suggested_tags: [ 'rust' ],
       error: null,
       expires_at: new Date( startTime.getTime() + 24 * 3_600_000 ).toISOString(),
     } )

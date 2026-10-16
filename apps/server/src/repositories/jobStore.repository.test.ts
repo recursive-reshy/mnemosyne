@@ -241,8 +241,6 @@ describe( 'openJobStore and closeJobStore', () => {
       'error',
       'title',
       'transcript',
-      'summary_markdown',
-      'suggested_tags',
       'saved_path',
       'expires_at',
       'created_at',
@@ -320,11 +318,9 @@ describe( 'storage', () => {
     closeJobStore()
   } )
 
-  it( 'round-trips the transcript and every summary field', () => {
+  it( 'round-trips the transcript and every field', () => {
     const job = buildJob( {
       title: transcript.meta.title,
-      summary_markdown: '## Summary\nText',
-      suggested_tags: [ 'machine-learning', 'rust' ],
       expires_at: '2026-10-15T10:00:00.000Z',
       note_markdown: '---\ntitle: "A talk"\n---\n\nText\n',
       target_folder: 'Learning/AI',
@@ -610,7 +606,6 @@ describe( 'migration 2', () => {
     const row = database.prepare( 'SELECT * FROM jobs WHERE id = ?' ).get( 'review' ) as {
       note_markdown: string
       target_folder: string | null
-      summary_markdown: string
     }
     const note = parseNote( row.note_markdown )
 
@@ -624,7 +619,6 @@ describe( 'migration 2', () => {
     } )
     expect( note.body ).toBe( '## Summary\n\nText.\n' )
     expect( row.target_folder ).toBeNull()
-    expect( row.summary_markdown ).toBe( '## Summary\n\nText.\n\n' )
   } )
 
   it( 'leaves summary_failed and saved rows null', () => {
@@ -641,10 +635,11 @@ describe( 'migration 2', () => {
     ] )
   } )
 
-  it( 'records user_version 2', () => {
+  it( 'records the number of migrations as user_version', () => {
     const database = migrate( () => undefined )
 
-    expect( database.pragma( 'user_version', { simple: true } ) ).toBe( 2 )
+    expect( database.pragma( 'user_version', { simple: true } ) )
+      .toBe( jobStoreMigrations.length )
   } )
 
   it( 'rolls back when the backfill fails', () => {
@@ -657,5 +652,108 @@ describe( 'migration 2', () => {
     expect( () => runMigrations( database, jobStoreMigrations ) ).toThrow()
     expect( database.pragma( 'user_version', { simple: true } ) ).toBe( 1 )
     expect( () => database.prepare( 'SELECT note_markdown FROM jobs' ).all() ).toThrow()
+  } )
+} )
+
+describe( 'migration 3', () => {
+  const insertV2 = (
+    database: Database.Database,
+    id: string,
+    status: string,
+    note: string | null,
+  ): void => {
+    database.prepare( `INSERT INTO jobs (
+        id, url, status, title, transcript, summary_markdown, suggested_tags,
+        note_markdown, target_folder, saved_path, created_at, updated_at
+      ) VALUES ( ?, 'https://www.youtube.com/watch?v=abc', ?, 'Video title', NULL,
+        '## Old summary', '["rust"]', ?, 'Learning', 'Mnemosyne/x.md',
+        '2026-10-14T10:00:00.000Z', '2026-10-14T10:00:00.000Z' )` ).run( id, status, note )
+  }
+
+  const upgrade = ( setup: ( database: Database.Database ) => void ): Database.Database => {
+    const database = new Database( ':memory:' )
+
+    runMigrations( database, jobStoreMigrations.slice( 0, 2 ) )
+    setup( database )
+    runMigrations( database, jobStoreMigrations )
+
+    return database
+  }
+
+  const columnNames = ( database: Database.Database ): string[] => {
+    return ( database.pragma( 'table_info(jobs)' ) as { name: string }[] )
+      .map( ( { name } ) => name )
+  }
+
+  it( 'drops summary_markdown and suggested_tags and records user_version 3', () => {
+    const database = upgrade( () => undefined )
+
+    expect( columnNames( database ) ).not.toContain( 'summary_markdown' )
+    expect( columnNames( database ) ).not.toContain( 'suggested_tags' )
+    expect( database.pragma( 'user_version', { simple: true } ) ).toBe( 3 )
+  } )
+
+  it( 'keeps every other column and value, for every status', () => {
+    const database = upgrade( ( db ) => {
+      insertV2( db, 'review', 'ready_for_review', '---\ntitle: "T"\n---\n\nBody\n' )
+      insertV2( db, 'failed', 'summary_failed', null )
+      insertV2( db, 'saved', 'saved', '---\ntitle: "S"\n---\n\nSaved\n' )
+    } )
+
+    const rows = database
+      .prepare( 'SELECT id, status, title, note_markdown, target_folder, saved_path FROM jobs' )
+      .all()
+
+    expect( rows ).toEqual( [
+      {
+        id: 'review',
+        status: 'ready_for_review',
+        title: 'Video title',
+        note_markdown: '---\ntitle: "T"\n---\n\nBody\n',
+        target_folder: 'Learning',
+        saved_path: 'Mnemosyne/x.md',
+      },
+      {
+        id: 'failed',
+        status: 'summary_failed',
+        title: 'Video title',
+        note_markdown: null,
+        target_folder: 'Learning',
+        saved_path: 'Mnemosyne/x.md',
+      },
+      {
+        id: 'saved',
+        status: 'saved',
+        title: 'Video title',
+        note_markdown: '---\ntitle: "S"\n---\n\nSaved\n',
+        target_folder: 'Learning',
+        saved_path: 'Mnemosyne/x.md',
+      },
+    ] )
+  } )
+
+  it( 'rolls back with the rest of the transaction when a later step fails', () => {
+    const database = new Database( ':memory:' )
+    runMigrations( database, jobStoreMigrations.slice( 0, 2 ) )
+
+    expect( () => runMigrations( database, [ ...jobStoreMigrations, 'SELECT * FROM nope' ] ) )
+      .toThrow()
+
+    expect( columnNames( database ) ).toContain( 'summary_markdown' )
+    expect( database.pragma( 'user_version', { simple: true } ) ).toBe( 2 )
+  } )
+
+  it( 'lets jobs be inserted, updated and read on the final table', () => {
+    openJobStore( ':memory:' )
+    const job = buildJob( { note_markdown: 'note', target_folder: 'A' } )
+
+    insertJob( job )
+    updateJob( job.id, { status: 'ready_for_review', note_markdown: 'edited' } )
+
+    expect( findJobById( job.id ) ).toMatchObject( {
+      status: 'ready_for_review',
+      note_markdown: 'edited',
+      target_folder: 'A',
+    } )
   } )
 } )
