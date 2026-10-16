@@ -42,7 +42,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 2.2 | `JobList` on MUI (`List` / `ListItemButton` or `Table`, status and expiry text unchanged); `JobList.module.css` deleted | 0024 | ✅ |
 | 2.3 | `HomePage` layout on MUI (`Stack`, `Typography`); `HomePage.module.css` deleted | 0024 | ✅ |
 | **Phase 3** | **Job** | | |
-| 3.1 | `JobProgress` on MUI (`role="status"` text unchanged; `Stepper` or `LinearProgress` for stages; `Alert` for failures and connection errors); `JobProgress.module.css` deleted | 0024 | ⬜ |
+| 3.1 | `JobProgress` on MUI (`role="status"` text unchanged; `Stepper` or `LinearProgress` for stages; `Alert` for failures and connection errors); `JobProgress.module.css` deleted | 0024 | ✅ |
 | 3.2 | `DownloadLinks` as MUI `Button`s with `href` (still anchors to `/api/jobs/:id/download?format=…`); `DownloadLinks.module.css` deleted | 0024 | ⬜ |
 | 3.3 | `JobPage` alerts on MUI `Alert` | 0024 | ⬜ |
 
@@ -83,3 +83,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 - 2.1: `SubmitForm` on MUI (`TextField`, `Button`, `Alert` keeping its `id`); `SubmitForm.module.css` deleted. Existing tests unchanged; one guard test added (a server error does not set `aria-invalid`), which passes before and after, so there was no red for this task. MUI disables pointer events on disabled buttons, which broke the unchanged "disables the form while submitting" click, so the submit button restores `pointer-events: auto` and `not-allowed` in its `sx` (as 0.3.0 behaved). A theme override did not help because that test renders without the theme. Web 373 tests, lint, typecheck green.
 - 2.2: `JobList` on MUI (`List` / `ListItem`, router link through MUI `Link`, status and expiry as `Typography`); `JobList.module.css` deleted. `JobList.test.tsx` unchanged and green. Web 373 tests, lint, typecheck green.
 - 2.3: `HomePage` layout on MUI (`Stack`; the saved line is an `Alert severity="success" role="status"`); `HomePage.module.css` deleted. `HomePage.test.tsx` unchanged and green. Browser-checked home in light, dark and narrow with a validation error: no clash with the remaining `global.css` base styles. Web 373 tests, lint, typecheck green.
+- 3.1: `JobProgress` on MUI: `Stack` section, `Alert` for failures and connection errors, `Button` for retry, stages as `List component="ol"` of `ListItem`s with state icons (kept `aria-current`, `data-state`, labels). `Stepper` not used: it has no `listitem` roles, so the unchanged tests would not hold. `JobProgress.module.css` deleted; `JobProgress.test.tsx` unchanged and green. Web 373 tests, lint, typecheck green.
