@@ -12,6 +12,8 @@ export const jobFixture = ( overrides: Partial< Job > = {} ): Job => {
     title: null,
     summary_markdown: null,
     suggested_tags: [],
+    note_markdown: null,
+    target_folder: null,
     expires_at: null,
     saved_path: null,
     ...overrides,

@@ -75,6 +75,8 @@ const toPublicJob = ( job: StoredJob ): Job => {
     title: job.title,
     summary_markdown: job.summary_markdown,
     suggested_tags: job.suggested_tags,
+    note_markdown: job.note_markdown,
+    target_folder: job.target_folder,
     expires_at: job.expires_at,
     saved_path: job.saved_path,
   }
@@ -120,6 +122,8 @@ export const queueJob = ( url: string ): Job => {
     title: null,
     summary_markdown: null,
     suggested_tags: [],
+    note_markdown: null,
+    target_folder: null,
     expires_at: null,
     saved_path: null,
     transcript: null,
@@ -178,9 +182,18 @@ export const completeSummary = (
     throw conflict( job.status, 'ready_for_review' )
   }
 
+  const { meta } = getTranscript( id )
+
   return moveTo( job, 'ready_for_review', {
     summary_markdown: summaryMarkdown,
     suggested_tags: suggestedTags,
+    note_markdown: formatNote( {
+      title: job.title ?? meta.title,
+      tags: suggestedTags,
+      body: summaryMarkdown,
+      meta,
+      created: new Date().toISOString().slice( 0, 10 ),
+    } ),
     error: null,
     expires_at: expiryFromNow(),
   } )

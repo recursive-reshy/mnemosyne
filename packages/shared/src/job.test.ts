@@ -13,6 +13,8 @@ const validJob = {
   title: null,
   summary_markdown: null,
   suggested_tags: [],
+  note_markdown: null,
+  target_folder: null,
   expires_at: null,
   saved_path: null,
 }
@@ -74,6 +76,19 @@ describe( 'Job', () => {
     delete withoutError.error
 
     expect( Job.safeParse( withoutError ).success ).toBe( false )
+  } )
+
+  it( 'accepts a note and a target folder once they are set', () => {
+    const drafted = { ...validJob, note_markdown: '---\n---\n', target_folder: 'Learning/AI' }
+
+    expect( Job.safeParse( drafted ).success ).toBe( true )
+  } )
+
+  it.each( [ 'note_markdown', 'target_folder' ] as const )( 'rejects a missing %s', ( key ) => {
+    const without: Partial< typeof validJob > = { ...validJob }
+    delete without[ key ]
+
+    expect( Job.safeParse( without ).success ).toBe( false )
   } )
 
   it( 'accepts summary fields once they are set', () => {

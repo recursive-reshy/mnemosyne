@@ -32,7 +32,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | **Phase 3** | **Server data** | | |
 | 3.1 | Migration runner accepts `string \| ( db ) => void`; migration 1 unchanged; existing repository tests green | 0012, 0021 | ✅ |
 | 3.2 | Migration 2: add `note_markdown`, `target_folder`; backfill `ready_for_review` rows (`summary_failed` / `saved` stay null); tests from a `user_version = 1` DB | 0021 | ✅ |
-| 3.3 | `Job` DTO gains `note_markdown` and `target_folder` (old fields kept for now); repository reads and writes them; `completeSummary` also stores the whole note | 0021 | ⬜ |
+| 3.3 | `Job` DTO gains `note_markdown` and `target_folder` (old fields kept for now); repository reads and writes them; `completeSummary` also stores the whole note | 0021 | ✅ |
 
 ## Checkpoint B: Phase 4 (server vault and drafts)
 **Plan:** ⬜ [`plans/checkpoint-b.md`](plans/checkpoint-b.md)
@@ -94,3 +94,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 - 2.4: server `formatNote` is a wrapper over `serializeNote`; existing formatter tests unchanged and green.
 - 3.1: migration runner (`runMigrations`) accepts SQL strings or functions; migration 1 unchanged.
 - 3.2: migration 2 adds `note_markdown`, `target_folder` and backfills `ready_for_review` rows.
+- 3.3: `Job` gains `note_markdown`, `target_folder`; repository reads/writes them; `completeSummary` stores the whole note.

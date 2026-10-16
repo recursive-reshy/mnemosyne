@@ -112,6 +112,8 @@ describe( 'queueJob', () => {
       title: null,
       summary_markdown: null,
       suggested_tags: [],
+      note_markdown: null,
+      target_folder: null,
       expires_at: null,
       saved_path: null,
     } )
@@ -408,6 +410,21 @@ describe( 'completeSummary', () => {
       error: null,
       expires_at: new Date( startTime.getTime() + 24 * 3_600_000 ).toISOString(),
     } )
+  } )
+
+  it( 'stores the whole note: properties from the transcript, today as created', () => {
+    const id = queueSummarizing()
+
+    const job = completeSummary( id, '## Summary\nText\n\n', [ 'Rust', 'mnemosyne' ] )
+
+    expect( job.note_markdown ).toBe( formatNote( {
+      title: transcript.meta.title,
+      tags: [ 'rust' ],
+      body: '## Summary\nText',
+      meta: transcript.meta,
+      created: '2026-10-14',
+    } ) )
+    expect( job.target_folder ).toBeNull()
   } )
 
   it.each( [ 'queued', 'transcribing', 'failed' ] as const )(

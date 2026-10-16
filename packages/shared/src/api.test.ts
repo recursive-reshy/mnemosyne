@@ -55,6 +55,8 @@ describe( 'GetJobResponse', () => {
     title: null,
     summary_markdown: null,
     suggested_tags: [],
+    note_markdown: null,
+    target_folder: null,
     expires_at: null,
     saved_path: null,
   }
@@ -87,6 +89,8 @@ const jobFields = {
   title: 'A talk',
   summary_markdown: '## Summary',
   suggested_tags: [ 'rust' ],
+  note_markdown: null,
+  target_folder: null,
   expires_at: '2026-10-15T10:00:00.000Z',
   saved_path: null,
 }

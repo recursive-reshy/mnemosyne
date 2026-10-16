@@ -125,6 +125,8 @@ const JobRow = z.object( {
   transcript: z.string().nullable(),
   summary_markdown: z.string().nullable(),
   suggested_tags: z.string(),
+  note_markdown: z.string().nullable(),
+  target_folder: z.string().nullable(),
   saved_path: z.string().nullable(),
   expires_at: z.string().nullable(),
   created_at: z.string(),
@@ -166,10 +168,12 @@ export const insertJob = ( job: StoredJob ): void => {
 
   db.prepare( `INSERT INTO jobs (
       id, url, status, error, title, transcript, summary_markdown,
-      suggested_tags, saved_path, expires_at, created_at, updated_at
+      suggested_tags, note_markdown, target_folder, saved_path, expires_at,
+      created_at, updated_at
     ) VALUES (
       @id, @url, @status, @error, @title, @transcript, @summary_markdown,
-      @suggested_tags, @saved_path, @expires_at, @created_at, @updated_at
+      @suggested_tags, @note_markdown, @target_folder, @saved_path, @expires_at,
+      @created_at, @updated_at
     )` ).run( toRow( job ) )
 }
 
@@ -194,7 +198,8 @@ export const updateJob = (
   requireDatabase().prepare( `UPDATE jobs SET
       url = @url, status = @status, error = @error, title = @title,
       transcript = @transcript, summary_markdown = @summary_markdown,
-      suggested_tags = @suggested_tags, saved_path = @saved_path,
+      suggested_tags = @suggested_tags, note_markdown = @note_markdown,
+      target_folder = @target_folder, saved_path = @saved_path,
       expires_at = @expires_at, created_at = @created_at, updated_at = @updated_at
     WHERE id = @id` ).run( toRow( updated ) )
 

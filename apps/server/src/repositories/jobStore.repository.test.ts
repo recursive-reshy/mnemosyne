@@ -45,6 +45,8 @@ const buildJob = ( overrides: Partial< StoredJob > = {} ): StoredJob => {
     title: null,
     summary_markdown: null,
     suggested_tags: [],
+    note_markdown: null,
+    target_folder: null,
     expires_at: null,
     saved_path: null,
     transcript: null,
@@ -324,6 +326,8 @@ describe( 'storage', () => {
       summary_markdown: '## Summary\nText',
       suggested_tags: [ 'machine-learning', 'rust' ],
       expires_at: '2026-10-15T10:00:00.000Z',
+      note_markdown: '---\ntitle: "A talk"\n---\n\nText\n',
+      target_folder: 'Learning/AI',
       saved_path: 'Mnemosyne/A talk.md',
       transcript,
     } )
