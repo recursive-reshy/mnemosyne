@@ -109,3 +109,5 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 - 6.2: `NoteEditor` (rich text default, own Rich text / Source mode toggle that refuses rich mode while the front-matter does not parse, `onChange` with exactly one trailing newline, initial normalization not reported, `value` applied via `setMarkdown`); jsdom Range stubs for CodeMirror.
 - 6.3: review screen uses `NoteEditor` (panel only in rich mode, flush and adopt on mode change and blur); caret sync is off until 6.4 (`onCaretText` prop exists, not emitted yet).
 - 6.4: caret sync in both modes (rich: block holding the DOM selection; source: CodeMirror active line) via `onCaretText`; `SummaryEditor` removed; web `CLAUDE.md` Stack updated.
+- Follow-up (not in checkpoint E): timestamp click / caret sync not working in a real browser (passes in jsdom).
+- Follow-up: lazy-load NoteEditor (bundle size).
