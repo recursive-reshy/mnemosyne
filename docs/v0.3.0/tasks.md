@@ -69,7 +69,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 6.4 | Caret sync in both modes: source = current line, rich = text of the block holding the selection; transcript scrolls as in 0.2.0. **If MDXEditor's selection can't be read testably, stop and ask.** Remove `SummaryEditor`. Update `apps/web/CLAUDE.md` (Stack: MDXEditor allowed by ADR 0019) | 0019, 0023 | ✅ |
 
 ## Checkpoint E: Phases 7–8 (folder picker, clean-up, verification)
-**Plan:** ⬜ [`plans/checkpoint-e.md`](plans/checkpoint-e.md)
+**Plan:** ✅ [`plans/checkpoint-e.md`](plans/checkpoint-e.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
