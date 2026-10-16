@@ -2,13 +2,14 @@
 import { useState } from 'react'
 import type { ReactElement } from 'react'
 // Packages
+import Alert from '@mui/material/Alert'
+import Stack from '@mui/material/Stack'
 import { useLocation, useNavigate } from 'react-router'
 // App
 import { createJob } from '#src/api/jobs.api'
 import { useJobs } from '#src/hooks/useJobs'
 import { JobList } from '../JobList'
 import { SubmitForm } from '../SubmitForm'
-import styles from './HomePage.module.css'
 
 const readSavedPath = ( state: unknown ): string | null => {
   if( typeof state !== 'object' || state === null || !( 'savedPath' in state ) ) {
@@ -41,9 +42,9 @@ export function HomePage(): ReactElement {
   }
 
   return (
-    <div className={ styles.home }>
+    <Stack spacing={ 2 } sx={ { width: '100%', maxWidth: '40rem' } }>
       { savedPath !== null && (
-        <p className={ styles.saved } role="status">Saved to { savedPath }</p>
+        <Alert severity="success" role="status">Saved to { savedPath }</Alert>
       ) }
       <SubmitForm
         isSubmitting={ isSubmitting }
@@ -51,6 +52,6 @@ export function HomePage(): ReactElement {
         onSubmit={ ( url ) => void handleSubmit( url ) }
       />
       <JobList jobs={ jobs ?? [] } now={ updatedAt } />
-    </div>
+    </Stack>
   )
 }
