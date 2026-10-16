@@ -1,12 +1,22 @@
 // React
-import { useId, useState } from 'react'
+import { useState } from 'react'
 import type { ChangeEvent, KeyboardEvent, ReactElement } from 'react'
+// Packages
+import CloseIcon from '@mui/icons-material/Close'
+import Chip from '@mui/material/Chip'
+import IconButton from '@mui/material/IconButton'
+import Stack from '@mui/material/Stack'
+import TextField from '@mui/material/TextField'
 // Shared
 import { normalizeTag } from '@mnemosyne/shared'
 // App
-import styles from './TagInput.module.css'
 
 const FIXED_TAG = 'mnemosyne'
+
+const LIST_SX = { flexWrap: 'wrap', gap: 1, m: 0, p: 0, listStyle: 'none' } as const
+
+// A real button inside a plain chip: MUI's own delete icon is not reachable by assistive tech.
+const REMOVE_SX = { ml: 0.5, p: 0.25 } as const
 
 interface TagInputProps {
   tags: string[]
@@ -15,7 +25,6 @@ interface TagInputProps {
 
 export function TagInput( { tags, onChange }: TagInputProps ): ReactElement {
   const [ pending, setPending ] = useState( '' )
-  const inputId = useId()
 
   const commit = ( raw: string ): void => {
     const tag = normalizeTag( raw )
@@ -45,32 +54,37 @@ export function TagInput( { tags, onChange }: TagInputProps ): ReactElement {
   }
 
   return (
-    <div className={ styles.field }>
-      <label className={ styles.label } htmlFor={ inputId }>Add tag</label>
-      <ul className={ styles.tags } aria-label="Tags">
-        <li className={ `${ styles.tag } ${ styles.fixed }` }>{ FIXED_TAG }</li>
+    <Stack spacing={ 1 } sx={ { width: '100%' } }>
+      <Stack component="ul" direction="row" useFlexGap aria-label="Tags" sx={ LIST_SX }>
+        <li><Chip label={ FIXED_TAG } variant="outlined" /></li>
         { tags.map( ( tag ) => (
-          <li key={ tag } className={ styles.tag }>
-            { tag }
-            <button
-              type="button"
-              className={ styles.remove }
-              aria-label={ `Remove tag ${ tag }` }
-              onClick={ () => onChange( tags.filter( ( other ) => other !== tag ) ) }
-            >
-              ×
-            </button>
+          <li key={ tag }>
+            <Chip
+              variant="outlined"
+              label={ (
+                <>
+                  { tag }
+                  <IconButton
+                    size="small"
+                    aria-label={ `Remove tag ${ tag }` }
+                    onClick={ () => onChange( tags.filter( ( other ) => other !== tag ) ) }
+                    sx={ REMOVE_SX }
+                  >
+                    <CloseIcon fontSize="inherit" />
+                  </IconButton>
+                </>
+              ) }
+            />
           </li>
         ) ) }
-      </ul>
-      <input
-        id={ inputId }
-        type="text"
+      </Stack>
+      <TextField
+        label="Add tag"
         value={ pending }
         onChange={ handleChange }
         onKeyDown={ handleKeyDown }
         onBlur={ () => commit( pending ) }
       />
-    </div>
+    </Stack>
   )
 }
