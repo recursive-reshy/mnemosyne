@@ -1,5 +1,5 @@
 // Testing Library
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 // Vitest
 import {
@@ -47,7 +47,9 @@ describe( 'NoteDestination', () => {
     const user = userEvent.setup()
 
     await user.click( screen.getByRole( 'button', { name: 'Change folder' } ) )
-    await user.click( screen.getByRole( 'button', { name: 'Learning' } ) )
+    await user.click(
+      within( screen.getByRole( 'treeitem', { name: 'Learning' } ) ).getByText( 'Learning' ),
+    )
 
     expect( onFolderChange ).toHaveBeenCalledExactlyOnceWith( 'Learning' )
   } )

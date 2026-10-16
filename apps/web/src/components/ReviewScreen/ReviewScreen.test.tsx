@@ -286,7 +286,11 @@ describe( 'ReviewScreen destination', () => {
     const user = userEvent.setup()
 
     await user.click( screen.getByRole( 'button', { name: 'Change folder' } ) )
-    await user.click( screen.getByRole( 'button', { name: 'Rust' } ) )
+    screen.getByRole( 'treeitem', { name: 'Learning' } ).focus()
+    await user.keyboard( '{ArrowRight}' )
+    await user.click(
+      within( screen.getByRole( 'treeitem', { name: 'Rust' } ) ).getByText( 'Rust' ),
+    )
 
     await vi.waitFor( () => expect( mockedUpdateDraft ).toHaveBeenCalledExactlyOnceWith(
       reviewJob.id,

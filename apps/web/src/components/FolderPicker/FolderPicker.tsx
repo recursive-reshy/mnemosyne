@@ -1,13 +1,20 @@
 // React
-import { useId, useState } from 'react'
+import { useState } from 'react'
 import type { FormEvent, ReactElement } from 'react'
+// Packages
+import Alert from '@mui/material/Alert'
+import Box from '@mui/material/Box'
+import Button from '@mui/material/Button'
+import Paper from '@mui/material/Paper'
+import Stack from '@mui/material/Stack'
+import TextField from '@mui/material/TextField'
+import Typography from '@mui/material/Typography'
 // Shared
 import { isValidFolderName } from '@mnemosyne/shared'
 import type { FolderNode } from '@mnemosyne/shared'
 // App
 import { filterTree, withExtraFolders } from './treeNodes'
 import { FolderTree } from './FolderTree'
-import styles from './FolderPicker.module.css'
 
 interface FolderPickerProps {
   folders: FolderNode[]
@@ -22,8 +29,6 @@ const NAME_MESSAGE = 'Folder names can\'t be empty, longer than 100 characters, 
 export function FolderPicker(
   { folders, defaultFolder, value, onChange }: FolderPickerProps,
 ): ReactElement {
-  const filterId = useId()
-  const nameId = useId()
   const [ isOpen, setIsOpen ] = useState( false )
   const [ query, setQuery ] = useState( '' )
   const [ name, setName ] = useState( '' )
@@ -57,50 +62,56 @@ export function FolderPicker(
   }
 
   return (
-    <div className={ styles.picker }>
-      <p className={ styles.destination }>
-        Folder: <code>{ chosenPath === '' ? 'Vault root' : chosenPath }</code>
-        <button
-          type="button"
+    <Stack spacing={ 1 } sx={ { width: '100%' } }>
+      <Box sx={ { display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center' } }>
+        <Typography component="span">
+          Folder: <code>{ chosenPath === '' ? 'Vault root' : chosenPath }</code>
+        </Typography>
+        <Button
+          size="small"
+          variant="outlined"
           aria-expanded={ isOpen }
           onClick={ () => setIsOpen( !isOpen ) }
         >
           Change folder
-        </button>
-      </p>
+        </Button>
+      </Box>
       { isOpen && (
-        <div className={ styles.panel }>
-          <label className={ styles.label } htmlFor={ filterId }>Filter folders</label>
-          <input
-            id={ filterId }
-            type="text"
-            value={ query }
-            onChange={ ( event ) => setQuery( event.target.value ) }
-          />
-          <button
-            type="button"
-            className={ styles.folder }
-            aria-pressed={ chosenPath === '' }
-            onClick={ () => handleSelect( '' ) }
-          >
-            Vault root
-          </button>
-          { visible.length === 0
-            ? <p>No folders match</p>
-            : <FolderTree nodes={ visible } chosenPath={ chosenPath } onSelect={ handleSelect } /> }
-          <form className={ styles.create } onSubmit={ handleCreate }>
-            <label className={ styles.label } htmlFor={ nameId }>New folder name</label>
-            <input
-              id={ nameId }
-              type="text"
-              value={ name }
-              onChange={ ( event ) => setName( event.target.value ) }
+        <Paper variant="outlined" sx={ { p: 1 } }>
+          <Stack spacing={ 1 }>
+            <TextField
+              label="Filter folders"
+              size="small"
+              value={ query }
+              onChange={ ( event ) => setQuery( event.target.value ) }
             />
-            <button type="submit">New folder</button>
-          </form>
-          { message !== null && <p className="alert" role="alert">{ message }</p> }
-        </div>
+            <FolderTree
+              nodes={ visible }
+              chosenPath={ chosenPath }
+              newestPath={ added.at( -1 ) ?? null }
+              isFiltering={ query.trim() !== '' }
+              onSelect={ handleSelect }
+            />
+            { visible.length === 0 && <Typography>No folders match</Typography> }
+            <Stack
+              component="form"
+              direction="row"
+              spacing={ 1 }
+              sx={ { alignItems: 'flex-start' } }
+              onSubmit={ handleCreate }
+            >
+              <TextField
+                label="New folder name"
+                size="small"
+                value={ name }
+                onChange={ ( event ) => setName( event.target.value ) }
+              />
+              <Button type="submit" variant="outlined">New folder</Button>
+            </Stack>
+            { message !== null && <Alert severity="error">{ message }</Alert> }
+          </Stack>
+        </Paper>
       ) }
-    </div>
+    </Stack>
   )
 }
