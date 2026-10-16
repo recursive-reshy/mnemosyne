@@ -2,9 +2,10 @@
 
 ## Plans
 
-Each version has its own folder. The current version is 0.3.0.
+Each version has its own folder. The current version is 0.3.1.
 
-- **v0.3.0:** [PRD](v0.3.0/prd.md) · [TRD](v0.3.0/trd.md) · [Tasks](v0.3.0/tasks.md) · [Release notes](v0.3.0/release-notes.md) · checkpoint plans in `v0.3.0/plans/`
+- **v0.3.1:** [PRD](v0.3.1/prd.md) · [TRD](v0.3.1/trd.md) · [Tasks](v0.3.1/tasks.md) · checkpoint plans in `v0.3.1/plans/`
+- **v0.3.0 (done):** [PRD](v0.3.0/prd.md) · [TRD](v0.3.0/trd.md) · [Tasks](v0.3.0/tasks.md) · [Release notes](v0.3.0/release-notes.md) · checkpoint plans in `v0.3.0/plans/`
 - **v0.2.0 (done):** [PRD](v0.2.0/prd.md) · [TRD](v0.2.0/trd.md) · [Tasks](v0.2.0/tasks.md) · checkpoint plans in `v0.2.0/plans/`
 - **v0.1.0 (done):** [Server](v0.1.0/implementation-server.md) · [Web](v0.1.0/implementation-web.md)
 
@@ -24,7 +25,7 @@ Each significant decision is recorded as a short ADR (Architecture Decision Reco
 | [0008](decisions/0008-zod-for-validation-and-contracts.md) | Zod for validation and contracts | Accepted |
 | [0009](decisions/0009-code-style-and-eslint.md) | Code style enforced by ESLint, check-only | Accepted |
 | [0010](decisions/0010-typescript-6-for-eslint.md) | TypeScript 6 until typescript-eslint supports TypeScript 7 | Accepted |
-| [0011](decisions/0011-web-stack.md) | Web app: Vite, React, plain CSS, hand-written polling | Partly superseded by 0013 |
+| [0011](decisions/0011-web-stack.md) | Web app: Vite, React, plain CSS, hand-written polling | Partly superseded by 0013, 0024 |
 | [0012](decisions/0012-sqlite-job-store.md) | SQLite job store with better-sqlite3 | Accepted |
 | [0013](decisions/0013-tanstack-query-react-router.md) | TanStack Query and React Router | Accepted |
 | [0014](decisions/0014-claude-summarizer.md) | Summaries with the Claude API, called from the server | Accepted |
@@ -37,6 +38,8 @@ Each significant decision is recorded as a short ADR (Architecture Decision Reco
 | [0021](decisions/0021-note-as-one-markdown-string.md) | The draft is the whole note as one Markdown string | Accepted |
 | [0022](decisions/0022-vault-wide-folder-picker.md) | Vault-wide folder picker, writes confined to the vault | Accepted |
 | [0023](decisions/0023-mdxeditor-round-trip-contract.md) | MDXEditor round-trip contract | Accepted |
+| [0024](decisions/0024-material-ui-single-ui-library.md) | Material UI as the single UI library | Accepted |
+| [0025](decisions/0025-app-shell-drawer-and-colour-mode.md) | App shell: navigation drawer and colour mode | Accepted |
 
 ## Template for new ADRs
 

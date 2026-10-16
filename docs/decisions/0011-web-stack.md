@@ -1,6 +1,6 @@
 # 0011. Web app: Vite, React, plain CSS, hand-written polling
 
-- Status: Accepted; Superseded in part by 0013 (data fetching, routing)
+- Status: Accepted; Superseded in part by 0013 (data fetching, routing) and 0024 (styling)
 - Date: 2026-10-14
 
 ## Context

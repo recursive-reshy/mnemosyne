@@ -1,6 +1,6 @@
 # 0024. Material UI as the single UI library
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-16
 
 ## Context

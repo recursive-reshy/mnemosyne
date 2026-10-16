@@ -1,6 +1,6 @@
 # 0025. App shell: navigation drawer and colour mode
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-16
 
 ## Context

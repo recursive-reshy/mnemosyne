@@ -25,7 +25,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
 | **Phase 1** | **Foundation** | | |
-| 1.1 | `docs/README.md`: v0.3.1 is current (v0.3.0 marked done); add ADRs 0024 and 0025 to the index as Accepted (and set their Status lines); mark 0011 "Partly superseded by 0013, 0024" in the index and in its file. | 0024, 0025 | ⬜ |
+| 1.1 | `docs/README.md`: v0.3.1 is current (v0.3.0 marked done); add ADRs 0024 and 0025 to the index as Accepted (and set their Status lines); mark 0011 "Partly superseded by 0013, 0024" in the index and in its file. | 0024, 0025 | ✅ |
 | 1.2 | Add `@mui/material`, `@emotion/react`, `@emotion/styled`, `@mui/icons-material`, `@mui/x-tree-view` (check APIs and React 19 support with Context7 first). `test-support/setup.ts` gets a `matchMedia` stub (wide window, light OS by default, overridable) | 0024 | ⬜ |
 | 1.3 | `theme.ts`: CSS variables, light and dark schemes seeded from `global.css`, radius and font; `main.tsx` wraps the app in `ThemeProvider` (`defaultMode="system"`) and `CssBaseline`, plus `InitColorSchemeScript` if Context7 says it's needed. `renderWithClient` / `renderHookWithClient` wrap in the same theme. Every existing test stays green | 0024 | ⬜ |
 | 1.4 | `useNavDrawer`: default expanded, toggle, persisted to `mnemosyne:nav-drawer` inside try/catch, bad values and blocked storage fall back to the default | 0025 | ⬜ |
@@ -74,3 +74,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 
 ## Log
 
+- 1.1: docs only. README current version 0.3.1, ADRs 0024 and 0025 indexed as Accepted, 0011 marked partly superseded by 0024. No code, so no tests.
