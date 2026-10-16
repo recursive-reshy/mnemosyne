@@ -4,6 +4,7 @@ import type { ReactElement } from 'react'
 // Packages
 import { MDXEditor, toolbarPlugin } from '@mdxeditor/editor'
 import type { MDXEditorMethods } from '@mdxeditor/editor'
+import { useColorScheme } from '@mui/material/styles'
 import '@mdxeditor/editor/style.css'
 // App
 import { richBlockText, sourceLineText } from './caretText'
@@ -25,6 +26,7 @@ const withOneNewline = ( markdown: string ): string => `${ markdown.replace( /\n
 export function NoteEditor(
   { value, onChange, onModeChange, onBlur, onCaretText }: NoteEditorProps,
 ): ReactElement {
+  const { colorScheme } = useColorScheme()
   const editor = useRef< MDXEditorMethods >( null )
   const container = useRef< HTMLDivElement >( null )
   const held = useRef( value )
@@ -98,6 +100,7 @@ export function NoteEditor(
         toMarkdownOptions={ noteMarkdownOptions }
         onChange={ handleChange }
         onBlur={ onBlur }
+        className={ colorScheme === 'dark' ? 'noteEditor dark-theme' : 'noteEditor' }
         contentEditableClassName={ styles.content }
       />
     </div>

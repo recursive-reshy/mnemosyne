@@ -20,4 +20,22 @@ describe( 'theme', () => {
     expect( theme.shape.borderRadius ).toBe( 8 )
     expect( theme.typography.fontFamily ).toContain( 'system-ui' )
   } )
+
+  it( 'maps the note editor colours to the palette, for the editor and its popups', () => {
+    const baseline = theme.components?.MuiCssBaseline?.styleOverrides
+    const overrides = typeof baseline === 'function' ? baseline( theme ) : baseline
+
+    expect( overrides ).toMatchObject( {
+      '.noteEditor': {
+        '--basePageBg': theme.vars.palette.background.paper,
+        '--baseBorder': theme.vars.palette.divider,
+        '--accentSolid': theme.vars.palette.primary.main,
+        // The source-mode editor (CodeMirror) ignores MDXEditor's variables.
+        '& .cm-editor': {
+          backgroundColor: theme.vars.palette.background.paper,
+          color: theme.vars.palette.text.primary,
+        },
+      },
+    } )
+  } )
 } )

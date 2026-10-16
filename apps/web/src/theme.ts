@@ -34,6 +34,30 @@ export const theme = createTheme( {
     },
   },
   shape: { borderRadius: 8 },
+  components: {
+    MuiCssBaseline: {
+      // MDXEditor puts its class on the editor and on its popups (which sit under <body>), so a
+      // rule here reaches both; variables set on the wrapper's sx would not reach the popups.
+      styleOverrides: ( theme ) => ( {
+        '.noteEditor': {
+          '--basePageBg': theme.vars.palette.background.paper,
+          '--baseText': theme.vars.palette.text.secondary,
+          '--baseTextContrast': theme.vars.palette.text.primary,
+          '--baseBorder': theme.vars.palette.divider,
+          '--accentSolid': theme.vars.palette.primary.main,
+          '--accentText': theme.vars.palette.primary.main,
+          // The source-mode editor (CodeMirror) ignores MDXEditor's variables.
+          '& .cm-editor': {
+            backgroundColor: theme.vars.palette.background.paper,
+            color: theme.vars.palette.text.primary,
+          },
+          '& .cm-gutters': { color: theme.vars.palette.text.secondary },
+          '& .cm-activeLineGutter': { backgroundColor: 'transparent' },
+          '& .cm-cursor': { borderLeftColor: theme.vars.palette.text.primary },
+        },
+      } ),
+    },
+  },
   typography: {
     fontFamily: 'system-ui, -apple-system, \'Segoe UI\', Roboto, sans-serif',
   },
