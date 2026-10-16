@@ -1,6 +1,6 @@
 # 0021. The draft is the whole note as one Markdown string
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-16
 
 ## Context

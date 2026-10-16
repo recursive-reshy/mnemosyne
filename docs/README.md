@@ -2,9 +2,10 @@
 
 ## Plans
 
-Each version has its own folder. The current version is 0.2.0.
+Each version has its own folder. The current version is 0.3.0.
 
-- **v0.2.0:** [PRD](v0.2.0/prd.md) · [TRD](v0.2.0/trd.md) · [Tasks](v0.2.0/tasks.md) · checkpoint plans in `v0.2.0/plans/`
+- **v0.3.0:** [PRD](v0.3.0/prd.md) · [TRD](v0.3.0/trd.md) · [Tasks](v0.3.0/tasks.md) · checkpoint plans in `v0.3.0/plans/`
+- **v0.2.0 (done):** [PRD](v0.2.0/prd.md) · [TRD](v0.2.0/trd.md) · [Tasks](v0.2.0/tasks.md) · checkpoint plans in `v0.2.0/plans/`
 - **v0.1.0 (done):** [Server](v0.1.0/implementation-server.md) · [Web](v0.1.0/implementation-web.md)
 
 ## Architecture decisions
@@ -28,9 +29,13 @@ Each significant decision is recorded as a short ADR (Architecture Decision Reco
 | [0013](decisions/0013-tanstack-query-react-router.md) | TanStack Query and React Router | Accepted |
 | [0014](decisions/0014-claude-summarizer.md) | Summaries with the Claude API, called from the server | Accepted |
 | [0015](decisions/0015-transcript-lifecycle.md) | Transcript lifecycle: reviewed, then deleted | Accepted |
-| [0016](decisions/0016-local-drafts.md) | Review edits drafted in localStorage | Accepted |
+| [0016](decisions/0016-local-drafts.md) | Review edits drafted in localStorage | Superseded by 0020 |
 | [0017](decisions/0017-commit-docs-and-claude-md.md) | Commit docs/ and the CLAUDE.md files | Accepted |
 | [0018](decisions/0018-spec-driven-workflow.md) | Spec-driven workflow with checkpoints | Accepted |
+| [0019](decisions/0019-mdxeditor-note-editor.md) | MDXEditor for the note editor | Accepted |
+| [0020](decisions/0020-server-side-drafts.md) | Server-side drafts | Accepted |
+| [0021](decisions/0021-note-as-one-markdown-string.md) | The draft is the whole note as one Markdown string | Accepted |
+| [0022](decisions/0022-vault-wide-folder-picker.md) | Vault-wide folder picker, writes confined to the vault | Accepted |
 
 ## Template for new ADRs
 

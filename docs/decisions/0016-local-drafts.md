@@ -1,6 +1,6 @@
 # 0016. Review edits drafted in localStorage
 
-- Status: Accepted
+- Status: Superseded by 0020
 - Date: 2026-10-15
 
 ## Context

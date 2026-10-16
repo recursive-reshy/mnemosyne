@@ -1,6 +1,6 @@
 # 0022. Vault-wide folder picker, writes confined to the vault
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-16
 
 ## Context
