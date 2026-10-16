@@ -18,6 +18,8 @@ type Mode = 'light' | 'dark' | 'system'
 
 const GROUP_LABEL = 'Colour mode'
 
+const TOGGLE_SX = { gap: 0.5, px: 0.5, fontSize: '0.75rem' } as const
+
 const CHOICES = [
   { mode: 'light', label: 'Light', icon: <LightModeIcon fontSize="small" /> },
   { mode: 'dark', label: 'Dark', icon: <DarkModeIcon fontSize="small" /> },
@@ -86,7 +88,7 @@ export function ColorModeControl( { isCollapsed }: ColorModeControlProps ): Reac
       } }
     >
       { CHOICES.map( ( { mode: choice, label, icon } ) => (
-        <ToggleButton key={ choice } value={ choice } sx={ { gap: 0.5 } }>
+        <ToggleButton key={ choice } value={ choice } sx={ TOGGLE_SX }>
           { icon }
           { label }
         </ToggleButton>
