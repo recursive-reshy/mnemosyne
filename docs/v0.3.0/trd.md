@@ -2,7 +2,7 @@
 
 Companion to `docs/v0.3.0/prd.md`. The PRD says what; this says how. Where an ADR referenced in `tasks.md` conflicts with this document, the ADR wins until Naresh updates the TRD.
 
-Written against the 0.2.0 code at commit `91aafff`. Names below are the real ones in the repo; "new" marks anything that doesn't exist yet.
+Written against the 0.2.0 code at commit `91aafff`. Updated after release to match ADR 0023 (§5.1, §6.1, §6.2, §6.6, §8, §10); the rest is as planned. Names below are the real ones in the repo; "new" marks anything that doesn't exist yet.
 
 ## 1. Changes at a glance
 - **Shared:** a note module (parse, serialize, locked fields) built on the `yaml` package; folder-path validation; `Job` loses `summary_markdown` / `suggested_tags` and gains `note_markdown` / `target_folder`; new draft and folder schemas; `SaveJobBody` removed.
@@ -79,6 +79,8 @@ Removed: `SaveJobBody` (save takes no body). `SaveJobResponse` unchanged.
 ### 5.1 Summary completion
 `completeSummary` builds the note with `serializeNote` (title from the transcript, tags from the cleaned summary, locked fields from `meta`, `created` = today, body from `summary.formatter`) and stores it in `note_markdown`.
 
+- Since ADR 0023, `summary.formatter` writes plain (non-YouTube) timestamps as `(12:34)` instead of `[12:34]`, so the editor has nothing to escape. Notes written before 0.3.0 keep the old form.
+
 ### 5.2 Draft update (`updateDraft` in `jobs.service.ts`, new)
 For `PATCH /api/jobs/:id/draft`:
 1. 409 unless the job is `ready_for_review`.
@@ -128,12 +130,18 @@ Everything else is unchanged.
 ## 6. Web
 
 ### 6.1 Note editor (`components/NoteEditor`, new; replaces `SummaryEditor`)
-- MDXEditor with `diffSourcePlugin` (rich text ↔ source toggle, rich text by default), `frontmatterPlugin`, headings, lists, quotes, links, `markdownShortcutPlugin`, and a toolbar with the mode toggle.
+- MDXEditor with `diffSourcePlugin` (rich text by default, source mode on demand), `frontmatterPlugin`, headings, lists, quotes, links, rules, `codeBlockPlugin` + `codeMirrorPlugin`, and `markdownShortcutPlugin`.
+- The mode switch is our own `ModeToggle`, not MDXEditor's toggle wrapper. It refuses rich mode while the front-matter doesn't parse (MDXEditor's front-matter node crashes on invalid YAML) and shows an alert instead.
 - In **rich mode**, MDXEditor's own front-matter editor is hidden; the `PropertiesPanel` (§6.2) is the only way to edit properties. In **source mode**, the full note including YAML is shown.
-- The editor's value is the full `note_markdown`. The component exposes `onChange( markdown )` and `onModeChange( mode )`.
-- **Round-trip is a hard requirement** (§8). If MDXEditor can't round-trip the fixtures (escaping `[[`, rewriting `*` bullets, adding blank lines), stop and ask before working around it.
+- The editor's value is the full `note_markdown`. The component exposes `onChange( markdown )` and `onModeChange( mode )`, and `onChange` always ends the note with exactly one `\n`.
+- **Round-trip contract (ADR 0023, replacing "byte-identical"):** loading and exporting a note may normalize it once; export → load → export is then identical. Wikilinks, timestamps (both forms), front-matter, quotes and links survive exactly.
+  - `[[Note]]` and `[[Note|alias]]` are written verbatim by a local to-markdown `text` handler (`wikilinkMarkdown.ts`); in rich mode they show as plain text.
+  - `toMarkdownOptions` uses `bullet: '-'` and `rule: '-'`, so a `*` bullet typed in source mode becomes `-`.
+  - Markdown MDXEditor can't import (tables, images, HTML, JSX) makes it report an error; `NoteEditor` treats that as "use source mode", never as a successful round-trip.
+  - Anything else MDXEditor escapes or rewrites needs a decision before it's worked around.
 
 ### 6.2 Properties panel (`components/PropertiesPanel`, new)
+- Shown above the editor in rich mode only (source mode shows the YAML itself).
 - Reads properties with `parseNote( noteMarkdown )`; on change, writes them back with `serializeNote` and calls the same `onChange` as the editor.
 - Title: text field (replaces `TitleField`). Tags: the existing `TagInput` (`mnemosyne` fixed). Source, channel, duration, created: read-only text, with `created` shown as "on save".
 - If the note doesn't parse (invalid YAML from source mode), the panel shows "front-matter invalid" and disables its fields until it parses again.
@@ -160,7 +168,8 @@ Everything else is unchanged.
 0.2.0 reads the textarea's current line. Re-do it for both modes:
 - Source mode: the current line of the source editor.
 - Rich mode: the text content of the block containing the selection.
-In both, find a timestamp in that text and scroll the transcript as before (existing `timestamp.ts` parsing). If MDXEditor doesn't expose selection in a testable way, stop and ask.
+In both, find a timestamp in that text and scroll the transcript as before. `parseTimestampSeconds` accepts a bare `h:mm:ss` / `mm:ss` as well as `[12:34]`, because in rich mode a YouTube timestamp's text is just `12:34`.
+- **Known issue at release:** caret sync passes its jsdom tests in both modes but doesn't work in a real browser. Logged as a follow-up. If MDXEditor doesn't expose selection in a testable way, stop and ask.
 
 ## 7. Removed
 - `SummaryEditor`, `TitleField`, `useDraft` (+ tests), `SaveJobBody`, `NOTES_FOLDER`.
@@ -170,7 +179,7 @@ In both, find a timestamp in that text and scroll the transcript as before (exis
 - **Shared:** `parseNote` / `serializeNote` (round-trip byte-identical, 0.2.0 front-matter layout pinned, invalid YAML throws, missing front-matter throws); `applyLockedProperties` (overwrites source/channel/duration/created, re-adds and orders `mnemosyne`, normalizes and dedupes tags); `isValidFolderName` and `parseFolderPath` (each rejected character, `.`/`..`, leading dot, empty segments, leading/trailing `/`, `''` = root).
 - **Server unit:** migrations 2 and 3 (§4.2); `updateDraft` (title sync, locked fields, expiry bump, 409, 400); `resolveFolder` against a temp vault (`..`, absolute, a symlink to outside the vault, a symlinked ancestor, nested create); folder listing (dot-folders and symlinks skipped, sorted); `saveJob` to a chosen folder, to the default, and with a stale invalid folder.
 - **Server routes (Supertest):** `PATCH /draft` 200/400/404/409, `POST /save` with no body, `GET /api/vault/folders`.
-- **Web:** `NoteEditor` round-trip on real 0.2.0 summaries plus fixtures with `[[wikilinks]]`, `*` and `-` bullets, `> quotes` with timestamp links, and front-matter; mode toggle preserves text. `PropertiesPanel` ↔ YAML sync and the invalid-YAML state. `FolderPicker` filter, new folder validation, default selection. `useAutosaveDraft` with fake timers (debounce, flushes, one in flight, latest wins, 400 keeps text, cache update). Caret sync in both modes.
+- **Web:** `NoteEditor` against the ADR 0023 contract on seven fixtures (real 0.2.0 summaries, `[[wikilinks]]`, `*` and `-` bullets, quotes with timestamp links, code blocks, rules, front-matter): export is idempotent, and any MDXEditor import error fails the test. Mode toggle preserves text and refuses rich mode on invalid YAML. `PropertiesPanel` ↔ YAML sync and the invalid-YAML state. `FolderPicker` filter, new folder validation, default selection. `useAutosaveDraft` with fake timers (debounce, flushes, one in flight, latest wins, 400 keeps text, cache update). Caret sync in both modes.
 - MDXEditor in jsdom may need extra setup (e.g. `ResizeObserver`, `Range` stubs). If it can't be made to render in jsdom, test round-trip through MDXEditor's Markdown import/export utilities and stop and ask before skipping editor tests.
 - **Manual checklist** at the last checkpoint: a real video → edit in both modes → new nested folder → reload mid-edit → open in a second browser → save → note in the right folder and opens cleanly in Obsidian; run the migrations against a copy of the real 0.2.0 database.
 
@@ -191,6 +200,7 @@ Suggested checkpoints: **A** = phases 1–3, **B** = phase 4, **C** = phase 5, *
 - 0020 Server-side drafts (supersedes 0016)
 - 0021 The draft is the whole note as one Markdown string
 - 0022 Vault-wide folder picker, writes confined to the vault
+- 0023 MDXEditor round-trip contract (added during Checkpoint D; amends 0019)
 
 ## 11. Open questions
 None.

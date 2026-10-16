@@ -46,8 +46,8 @@ As a user, I want to choose where a note goes so I don't have to file it afterwa
 As a user, I want to edit the summary the way I edit notes in Obsidian.
 - [ ] The editor opens in a rendered (WYSIWYG) view: headings, lists, links, bold, quotes and timestamps look like they will in Obsidian.
 - [ ] A toggle switches to source mode showing the raw Markdown of the whole note, front-matter included, and back. Edits made in either mode show in the other.
-- [ ] Switching modes, or loading and saving without edits, does not change the note's Markdown (no reformatted bullets, escaped characters, extra blank lines, or escaped `[[wikilinks]]`).
-- [ ] Placing the cursor on a timestamp scrolls the transcript to that point, in both modes (as in 0.2.0).
+- [ ] Opening a note may tidy it once (`-` for bullets and rules, one trailing newline); after that, switching modes or saving without edits doesn't change it. `[[wikilinks]]`, timestamps, front-matter, quotes and links are never escaped or rewritten (ADR 0023).
+- [ ] Placing the cursor on a timestamp scrolls the transcript to that point, in both modes (as in 0.2.0). *Known issue at release: works in tests, not yet in a real browser.*
 
 ### 6.3 Properties panel
 As a user, I want the note's front-matter shown as fields, like Obsidian's Properties.
@@ -70,7 +70,7 @@ As a user, I want my review edits saved without thinking about it.
 - [ ] Autosave replaces the 0.2.0 localStorage drafts.
 
 ## 7. Note format
-Unchanged from 0.2.0 (front-matter + summary, key points, quotes). The difference is that the stored draft is now the whole note, front-matter included. `created` is the date the note is saved to the vault.
+Unchanged from 0.2.0 (front-matter + summary, key points, quotes), except that timestamps for non-YouTube sources are written as `(12:34)` instead of `[12:34]`. The difference is that the stored draft is now the whole note, front-matter included. `created` is the date the note is saved to the vault.
 
 ## 8. Constraints
 - Single user, local, as before.
