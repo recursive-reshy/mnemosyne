@@ -1,0 +1,160 @@
+// React
+import { useEffect, useRef, useState } from 'react'
+// Packages
+import { useQueryClient } from '@tanstack/react-query'
+// Shared
+import type { Job, UpdateDraftBody } from '@mnemosyne/shared'
+// App
+import { updateDraft } from '../api/jobs.api'
+import { jobKeys } from './queryKeys'
+
+export const AUTOSAVE_DEBOUNCE_MS = 1500
+
+export type AutosaveStatus = 'saved' | 'saving' | 'unsaved' | 'error'
+
+export interface AutosaveState {
+  note: string
+  folder: string | null
+  setNote: ( note: string ) => void
+  setFolder: ( folder: string | null ) => void
+  flush: () => Promise< boolean >
+  status: AutosaveStatus
+  message: string | null
+  adoptServerNote: () => void
+}
+
+interface Values {
+  note: string
+  folder: string | null
+}
+
+export function useAutosaveDraft( job: Job ): AutosaveState {
+  const queryClient = useQueryClient()
+  const initial: Values = { note: job.note_markdown ?? '', folder: job.target_folder }
+  const [ values, setValues ] = useState< Values >( initial )
+  const [ status, setStatus ] = useState< AutosaveStatus >( 'saved' )
+  const [ message, setMessage ] = useState< string | null >( null )
+
+  const latest = useRef< Values >( initial )
+  const sent = useRef< Values >( initial )
+  const serverNote = useRef< string | null >( null )
+  const timer = useRef< ReturnType< typeof setTimeout > | undefined >( undefined )
+  const inFlight = useRef< Promise< boolean > | null >( null )
+  const flushRef = useRef< () => Promise< boolean > >( () => Promise.resolve( true ) )
+
+  const isDirty = (): boolean => {
+    return latest.current.note !== sent.current.note
+      || latest.current.folder !== sent.current.folder
+  }
+
+  const run = async (): Promise< boolean > => {
+    while( isDirty() ) {
+      const { note, folder } = latest.current
+      const body: UpdateDraftBody = {}
+
+      if( note !== sent.current.note ) {
+        body.note_markdown = note
+      }
+
+      if( folder !== sent.current.folder ) {
+        body.target_folder = folder
+      }
+
+      setStatus( 'saving' )
+
+      try {
+        const updated = await updateDraft( job.id, body )
+
+        sent.current = { note, folder }
+        serverNote.current = updated.note_markdown
+        queryClient.setQueryData( jobKeys.detail( job.id ), updated )
+      } catch( error ) {
+        setStatus( 'error' )
+        setMessage( error instanceof Error ? error.message : 'Unexpected error' )
+
+        return false
+      }
+    }
+
+    setStatus( 'saved' )
+    setMessage( null )
+
+    return true
+  }
+
+  const flush = async (): Promise< boolean > => {
+    clearTimeout( timer.current )
+
+    if( inFlight.current !== null ) {
+      // The running loop re-reads the latest values; wait for it, then check once more.
+      const ok = await inFlight.current
+
+      return ok && isDirty() ? flush() : ok
+    }
+
+    inFlight.current = run().finally( () => {
+      inFlight.current = null
+    } )
+
+    return inFlight.current
+  }
+
+  useEffect( () => {
+    flushRef.current = flush
+  } )
+
+  const scheduleFlush = (): void => {
+    clearTimeout( timer.current )
+    timer.current = setTimeout( () => void flushRef.current(), AUTOSAVE_DEBOUNCE_MS )
+  }
+
+  const setNote = ( note: string ): void => {
+    latest.current = { ...latest.current, note }
+    setValues( latest.current )
+
+    if( inFlight.current === null ) {
+      setStatus( isDirty() ? 'unsaved' : 'saved' )
+    }
+
+    scheduleFlush()
+  }
+
+  const setFolder = ( folder: string | null ): void => {
+    latest.current = { ...latest.current, folder }
+    setValues( latest.current )
+    void flush()
+  }
+
+  const adoptServerNote = (): void => {
+    const note = serverNote.current
+
+    if( note === null || isDirty() || inFlight.current !== null || note === latest.current.note ) {
+      return
+    }
+
+    latest.current = { ...latest.current, note }
+    sent.current = { ...sent.current, note }
+    setValues( latest.current )
+  }
+
+  useEffect( () => {
+    return () => {
+      clearTimeout( timer.current )
+
+      if( isDirty() ) {
+        void flushRef.current()
+      }
+    }
+  }, [] )
+
+  return {
+    note: values.note,
+    folder: values.folder,
+    setNote,
+    setFolder,
+    flush,
+    status,
+    message,
+    adoptServerNote,
+  }
+}
