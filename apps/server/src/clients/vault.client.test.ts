@@ -5,7 +5,10 @@ import {
   mkdtemp,
   readFile,
   readdir,
+  realpath,
   rm,
+  stat,
+  symlink,
   writeFile,
 } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -19,7 +22,9 @@ import {
   afterEach,
 } from 'vitest'
 // Clients
-import { assertVaultWritable, writeNote } from './vault.client.js'
+import { assertVaultWritable, resolveFolder, writeNote } from './vault.client.js'
+// Errors
+import { ValidationError } from '../errors.js'
 
 const isRoot = process.getuid?.() === 0
 
@@ -81,6 +86,80 @@ describe( 'writeNote', () => {
     expect( await readdir( join( vault, 'Mnemosyne' ) ) ).toEqual( [] )
 
     await chmod( join( vault, 'Mnemosyne' ), 0o755 )
+  } )
+} )
+
+describe( 'resolveFolder', () => {
+  let outside: string
+
+  beforeEach( async () => {
+    vault = await realpath( vault )
+    outside = await mkdtemp( join( tmpdir(), 'mnemosyne-outside-' ) )
+  } )
+
+  afterEach( async () => {
+    await rm( outside, { recursive: true, force: true } )
+  } )
+
+  it( 'creates nested folders and returns the absolute path', async () => {
+    const folder = await resolveFolder( vault, 'A/B/C' )
+
+    expect( folder ).toBe( join( vault, 'A', 'B', 'C' ) )
+    expect( ( await stat( folder ) ).isDirectory() ).toBe( true )
+  } )
+
+  it( 'returns the vault itself for the root', async () => {
+    await expect( resolveFolder( vault, '' ) ).resolves.toBe( vault )
+  } )
+
+  it( 'reuses an existing folder', async () => {
+    await mkdir( join( vault, 'Learning' ) )
+    await writeFile( join( vault, 'Learning', 'keep.md' ), 'x' )
+
+    await resolveFolder( vault, 'Learning' )
+
+    expect( await readdir( join( vault, 'Learning' ) ) ).toEqual( [ 'keep.md' ] )
+  } )
+
+  it.each( [ '..', '../x', 'a/../../x', '/etc', '/a', 'a/', '.obsidian', 'a//b' ] )(
+    'rejects %j and creates nothing',
+    async ( folder ) => {
+      await expect( resolveFolder( vault, folder ) ).rejects.toThrow( ValidationError )
+
+      expect( await readdir( vault ) ).toEqual( [] )
+      expect( await readdir( outside ) ).toEqual( [] )
+    },
+  )
+
+  it( 'rejects a symlink that points outside the vault', async () => {
+    await symlink( outside, join( vault, 'link' ) )
+
+    await expect( resolveFolder( vault, 'link' ) ).rejects.toThrow( ValidationError )
+  } )
+
+  it( 'rejects a new folder below a symlinked ancestor that points outside', async () => {
+    await symlink( outside, join( vault, 'link' ) )
+
+    await expect( resolveFolder( vault, 'link/new/deeper' ) ).rejects.toThrow( ValidationError )
+    expect( await readdir( outside ) ).toEqual( [] )
+  } )
+
+  it( 'allows a symlink that points to another folder inside the vault', async () => {
+    await mkdir( join( vault, 'real' ) )
+    await symlink( join( vault, 'real' ), join( vault, 'alias' ) )
+
+    await expect( resolveFolder( vault, 'alias/sub' ) )
+      .resolves.toBe( join( vault, 'real', 'sub' ) )
+  } )
+
+  it( 'rejects a sibling folder that merely shares the vault name as a prefix', async () => {
+    const sibling = `${ vault }-sibling`
+    await mkdir( sibling )
+    await symlink( sibling, join( vault, 'link' ) )
+
+    await expect( resolveFolder( vault, 'link' ) ).rejects.toThrow( ValidationError )
+
+    await rm( sibling, { recursive: true, force: true } )
   } )
 } )
 

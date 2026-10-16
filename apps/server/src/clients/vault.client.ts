@@ -3,15 +3,73 @@ import {
   access,
   constants,
   mkdir,
+  realpath,
   stat,
   writeFile,
 } from 'node:fs/promises'
-import { join } from 'node:path'
+import {
+  dirname,
+  join,
+  resolve,
+  sep,
+} from 'node:path'
 // Shared
-import { noteBasename } from '@mnemosyne/shared'
+import { noteBasename, parseFolderPath } from '@mnemosyne/shared'
+// Errors
+import { ValidationError } from '../errors.js'
 
 const NOTES_FOLDER = 'Mnemosyne'
 const MAX_ATTEMPTS = 1000
+
+const isInside = ( root: string, candidate: string ): boolean => {
+  return candidate === root || candidate.startsWith( `${ root }${ sep }` )
+}
+
+const realpathOfNearestAncestor = async ( path: string ): Promise< string > => {
+  try {
+    return await realpath( path )
+  } catch( error ) {
+    const isMissing = error instanceof Error && 'code' in error && error.code === 'ENOENT'
+    const parent = dirname( path )
+
+    if( !isMissing || parent === path ) {
+      throw error
+    }
+
+    return realpathOfNearestAncestor( parent )
+  }
+}
+
+export const resolveFolder = async (
+  vaultPath: string,
+  relativeFolder: string,
+): Promise< string > => {
+  let segments: string[]
+
+  try {
+    segments = parseFolderPath( relativeFolder )
+  } catch( error ) {
+    throw new ValidationError( error instanceof Error ? error.message : 'Invalid folder' )
+  }
+
+  const root = await realpath( vaultPath )
+  const target = resolve( root, ...segments )
+  const outside = new ValidationError( `Folder "${ relativeFolder }" is outside the vault` )
+
+  if( !isInside( root, await realpathOfNearestAncestor( target ) ) ) {
+    throw outside
+  }
+
+  await mkdir( target, { recursive: true } )
+
+  const created = await realpath( target )
+
+  if( !isInside( root, created ) ) {
+    throw outside
+  }
+
+  return created
+}
 
 export const writeNote = async (
   vaultPath: string,

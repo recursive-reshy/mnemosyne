@@ -4,7 +4,7 @@ import { join } from 'node:path'
 // App
 import { app } from './app.js'
 // Clients
-import { assertVaultWritable } from './clients/vault.client.js'
+import { assertVaultWritable, resolveFolder } from './clients/vault.client.js'
 // Config
 import { config } from './config.js'
 // Repositories
@@ -22,6 +22,7 @@ await rm( config.workDir, { recursive: true, force: true } )
 
 try {
   await assertVaultWritable( config.vaultPath )
+  await resolveFolder( config.vaultPath, config.defaultNoteFolder )
 } catch( error ) {
   console.error( error instanceof Error ? error.message : error )
   process.exit( 1 )

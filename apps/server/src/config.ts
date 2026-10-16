@@ -3,6 +3,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 // Packages
 import { z } from 'zod'
+// Shared
+import { isValidFolderName } from '@mnemosyne/shared'
 
 const emptyAsUnset = ( value: unknown ): unknown => ( value === '' ? undefined : value )
 
@@ -12,6 +14,15 @@ const portSchema = z.coerce.number().int().min( 1 ).max( 65535 ).default( 3100 )
 const summaryTimeoutSchema = z.coerce.number().int().positive().default( 300_000 )
 const reviewTtlSchema = z.coerce.number().positive().default( 24 )
 const cleanupIntervalSchema = z.coerce.number().positive().default( 15 )
+
+const isFolderPath = ( value: string ): boolean => {
+  return value.split( '/' ).every( isValidFolderName )
+}
+
+const noteFolderSchema = z
+  .string()
+  .refine( isFolderPath, 'must be a folder path inside the vault, like Notes/Videos' )
+  .default( 'Mnemosyne' )
 
 const EnvSchema = z
   .object( {
@@ -23,6 +34,7 @@ const EnvSchema = z
     WEB_DIR: z.preprocess( emptyAsUnset, z.string().min( 1 ).optional() ),
     ANTHROPIC_API_KEY: z.string().min( 1 ),
     VAULT_PATH: z.string().min( 1 ),
+    DEFAULT_NOTE_FOLDER: z.preprocess( emptyAsUnset, noteFolderSchema ),
     SUMMARY_TIMEOUT_MS: z.preprocess( emptyAsUnset, summaryTimeoutSchema ),
     REVIEW_TTL_HOURS: z.preprocess( emptyAsUnset, reviewTtlSchema ),
     CLEANUP_INTERVAL_MINUTES: z.preprocess( emptyAsUnset, cleanupIntervalSchema ),
@@ -36,6 +48,7 @@ const EnvSchema = z
     webDir: env.WEB_DIR,
     anthropicApiKey: env.ANTHROPIC_API_KEY,
     vaultPath: env.VAULT_PATH,
+    defaultNoteFolder: env.DEFAULT_NOTE_FOLDER,
     summaryTimeoutMs: env.SUMMARY_TIMEOUT_MS,
     reviewTtlHours: env.REVIEW_TTL_HOURS,
     cleanupIntervalMinutes: env.CLEANUP_INTERVAL_MINUTES,

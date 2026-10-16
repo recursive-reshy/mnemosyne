@@ -37,7 +37,8 @@ Parsed once with Zod in `config.ts`; nothing else reads `process.env`.
 - `DATA_DIR`: where `mnemosyne.db` (the SQLite job store) lives; default `<OS temp dir>/mnemosyne-data`. In Docker it is `/data`, a named volume.
 - `WHISPER_MODEL`: label stored as the transcript's `model` (whisper-server doesn't report it); default `large-v3-turbo`.
 - `ANTHROPIC_API_KEY`: required; the Claude key used to summarize transcripts. Lives in `.env` only.
-- `VAULT_PATH`: required; the Obsidian vault folder. Notes are written to `<VAULT_PATH>/Mnemosyne/`. It must exist and be writable at startup, or the server exits with a message. In Docker it is `/vault`, bind-mounted from `VAULT_HOST_PATH`.
+- `VAULT_PATH`: required; the Obsidian vault folder. It must exist and be writable at startup, or the server exits with a message. In Docker it is `/vault`, bind-mounted from `VAULT_HOST_PATH`.
+- `DEFAULT_NOTE_FOLDER`: vault-relative folder notes go to unless the job chose another; default `Mnemosyne`. Validated at startup with the shared folder rules and created if missing.
 - `SUMMARY_TIMEOUT_MS`: timeout of one summary request; default `300000`.
 - `REVIEW_TTL_HOURS`: hours a job in review or with a failed summary is kept before deletion; default `24`.
 - `CLEANUP_INTERVAL_MINUTES`: how often the sweeper deletes expired jobs; default `15`.

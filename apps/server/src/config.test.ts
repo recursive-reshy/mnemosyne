@@ -19,6 +19,7 @@ describe( 'loadConfig', () => {
       webDir: undefined,
       anthropicApiKey: 'sk-test',
       vaultPath: '/vault',
+      defaultNoteFolder: 'Mnemosyne',
       summaryTimeoutMs: 300_000,
       reviewTtlHours: 24,
       cleanupIntervalMinutes: 15,
@@ -29,6 +30,7 @@ describe( 'loadConfig', () => {
     const config = loadConfig( {
       ...base,
       VAULT_PATH: '/Users/x/Vault',
+      DEFAULT_NOTE_FOLDER: 'Learning/AI',
       PORT: '4000',
       WHISPER_URL: 'http://host.docker.internal:8178',
       WORK_DIR: '/tmp/custom',
@@ -49,11 +51,25 @@ describe( 'loadConfig', () => {
       webDir: '/srv/web',
       anthropicApiKey: 'sk-test',
       vaultPath: '/Users/x/Vault',
+      defaultNoteFolder: 'Learning/AI',
       summaryTimeoutMs: 60_000,
       reviewTtlHours: 48,
       cleanupIntervalMinutes: 5,
     } )
   } )
+
+  it( 'falls back to Mnemosyne when DEFAULT_NOTE_FOLDER is empty', () => {
+    expect( loadConfig( { ...base, DEFAULT_NOTE_FOLDER: '' } ).defaultNoteFolder )
+      .toBe( 'Mnemosyne' )
+  } )
+
+  it.each( [ '../x', '/abs', 'a//b', '.hidden', 'a/', 'a:b' ] )(
+    'throws naming DEFAULT_NOTE_FOLDER for %j',
+    ( folder ) => {
+      expect( () => loadConfig( { ...base, DEFAULT_NOTE_FOLDER: folder } ) )
+        .toThrow( 'DEFAULT_NOTE_FOLDER' )
+    },
+  )
 
   it( 'treats empty strings as unset', () => {
     const config = loadConfig( { ...base, PORT: '', WHISPER_URL: '' } )
