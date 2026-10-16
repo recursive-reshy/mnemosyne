@@ -43,7 +43,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 2.3 | `HomePage` layout on MUI (`Stack`, `Typography`); `HomePage.module.css` deleted | 0024 | ✅ |
 | **Phase 3** | **Job** | | |
 | 3.1 | `JobProgress` on MUI (`role="status"` text unchanged; `Stepper` or `LinearProgress` for stages; `Alert` for failures and connection errors); `JobProgress.module.css` deleted | 0024 | ✅ |
-| 3.2 | `DownloadLinks` as MUI `Button`s with `href` (still anchors to `/api/jobs/:id/download?format=…`); `DownloadLinks.module.css` deleted | 0024 | ⬜ |
+| 3.2 | `DownloadLinks` as MUI `Button`s with `href` (still anchors to `/api/jobs/:id/download?format=…`); `DownloadLinks.module.css` deleted | 0024 | ✅ |
 | 3.3 | `JobPage` alerts on MUI `Alert` | 0024 | ⬜ |
 
 ## Checkpoint C: Phases 4–5 (review screen)
@@ -84,3 +84,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 - 2.2: `JobList` on MUI (`List` / `ListItem`, router link through MUI `Link`, status and expiry as `Typography`); `JobList.module.css` deleted. `JobList.test.tsx` unchanged and green. Web 373 tests, lint, typecheck green.
 - 2.3: `HomePage` layout on MUI (`Stack`; the saved line is an `Alert severity="success" role="status"`); `HomePage.module.css` deleted. `HomePage.test.tsx` unchanged and green. Browser-checked home in light, dark and narrow with a validation error: no clash with the remaining `global.css` base styles. Web 373 tests, lint, typecheck green.
 - 3.1: `JobProgress` on MUI: `Stack` section, `Alert` for failures and connection errors, `Button` for retry, stages as `List component="ol"` of `ListItem`s with state icons (kept `aria-current`, `data-state`, labels). `Stepper` not used: it has no `listitem` roles, so the unchanged tests would not hold. `JobProgress.module.css` deleted; `JobProgress.test.tsx` unchanged and green. Web 373 tests, lint, typecheck green.
+- 3.2: `DownloadLinks` as MUI `Button component="a"` with `href` and `download` (still anchors; Markdown contained, others outlined) in a `region` `Stack`; the `ul`/`li` wrapper is gone because the test only queries links in the region. `DownloadLinks.module.css` deleted; `DownloadLinks.test.tsx` unchanged and green (it renders without the theme). Web 373 tests, lint, typecheck green.
