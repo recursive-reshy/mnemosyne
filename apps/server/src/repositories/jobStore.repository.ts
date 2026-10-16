@@ -2,12 +2,63 @@
 import Database from 'better-sqlite3'
 import { z } from 'zod'
 // Shared
-import { Job, Transcript } from '@mnemosyne/shared'
+import {
+  Job,
+  Transcript,
+  applyLockedProperties,
+  formatClock,
+  serializeNote,
+} from '@mnemosyne/shared'
 
 export const StoredJob = Job.extend( {
   transcript: Transcript.nullable(),
 } )
 export type StoredJob = z.infer< typeof StoredJob >
+
+const addNoteColumns = ( db: Database.Database ): void => {
+  db.exec( 'ALTER TABLE jobs ADD COLUMN note_markdown TEXT' )
+  db.exec( 'ALTER TABLE jobs ADD COLUMN target_folder TEXT' )
+
+  const rows = z.array( z.object( {
+    id: z.string(),
+    title: z.string().nullable(),
+    transcript: z.string().nullable(),
+    summary_markdown: z.string().nullable(),
+    suggested_tags: z.string(),
+  } ) ).parse( db.prepare( `SELECT id, title, transcript, summary_markdown, suggested_tags
+    FROM jobs WHERE status = 'ready_for_review'` ).all() )
+  const created = new Date().toISOString().slice( 0, 10 )
+  const update = db.prepare( 'UPDATE jobs SET note_markdown = ? WHERE id = ?' )
+
+  for( const row of rows ) {
+    const meta = row.transcript === null
+      ? undefined
+      : Transcript.parse( JSON.parse( row.transcript ) ).meta
+    const tags = z.array( z.string() ).parse( JSON.parse( row.suggested_tags ) )
+
+    const note = applyLockedProperties(
+      {
+        properties: {
+          title: row.title ?? meta?.title ?? '',
+          source: '',
+          channel: '',
+          duration: '',
+          created,
+          tags,
+        },
+        body: `${ ( row.summary_markdown ?? '' ).trim() }\n`,
+      },
+      {
+        source: meta?.source ?? '',
+        channel: meta?.channel ?? '',
+        duration: formatClock( meta?.duration_seconds ?? 0 ),
+        created,
+      },
+    )
+
+    update.run( serializeNote( note ), row.id )
+  }
+}
 
 export type Migration = string | ( ( db: Database.Database ) => void )
 
@@ -26,6 +77,7 @@ export const jobStoreMigrations: Migration[] = [
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   )`,
+  addNoteColumns,
 ]
 
 let database: Database.Database | undefined
