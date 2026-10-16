@@ -1,5 +1,5 @@
 // Node
-import { readFile, rm } from 'node:fs/promises'
+import { mkdir, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 // Packages
 import {
@@ -80,6 +80,7 @@ const seedJobAt = ( status: JobStatus ): string => {
 beforeEach( async () => {
   clearJobs()
   await rm( config.vaultPath, { recursive: true, force: true } )
+  await mkdir( config.vaultPath, { recursive: true } )
 } )
 
 describe( 'POST /api/jobs', () => {
@@ -323,26 +324,74 @@ describe( 'GET /api/jobs/:id/transcript', () => {
 } )
 
 describe( 'POST /api/jobs/:id/save', () => {
-  const edits = { title: 'What Is RAG: A Primer', tags: [ 'rag' ], body: '## Summary\nEdited.' }
+  const note = [
+    '---',
+    'title: "What Is RAG: A Primer"',
+    'source: "x"',
+    'channel: "x"',
+    'duration: "x"',
+    'created: 2020-01-01',
+    'tags: [rag]',
+    '---',
+    '',
+    '## Summary',
+    'Edited.',
+    '',
+  ].join( '\n' )
 
-  it( 'writes the note into the vault and returns its path', async () => {
+  const seedDrafted = async ( target_folder?: string ): Promise< string > => {
     const id = seedJobAt( 'ready_for_review' )
 
-    const response = await request( app ).post( `/api/jobs/${ id }/save` ).send( edits )
+    await request( app )
+      .patch( `/api/jobs/${ id }/draft` )
+      .send( { note_markdown: note, ...( target_folder === undefined ? {} : { target_folder } ) } )
+
+    return id
+  }
+
+  it( 'writes the draft into the default folder and returns its path', async () => {
+    const id = await seedDrafted()
+
+    const response = await request( app ).post( `/api/jobs/${ id }/save` )
 
     expect( response.status ).toBe( 200 )
     expect( response.body ).toEqual( { saved_path: 'Mnemosyne/What Is RAG A Primer.md' } )
 
-    const notePath = join( config.vaultPath, 'Mnemosyne/What Is RAG A Primer.md' )
-    const note = await readFile( notePath, 'utf8' )
-    expect( note ).toContain( 'title: "What Is RAG: A Primer"' )
-    expect( note ).toContain( 'tags: [mnemosyne, rag]' )
-    expect( note.endsWith( '## Summary\nEdited.\n' ) ).toBe( true )
+    const written = await readFile(
+      join( config.vaultPath, 'Mnemosyne/What Is RAG A Primer.md' ),
+      'utf8',
+    )
+    expect( written ).toContain( 'title: "What Is RAG: A Primer"' )
+    expect( written ).toContain( 'tags: [mnemosyne, rag]' )
+    expect( written ).toContain( `created: ${ new Date().toISOString().slice( 0, 10 ) }` )
+    expect( written.endsWith( '## Summary\nEdited.\n' ) ).toBe( true )
+  } )
+
+  it( 'writes into the chosen folder, creating it', async () => {
+    const id = await seedDrafted( 'Learning/AI' )
+
+    const response = await request( app ).post( `/api/jobs/${ id }/save` )
+
+    expect( response.body ).toEqual( { saved_path: 'Learning/AI/What Is RAG A Primer.md' } )
+    expect( await readFile(
+      join( config.vaultPath, 'Learning/AI/What Is RAG A Primer.md' ),
+      'utf8',
+    ) ).toContain( 'title: "What Is RAG: A Primer"' )
+  } )
+
+  it( 'ignores a body: the stored draft is what gets saved', async () => {
+    const id = await seedDrafted()
+
+    const response = await request( app )
+      .post( `/api/jobs/${ id }/save` )
+      .send( { title: 'Other', tags: [], body: 'ignored' } )
+
+    expect( response.body ).toEqual( { saved_path: 'Mnemosyne/What Is RAG A Primer.md' } )
   } )
 
   it( 'removes the transcript: the job is saved and downloads are refused', async () => {
-    const id = seedJobAt( 'ready_for_review' )
-    await request( app ).post( `/api/jobs/${ id }/save` ).send( edits )
+    const id = await seedDrafted()
+    await request( app ).post( `/api/jobs/${ id }/save` )
 
     const job = await request( app ).get( `/api/jobs/${ id }` )
     const download = await request( app ).get( `/api/jobs/${ id }/download` )
@@ -352,31 +401,37 @@ describe( 'POST /api/jobs/:id/save', () => {
   } )
 
   it( 'suffixes the file name when the title is already in the vault', async () => {
-    const first = seedJobAt( 'ready_for_review' )
-    const second = seedJobAt( 'ready_for_review' )
+    const first = await seedDrafted()
+    const second = await seedDrafted()
 
-    await request( app ).post( `/api/jobs/${ first }/save` ).send( edits )
-    const response = await request( app ).post( `/api/jobs/${ second }/save` ).send( edits )
+    await request( app ).post( `/api/jobs/${ first }/save` )
+    const response = await request( app ).post( `/api/jobs/${ second }/save` )
 
     expect( response.body ).toEqual( { saved_path: 'Mnemosyne/What Is RAG A Primer (2).md' } )
   } )
 
-  it.each( [
-    [ 'a blank title', { ...edits, title: '   ' } ],
-    [ 'missing tags', { title: 'T', body: 'x' } ],
-    [ 'a non-string body', { ...edits, body: 5 } ],
-  ] )( 'returns 400 for %s', async ( _name, body ) => {
-    const id = seedJobAt( 'ready_for_review' )
+  it( 'returns 400 and keeps the job in review for a stale folder', async () => {
+    const id = await seedDrafted()
+    updateJob( id, { target_folder: '../outside' } )
 
-    const response = await request( app ).post( `/api/jobs/${ id }/save` ).send( body )
+    const response = await request( app ).post( `/api/jobs/${ id }/save` )
+    const job = await request( app ).get( `/api/jobs/${ id }` )
 
     expect( response.status ).toBe( 400 )
+    expect( job.body ).toMatchObject( { job: { status: 'ready_for_review' } } )
+  } )
+
+  it( 'returns 409 when the job has no draft', async () => {
+    const id = seedJobAt( 'ready_for_review' )
+    updateJob( id, { note_markdown: null } )
+
+    const response = await request( app ).post( `/api/jobs/${ id }/save` )
+
+    expect( response.status ).toBe( 409 )
   } )
 
   it( 'returns 404 for an unknown job', async () => {
-    const response = await request( app )
-      .post( `/api/jobs/${ crypto.randomUUID() }/save` )
-      .send( edits )
+    const response = await request( app ).post( `/api/jobs/${ crypto.randomUUID() }/save` )
 
     expect( response.status ).toBe( 404 )
   } )
@@ -386,7 +441,7 @@ describe( 'POST /api/jobs/:id/save', () => {
     async ( status ) => {
       const id = seedJobAt( status )
 
-      const response = await request( app ).post( `/api/jobs/${ id }/save` ).send( edits )
+      const response = await request( app ).post( `/api/jobs/${ id }/save` )
 
       expect( response.status ).toBe( 409 )
     },

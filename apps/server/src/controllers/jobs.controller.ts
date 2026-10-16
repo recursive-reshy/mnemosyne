@@ -8,7 +8,6 @@ import {
   GetJobResponse,
   GetTranscriptResponse,
   ListJobsResponse,
-  SaveJobBody,
   SaveJobResponse,
   UpdateDraftBody,
   UpdateDraftResponse,
@@ -68,12 +67,10 @@ export const updateJobDraft = (
 }
 
 export const saveReviewedJob = async (
-  { params, body }: Request,
+  { params }: Request,
   res: Response< SaveJobResponse >,
 ): Promise< void > => {
-  const edits = SaveJobBody.parse( body )
-
-  const savedPath = await saveJob( String( params.id ), edits )
+  const savedPath = await saveJob( String( params.id ) )
 
   res.status( 200 ).json( { saved_path: savedPath } )
 }

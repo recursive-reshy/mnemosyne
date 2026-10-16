@@ -19,7 +19,6 @@ import { FolderNode, noteBasename, parseFolderPath } from '@mnemosyne/shared'
 // Errors
 import { ValidationError } from '../errors.js'
 
-const NOTES_FOLDER = 'Mnemosyne'
 const MAX_ATTEMPTS = 1000
 
 const isInside = ( root: string, candidate: string ): boolean => {
@@ -93,21 +92,21 @@ export const listFolderTree = async (
 
 export const writeNote = async (
   vaultPath: string,
+  folder: string,
   title: string,
   content: string,
 ): Promise< string > => {
-  await mkdir( join( vaultPath, NOTES_FOLDER ), { recursive: true } )
+  const directory = await resolveFolder( vaultPath, folder )
 
   const basename = noteBasename( title )
 
   for( let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1 ) {
-    const name = attempt === 1 ? basename : `${ basename } (${ attempt })`
-    const relativePath = `${ NOTES_FOLDER }/${ name }.md`
+    const name = `${ attempt === 1 ? basename : `${ basename } (${ attempt })` }.md`
 
     try {
-      await writeFile( join( vaultPath, relativePath ), content, { flag: 'wx' } )
+      await writeFile( join( directory, name ), content, { flag: 'wx' } )
 
-      return relativePath
+      return folder === '' ? name : `${ folder }/${ name }`
     } catch( error ) {
       const isClash = error instanceof Error && 'code' in error && error.code === 'EEXIST'
 

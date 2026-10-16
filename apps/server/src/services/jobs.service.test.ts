@@ -559,24 +559,72 @@ describe( 'findTranscript', () => {
 } )
 
 describe( 'saveJob', () => {
-  const edits = { title: 'Edited title', tags: [ 'rust' ], body: '## Summary\nEdited.' }
+  const draft = [
+    '---',
+    'title: "Edited title"',
+    'source: "x"',
+    'channel: "x"',
+    'duration: "x"',
+    'created: 2020-01-01',
+    'tags: [rust, Big Idea]',
+    '---',
+    '',
+    '## Summary',
+    'Edited.',
+    '',
+  ].join( '\n' )
 
-  it( 'writes the formatted note to the vault', async () => {
+  const queueDrafted = ( target_folder?: string ): string => {
     const id = queueJobAt( 'ready_for_review' )
+    updateDraft( id, { note_markdown: draft, target_folder: target_folder ?? null } )
 
-    await saveJob( id, edits )
+    return id
+  }
+
+  it( 'writes the stored draft, with locked properties and today as created', async () => {
+    const id = queueDrafted()
+
+    await saveJob( id )
 
     expect( writeNoteMock ).toHaveBeenCalledExactlyOnceWith(
       expect.any( String ),
+      'Mnemosyne',
       'Edited title',
-      formatNote( { ...edits, meta: transcript.meta, created: '2026-10-14' } ),
+      [
+        '---',
+        'title: "Edited title"',
+        `source: "${ url }"`,
+        'channel: "Some Channel"',
+        'duration: "01:00"',
+        'created: 2026-10-14',
+        'tags: [mnemosyne, rust, big-idea]',
+        '---',
+        '',
+        '## Summary',
+        'Edited.',
+        '',
+      ].join( '\n' ),
     )
   } )
 
-  it( 'marks the job saved, keeps the edited title and drops the transcript', async () => {
-    const id = queueJobAt( 'ready_for_review' )
+  it( 'writes to the chosen folder', async () => {
+    const id = queueDrafted( 'Learning/AI' )
 
-    const savedPath = await saveJob( id, edits )
+    await saveJob( id )
+
+    expect( writeNoteMock ).toHaveBeenCalledWith(
+      expect.any( String ),
+      'Learning/AI',
+      'Edited title',
+      expect.any( String ),
+    )
+  } )
+
+  it( 'marks the job saved, keeps the title and note, and drops the transcript', async () => {
+    const id = queueDrafted()
+    const note = findJobById( id )?.note_markdown
+
+    const savedPath = await saveJob( id )
 
     expect( savedPath ).toBe( 'Mnemosyne/Edited title.md' )
     expect( findJob( id ) ).toMatchObject( {
@@ -586,20 +634,39 @@ describe( 'saveJob', () => {
       expires_at: null,
     } )
     expect( findJobById( id )?.transcript ).toBeNull()
+    expect( findJobById( id )?.note_markdown ).toBe( note )
   } )
 
   it( 'uses the path the vault returns, collision suffix included', async () => {
-    const id = queueJobAt( 'ready_for_review' )
+    const id = queueDrafted()
     writeNoteMock.mockResolvedValue( 'Mnemosyne/Edited title (2).md' )
 
-    await expect( saveJob( id, edits ) ).resolves.toBe( 'Mnemosyne/Edited title (2).md' )
+    await expect( saveJob( id ) ).resolves.toBe( 'Mnemosyne/Edited title (2).md' )
+  } )
+
+  it( 'keeps the job in review when the folder is no longer valid', async () => {
+    const id = queueDrafted()
+    updateJob( id, { target_folder: '../outside' } )
+    writeNoteMock.mockRejectedValue( new ValidationError( 'outside the vault' ) )
+
+    await expect( saveJob( id ) ).rejects.toThrow( ValidationError )
+
+    expect( findJob( id ).status ).toBe( 'ready_for_review' )
+  } )
+
+  it( 'throws ConflictError when there is no draft', async () => {
+    const id = queueDrafted()
+    updateJob( id, { note_markdown: null } )
+
+    await expect( saveJob( id ) ).rejects.toThrow( ConflictError )
+    expect( writeNoteMock ).not.toHaveBeenCalled()
   } )
 
   it( 'keeps the job in review with its transcript when the write fails', async () => {
-    const id = queueJobAt( 'ready_for_review' )
+    const id = queueDrafted()
     writeNoteMock.mockRejectedValue( new Error( 'EACCES' ) )
 
-    await expect( saveJob( id, edits ) ).rejects.toThrow( 'EACCES' )
+    await expect( saveJob( id ) ).rejects.toThrow( 'EACCES' )
 
     expect( findJob( id ).status ).toBe( 'ready_for_review' )
     expect( findJobById( id )?.transcript ).toEqual( transcript )
@@ -610,21 +677,21 @@ describe( 'saveJob', () => {
     async ( status ) => {
       const id = queueJobAt( status )
 
-      await expect( saveJob( id, edits ) ).rejects.toThrow( ConflictError )
+      await expect( saveJob( id ) ).rejects.toThrow( ConflictError )
       expect( writeNoteMock ).not.toHaveBeenCalled()
     },
   )
 
   it( 'throws ConflictError when saved twice', async () => {
-    const id = queueJobAt( 'ready_for_review' )
-    await saveJob( id, edits )
+    const id = queueDrafted()
+    await saveJob( id )
 
-    await expect( saveJob( id, edits ) ).rejects.toThrow( ConflictError )
+    await expect( saveJob( id ) ).rejects.toThrow( ConflictError )
     expect( writeNoteMock ).toHaveBeenCalledTimes( 1 )
   } )
 
   it( 'throws NotFoundError for an unknown id', async () => {
-    await expect( saveJob( 'missing', edits ) ).rejects.toThrow( NotFoundError )
+    await expect( saveJob( 'missing' ) ).rejects.toThrow( NotFoundError )
   } )
 } )
 

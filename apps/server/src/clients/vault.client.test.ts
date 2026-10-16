@@ -45,8 +45,8 @@ afterEach( async () => {
 } )
 
 describe( 'writeNote', () => {
-  it( 'creates the Mnemosyne folder and writes the note', async () => {
-    const path = await writeNote( vault, 'What Is RAG: A Primer', '# Note\n' )
+  it( 'creates the folder and writes the note', async () => {
+    const path = await writeNote( vault, 'Mnemosyne', 'What Is RAG: A Primer', '# Note\n' )
 
     expect( path ).toBe( 'Mnemosyne/What Is RAG A Primer.md' )
     expect( await readFile( join( vault, path ), 'utf8' ) ).toBe( '# Note\n' )
@@ -55,13 +55,14 @@ describe( 'writeNote', () => {
   it( 'uses an existing Mnemosyne folder', async () => {
     await mkdir( join( vault, 'Mnemosyne' ) )
 
-    await expect( writeNote( vault, 'Title', 'x' ) ).resolves.toBe( 'Mnemosyne/Title.md' )
+    await expect( writeNote( vault, 'Mnemosyne', 'Title', 'x' ) )
+      .resolves.toBe( 'Mnemosyne/Title.md' )
   } )
 
   it( 'never overwrites: a clash gets (2), then (3)', async () => {
-    const first = await writeNote( vault, 'Title', 'one' )
-    const second = await writeNote( vault, 'Title', 'two' )
-    const third = await writeNote( vault, 'Title', 'three' )
+    const first = await writeNote( vault, 'Mnemosyne', 'Title', 'one' )
+    const second = await writeNote( vault, 'Mnemosyne', 'Title', 'two' )
+    const third = await writeNote( vault, 'Mnemosyne', 'Title', 'three' )
 
     expect( [ first, second, third ] ).toEqual( [
       'Mnemosyne/Title.md',
@@ -73,21 +74,48 @@ describe( 'writeNote', () => {
   } )
 
   it( 'skips a numbered name that already exists', async () => {
-    await writeNote( vault, 'Title', 'one' )
+    await writeNote( vault, 'Mnemosyne', 'Title', 'one' )
     await writeFile( join( vault, 'Mnemosyne', 'Title (2).md' ), 'taken' )
 
-    await expect( writeNote( vault, 'Title', 'two' ) ).resolves.toBe( 'Mnemosyne/Title (3).md' )
+    await expect( writeNote( vault, 'Mnemosyne', 'Title', 'two' ) )
+      .resolves.toBe( 'Mnemosyne/Title (3).md' )
   } )
 
   it( 'falls back to Untitled', async () => {
-    await expect( writeNote( vault, '???', 'x' ) ).resolves.toBe( 'Mnemosyne/Untitled.md' )
+    await expect( writeNote( vault, 'Mnemosyne', '???', 'x' ) )
+      .resolves.toBe( 'Mnemosyne/Untitled.md' )
+  } )
+
+  it( 'creates and writes into a nested folder', async () => {
+    const path = await writeNote( vault, 'Learning/AI', 'Title', 'x' )
+
+    expect( path ).toBe( 'Learning/AI/Title.md' )
+    expect( await readFile( join( vault, path ), 'utf8' ) ).toBe( 'x' )
+  } )
+
+  it( 'writes into the vault root for an empty folder', async () => {
+    await expect( writeNote( vault, '', 'Title', 'x' ) ).resolves.toBe( 'Title.md' )
+    expect( await readFile( join( vault, 'Title.md' ), 'utf8' ) ).toBe( 'x' )
+  } )
+
+  it( 'suffixes clashes inside a chosen folder', async () => {
+    await writeNote( vault, 'Learning', 'Title', 'one' )
+
+    await expect( writeNote( vault, 'Learning', 'Title', 'two' ) )
+      .resolves.toBe( 'Learning/Title (2).md' )
+  } )
+
+  it( 'rejects a folder that leaves the vault and writes nothing', async () => {
+    await expect( writeNote( vault, '../escape', 'Title', 'x' ) ).rejects.toThrow( ValidationError )
+    await expect( writeNote( vault, '/etc', 'Title', 'x' ) ).rejects.toThrow( ValidationError )
+    expect( await readdir( vault ) ).toEqual( [] )
   } )
 
   it.skipIf( isRoot )( 'propagates a permission error', async () => {
     await mkdir( join( vault, 'Mnemosyne' ) )
     await chmod( join( vault, 'Mnemosyne' ), 0o555 )
 
-    await expect( writeNote( vault, 'Title', 'x' ) ).rejects.toThrow( /EACCES/ )
+    await expect( writeNote( vault, 'Mnemosyne', 'Title', 'x' ) ).rejects.toThrow( /EACCES/ )
     expect( await readdir( join( vault, 'Mnemosyne' ) ) ).toEqual( [] )
 
     await chmod( join( vault, 'Mnemosyne' ), 0o755 )

@@ -4,7 +4,6 @@ import {
   Job,
   JobStatus,
   NoteParseError,
-  SaveJobBody,
   Transcript,
   UpdateDraftBody,
   applyLockedProperties,
@@ -341,7 +340,7 @@ export const updateDraft = ( id: string, body: UpdateDraftBody ): Job => {
   return moveTo( job, job.status, changes )
 }
 
-export const saveJob = async ( id: string, edits: SaveJobBody ): Promise< string > => {
+export const saveJob = async ( id: string ): Promise< string > => {
   const job = requireJob( id )
 
   if( job.status !== 'ready_for_review' ) {
@@ -352,17 +351,28 @@ export const saveJob = async ( id: string, edits: SaveJobBody ): Promise< string
     throw new Error( `Job ${ id } is ${ job.status } but has no transcript` )
   }
 
-  const note = formatNote( {
-    ...edits,
-    meta: job.transcript.meta,
-    created: new Date().toISOString().slice( 0, 10 ),
+  if( job.note_markdown === null ) {
+    throw new ConflictError( 'The job has no draft to save' )
+  }
+
+  const { meta } = job.transcript
+  const note = applyLockedProperties( parseNote( job.note_markdown ), {
+    source: meta.source,
+    channel: meta.channel,
+    duration: formatClock( meta.duration_seconds ),
+    created: today(),
   } )
 
-  const savedPath = await writeNote( config.vaultPath, edits.title, note )
+  const savedPath = await writeNote(
+    config.vaultPath,
+    job.target_folder ?? config.defaultNoteFolder,
+    note.properties.title,
+    serializeNote( note ),
+  )
 
   moveTo( job, 'saved', {
     saved_path: savedPath,
-    title: edits.title,
+    title: note.properties.title,
     transcript: null,
     expires_at: null,
   } )

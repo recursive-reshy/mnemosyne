@@ -2,7 +2,7 @@
 
 Express API for Mnemosyne. It owns the SQLite job store, the worker that runs jobs one at a time (transcribe, then summarize), the sweeper that deletes expired jobs, the clients for yt-dlp, ffmpeg, whisper-server, Claude and the Obsidian vault, and the formatters that render transcripts, summaries and notes. The root `CLAUDE.md` covers the workflow, precedence, cross-app rules, git and secrets; this file does not repeat them.
 
-The relevant ADRs are 0003–0009, 0012, 0014 and 0015 in `docs/decisions/`. Read the ones a task lists before changing behaviour they describe. If a task conflicts with an ADR, stop and report it; don't pick one.
+The relevant ADRs are 0003–0009, 0012, 0014, 0015 and 0020–0022 in `docs/decisions/`. Read the ones a task lists before changing behaviour they describe. If a task conflicts with an ADR, stop and report it; don't pick one.
 
 ## Stack
 
@@ -56,9 +56,9 @@ src/
   errors.ts          typed errors and the error middleware
   routes/            <name>.routes.ts: an Express Router wiring paths to controller functions, nothing else
   controllers/       <name>.controller.ts: HTTP only (parse the request with Zod, call a service, send the response)
-  services/          <name>.service.ts: business rules and job state changes
+  services/          <name>.service.ts: business rules and job state changes (jobs: drafts and save; vault: folder listing)
   repositories/      <name>.repository.ts: the SQLite job store, and nothing else
-  clients/           ytDlp, ffmpeg, whisperServer, claude, vault: one external tool each (`<name>.client.ts`)
+  clients/           ytDlp, ffmpeg, whisperServer, claude, vault: one external tool each (`<name>.client.ts`); the vault client resolves every folder inside the vault (`resolveFolder`), lists the folder tree and writes notes
   worker/            worker.ts, runJob.ts, summarizeJob.ts, sweeper.ts: runs the next runnable job; deletes expired jobs
   formatters/        markdown, srt, txt, summary, note: pure data → string; summary.cleanup.ts filters the model's output
 ```
