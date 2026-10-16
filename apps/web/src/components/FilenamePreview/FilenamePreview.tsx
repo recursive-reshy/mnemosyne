@@ -1,9 +1,12 @@
 // React
 import type { ReactElement } from 'react'
+// Packages
+import Typography from '@mui/material/Typography'
 // Shared
 import { noteBasename } from '@mnemosyne/shared'
 // App
-import styles from './FilenamePreview.module.css'
+
+const WRAP_STYLE = { overflowWrap: 'anywhere' } as const
 
 interface FilenamePreviewProps {
   title: string
@@ -15,17 +18,17 @@ export function FilenamePreview( { title, folder }: FilenamePreviewProps ): Reac
 
   if( folder === null ) {
     return (
-      <p className={ styles.preview }>
-        Saved in the default folder as <code className={ styles.path }>{ fileName }</code>
-      </p>
+      <Typography variant="body2" color="text.secondary">
+        Saved in the default folder as <code style={ WRAP_STYLE }>{ fileName }</code>
+      </Typography>
     )
   }
 
   const path = folder === '' ? fileName : `${ folder }/${ fileName }`
 
   return (
-    <p className={ styles.preview }>
-      Saved as <code className={ styles.path }>{ path }</code>
-    </p>
+    <Typography variant="body2" color="text.secondary">
+      Saved as <code style={ WRAP_STYLE }>{ path }</code>
+    </Typography>
   )
 }

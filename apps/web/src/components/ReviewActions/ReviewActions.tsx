@@ -1,7 +1,13 @@
 // React
 import type { ReactElement } from 'react'
-// App
-import styles from './ReviewActions.module.css'
+// Packages
+import Button from '@mui/material/Button'
+import Stack from '@mui/material/Stack'
+
+const ACTIONS_SX = { flexWrap: 'wrap', pt: 2, borderTop: 1, borderColor: 'divider' } as const
+
+// As in 0.3.0: a disabled button still takes the pointer and shows not-allowed.
+const BUTTON_SX = { '&.Mui-disabled': { pointerEvents: 'auto', cursor: 'not-allowed' } } as const
 
 interface ReviewActionsProps {
   hasFailed: boolean
@@ -27,36 +33,32 @@ export function ReviewActions(
   }: ReviewActionsProps,
 ): ReactElement {
   return (
-    <div className={ styles.actions }>
+    <Stack direction="row" useFlexGap spacing={ 2 } sx={ ACTIONS_SX }>
       { hasFailed
         ? (
-          <button
-            type="button"
-            className={ styles.primary }
-            disabled={ isRetrying }
-            onClick={ onRetry }
-          >
+          <Button variant="contained" disabled={ isRetrying } onClick={ onRetry } sx={ BUTTON_SX }>
             { isRetrying ? 'Retrying…' : 'Retry summary' }
-          </button>
+          </Button>
         )
         : (
-          <button
-            type="button"
-            className={ styles.primary }
+          <Button
+            variant="contained"
             disabled={ isSaving || !canSave }
             onClick={ onSave }
+            sx={ BUTTON_SX }
           >
             { isSaving ? 'Saving…' : 'Save to vault' }
-          </button>
+          </Button>
         ) }
-      <button
-        type="button"
-        className={ styles.secondary }
+      <Button
+        variant="outlined"
+        color="inherit"
         disabled={ isDiscarding }
         onClick={ onDiscard }
+        sx={ BUTTON_SX }
       >
         Discard
-      </button>
-    </div>
+      </Button>
+    </Stack>
   )
 }

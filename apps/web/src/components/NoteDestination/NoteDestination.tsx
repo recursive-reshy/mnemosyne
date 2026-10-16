@@ -1,5 +1,7 @@
 // React
 import type { ReactElement } from 'react'
+// Packages
+import Alert from '@mui/material/Alert'
 // App
 import { useFolders } from '#src/hooks/useFolders'
 import { FilenamePreview } from '../FilenamePreview'
@@ -27,9 +29,9 @@ export function NoteDestination(
         />
       ) }
       { error !== null && (
-        <p className="alert" role="alert">
+        <Alert severity="error">
           { `Could not load the vault folders: ${ error }. The note goes to the default folder.` }
-        </p>
+        </Alert>
       ) }
       <FilenamePreview title={ title } folder={ folder ?? defaultFolder } />
     </>
