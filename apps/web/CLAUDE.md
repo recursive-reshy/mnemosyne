@@ -9,7 +9,7 @@ The relevant ADRs are 0004, 0006, 0008, 0009, 0011, 0013, 0015, 0019, 0020, 0021
 - Vite, React, TypeScript `strict`, ESM.
 - Vitest, React Testing Library, user-event, jest-dom, jsdom.
 - TanStack Query for server state and React Router for `/` and `/jobs/:id` (ADR 0013).
-- Material UI (`@mui/material`, Emotion, `@mui/icons-material`, `@mui/x-tree-view`) is the only UI library, themed from `src/theme.ts` (ADR 0024). Screens not yet converted still use plain CSS modules until v0.3.1 finishes. `@mdxeditor/editor` is the note editor (ADR 0019, round-trip rules in ADR 0023).
+- Material UI (`@mui/material`, Emotion, `@mui/icons-material`, `@mui/x-tree-view`) is the only UI library, themed from `src/theme.ts` (ADR 0024). `@mdxeditor/editor` is the note editor (ADR 0019, round-trip rules in ADR 0023).
 - Shared contracts come from `@mnemosyne/shared`.
 
 Don't add a dependency without it being approved first. Ask instead.
@@ -26,14 +26,15 @@ Don't add a dependency without it being approved first. Ask instead.
 
 ```
 src/
-  main.tsx          mounts <App /> inside the query client provider and BrowserRouter
-  global.css        tokens (colours, spacing) for light and dark mode, base element styles; the only non-module stylesheet
-  App.tsx           page chrome and the routes: `/` → HomePage, `/jobs/:id` → JobPage
+  main.tsx          mounts <App /> inside the MUI theme (ThemeProvider, CssBaseline), the query client provider and BrowserRouter
+  theme.ts          the one MUI theme: CSS variables, light and dark colour schemes, radius, font, repeated component overrides
+  editorTokens.ts   three CSS custom properties NoteEditor.module.css still reads; removed in v0.3.2
+  App.tsx           the routes inside AppShell: `/` → HomePage, `/jobs/:id` → JobPage
   api/              <name>.api.ts: fetch wrappers; parse responses with shared schemas
   expiry.ts         pure display helpers sit next to main.tsx as small camelCase modules (expiry.ts, later timestamp.ts)
   queryClient.ts    createQueryClient(): the app's TanStack Query defaults (no retries, no refetch on focus)
   hooks/            use<Name>.ts: state and effects, built on TanStack Query; queryKeys.ts holds the cache keys; useAutosaveDraft keeps the review draft on the server
-  components/       <Name>/index.ts, <Name>.tsx, <Name>.module.css, <Name>.test.tsx: one folder per component; HomePage and JobPage are the route components; ReviewScreen is the review layout JobPage shows for `ready_for_review` and `summary_failed`
+  components/       <Name>/index.ts, <Name>.tsx, <Name>.test.tsx: one folder per component (no CSS files; NoteEditor keeps its own module until v0.3.2); AppShell and NavDrawer are the navigation shell; HomePage and JobPage are the route components; ReviewScreen is the review layout JobPage shows for `ready_for_review` and `summary_failed`
   test-support/     shared test helpers and fixtures
 ```
 
@@ -59,6 +60,8 @@ src/
 - Tests import Testing Library from `@testing-library/react` and `userEvent` from `@testing-library/user-event`; matchers such as `toBeInTheDocument` come from the setup file.
 - Use `userEvent` for interaction. Use Vitest fake timers for the polling hook; the test setup hands TanStack results to React from a microtask so fake timers don't stall them. Never use real sleeps.
 - Mock at the boundary: component tests pass props; hook tests mock the `api/` module and render through `renderHookWithClient` (component tests that use queries or the router use `renderWithClient`, which also takes a `route` and returns `location()`), both from `test-support/renderWithClient.tsx` with a fresh client; `api/` tests stub `fetch` with `vi.stubGlobal`. No test touches the network or a real server.
+- Render components that use MUI themed features, queries or the router with `renderWithClient` (it wraps the same theme as `main.tsx`). For a narrow window or a dark OS, call `mockMatchMedia` from `test-support/matchMedia.ts` (the setup file installs a wide, light default).
+- MUI quirks to know: `Alert` puts `role="alert"` on its root and the text in an inner element, so query by role and check `textContent`; a disabled MUI `Button` has `pointer-events: none`, so where a test clicks a disabled button, give it `pointerEvents: 'auto'` in `sx`; a tree item's name comes from its descendants unless it has an `aria-label`.
 - After a UI slice, run the dev server with the server behind it and look at the page in a browser (screenshot), then say what you saw. Passing unit tests don't prove a page looks right.
 
 ## Style
@@ -66,7 +69,7 @@ src/
 The server's rules in `apps/server/CLAUDE.md` apply here unchanged (spacing, 100-character lines, no semicolons, single quotes, no `any`, erasable syntax only, import-group comments, no comments that restate the code). These are the differences and additions for React.
 
 **Files and naming**
-- Each component lives in its own PascalCase folder with its files named after it: `components/SubmitForm/SubmitForm.tsx`, `SubmitForm.module.css`, `SubmitForm.test.tsx`, and an `index.ts` containing only `export { SubmitForm } from './SubmitForm'` (a named re-export, never `export *`). Other code imports the component through its folder (`./components/SubmitForm`). Files inside the folder import each other directly, never through their own `index.ts`. Only component folders have an `index.ts`. Everything else is camelCase with a role suffix (`jobs.api.ts`, `useJob.ts`).
+- Each component lives in its own PascalCase folder with its files named after it: `components/SubmitForm/SubmitForm.tsx`, `SubmitForm.test.tsx`, and an `index.ts` containing only `export { SubmitForm } from './SubmitForm'` (a named re-export, never `export *`). Other code imports the component through its folder (`./components/SubmitForm`). Files inside the folder import each other directly, never through their own `index.ts`. Only component folders have an `index.ts`. Everything else is camelCase with a role suffix (`jobs.api.ts`, `useJob.ts`).
 - One exported component per file, named exports only, no default exports. A tiny private helper component may share its parent's file.
 - Components are nouns (`JobProgress`); hooks start with `use`; event-handler props start with `on` (`onSubmit`); the handlers inside a component start with `handle` (`handleSubmit`).
 - Booleans read as questions: `isSubmitting`, `hasError`. No abbreviations beyond `id` and `url`.
@@ -88,5 +91,9 @@ The server's rules in `apps/server/CLAUDE.md` apply here unchanged (spacing, 100
 
 **JSX and CSS**
 - JSX attributes use double quotes. Inner spaces in JSX braces: `value={ url }`.
-- Each component's styles live in `<Name>.module.css` next to it. Class names are camelCase (`styles.submitButton`).
+- Style with MUI components and their props first, then `sx`. An `sx` object longer than a few lines goes in a module-level `const` in the same file (named `<THING>_SX`).
+- Styling used in more than one component goes in a theme `components` override in `theme.ts`; don't add `styled()` components unless a style is shared across files.
+- Spacing uses the theme scale (`sx={ { p: 2 } }`), not hard-coded rem values. Colours come from the palette (`'text.secondary'`, `'divider'`), not hex values.
+- No new `.css` files or CSS modules. The only one left is `NoteEditor.module.css`, until v0.3.2.
+- Import MUI by path (`@mui/material/Button`, `@mui/icons-material/Close`) so unused parts are tree-shaken.
 - Status labels shown to the user live in one typed `as const` map, not scattered in JSX.

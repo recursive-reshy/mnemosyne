@@ -69,6 +69,8 @@ brew install yt-dlp ffmpeg
 5. Choose where the note goes with **Change folder**: filter the vault's folders (hidden folders are not shown), pick one, or type a new folder name under the chosen folder. A new folder is created only when you save. Without a choice the note goes to `DEFAULT_NOTE_FOLDER`.
 6. **Save to vault** writes the note and deletes the transcript, or **Discard** deletes the job.
 
+The app opens with a navigation drawer on the left (for now just **Transcriber**). The hamburger in the top bar collapses it to icons or expands it again, and the choice is remembered in the browser. On a narrow window the drawer is hidden and opens over the page. At the bottom of the drawer, **Light**, **Dark** and **System** set the colour mode (System follows the OS and is the default); that choice is remembered too. The note editor itself stays light in dark mode until 0.3.2.
+
 Edits are saved to the server about a second and a half after you stop typing, when you switch editor mode, leave the editor or choose a folder, and before saving, so a refresh, a crash or another browser shows your latest draft. The status line under the editor reads Saved, Saving… or Not saved, with the reason.
 
 The page address carries the job (`?job=<id>`), so refreshing the page keeps you on the same job. Jobs and their transcripts live in a SQLite database on a Docker volume, so they survive a container restart or rebuild. A job that was downloading, converting or transcribing when the app stopped is marked failed on the next start.
@@ -143,7 +145,7 @@ On a stop signal the server stops taking work and lets a running job finish, for
 
 ## Status and roadmap
 
-Version 0.3.0. A single-user tool: one job at a time, jobs kept in SQLite, no accounts.
+Version 0.3.1. A single-user tool: one job at a time, jobs kept in SQLite, no accounts.
 
 Known issue: in a real browser, clicking a timestamp in the summary doesn't open the video, and moving the cursor in the editor doesn't scroll the transcript to the matching moment (it works in the unit tests).
 
