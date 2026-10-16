@@ -58,7 +58,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 5.5 | `useSaveJob` flushes autosave first and blocks on a failed flush; remove `useDraft`, its tests and draft clearing in `useJob` / `useDiscardJob`; one-time removal of `mnemosyne:draft:*` keys. Update `apps/web/CLAUDE.md` (Layers: browser storage line; ADR list) | 0020 | ✅ |
 
 ## Checkpoint D: Phase 6 (web editor)
-**Plan:** ⬜ [`plans/checkpoint-d.md`](plans/checkpoint-d.md)
+**Plan:** ✅ [`plans/checkpoint-d.md`](plans/checkpoint-d.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
