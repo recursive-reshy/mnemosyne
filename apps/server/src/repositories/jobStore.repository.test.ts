@@ -10,6 +10,7 @@ import {
   expect,
   beforeEach,
   afterEach,
+  vi,
 } from 'vitest'
 // Repositories
 import {
@@ -25,6 +26,7 @@ import {
   listActiveJobs,
   markInterruptedJobs,
   openJobStore,
+  runMigrations,
   updateJob,
 } from './jobStore.repository.js'
 
@@ -501,5 +503,52 @@ describe( 'findExpiredJobs', () => {
     insertJob( buildJob( { status: 'summarizing', expires_at: '2026-10-01T00:00:00.000Z' } ) )
 
     expect( findExpiredJobs( now ) ).toEqual( [] )
+  } )
+} )
+
+describe( 'runMigrations', () => {
+  const version = ( database: Database.Database ): unknown => {
+    return database.pragma( 'user_version', { simple: true } )
+  }
+
+  it( 'runs SQL strings and functions in order and records the version', () => {
+    const database = new Database( ':memory:' )
+
+    runMigrations( database, [
+      'CREATE TABLE t ( id INTEGER )',
+      ( db ) => {
+        db.exec( 'ALTER TABLE t ADD COLUMN name TEXT' )
+        db.prepare( 'INSERT INTO t ( id, name ) VALUES ( 1, ? )' ).run( 'a' )
+      },
+    ] )
+
+    expect( database.prepare( 'SELECT id, name FROM t' ).all() ).toEqual( [ { id: 1, name: 'a' } ] )
+    expect( version( database ) ).toBe( 2 )
+  } )
+
+  it( 'skips migrations that were already applied', () => {
+    const database = new Database( ':memory:' )
+    const second = vi.fn()
+
+    runMigrations( database, [ 'CREATE TABLE t ( id INTEGER )' ] )
+    runMigrations( database, [ 'CREATE TABLE t ( id INTEGER )', second ] )
+
+    expect( second ).toHaveBeenCalledTimes( 1 )
+    expect( version( database ) ).toBe( 2 )
+  } )
+
+  it( 'rolls everything back when a function migration throws', () => {
+    const database = new Database( ':memory:' )
+
+    expect( () => runMigrations( database, [
+      'CREATE TABLE t ( id INTEGER )',
+      () => {
+        throw new Error( 'backfill failed' )
+      },
+    ] ) ).toThrow( 'backfill failed' )
+
+    expect( version( database ) ).toBe( 0 )
+    expect( database.prepare( 'SELECT name FROM sqlite_master WHERE name = ?' ).get( 't' ) )
+      .toBeUndefined()
   } )
 } )

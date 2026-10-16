@@ -9,7 +9,9 @@ export const StoredJob = Job.extend( {
 } )
 export type StoredJob = z.infer< typeof StoredJob >
 
-export const jobStoreMigrations: string[] = [
+export type Migration = string | ( ( db: Database.Database ) => void )
+
+export const jobStoreMigrations: Migration[] = [
   `CREATE TABLE jobs (
     id TEXT PRIMARY KEY,
     url TEXT NOT NULL,
@@ -28,22 +30,31 @@ export const jobStoreMigrations: string[] = [
 
 let database: Database.Database | undefined
 
+export const runMigrations = ( db: Database.Database, migrations: Migration[] ): void => {
+  const applied = z.number().parse( db.pragma( 'user_version', { simple: true } ) )
+
+  db.transaction( () => {
+    for( const [ index, migration ] of migrations.entries() ) {
+      if( index >= applied ) {
+        if( typeof migration === 'string' ) {
+          db.exec( migration )
+        } else {
+          migration( db )
+        }
+
+        db.pragma( `user_version = ${ index + 1 }` )
+      }
+    }
+  } )()
+}
+
 export const openJobStore = ( path: string ): void => {
   closeJobStore()
 
   const opened = new Database( path )
   opened.pragma( 'journal_mode = WAL' )
 
-  const applied = z.number().parse( opened.pragma( 'user_version', { simple: true } ) )
-
-  opened.transaction( () => {
-    for( const [ index, migration ] of jobStoreMigrations.entries() ) {
-      if( index >= applied ) {
-        opened.exec( migration )
-        opened.pragma( `user_version = ${ index + 1 }` )
-      }
-    }
-  } )()
+  runMigrations( opened, jobStoreMigrations )
 
   database = opened
 }

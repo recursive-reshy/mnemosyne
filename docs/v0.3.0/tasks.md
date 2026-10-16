@@ -30,7 +30,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 2.3 | `isValidFolderName` and `parseFolderPath` in `folders.ts` (`''` = vault root) | 0022 | ✅ |
 | 2.4 | Server `formatNote` becomes a thin wrapper over `serializeNote`; existing note formatter tests stay green unchanged | 0021 | ✅ |
 | **Phase 3** | **Server data** | | |
-| 3.1 | Migration runner accepts `string \| ( db ) => void`; migration 1 unchanged; existing repository tests green | 0012, 0021 | ⬜ |
+| 3.1 | Migration runner accepts `string \| ( db ) => void`; migration 1 unchanged; existing repository tests green | 0012, 0021 | ✅ |
 | 3.2 | Migration 2: add `note_markdown`, `target_folder`; backfill `ready_for_review` rows (`summary_failed` / `saved` stay null); tests from a `user_version = 1` DB | 0021 | ⬜ |
 | 3.3 | `Job` DTO gains `note_markdown` and `target_folder` (old fields kept for now); repository reads and writes them; `completeSummary` also stores the whole note | 0021 | ⬜ |
 
@@ -92,3 +92,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 - 2.2: `applyLockedProperties` (locked fields overwritten, `mnemosyne` first, tags normalized and deduped).
 - 2.3: shared `folders.ts` (`isValidFolderName`, `parseFolderPath`).
 - 2.4: server `formatNote` is a wrapper over `serializeNote`; existing formatter tests unchanged and green.
+- 3.1: migration runner (`runMigrations`) accepts SQL strings or functions; migration 1 unchanged.
