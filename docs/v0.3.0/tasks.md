@@ -104,3 +104,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 - 5.3: `PropertiesPanel` reads and writes the note with `parseNote` / `serializeNote`; shows "front-matter invalid" for a broken note.
 - 5.4: review screen on the server draft (textarea edits the whole note, `PropertiesPanel`, status line, blur flush, `beforeunload` guard); the 5.1 shim is gone.
 - 5.5: `useSaveJob( jobId, flush )` blocks on a failed flush; `useDraft` and its tests removed; `useRemoveLegacyDrafts` clears `mnemosyne:draft:*`; web `CLAUDE.md` updated.
+- 6.1 (blocked, not ticked): MDXEditor 4.3.3 mounts in jsdom with no stubs, but does not round-trip notes: `[[wikilinks]]` become `\[\[…]]`, plain `[12:34]` stamps become `\[12:34]`, `-` bullets become `*` (a global `bullet` option can't keep both `-` and `*`), and the trailing newline is dropped. Front-matter, headings, quotes, code and rules were unchanged. Waiting for a decision (ADR 0019).
