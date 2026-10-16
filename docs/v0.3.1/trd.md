@@ -6,10 +6,10 @@ Written against the 0.3.0 code at commit `93d9f43`. Names below are the real one
 
 ## 1. Changes at a glance
 - **Web only.** `apps/server`, `packages/shared`, the API and the database are not touched. A task that needs to change them is out of scope: stop and ask.
-- MUI replaces `global.css` and the 14 CSS modules (every one except `NoteEditor.module.css`).
+- MUI replaces `global.css` and all 15 CSS modules (`NoteEditor.module.css` last, in phase 7).
 - A new app shell (top bar, mini-variant navigation drawer, colour-mode control) replaces the page chrome in `App.tsx`.
 - `FolderPicker` moves to MUI X `SimpleTreeView`.
-- `NoteEditor` (`NoteEditor.tsx`, `ModeToggle.tsx`, `NoteEditor.module.css`, `@mdxeditor/editor/style.css`) is left exactly as it is (§6.6).
+- `NoteEditor` is left alone until phase 7, which adds MDXEditor's formatting toolbar, its dark theme and an MUI wrapper, and removes `NoteEditor.module.css` and the `editorTokens` shim (§6.6). It stays on MDXEditor and the ADR 0023 contract.
 
 ## 2. Packages
 | Package | Where | Why |
@@ -70,7 +70,7 @@ The global `.alert` class is used in 10 places. Replace each one with `Alert` (`
 - `role="alert"` everywhere it is today (MUI's default for `Alert`).
 - `PropertiesPanel`'s "front-matter invalid" stays `role="status"`: pass `role="status"` and use `severity="warning"`.
 - `SubmitForm`'s message keeps its `id` (it is referenced by `aria-describedby`).
-- `ModeToggle`'s alert is inside `NoteEditor`, so it is left alone (§6.6).
+- `ModeToggle`'s alert is inside `NoteEditor`, so it waits for phase 7 (§6.6).
 
 ### 6.3 Progress and status
 `JobProgress` keeps its `role="status"` element and text. Its stage list and progress indicator may use `Stepper` or `LinearProgress`, but the announced text must not change.
@@ -86,13 +86,32 @@ The global `.alert` class is used in 10 places. Replace each one with `Alert` (`
 - The disclosure ("Change folder", `aria-expanded`), filter box, new-folder form and validation message keep their current behaviour; use `Collapse` or plain conditional rendering for the panel.
 - `FolderPicker.test.tsx` is rewritten for the tree roles (`tree`, `treeitem`, `aria-selected`, keyboard selection). Every behaviour the 0.3.0 tests check must still be checked. This is the one test file allowed to change beyond small fixes (ADR 0024).
 
-### 6.6 Note editor (left as is)
-- `NoteEditor.tsx`, `ModeToggle.tsx`, `NoteEditor.module.css` and the MDXEditor stylesheet import are not edited in 0.3.1. `noteRoundTrip.test.tsx` and `NoteEditor.test.tsx` stay unchanged and green.
-- `NoteEditor.module.css` uses three `global.css` tokens (`--color-border`, `--space-1`, `--space-2`). When `global.css` is deleted, define just those three as a `GlobalStyles` block in `main.tsx`, mapped to theme values (`theme.vars.palette.divider`, `theme.spacing( 0.5 )`, `theme.spacing( 1 )`), with a comment that it goes in v0.3.2.
-- Accepted until v0.3.2: the editor doesn't follow dark mode, and the mode toggle's plain `<button>`s and its alert lose the global button and `.alert` styles.
+### 6.6 Note editor
+**Phases 1–6 (done):** `NoteEditor` was left as it was. `NoteEditor.module.css` kept working through the `editorTokens` shim (`src/editorTokens.ts`, rendered by `GlobalStyles` in `main.tsx`).
+
+**Phase 7 (toolbar, dark mode, clean-up):** still MDXEditor (`@mdxeditor/editor`, no new dependency). Before planning, check its current API (Context7, or mdxeditor.dev if the quota is out): the toolbar components, `linkDialogPlugin`, the dark theme class names, how popups and dialogs pick up the theme, and the CSS variables it exposes for colours.
+
+*Dark mode*
+- `NoteEditor` reads the resolved scheme with MUI's `useColorScheme()` (`colorScheme`, treated as light while it is undefined) and adds MDXEditor's dark theme class (`dark-theme`, plus any companion class the docs name) to the editor when it is dark.
+- The link dialog and dropdowns render in MDXEditor's popup container, outside the editor's DOM. They must get the dark theme too; if the class doesn't reach them, the plan says how (MDXEditor option first, a theme-level `GlobalStyles` rule second).
+- Where MDXEditor's colours clash with the MUI palette (accent, background, borders), map its CSS variables to MUI's (`theme.vars.palette.*`) in the wrapper's `sx`. Keep this to a short, commented list.
+- Switching colour mode while editing must not remount the editor: change the class only, so the text, selection and undo history survive.
+
+*Toolbar*
+- The toolbar (`toolbarPlugin`) holds the existing mode toggle and, in rich-text mode only (read `viewMode$`, as `ModeToggle` does), a `FormattingToolbar` (new, in the `NoteEditor` folder): `UndoRedo`, `Separator`, `BlockTypeSelect`, `BoldItalicUnderlineToggles` with only Bold and Italic, `ListsToggle` with only bullet and numbered, `CreateLink`.
+- Plugin changes in `editorConfig.ts`: `headingsPlugin( { allowedHeadingLevels: [ 1, 2, 3 ] } )`, and `linkDialogPlugin()` added (it is part of `@mdxeditor/editor`). Nothing else changes in the plugin list or `noteMarkdownOptions`.
+- Use MDXEditor's toolbar components as they come (they own focus handling and the active state); don't rebuild them in MUI. Check their accessible names and `aria-pressed` in the tests.
+
+*Mode toggle and wrapper*
+- `ModeToggle` becomes an MUI `ToggleButtonGroup` (exclusive, `size="small"`, buttons keep their labels and `aria-pressed`); the blocked message becomes `Alert severity="error"` (role `alert`).
+- The `div` wrapper becomes `Paper variant="outlined"`. The content area's minimum height and padding move to the wrapper's `sx`, targeting a stable class passed as `contentEditableClassName` (for example `'noteEditorContent'`).
+- Delete `NoteEditor.module.css`, `editorTokens.ts`, `editorTokens.test.tsx` and the `GlobalStyles` line in `main.tsx`.
+
+*Round-trip*
+- The ADR 0023 contract is unchanged and `noteRoundTrip.test.tsx` stays green unchanged. Add one fixture with everything the toolbar can produce (H1–H3, a quote, `**bold**`, `*italic*`, `-` and `1.` lists, a `[text](url)` link, nested inside a quote where MDXEditor allows it) and check that it is idempotent and comes out in the expected forms. If MDXEditor writes any of them differently (for example `_italic_`, `__bold__`, `*` bullets), stop and ask.
 
 ## 7. Removed
-- `src/global.css`, `App.module.css`, and every `components/*/*.module.css` except `NoteEditor.module.css`.
+- `src/global.css`, `App.module.css`, and every `components/*/*.module.css` (`NoteEditor.module.css` in phase 7, with `editorTokens.ts` and its test).
 - `apps/web/CLAUDE.md` updated: Stack (MUI instead of "plain CSS modules, no UI library"), folder structure (`theme.ts`, no `global.css`, component folders without a `.module.css`), the JSX/CSS style section (`sx`, theme overrides, no new CSS files), the router exception (§5.3), and the ADR list.
 
 ## 8. Tests
@@ -104,7 +123,9 @@ The global `.alert` class is used in 10 places. Replace each one with `Alert` (`
   - `AppShell` / `NavDrawer`: hamburger toggles `aria-expanded` and labels; collapsed items keep accessible names; Transcriber is current on `/` and `/jobs/:id`; narrow window shows the overlay, opens from the hamburger and closes on item click and Escape.
   - `ColorModeControl`: three choices, the current one selected, choosing one calls `setMode`; collapsed variant opens a menu with the same choices.
 - **Checks per task:** `pnpm test`, `pnpm lint`, `pnpm typecheck` in `apps/web`. After each screen phase, a browser check of that screen in light and dark mode (screenshots), as `apps/web/CLAUDE.md` requires.
-- **Final check:** `rg -n "\.css['\"]" apps/web/src` finds only `NoteEditor.module.css` and `@mdxeditor/editor/style.css`; no `.css` file exists in `apps/web/src` except `NoteEditor.module.css`; `pnpm build` passes; a full browser run (submit → progress → review → change folder → edit properties → autosave → save, and discard) in light, dark and system modes, wide and narrow.
+- **Editor (phase 7):** `NoteEditor.test.tsx` and `noteRoundTrip.test.tsx` stay green; the only allowed changes are query swaps for the MUI toggle, listed in the log. New tests: formatting buttons present with accessible names in rich mode and absent in source mode; Bold, Italic and the block type reflect the current selection where jsdom allows it, otherwise this moves to the browser check; the toolbar fixture round-trips (§6.6); the dark class is set when `colorScheme` is dark and removed when light, without remounting (the editor keeps its text); `ModeToggle` blocked state still shows the alert.
+- **Editor browser check:** in light and dark mode, use every toolbar button on a real note, then open source mode and check the Markdown; open the block-type dropdown and the link dialog in dark mode and read them; switch colour mode mid-edit and keep typing.
+- **Final check (phase 6):** `rg -n "\.css['\"]" apps/web/src` finds only `NoteEditor.module.css` and `@mdxeditor/editor/style.css`; no `.css` file exists in `apps/web/src` except `NoteEditor.module.css`; `pnpm build` passes; a full browser run (submit → progress → review → change folder → edit properties → autosave → save, and discard) in light, dark and system modes, wide and narrow.
 
 ## 9. Phases (detail in `tasks.md`)
 1. **Foundation:** docs and ADRs; dependencies; theme and providers; test setup; app shell, drawer, colour mode.
@@ -113,8 +134,9 @@ The global `.alert` class is used in 10 places. Replace each one with `Alert` (`
 4. **Review, part 1:** `ReviewScreen`, `TranscriptPane`, `ReviewActions`, `NoteDestination`, `FilenamePreview`.
 5. **Review, part 2:** `PropertiesPanel`, `TagInput`, `FolderPicker` on `SimpleTreeView`.
 6. **Clean-up and verification:** `global.css` removed (editor token shim added), CLAUDE.md and README, version bump, final checks.
+7. **Editor:** dark mode, MUI mode toggle and wrapper, formatting toolbar, `NoteEditor.module.css` and the shim removed, docs, final checks. After it, the only stylesheet import is `@mdxeditor/editor/style.css` and no `.css` file exists in `apps/web/src`.
 
-Suggested checkpoints: **A** = phase 1, **B** = phases 2–3, **C** = phases 4–5, **D** = phase 6.
+Suggested checkpoints: **A** = phase 1, **B** = phases 2–3, **C** = phases 4–5, **D** = phase 6, **E** = phase 7.
 
 Every task leaves the app working. Until phase 6, `global.css` stays, so unconverted screens keep their look next to converted ones. In that window, an unconverted screen follows the OS colour scheme rather than the toggle (its tokens use `prefers-color-scheme`). That is accepted, and it ends when phase 5 is done.
 

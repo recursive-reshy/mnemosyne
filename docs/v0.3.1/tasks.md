@@ -12,7 +12,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 - **End of a checkpoint:** stop and report what was built, test/lint/typecheck results, browser screenshots (light and dark) of the screens touched, anything deferred, and any ADR that changes the TRD. Don't start the next checkpoint until Naresh says so.
 - Never start a task whose checkpoint Plan cell is ⬜.
 - If something isn't covered by the PRD, TRD or ADRs, stop and ask. Record the decision as the next ADR and add its number to the task's ADR column.
-- **This version is web-only and behaviour-neutral.** Any change to `apps/server` or `packages/shared`, or to what a screen does, is out of scope: stop and ask.
+- **This version is web-only and behaviour-neutral**, except the editor toolbar and dark mode in checkpoint E (PRD §6.5). Any change to `apps/server` or `packages/shared`, or to what a screen does beyond that, is out of scope: stop and ask.
 - A converted component's existing tests must pass unchanged, except `FolderPicker.test.tsx` (TRD §6.5) and query swaps listed in the log line (TRD §8).
 - Every task must leave the whole app working: `global.css` stays until 6.1.
 - Add a one-line note to the log at the bottom whenever a task is ticked.
@@ -69,6 +69,18 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 6.1 | Delete `global.css` and its import; add the `GlobalStyles` shim for the three tokens `NoteEditor.module.css` uses (comment: removed in v0.3.2); `NoteEditor` files untouched and its tests green | 0024 | ✅ |
 | 6.2 | Docs: `apps/web/CLAUDE.md` (folder structure, JSX/CSS style section: `sx`, theme overrides, no new CSS files), README (UI section: drawer, colour mode), web `package.json` version 0.3.1 | 0024, 0025 | ✅ |
 | 6.3 | Final checks (report results, don't tick until Naresh confirms): only `NoteEditor.module.css` and the MDXEditor stylesheet remain as CSS; `pnpm build` passes; browser run of submit → progress → review → folder change (tree keyboard use) → properties → autosave → save, and discard, in light, dark and system modes, wide and narrow; drawer and mode survive a reload | — | ⬜ |
+
+## Checkpoint E: Phase 7 (note editor toolbar and dark mode)
+**Plan:** ⬜ [`plans/checkpoint-e.md`](plans/checkpoint-e.md)
+
+| ID | Task | ADRs | Status |
+| --- | --- | --- | --- |
+| **Phase 7** | **Editor** | | |
+| 7.1 | Dark mode: `NoteEditor` adds MDXEditor's dark theme class from `useColorScheme()` (no remount on change); popups and the link dialog get it too; MDXEditor colour variables mapped to the MUI palette where they clash (TRD §6.6). Check the MDXEditor API first (Context7 or mdxeditor.dev) | 0019, 0024 | ⬜ |
+| 7.2 | `ModeToggle` on MUI (`ToggleButtonGroup`, `Alert` for the blocked message); the wrapper becomes `Paper variant="outlined"` with the content padding and height in `sx`; delete `NoteEditor.module.css`, `editorTokens.ts`, its test and the `GlobalStyles` line in `main.tsx` | 0024 | ⬜ |
+| 7.3 | Toolbar fixture round-trip test first (H1–H3, quote, bold, italic, `-` and `1.` lists, link): idempotent, expected forms, **stop and ask** if MDXEditor writes any of them differently. Then `FormattingToolbar` (UndoRedo, BlockTypeSelect, Bold and Italic only, bullet and numbered lists only, CreateLink) shown in rich-text mode only; `headingsPlugin` limited to levels 1–3; `linkDialogPlugin` added | 0019, 0023 | ⬜ |
+| 7.4 | Docs: `apps/web/CLAUDE.md` (editor: toolbar, dark mode, no CSS files at all, `editorTokens` gone), README (editor toolbar), root `CLAUDE.md` if it describes the editor | 0024 | ⬜ |
+| 7.5 | Final checks (report results, don't tick until Naresh confirms): no `.css` file in `apps/web/src`, the only stylesheet import is `@mdxeditor/editor/style.css`; `pnpm build` passes; browser check of every toolbar button in light and dark with the Markdown checked in source mode, the block-type dropdown and link dialog readable in dark mode, colour mode switched mid-edit; a note formatted with the toolbar saved to a scratch vault and opened in Obsidian | — | ⬜ |
 
 ---
 
