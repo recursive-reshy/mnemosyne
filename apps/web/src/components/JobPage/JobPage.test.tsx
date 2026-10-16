@@ -158,14 +158,14 @@ describe( 'JobPage', () => {
       expires_at: '2026-10-16T10:00:00.000Z',
     } )
 
-    it( 'shows the title, the summary and the transcript regions', () => {
+    it( 'shows the title, the summary and the transcript regions', async () => {
       showJob( reviewJob )
       renderPage()
 
       expect( screen.getByRole( 'heading', { level: 2, name: 'How Rust Works' } ) )
         .toBeInTheDocument()
-      expect( screen.getByRole( 'textbox', { name: 'Summary' } ) )
-        .toHaveValue( reviewJob.note_markdown )
+      expect( await screen.findByRole( 'heading', { level: 2, name: 'Summary' } ) )
+        .toBeInTheDocument()
       expect( screen.getByRole( 'region', { name: 'Transcript' } ) ).toBeInTheDocument()
       expect( screen.getByRole( 'region', { name: 'Download transcript' } ) )
         .toBeInTheDocument()

@@ -16,6 +16,7 @@ interface NoteEditorProps {
   onChange: ( markdown: string ) => void
   onModeChange?: ( mode: NoteEditorMode ) => void
   onBlur?: () => void
+  onCaretText?: ( text: string ) => void
 }
 
 const withOneNewline = ( markdown: string ): string => `${ markdown.replace( /\n+$/, '' ) }\n`

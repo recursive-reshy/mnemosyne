@@ -25,6 +25,39 @@ import { renderWithClient } from '#src/test-support/renderWithClient'
 import { ReviewScreen } from './ReviewScreen'
 
 vi.mock( '#src/hooks/useTranscript' )
+vi.mock( '../NoteEditor', async () => {
+  const { lineAt } = await import( '#src/timestamp' )
+
+  return {
+    NoteEditor: ( props: {
+      value: string
+      onChange: ( value: string ) => void
+      onModeChange?: ( mode: 'rich-text' | 'source' ) => void
+      onBlur?: () => void
+      onCaretText?: ( text: string ) => void
+    } ) => (
+      <div>
+        <textarea
+          aria-label="Summary"
+          value={ props.value }
+          onChange={ ( event ) => props.onChange( event.target.value ) }
+          onBlur={ props.onBlur }
+          onSelect={ ( event ) => {
+            const { value, selectionStart } = event.currentTarget
+
+            props.onCaretText?.( lineAt( value, selectionStart ) )
+          } }
+        />
+        <button type="button" onClick={ () => props.onModeChange?.( 'source' ) }>
+          Fake source
+        </button>
+        <button type="button" onClick={ () => props.onModeChange?.( 'rich-text' ) }>
+          Fake rich
+        </button>
+      </div>
+    ),
+  }
+} )
 vi.mock( '#src/api/jobs.api' )
 
 const mockedSaveJob = vi.mocked( saveJob )
@@ -228,6 +261,52 @@ describe( 'ReviewScreen autosave', () => {
 
     expect( screen.queryByRole( 'textbox', { name: 'Summary' } ) ).not.toBeInTheDocument()
     expect( screen.queryByText( 'Saved' ) ).not.toBeInTheDocument()
+  } )
+} )
+
+describe( 'ReviewScreen editor modes', () => {
+  it( 'shows the properties panel in rich text and hides it in source mode', async () => {
+    renderWithClient( <ReviewScreen job={ reviewJob } { ...handlers() } /> )
+    const user = userEvent.setup()
+
+    expect( screen.getByRole( 'textbox', { name: 'Title' } ) ).toBeInTheDocument()
+
+    await user.click( screen.getByRole( 'button', { name: 'Fake source' } ) )
+
+    expect( screen.queryByRole( 'textbox', { name: 'Title' } ) ).not.toBeInTheDocument()
+
+    await user.click( screen.getByRole( 'button', { name: 'Fake rich' } ) )
+
+    expect( screen.getByRole( 'textbox', { name: 'Title' } ) ).toBeInTheDocument()
+  } )
+
+  it( 'saves the edits to the server when the mode changes', async () => {
+    renderWithClient( <ReviewScreen job={ reviewJob } { ...handlers() } /> )
+    const user = userEvent.setup()
+    await user.type( screen.getByRole( 'textbox', { name: 'Summary' } ), '!' )
+
+    await user.click( screen.getByRole( 'button', { name: 'Fake source' } ) )
+
+    await vi.waitFor( () => expect( mockedUpdateDraft ).toHaveBeenCalledExactlyOnceWith(
+      reviewJob.id,
+      { note_markdown: `${ reviewJob.note_markdown ?? '' }!` },
+    ) )
+  } )
+
+  it( 'takes the server\'s normalized note into the editor only after blur', async () => {
+    mockedUpdateDraft.mockResolvedValue(
+      { ...reviewJob, note_markdown: 'normalized by the server' },
+    )
+    renderWithClient( <ReviewScreen job={ reviewJob } { ...handlers() } /> )
+    const user = userEvent.setup()
+    const editor = screen.getByRole( 'textbox', { name: 'Summary' } )
+
+    await user.type( editor, '!' )
+    expect( editor ).toHaveValue( `${ reviewJob.note_markdown ?? '' }!` )
+
+    await user.tab()
+
+    await vi.waitFor( () => expect( editor ).toHaveValue( 'normalized by the server' ) )
   } )
 } )
 

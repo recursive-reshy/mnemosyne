@@ -14,8 +14,9 @@ import { useSaveJob } from '#src/hooks/useSaveJob'
 import { useTranscript } from '#src/hooks/useTranscript'
 import { DownloadLinks } from '../DownloadLinks'
 import { FilenamePreview } from '../FilenamePreview'
+import { NoteEditor } from '../NoteEditor'
+import type { NoteEditorMode } from '../NoteEditor'
 import { PropertiesPanel } from '../PropertiesPanel'
-import { SummaryEditor } from '../SummaryEditor'
 import { TranscriptPane } from '../TranscriptPane'
 import styles from './ReviewScreen.module.css'
 
@@ -43,6 +44,7 @@ export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps )
   const hasFailed = job.status === 'summary_failed'
   const autosave = useAutosaveDraft( job )
   const title = noteTitle( autosave.note )
+  const [ mode, setMode ] = useState< NoteEditorMode >( 'rich-text' )
   const { transcript, error: transcriptError } = useTranscript( job.id )
   const [ focusSecond, setFocusSecond ] = useState< number | null >( null )
   const save = useSaveJob( job.id, autosave.flush )
@@ -69,6 +71,11 @@ export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps )
     } )
   }
 
+  const handleModeChange = ( next: NoteEditorMode ): void => {
+    setMode( next )
+    handleBlur()
+  }
+
   const handleSave = (): void => {
     save.mutate( undefined, { onSuccess: ( savedPath ) => onSaved( savedPath ) } )
   }
@@ -79,17 +86,20 @@ export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps )
       { hasFailed && <p className="alert" role="alert">{ job.error ?? 'Summary failed.' }</p> }
       { !hasFailed && (
         <>
-          <PropertiesPanel note={ autosave.note } onChange={ autosave.setNote } />
+          { mode === 'rich-text' && (
+            <PropertiesPanel note={ autosave.note } onChange={ autosave.setNote } />
+          ) }
           <FilenamePreview title={ title ?? job.title ?? '' } />
         </>
       ) }
       <div className={ `${ styles.columns } ${ hasFailed ? styles.single : '' }` }>
         { !hasFailed && (
-          <SummaryEditor
+          <NoteEditor
             value={ autosave.note }
             onChange={ autosave.setNote }
-            onCaretLine={ handleCaretLine }
+            onModeChange={ handleModeChange }
             onBlur={ handleBlur }
+            onCaretText={ handleCaretLine }
           />
         ) }
         <TranscriptPane
