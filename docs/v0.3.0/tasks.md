@@ -46,7 +46,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 4.4 | `saveJob( id )` writes the stored draft: re-apply locked properties with `created` = today, write to `target_folder ?? DEFAULT_NOTE_FOLDER` through `resolveFolder` (mkdir recursive), collisions as before; `NOTES_FOLDER` removed; 409 if `note_markdown` is null. The controller stops reading a body; `SaveJobBody` stays in shared until 8.2. Update `apps/server/CLAUDE.md` (folder structure, vault client) | 0020, 0022 | ✅ |
 
 ## Checkpoint C: Phase 5 (web drafts)
-**Plan:** ⬜ [`plans/checkpoint-c.md`](plans/checkpoint-c.md)
+**Plan:** ✅ [`plans/checkpoint-c.md`](plans/checkpoint-c.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
