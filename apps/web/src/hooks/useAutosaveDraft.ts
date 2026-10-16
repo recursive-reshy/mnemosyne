@@ -147,6 +147,22 @@ export function useAutosaveDraft( job: Job ): AutosaveState {
     }
   }, [] )
 
+  const hasUnsaved = status !== 'saved'
+
+  useEffect( () => {
+    if( !hasUnsaved ) {
+      return undefined
+    }
+
+    const warn = ( event: BeforeUnloadEvent ): void => {
+      event.preventDefault()
+    }
+
+    window.addEventListener( 'beforeunload', warn )
+
+    return () => window.removeEventListener( 'beforeunload', warn )
+  }, [ hasUnsaved ] )
+
   return {
     note: values.note,
     folder: values.folder,

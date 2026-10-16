@@ -12,6 +12,7 @@ import {
   vi,
 } from 'vitest'
 // Shared
+import { serializeNote } from '@mnemosyne/shared'
 import type { Job } from '@mnemosyne/shared'
 // App
 import { ApiError } from '#src/api/apiError'
@@ -143,8 +144,17 @@ describe( 'JobPage', () => {
     const reviewJob = jobFixture( {
       status: 'ready_for_review',
       title: 'How Rust Works',
-      summary_markdown: '## Summary\nOwnership is central.',
-      suggested_tags: [ 'rust' ],
+      note_markdown: serializeNote( {
+        properties: {
+          title: 'How Rust Works',
+          source: 'https://www.youtube.com/watch?v=abc',
+          channel: 'Channel',
+          duration: '05:00',
+          created: '2026-10-15',
+          tags: [ 'mnemosyne', 'rust' ],
+        },
+        body: '## Summary\nOwnership is central.\n',
+      } ),
       expires_at: '2026-10-16T10:00:00.000Z',
     } )
 
@@ -155,7 +165,7 @@ describe( 'JobPage', () => {
       expect( screen.getByRole( 'heading', { level: 2, name: 'How Rust Works' } ) )
         .toBeInTheDocument()
       expect( screen.getByRole( 'textbox', { name: 'Summary' } ) )
-        .toHaveValue( '## Summary\nOwnership is central.' )
+        .toHaveValue( reviewJob.note_markdown )
       expect( screen.getByRole( 'region', { name: 'Transcript' } ) ).toBeInTheDocument()
       expect( screen.getByRole( 'region', { name: 'Download transcript' } ) )
         .toBeInTheDocument()

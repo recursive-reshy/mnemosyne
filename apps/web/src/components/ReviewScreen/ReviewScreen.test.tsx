@@ -47,31 +47,36 @@ const transcript = {
 }
 
 beforeEach( () => {
-  window.localStorage.clear()
   mockedUseTranscript.mockReset()
   mockedUseTranscript.mockReturnValue( { transcript, error: null } )
   mockedSaveJob.mockReset()
   mockedUpdateDraft.mockReset()
+  mockedUpdateDraft.mockImplementation( ( _id, body ) => Promise.resolve( {
+    ...reviewJob,
+    note_markdown: body.note_markdown ?? reviewJob.note_markdown,
+  } ) )
   mockedDiscardJob.mockReset()
   mockedRetrySummary.mockReset()
 } )
 
-const reviewJob = jobFixture( {
-  status: 'ready_for_review',
-  title: 'How Rust Works',
-  summary_markdown: '## Summary\nText.',
-  suggested_tags: [ 'rust' ],
-  note_markdown: serializeNote( {
+const noteWith = ( tags: string[], body: string, title = 'How Rust Works' ): string => {
+  return serializeNote( {
     properties: {
-      title: 'How Rust Works',
+      title,
       source: 'https://www.youtube.com/watch?v=abc',
       channel: 'Channel',
       duration: '05:00',
       created: '2026-10-15',
-      tags: [ 'mnemosyne', 'rust' ],
+      tags: [ 'mnemosyne', ...tags ],
     },
-    body: '## Summary\nText.\n',
-  } ),
+    body,
+  } )
+}
+
+const reviewJob = jobFixture( {
+  status: 'ready_for_review',
+  title: 'How Rust Works',
+  note_markdown: noteWith( [ 'rust' ], '## Summary\nText.\n' ),
 } )
 
 const handlers = () => ( { onSaved: vi.fn(), onDiscarded: vi.fn() } )
@@ -108,7 +113,10 @@ describe( 'ReviewScreen title', () => {
 
 describe( 'ReviewScreen tags', () => {
   it( 'starts with mnemosyne and the suggested tags and lets the user edit them', async () => {
-    const taggedJob = { ...reviewJob, suggested_tags: [ 'rust', 'go' ] }
+    const taggedJob = {
+      ...reviewJob,
+      note_markdown: noteWith( [ 'rust', 'go' ], '## Summary\nText.\n' ),
+    }
     renderWithClient( <ReviewScreen job={ taggedJob } { ...handlers() } /> )
     const user = userEvent.setup()
 
@@ -132,12 +140,13 @@ describe( 'ReviewScreen summary and transcript', () => {
     renderWithClient( <ReviewScreen job={ reviewJob } { ...handlers() } /> )
     const user = userEvent.setup()
     const editor = screen.getByRole( 'textbox', { name: 'Summary' } )
+    const note = reviewJob.note_markdown ?? ''
 
-    expect( editor ).toHaveValue( '## Summary\nText.' )
+    expect( editor ).toHaveValue( note )
 
     await user.type( editor, ' More.' )
 
-    expect( editor ).toHaveValue( '## Summary\nText. More.' )
+    expect( editor ).toHaveValue( `${ note } More.` )
   } )
 
   it( 'shows the transcript next to the summary', () => {
@@ -159,38 +168,73 @@ describe( 'ReviewScreen summary and transcript', () => {
   } )
 } )
 
-describe( 'ReviewScreen drafts', () => {
-  const key = `mnemosyne:draft:${ reviewJob.id }`
+describe( 'ReviewScreen autosave', () => {
+  it( 'shows the whole note, front-matter included, in the editor', () => {
+    renderWithClient( <ReviewScreen job={ reviewJob } { ...handlers() } /> )
 
-  it( 'stores edits in the draft', async () => {
+    expect( screen.getByRole( 'textbox', { name: 'Summary' } ).textContent )
+      .toContain( 'title: "How Rust Works"' )
+  } )
+
+  it( 'keeps the panel and the editor on the same note', async () => {
+    renderWithClient( <ReviewScreen job={ reviewJob } { ...handlers() } /> )
+    const user = userEvent.setup()
+
+    await user.type( screen.getByRole( 'textbox', { name: 'Title' } ), '!' )
+
+    expect( screen.getByRole( 'textbox', { name: 'Summary' } ) )
+      .toHaveValue( noteWith( [ 'rust' ], '## Summary\nText.\n', 'How Rust Works!' ) )
+    expect( screen.getByText( 'Mnemosyne/How Rust Works!.md' ) ).toBeInTheDocument()
+  } )
+
+  it( 'saves the edited note to the server when the editor loses focus', async () => {
     renderWithClient( <ReviewScreen job={ reviewJob } { ...handlers() } /> )
     const user = userEvent.setup()
 
     await user.type( screen.getByRole( 'textbox', { name: 'Summary' } ), '!' )
+    await user.tab()
 
-    const stored = JSON.parse( window.localStorage.getItem( key ) ?? 'null' ) as { body: string }
-    expect( stored.body ).toBe( '## Summary\nText.!' )
+    await vi.waitFor( () => expect( mockedUpdateDraft ).toHaveBeenCalledExactlyOnceWith(
+      reviewJob.id,
+      { note_markdown: `${ reviewJob.note_markdown ?? '' }!` },
+    ) )
+    expect( await screen.findByText( 'Saved' ) ).toBeInTheDocument()
   } )
 
-  it( 'restores a stored draft over the server values', () => {
-    window.localStorage.setItem(
-      key,
-      JSON.stringify( { title: 'My title', tags: [ 'go' ], body: 'My summary' } ),
-    )
-
+  it( 'announces that there are unsaved edits', async () => {
     renderWithClient( <ReviewScreen job={ reviewJob } { ...handlers() } /> )
 
-    expect( screen.getByRole( 'textbox', { name: 'Title' } ) ).toHaveValue( 'My title' )
-    expect( screen.getByRole( 'textbox', { name: 'Summary' } ) ).toHaveValue( 'My summary' )
-    expect( screen.getByRole( 'button', { name: 'Remove tag go' } ) ).toBeInTheDocument()
+    await userEvent.setup().type( screen.getByRole( 'textbox', { name: 'Summary' } ), '!' )
+
+    expect( screen.getByRole( 'status' ) ).toHaveTextContent( 'Unsaved changes' )
+  } )
+
+  it( 'shows why a draft was not saved and keeps the text', async () => {
+    mockedUpdateDraft.mockRejectedValue( new ApiError( 'front-matter invalid: bad YAML', 400 ) )
+    renderWithClient( <ReviewScreen job={ reviewJob } { ...handlers() } /> )
+    const user = userEvent.setup()
+
+    await user.type( screen.getByRole( 'textbox', { name: 'Summary' } ), '!' )
+    await user.tab()
+
+    expect( await screen.findByRole( 'alert' ) )
+      .toHaveTextContent( 'Not saved: front-matter invalid: bad YAML' )
+    expect( screen.getByRole( 'textbox', { name: 'Summary' } ) )
+      .toHaveValue( `${ reviewJob.note_markdown ?? '' }!` )
+  } )
+
+  it( 'has no editor, panel or status when the summary failed', () => {
+    renderWithClient( <ReviewScreen job={ failedJob } { ...handlers() } /> )
+
+    expect( screen.queryByRole( 'textbox', { name: 'Summary' } ) ).not.toBeInTheDocument()
+    expect( screen.queryByText( 'Saved' ) ).not.toBeInTheDocument()
   } )
 } )
 
 describe( 'ReviewScreen save', () => {
-  const key = `mnemosyne:draft:${ reviewJob.id }`
   const saveButton = (): HTMLElement => screen.getByRole( 'button', { name: /^Save/ } )
 
-  it( 'sends the edited title, tags and summary and reports the saved path', async () => {
+  it( 'flushes the edits, then saves with no body, and reports the saved path', async () => {
     mockedSaveJob.mockResolvedValue( 'Mnemosyne/My Title.md' )
     const onSaved = vi.fn()
     renderWithClient( <ReviewScreen job={ reviewJob } { ...handlers() } onSaved={ onSaved } /> )
@@ -199,23 +243,28 @@ describe( 'ReviewScreen save', () => {
     const title = screen.getByRole( 'textbox', { name: 'Title' } )
     await user.clear( title )
     await user.type( title, 'My Title' )
-    await user.type( screen.getByRole( 'textbox', { name: 'Add tag' } ), 'go{Enter}' )
-    await user.type( screen.getByRole( 'textbox', { name: 'Summary' } ), ' Added.' )
     await user.click( saveButton() )
 
-    expect( mockedSaveJob ).toHaveBeenCalledExactlyOnceWith( reviewJob.id )
-    expect( mockedUpdateDraft ).toHaveBeenCalledExactlyOnceWith(
-      reviewJob.id,
-      { note_markdown: expect.any( String ) as string },
-    )
-
-    const sent = mockedUpdateDraft.mock.calls[ 0 ]?.[ 1 ].note_markdown ?? ''
-    const note = parseNote( sent )
-    expect( note.properties.title ).toBe( 'My Title' )
-    expect( note.properties.tags ).toEqual( [ 'mnemosyne', 'rust', 'go' ] )
-    expect( note.properties.source ).toBe( 'https://www.youtube.com/watch?v=abc' )
-    expect( note.body ).toBe( '## Summary\nText. Added.\n' )
     await vi.waitFor( () => expect( onSaved ).toHaveBeenCalledWith( 'Mnemosyne/My Title.md' ) )
+    const sent = mockedUpdateDraft.mock.calls.at( -1 )?.[ 1 ].note_markdown ?? ''
+    expect( parseNote( sent ).properties.title ).toBe( 'My Title' )
+    expect( mockedSaveJob ).toHaveBeenCalledExactlyOnceWith( reviewJob.id )
+    expect( mockedUpdateDraft.mock.invocationCallOrder[ 0 ] )
+      .toBeLessThan( mockedSaveJob.mock.invocationCallOrder[ 0 ] ?? 0 )
+  } )
+
+  it( 'does not save when the draft could not be stored', async () => {
+    mockedUpdateDraft.mockRejectedValue( new ApiError( 'front-matter invalid: x', 400 ) )
+    const onSaved = vi.fn()
+    renderWithClient( <ReviewScreen job={ reviewJob } { ...handlers() } onSaved={ onSaved } /> )
+    const user = userEvent.setup()
+    await user.type( screen.getByRole( 'textbox', { name: 'Summary' } ), '!' )
+
+    await user.click( saveButton() )
+
+    expect( await screen.findByRole( 'alert' ) ).toHaveTextContent( 'front-matter invalid: x' )
+    expect( mockedSaveJob ).not.toHaveBeenCalled()
+    expect( onSaved ).not.toHaveBeenCalled()
   } )
 
   it( 'waits for the server: the button is busy and disabled meanwhile', async () => {
@@ -228,41 +277,36 @@ describe( 'ReviewScreen save', () => {
 
     await user.click( saveButton() )
 
-    expect( screen.getByRole( 'button', { name: 'Saving…' } ) ).toBeDisabled()
+    expect( await screen.findByRole( 'button', { name: 'Saving…' } ) ).toBeDisabled()
 
     resolve( 'Mnemosyne/How Rust Works.md' )
     await vi.waitFor( () => expect( screen.getByRole( 'button', { name: 'Save to vault' } ) ) )
   } )
 
-  it( 'clears the draft and refreshes the job list after saving', async () => {
+  it( 'refreshes the job list after saving', async () => {
     mockedSaveJob.mockResolvedValue( 'Mnemosyne/How Rust Works.md' )
     const { queryClient } = renderWithClient(
       <ReviewScreen job={ reviewJob } { ...handlers() } />,
     )
     const invalidate = vi.spyOn( queryClient, 'invalidateQueries' )
-    const user = userEvent.setup()
-    await user.type( screen.getByRole( 'textbox', { name: 'Summary' } ), '!' )
-    expect( window.localStorage.getItem( key ) ).not.toBeNull()
 
-    await user.click( saveButton() )
+    await userEvent.setup().click( saveButton() )
 
-    await vi.waitFor( () => expect( window.localStorage.getItem( key ) ).toBeNull() )
-    expect( invalidate ).toHaveBeenCalledWith( { queryKey: [ 'jobs' ] } )
+    await vi.waitFor( () => {
+      expect( invalidate ).toHaveBeenCalledWith( { queryKey: [ 'jobs' ] } )
+    } )
   } )
 
-  it( 'shows the server message on failure and keeps the draft', async () => {
+  it( 'shows the server message on failure', async () => {
     mockedSaveJob.mockRejectedValue( new ApiError( 'Cannot move job from saved to saved', 409 ) )
     const onSaved = vi.fn()
     renderWithClient( <ReviewScreen job={ reviewJob } { ...handlers() } onSaved={ onSaved } /> )
-    const user = userEvent.setup()
-    await user.type( screen.getByRole( 'textbox', { name: 'Summary' } ), '!' )
 
-    await user.click( saveButton() )
+    await userEvent.setup().click( saveButton() )
 
     expect( await screen.findByRole( 'alert' ) )
       .toHaveTextContent( 'Cannot move job from saved to saved' )
     expect( onSaved ).not.toHaveBeenCalled()
-    expect( window.localStorage.getItem( key ) ).not.toBeNull()
     expect( saveButton() ).toBeEnabled()
   } )
 
@@ -271,6 +315,16 @@ describe( 'ReviewScreen save', () => {
 
     await userEvent.setup().clear( screen.getByRole( 'textbox', { name: 'Title' } ) )
 
+    expect( saveButton() ).toBeDisabled()
+  } )
+
+  it( 'disables Save while the front-matter is invalid', async () => {
+    renderWithClient( <ReviewScreen job={ reviewJob } { ...handlers() } /> )
+    const editor = screen.getByRole( 'textbox', { name: 'Summary' } )
+
+    await userEvent.setup().type( editor, '{Control>}a{/Control}broken' )
+
+    expect( screen.getByText( 'front-matter invalid' ) ).toBeInTheDocument()
     expect( saveButton() ).toBeDisabled()
   } )
 
@@ -358,11 +412,12 @@ describe( 'ReviewScreen retry', () => {
 } )
 
 describe( 'ReviewScreen caret sync', () => {
-  const syncedJob = {
-    ...reviewJob,
-    summary_markdown: '## Summary\n- Point ([02:15](https://youtu.be/abc?t=135))\nPlain line',
-  }
-  const pointLine = '## Summary\n- Poi'.length
+  const syncedNote = noteWith(
+    [ 'rust' ],
+    '## Summary\n- Point ([02:15](https://youtu.be/abc?t=135))\nPlain line',
+  )
+  const syncedJob = { ...reviewJob, note_markdown: syncedNote }
+  const pointLine = syncedNote.indexOf( '- Poi' ) + '- Poi'.length
 
   const moveCaret = ( index: number ): void => {
     const editor = screen.getByRole< HTMLTextAreaElement >( 'textbox', { name: 'Summary' } )
@@ -400,7 +455,7 @@ describe( 'ReviewScreen caret sync', () => {
     renderWithClient( <ReviewScreen job={ syncedJob } { ...handlers() } /> )
     moveCaret( pointLine )
 
-    moveCaret( syncedJob.summary_markdown.length )
+    moveCaret( syncedNote.length )
 
     expect( document.getElementById( 'transcript-135' ) ).toHaveAttribute( 'aria-current', 'true' )
   } )

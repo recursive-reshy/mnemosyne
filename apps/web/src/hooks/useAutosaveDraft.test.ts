@@ -287,4 +287,54 @@ describe( 'useAutosaveDraft', () => {
       { note_markdown: 'edited' },
     )
   } )
+
+  describe( 'leaving the page', () => {
+    const leave = (): boolean => {
+      const event = new Event( 'beforeunload', { cancelable: true } )
+      window.dispatchEvent( event )
+
+      return event.defaultPrevented
+    }
+
+    it( 'is not blocked when everything is saved', () => {
+      setup()
+
+      expect( leave() ).toBe( false )
+    } )
+
+    it( 'is blocked while an edit is unsaved', () => {
+      const { result } = setup()
+
+      act( () => result.current.setNote( 'edited' ) )
+
+      expect( leave() ).toBe( true )
+    } )
+
+    it( 'is blocked while a request is in flight and after an error', async () => {
+      const request = deferred()
+      mockedUpdateDraft.mockReturnValue( request.promise )
+      const { result } = setup()
+      act( () => result.current.setNote( 'edited' ) )
+      await act( () => vi.advanceTimersByTimeAsync( 1500 ) )
+
+      expect( leave() ).toBe( true )
+
+      await act( () => {
+        request.reject( new ApiError( 'boom', 500 ) )
+
+        return request.promise.catch( () => undefined )
+      } )
+
+      expect( result.current.status ).toBe( 'error' )
+      expect( leave() ).toBe( true )
+    } )
+
+    it( 'is not blocked again once saved', async () => {
+      const { result } = setup()
+      act( () => result.current.setNote( 'edited' ) )
+      await act( () => vi.advanceTimersByTimeAsync( 1500 ) )
+
+      expect( leave() ).toBe( false )
+    } )
+  } )
 } )

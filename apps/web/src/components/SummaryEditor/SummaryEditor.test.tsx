@@ -45,4 +45,22 @@ describe( 'SummaryEditor', () => {
 
     expect( onCaretLine ).toHaveBeenLastCalledWith( '## Summary' )
   } )
+
+  it( 'reports when the editor loses focus', async () => {
+    const onBlur = vi.fn()
+    render(
+      <SummaryEditor
+        value=""
+        onChange={ vi.fn() }
+        onCaretLine={ vi.fn() }
+        onBlur={ onBlur }
+      />,
+    )
+    const user = userEvent.setup()
+
+    await user.click( screen.getByRole( 'textbox', { name: 'Summary' } ) )
+    await user.tab()
+
+    expect( onBlur ).toHaveBeenCalledTimes( 1 )
+  } )
 } )

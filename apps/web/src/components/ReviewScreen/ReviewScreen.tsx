@@ -2,19 +2,20 @@
 import { useState } from 'react'
 import type { ReactElement } from 'react'
 // Shared
+import { parseNote } from '@mnemosyne/shared'
 import type { Job } from '@mnemosyne/shared'
 // App
 import { parseTimestampSeconds } from '#src/timestamp'
 import { useDiscardJob } from '#src/hooks/useDiscardJob'
-import { useDraft } from '#src/hooks/useDraft'
+import { useAutosaveDraft } from '#src/hooks/useAutosaveDraft'
+import type { AutosaveStatus } from '#src/hooks/useAutosaveDraft'
 import { useRetrySummary } from '#src/hooks/useRetrySummary'
 import { useSaveJob } from '#src/hooks/useSaveJob'
 import { useTranscript } from '#src/hooks/useTranscript'
 import { DownloadLinks } from '../DownloadLinks'
 import { FilenamePreview } from '../FilenamePreview'
+import { PropertiesPanel } from '../PropertiesPanel'
 import { SummaryEditor } from '../SummaryEditor'
-import { TagInput } from '../TagInput'
-import { TitleField } from '../TitleField'
 import { TranscriptPane } from '../TranscriptPane'
 import styles from './ReviewScreen.module.css'
 
@@ -24,16 +25,27 @@ interface ReviewScreenProps {
   onDiscarded: () => void
 }
 
+const STATUS_LABELS: Record< Exclude< AutosaveStatus, 'error' >, string > = {
+  saved: 'Saved',
+  saving: 'Saving…',
+  unsaved: 'Unsaved changes',
+}
+
+const noteTitle = ( note: string ): string | null => {
+  try {
+    return parseNote( note ).properties.title
+  } catch{
+    return null
+  }
+}
+
 export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps ): ReactElement {
   const hasFailed = job.status === 'summary_failed'
-  const { draft, setTitle, setTags, setBody } = useDraft( job.id, {
-    title: job.title ?? '',
-    tags: job.suggested_tags,
-    body: job.summary_markdown ?? '',
-  } )
+  const autosave = useAutosaveDraft( job )
+  const title = noteTitle( autosave.note )
   const { transcript, error: transcriptError } = useTranscript( job.id )
   const [ focusSecond, setFocusSecond ] = useState< number | null >( null )
-  const save = useSaveJob( job.id, job.note_markdown )
+  const save = useSaveJob( job.id )
   const discard = useDiscardJob( job.id )
   const retry = useRetrySummary( job.id )
 
@@ -49,11 +61,21 @@ export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps )
     discard.mutate( undefined, { onSuccess: () => onDiscarded() } )
   }
 
+  const handleBlur = (): void => {
+    void autosave.flush().then( ( isSaved ) => {
+      if( isSaved ) {
+        autosave.adoptServerNote()
+      }
+    } )
+  }
+
+  // Interim: the flush moves into useSaveJob in task 5.5.
   const handleSave = (): void => {
-    save.mutate(
-      { title: draft.title, tags: draft.tags, body: draft.body },
-      { onSuccess: ( savedPath ) => onSaved( savedPath ) },
-    )
+    void autosave.flush().then( ( isSaved ) => {
+      if( isSaved ) {
+        save.mutate( undefined, { onSuccess: ( savedPath ) => onSaved( savedPath ) } )
+      }
+    } )
   }
 
   return (
@@ -62,17 +84,17 @@ export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps )
       { hasFailed && <p className="alert" role="alert">{ job.error ?? 'Summary failed.' }</p> }
       { !hasFailed && (
         <>
-          <TitleField value={ draft.title } onChange={ setTitle } />
-          <FilenamePreview title={ draft.title } />
-          <TagInput tags={ draft.tags } onChange={ setTags } />
+          <PropertiesPanel note={ autosave.note } onChange={ autosave.setNote } />
+          <FilenamePreview title={ title ?? job.title ?? '' } />
         </>
       ) }
       <div className={ `${ styles.columns } ${ hasFailed ? styles.single : '' }` }>
         { !hasFailed && (
           <SummaryEditor
-            value={ draft.body }
-            onChange={ setBody }
+            value={ autosave.note }
+            onChange={ autosave.setNote }
             onCaretLine={ handleCaretLine }
+            onBlur={ handleBlur }
           />
         ) }
         <TranscriptPane
@@ -81,6 +103,12 @@ export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps )
           focusSecond={ focusSecond }
         />
       </div>
+      { !hasFailed && autosave.status === 'error' && (
+        <p className="alert" role="alert">{ `Not saved: ${ autosave.message ?? '' }` }</p>
+      ) }
+      { !hasFailed && autosave.status !== 'error' && (
+        <p role="status">{ STATUS_LABELS[ autosave.status ] }</p>
+      ) }
       <DownloadLinks jobId={ job.id } />
       { save.isError && <p className="alert" role="alert">{ save.error.message }</p> }
       { retry.isError && <p className="alert" role="alert">{ retry.error.message }</p> }
@@ -101,7 +129,7 @@ export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps )
             <button
               type="button"
               className={ styles.primary }
-              disabled={ save.isPending || draft.title.trim() === '' }
+              disabled={ save.isPending || title === null || title.trim() === '' }
               onClick={ handleSave }
             >
               { save.isPending ? 'Saving…' : 'Save to vault' }

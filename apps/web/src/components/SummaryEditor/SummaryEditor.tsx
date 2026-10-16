@@ -9,10 +9,11 @@ interface SummaryEditorProps {
   value: string
   onChange: ( value: string ) => void
   onCaretLine: ( line: string ) => void
+  onBlur?: () => void
 }
 
 export function SummaryEditor(
-  { value, onChange, onCaretLine }: SummaryEditorProps,
+  { value, onChange, onCaretLine, onBlur }: SummaryEditorProps,
 ): ReactElement {
   const editorId = useId()
 
@@ -35,6 +36,7 @@ export function SummaryEditor(
         value={ value }
         onChange={ handleChange }
         onSelect={ handleSelect }
+        onBlur={ onBlur }
         spellCheck
       />
     </div>
