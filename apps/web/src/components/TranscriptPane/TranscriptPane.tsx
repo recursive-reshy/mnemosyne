@@ -1,11 +1,33 @@
 // React
 import { useEffect, useMemo, useRef } from 'react'
 import type { ReactElement } from 'react'
+// Packages
+import Alert from '@mui/material/Alert'
+import Paper from '@mui/material/Paper'
+import Typography from '@mui/material/Typography'
 // Shared
 import { formatClock, groupParagraphs } from '@mnemosyne/shared'
 import type { Transcript } from '@mnemosyne/shared'
 // App
-import styles from './TranscriptPane.module.css'
+
+const PANE_SX = {
+  position: 'relative',
+  minWidth: 0,
+  maxHeight: '32rem',
+  overflowY: 'auto',
+  px: 2,
+  py: 1,
+} as const
+
+const PARAGRAPH_SX = {
+  mb: 2,
+  pl: 1,
+  borderLeft: 4,
+  borderColor: 'transparent',
+  '&[aria-current="true"]': { borderColor: 'primary.main', fontWeight: 600 },
+} as const
+
+const STAMP_SX = { fontVariantNumeric: 'tabular-nums' } as const
 
 interface TranscriptPaneProps {
   transcript: Transcript | null
@@ -16,7 +38,7 @@ interface TranscriptPaneProps {
 export function TranscriptPane(
   { transcript, error, focusSecond }: TranscriptPaneProps,
 ): ReactElement {
-  const paneRef = useRef< HTMLElement >( null )
+  const paneRef = useRef< HTMLDivElement >( null )
   const paragraphs = useMemo( () => {
     return transcript === null ? [] : groupParagraphs( transcript.segments )
   }, [ transcript ] )
@@ -44,21 +66,32 @@ export function TranscriptPane(
   }, [ activeStart ] )
 
   return (
-    <section ref={ paneRef } className={ styles.pane } aria-label="Transcript">
-      { error !== null && <p className="alert" role="alert">{ error }</p> }
-      { error === null && transcript === null && <p role="status">Loading transcript…</p> }
+    <Paper
+      ref={ paneRef }
+      component="section"
+      variant="outlined"
+      aria-label="Transcript"
+      sx={ PANE_SX }
+    >
+      { error !== null && <Alert severity="error">{ error }</Alert> }
+      { error === null && transcript === null && (
+        <Typography role="status">Loading transcript…</Typography>
+      ) }
       { paragraphs.map( ( { start, text } ) => (
-        <p
+        <Typography
           key={ start }
+          component="p"
           id={ `transcript-${ Math.floor( start ) }` }
-          className={ styles.paragraph }
           aria-current={ start === activeStart ? 'true' : undefined }
+          sx={ PARAGRAPH_SX }
         >
-          <span className={ styles.stamp }>{ `[${ formatClock( start ) }]` }</span>
+          <Typography component="span" color="text.secondary" sx={ STAMP_SX }>
+            { `[${ formatClock( start ) }]` }
+          </Typography>
           { ' ' }
           { text }
-        </p>
+        </Typography>
       ) ) }
-    </section>
+    </Paper>
   )
 }
