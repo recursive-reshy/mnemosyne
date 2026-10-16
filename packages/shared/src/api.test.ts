@@ -12,6 +12,8 @@ import {
   ListJobsResponse,
   SaveJobBody,
   SaveJobResponse,
+  UpdateDraftBody,
+  UpdateDraftResponse,
 } from './api.js'
 
 const jobId = '3f2b8c1e-6d1a-4b8e-9a53-0c1d2e3f4a5b'
@@ -208,5 +210,29 @@ describe( 'FolderNode and ListFoldersResponse', () => {
 
   it( 'rejects a missing default_folder', () => {
     expect( ListFoldersResponse.safeParse( { folders: [] } ).success ).toBe( false )
+  } )
+} )
+
+describe( 'UpdateDraftBody', () => {
+  it.each( [
+    { note_markdown: '---\n---\n' },
+    { target_folder: 'Learning/AI' },
+    { target_folder: null },
+    { note_markdown: 'x', target_folder: null },
+  ] )( 'accepts %j', ( body ) => {
+    expect( UpdateDraftBody.safeParse( body ).success ).toBe( true )
+  } )
+
+  it.each( [ {}, { note_markdown: 5 }, { target_folder: 5 }, { note_markdown: undefined } ] )(
+    'rejects %j',
+    ( body ) => {
+      expect( UpdateDraftBody.safeParse( body ).success ).toBe( false )
+    },
+  )
+} )
+
+describe( 'UpdateDraftResponse', () => {
+  it( 'requires a job', () => {
+    expect( UpdateDraftResponse.safeParse( {} ).success ).toBe( false )
   } )
 } )

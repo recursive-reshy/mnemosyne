@@ -42,7 +42,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | **Phase 4** | **Server vault and drafts** | | |
 | 4.1 | `DEFAULT_NOTE_FOLDER` in config (validated with `parseFolderPath`); `resolveFolder` in `vault.client.ts` (`..`, absolute paths, symlinks out of the vault, realpath re-check after mkdir); the default folder is created at startup. Update `.env.example` and the Environment section of `apps/server/CLAUDE.md` | 0022 | ✅ |
 | 4.2 | `GET /api/vault/folders`: `FolderNode` / `ListFoldersResponse` in shared; tree of directories, dot-folders and symlinks skipped, sorted case-insensitively; new vault route/controller/service | 0022 | ✅ |
-| 4.3 | `PATCH /api/jobs/:id/draft`: `UpdateDraftBody` / `UpdateDraftResponse` in shared; `updateDraft` parses the note (400 on invalid YAML), re-applies locked properties, syncs `title`, validates `target_folder` (400), bumps `expires_at`; 404, 409 unless `ready_for_review` | 0020, 0021, 0022 | ⬜ |
+| 4.3 | `PATCH /api/jobs/:id/draft`: `UpdateDraftBody` / `UpdateDraftResponse` in shared; `updateDraft` parses the note (400 on invalid YAML), re-applies locked properties, syncs `title`, validates `target_folder` (400), bumps `expires_at`; 404, 409 unless `ready_for_review` | 0020, 0021, 0022 | ✅ |
 | 4.4 | `saveJob( id )` writes the stored draft: re-apply locked properties with `created` = today, write to `target_folder ?? DEFAULT_NOTE_FOLDER` through `resolveFolder` (mkdir recursive), collisions as before; `NOTES_FOLDER` removed; 409 if `note_markdown` is null. The controller stops reading a body; `SaveJobBody` stays in shared until 8.2. Update `apps/server/CLAUDE.md` (folder structure, vault client) | 0020, 0022 | ⬜ |
 
 ## Checkpoint C: Phase 5 (web drafts)
@@ -97,3 +97,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 - 3.3: `Job` gains `note_markdown`, `target_folder`; repository reads/writes them; `completeSummary` stores the whole note.
 - 4.1: `DEFAULT_NOTE_FOLDER` config, `resolveFolder` (path and symlink checks before and after mkdir), default folder created at startup.
 - 4.2: `GET /api/vault/folders` (shared `FolderNode`, `ListFoldersResponse`; `listFolderTree`; vault route/controller/service).
+- 4.3: `PATCH /api/jobs/:id/draft` (`updateDraft`: front-matter validated, locked properties re-applied with the stored `created`, title synced, folder validated, expiry restarted).

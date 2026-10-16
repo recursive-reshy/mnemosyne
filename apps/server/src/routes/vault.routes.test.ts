@@ -8,6 +8,7 @@ import {
   expect,
   beforeEach,
   afterEach,
+  vi,
 } from 'vitest'
 import request from 'supertest'
 // Shared
@@ -15,6 +16,15 @@ import { ListFoldersResponse } from '@mnemosyne/shared'
 // App
 import { app } from '../app.js'
 import { config } from '../config.js'
+
+const vault = vi.hoisted( () => `/tmp/mnemosyne-vault-routes-${ process.pid }` )
+
+// Its own vault, so this file can run beside the jobs routes tests, which wipe the shared one.
+vi.mock( '../config.js', async ( importOriginal ) => {
+  const original = await importOriginal< typeof import( '../config.js' ) >()
+
+  return { config: { ...original.config, vaultPath: vault } }
+} )
 
 beforeEach( async () => {
   await rm( config.vaultPath, { recursive: true, force: true } )

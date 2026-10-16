@@ -15,6 +15,7 @@ import {
   Job,
   JobStatus,
   ListJobsResponse,
+  UpdateDraftResponse,
 } from '@mnemosyne/shared'
 // App
 import { app } from '../app.js'
@@ -455,6 +456,75 @@ describe( 'DELETE /api/jobs/:id', () => {
 
       expect( response.status ).toBe( 409 )
       expect( ( await request( app ).get( `/api/jobs/${ id }` ) ).status ).toBe( 200 )
+    },
+  )
+} )
+
+describe( 'PATCH /api/jobs/:id/draft', () => {
+  const draftNote = (): string => [
+    '---',
+    'title: "Edited title"',
+    'source: "x"',
+    'channel: "x"',
+    'duration: "x"',
+    'created: 2020-01-01',
+    'tags: [rag]',
+    '---',
+    '',
+    '## Edited',
+    '',
+  ].join( '\n' )
+
+  it( 'stores the draft and returns the job', async () => {
+    const id = seedJobAt( 'ready_for_review' )
+
+    const response = await request( app )
+      .patch( `/api/jobs/${ id }/draft` )
+      .send( { note_markdown: draftNote(), target_folder: 'Learning/AI' } )
+
+    expect( response.status ).toBe( 200 )
+    const { job } = UpdateDraftResponse.parse( response.body )
+
+    expect( job ).toMatchObject( {
+      id,
+      title: 'Edited title',
+      target_folder: 'Learning/AI',
+      status: 'ready_for_review',
+    } )
+    expect( job.note_markdown ).toContain( 'tags: [mnemosyne, rag]' )
+  } )
+
+  it.each( [
+    [ 'invalid YAML', { note_markdown: '---\ntitle: "A\n---\n\nx\n' } ],
+    [ 'no front-matter', { note_markdown: 'just text' } ],
+    [ 'an escaping folder', { target_folder: '../x' } ],
+    [ 'an empty body', {} ],
+  ] )( 'responds 400 for %s', async ( _label, body ) => {
+    const id = seedJobAt( 'ready_for_review' )
+
+    const response = await request( app ).patch( `/api/jobs/${ id }/draft` ).send( body )
+
+    expect( response.status ).toBe( 400 )
+  } )
+
+  it( 'responds 404 for an unknown job', async () => {
+    const response = await request( app )
+      .patch( `/api/jobs/${ crypto.randomUUID() }/draft` )
+      .send( { target_folder: 'A' } )
+
+    expect( response.status ).toBe( 404 )
+  } )
+
+  it.each( [ 'queued', 'summarizing', 'summary_failed', 'failed' ] as const )(
+    'responds 409 from %s',
+    async ( status ) => {
+      const id = seedJobAt( status )
+
+      const response = await request( app )
+        .patch( `/api/jobs/${ id }/draft` )
+        .send( { target_folder: 'A' } )
+
+      expect( response.status ).toBe( 409 )
     },
   )
 } )

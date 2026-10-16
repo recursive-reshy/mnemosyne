@@ -10,6 +10,8 @@ import {
   ListJobsResponse,
   SaveJobBody,
   SaveJobResponse,
+  UpdateDraftBody,
+  UpdateDraftResponse,
 } from '@mnemosyne/shared'
 // Services
 import {
@@ -21,6 +23,7 @@ import {
   renderTranscript,
   retrySummary,
   saveJob,
+  updateDraft,
 } from '../services/jobs.service.js'
 
 export const createJob = ( { body }: Request, res: Response< CreateJobResponse > ): void => {
@@ -51,6 +54,17 @@ export const getTranscript = (
   const transcript = findTranscript( String( params.id ) )
 
   res.status( 200 ).json( { transcript } )
+}
+
+export const updateJobDraft = (
+  { params, body }: Request,
+  res: Response< UpdateDraftResponse >,
+): void => {
+  const changes = UpdateDraftBody.parse( body )
+
+  const job = updateDraft( String( params.id ), changes )
+
+  res.status( 200 ).json( { job } )
 }
 
 export const saveReviewedJob = async (

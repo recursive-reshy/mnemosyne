@@ -10,7 +10,7 @@ import {
 // Shared
 import { JobStatus, Transcript } from '@mnemosyne/shared'
 // Errors
-import { ConflictError, NotFoundError } from '../errors.js'
+import { ConflictError, NotFoundError, ValidationError } from '../errors.js'
 // Repositories
 import { clearJobs, findJobById, updateJob } from '../repositories/jobStore.repository.js'
 // Services
@@ -32,6 +32,7 @@ import {
   renderTranscript,
   retrySummary,
   saveJob,
+  updateDraft,
 } from './jobs.service.js'
 // Clients
 import { writeNote } from '../clients/vault.client.js'
@@ -714,4 +715,121 @@ describe( 'deleteExpiredJobs', () => {
 
     expect( deleteExpiredJobs() ).toBe( 0 )
   } )
+} )
+
+describe( 'updateDraft', () => {
+  const queueReview = (): string => {
+    const id = queueSummarizing()
+    completeSummary( id, '## Summary\nText', [ 'rust' ] )
+
+    return id
+  }
+
+  const draft = ( overrides: Record< string, string > = {} ): string => {
+    const properties = {
+      title: 'My title',
+      source: 'https://wrong.example',
+      channel: 'Wrong',
+      duration: '9:99',
+      created: '1999-01-01',
+      ...overrides,
+    }
+
+    return [
+      '---',
+      `title: "${ properties.title }"`,
+      `source: "${ properties.source }"`,
+      `channel: "${ properties.channel }"`,
+      `duration: "${ properties.duration }"`,
+      `created: ${ properties.created }`,
+      'tags: [rust, Big Idea]',
+      '---',
+      '',
+      '## Edited',
+      '',
+    ].join( '\n' )
+  }
+
+  it( 'stores the note with locked properties re-applied and syncs the title', () => {
+    const id = queueReview()
+
+    const job = updateDraft( id, { note_markdown: draft() } )
+
+    expect( job.title ).toBe( 'My title' )
+    expect( job.note_markdown ).toBe( [
+      '---',
+      'title: "My title"',
+      `source: "${ url }"`,
+      'channel: "Some Channel"',
+      'duration: "01:00"',
+      'created: 2026-10-14',
+      'tags: [mnemosyne, rust, big-idea]',
+      '---',
+      '',
+      '## Edited',
+      '',
+    ].join( '\n' ) )
+    expect( findJobById( id )?.note_markdown ).toBe( job.note_markdown )
+  } )
+
+  it.each( [ 'not a note', '---\ntitle: "A\ntags: [a\n---\n\nBody\n' ] )(
+    'rejects %j with ValidationError and stores nothing',
+    ( note ) => {
+      const id = queueReview()
+      const before = findJobById( id )
+
+      expect( () => updateDraft( id, { note_markdown: note } ) ).toThrow( ValidationError )
+      expect( () => updateDraft( id, { note_markdown: note } ) ).toThrow( /front-matter invalid/ )
+      expect( findJobById( id ) ).toEqual( before )
+    },
+  )
+
+  it( 'sets and clears the target folder without requiring it to exist', () => {
+    const id = queueReview()
+
+    expect( updateDraft( id, { target_folder: 'New/Nested' } ).target_folder )
+      .toBe( 'New/Nested' )
+    expect( updateDraft( id, { target_folder: null } ).target_folder ).toBeNull()
+  } )
+
+  it.each( [ '../x', '/abs', 'a//b', '.hidden' ] )(
+    'rejects the folder %j with ValidationError',
+    ( folder ) => {
+      const id = queueReview()
+
+      expect( () => updateDraft( id, { target_folder: folder } ) ).toThrow( ValidationError )
+      expect( findJobById( id )?.target_folder ).toBeNull()
+    },
+  )
+
+  it( 'restarts the expiry and bumps updated_at, for a folder-only change too', () => {
+    const id = queueReview()
+    vi.setSystemTime( laterTime )
+
+    const job = updateDraft( id, { target_folder: 'A' } )
+
+    expect( job.expires_at ).toBe( new Date( laterTime.getTime() + 24 * 3_600_000 ).toISOString() )
+    expect( job.updated_at ).toBe( laterTime.toISOString() )
+  } )
+
+  it( 'leaves the note alone when only the folder changes', () => {
+    const id = queueReview()
+    const before = findJobById( id )?.note_markdown
+
+    expect( updateDraft( id, { target_folder: 'A' } ).note_markdown ).toBe( before )
+  } )
+
+  it( 'throws NotFoundError for an unknown id', () => {
+    expect( () => updateDraft( crypto.randomUUID(), { target_folder: 'A' } ) )
+      .toThrow( NotFoundError )
+  } )
+
+  it.each( [ 'queued', 'transcribing', 'failed', 'summary_failed' ] as const )(
+    'throws ConflictError from %s',
+    ( status ) => {
+      const id = queueJobAt( status )
+
+      expect( () => updateDraft( id, { target_folder: 'A' } ) ).toThrow( ConflictError )
+    },
+  )
 } )

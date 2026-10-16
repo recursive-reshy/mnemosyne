@@ -59,3 +59,19 @@ export const ListFoldersResponse = z.object( {
   folders: z.array( FolderNode ),
 } )
 export type ListFoldersResponse = z.infer< typeof ListFoldersResponse >
+
+export const UpdateDraftBody = z
+  .object( {
+    note_markdown: z.string().optional(),
+    target_folder: z.string().nullable().optional(),
+  } )
+  .refine(
+    ( body ) => body.note_markdown !== undefined || body.target_folder !== undefined,
+    'Send note_markdown, target_folder or both',
+  )
+export type UpdateDraftBody = z.infer< typeof UpdateDraftBody >
+
+export const UpdateDraftResponse = z.object( {
+  job: Job,
+} )
+export type UpdateDraftResponse = z.infer< typeof UpdateDraftResponse >

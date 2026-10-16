@@ -3,15 +3,22 @@ import {
   DownloadFormat,
   Job,
   JobStatus,
+  NoteParseError,
   SaveJobBody,
   Transcript,
+  UpdateDraftBody,
+  applyLockedProperties,
+  formatClock,
+  parseFolderPath,
+  parseNote,
+  serializeNote,
 } from '@mnemosyne/shared'
 // Clients
 import { writeNote } from '../clients/vault.client.js'
 // Config
 import { config } from '../config.js'
 // Errors
-import { ConflictError, NotFoundError } from '../errors.js'
+import { ConflictError, NotFoundError, ValidationError } from '../errors.js'
 // Formatters
 import { transcriptFilename } from '../formatters/filename.js'
 import { formatMarkdown } from '../formatters/markdown.formatter.js'
@@ -275,6 +282,63 @@ export const findTranscript = ( id: string ): Transcript => {
   }
 
   return job.transcript
+}
+
+const today = (): string => new Date().toISOString().slice( 0, 10 )
+
+export const updateDraft = ( id: string, body: UpdateDraftBody ): Job => {
+  const job = requireJob( id )
+
+  if( job.status !== 'ready_for_review' ) {
+    throw conflict( job.status, 'ready_for_review' )
+  }
+
+  if( job.transcript === null ) {
+    throw new Error( `Job ${ id } is ${ job.status } but has no transcript` )
+  }
+
+  const changes: Partial< StoredJob > = { expires_at: expiryFromNow() }
+
+  if( body.note_markdown !== undefined ) {
+    const { meta } = job.transcript
+    let created = today()
+
+    try {
+      if( job.note_markdown !== null ) {
+        created = parseNote( job.note_markdown ).properties.created
+      }
+
+      const note = applyLockedProperties( parseNote( body.note_markdown ), {
+        source: meta.source,
+        channel: meta.channel,
+        duration: formatClock( meta.duration_seconds ),
+        created,
+      } )
+
+      changes.note_markdown = serializeNote( note )
+      changes.title = note.properties.title
+    } catch( error ) {
+      if( !( error instanceof NoteParseError ) ) {
+        throw error
+      }
+
+      throw new ValidationError( `front-matter invalid: ${ error.message }` )
+    }
+  }
+
+  if( body.target_folder !== undefined ) {
+    if( body.target_folder !== null ) {
+      try {
+        parseFolderPath( body.target_folder )
+      } catch( error ) {
+        throw new ValidationError( error instanceof Error ? error.message : 'Invalid folder' )
+      }
+    }
+
+    changes.target_folder = body.target_folder
+  }
+
+  return moveTo( job, job.status, changes )
 }
 
 export const saveJob = async ( id: string, edits: SaveJobBody ): Promise< string > => {
