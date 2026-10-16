@@ -71,7 +71,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 6.3 | Final checks (report results, don't tick until Naresh confirms): only `NoteEditor.module.css` and the MDXEditor stylesheet remain as CSS; `pnpm build` passes; browser run of submit → progress → review → folder change (tree keyboard use) → properties → autosave → save, and discard, in light, dark and system modes, wide and narrow; drawer and mode survive a reload | — | ✅ |
 
 ## Checkpoint E: Phase 7 (note editor toolbar and dark mode)
-**Plan:** ⬜ [`plans/checkpoint-e.md`](plans/checkpoint-e.md)
+**Plan:** ✅ [`plans/checkpoint-e.md`](plans/checkpoint-e.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
