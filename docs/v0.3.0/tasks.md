@@ -55,7 +55,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 5.2 | `useAutosaveDraft`: debounce 1500 ms, `flush()`, at most one request in flight, latest values win, status `saved \| saving \| unsaved \| error`, updates `['jobs', id]` with the returned job; fake-timer tests | 0020 | ✅ |
 | 5.3 | `PropertiesPanel` (title, `TagInput`, read-only source/channel/duration, created "on save") reading and writing the note with `parseNote` / `serializeNote`; "front-matter invalid" state; replaces `TitleField` | 0021 | ✅ |
 | 5.4 | Review screen on the server draft: the existing textarea edits the whole `note_markdown`, the panel above it, a save-status line (`role="status"`), flush on blur, `beforeunload` warning while unsaved; caret sync keeps working on the textarea | 0020 | ✅ |
-| 5.5 | `useSaveJob` flushes autosave first and blocks on a failed flush; remove `useDraft`, its tests and draft clearing in `useJob` / `useDiscardJob`; one-time removal of `mnemosyne:draft:*` keys. Update `apps/web/CLAUDE.md` (Layers: browser storage line; ADR list) | 0020 | ⬜ |
+| 5.5 | `useSaveJob` flushes autosave first and blocks on a failed flush; remove `useDraft`, its tests and draft clearing in `useJob` / `useDiscardJob`; one-time removal of `mnemosyne:draft:*` keys. Update `apps/web/CLAUDE.md` (Layers: browser storage line; ADR list) | 0020 | ✅ |
 
 ## Checkpoint D: Phase 6 (web editor)
 **Plan:** ⬜ [`plans/checkpoint-d.md`](plans/checkpoint-d.md)
@@ -103,3 +103,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 - 5.2: `useAutosaveDraft` (1500 ms debounce, `flush`, one request in flight, latest wins, cache update, flush on unmount).
 - 5.3: `PropertiesPanel` reads and writes the note with `parseNote` / `serializeNote`; shows "front-matter invalid" for a broken note.
 - 5.4: review screen on the server draft (textarea edits the whole note, `PropertiesPanel`, status line, blur flush, `beforeunload` guard); the 5.1 shim is gone.
+- 5.5: `useSaveJob( jobId, flush )` blocks on a failed flush; `useDraft` and its tests removed; `useRemoveLegacyDrafts` clears `mnemosyne:draft:*`; web `CLAUDE.md` updated.

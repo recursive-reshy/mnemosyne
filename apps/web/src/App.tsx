@@ -6,8 +6,11 @@ import { Navigate, Route, Routes } from 'react-router'
 import styles from './App.module.css'
 import { HomePage } from './components/HomePage'
 import { JobPage } from './components/JobPage'
+import { useRemoveLegacyDrafts } from './hooks/useRemoveLegacyDrafts'
 
 export function App(): ReactElement {
+  useRemoveLegacyDrafts()
+
   return (
     <main className={ styles.page }>
       <header className={ styles.header }>

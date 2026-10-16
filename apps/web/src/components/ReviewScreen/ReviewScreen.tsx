@@ -45,7 +45,7 @@ export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps )
   const title = noteTitle( autosave.note )
   const { transcript, error: transcriptError } = useTranscript( job.id )
   const [ focusSecond, setFocusSecond ] = useState< number | null >( null )
-  const save = useSaveJob( job.id )
+  const save = useSaveJob( job.id, autosave.flush )
   const discard = useDiscardJob( job.id )
   const retry = useRetrySummary( job.id )
 
@@ -69,13 +69,8 @@ export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps )
     } )
   }
 
-  // Interim: the flush moves into useSaveJob in task 5.5.
   const handleSave = (): void => {
-    void autosave.flush().then( ( isSaved ) => {
-      if( isSaved ) {
-        save.mutate( undefined, { onSuccess: ( savedPath ) => onSaved( savedPath ) } )
-      }
-    } )
+    save.mutate( undefined, { onSuccess: ( savedPath ) => onSaved( savedPath ) } )
   }
 
   return (
@@ -110,7 +105,9 @@ export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps )
         <p role="status">{ STATUS_LABELS[ autosave.status ] }</p>
       ) }
       <DownloadLinks jobId={ job.id } />
-      { save.isError && <p className="alert" role="alert">{ save.error.message }</p> }
+      { save.isError && autosave.status !== 'error' && (
+        <p className="alert" role="alert">{ save.error.message }</p>
+      ) }
       { retry.isError && <p className="alert" role="alert">{ retry.error.message }</p> }
       { discard.isError && <p className="alert" role="alert">{ discard.error.message }</p> }
       <div className={ styles.actions }>

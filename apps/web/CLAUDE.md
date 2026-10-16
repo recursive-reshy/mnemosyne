@@ -2,7 +2,7 @@
 
 React UI for Mnemosyne: submit a video URL, follow the job, download the transcript. Screens only: all data and rules live in the server. The root `CLAUDE.md` covers the workflow, precedence, cross-app rules, git and secrets; this file does not repeat them. The server's style rules in `apps/server/CLAUDE.md` apply here too unless this file says otherwise.
 
-The relevant ADRs are 0004, 0006, 0008, 0009, 0011, 0013, 0015 and 0016. Read the ones a task lists.
+The relevant ADRs are 0004, 0006, 0008, 0009, 0011, 0013, 0015, 0020 and 0021. Read the ones a task lists.
 
 ## Stack
 
@@ -32,7 +32,7 @@ src/
   api/              <name>.api.ts: fetch wrappers; parse responses with shared schemas
   expiry.ts         pure display helpers sit next to main.tsx as small camelCase modules (expiry.ts, later timestamp.ts)
   queryClient.ts    createQueryClient(): the app's TanStack Query defaults (no retries, no refetch on focus)
-  hooks/            use<Name>.ts: state and effects, built on TanStack Query; queryKeys.ts holds the cache keys
+  hooks/            use<Name>.ts: state and effects, built on TanStack Query; queryKeys.ts holds the cache keys; useAutosaveDraft keeps the review draft on the server
   components/       <Name>/index.ts, <Name>.tsx, <Name>.module.css, <Name>.test.tsx: one folder per component; HomePage and JobPage are the route components; ReviewScreen is the review layout JobPage shows for `ready_for_review` and `summary_failed`
   test-support/     shared test helpers and fixtures
 ```
@@ -40,7 +40,7 @@ src/
 ## Layers
 
 - **Components** render props and call handlers. No `fetch`, no timers, no URL handling (only the route components touch the router). They may import the URL builders from `api/` (such as `downloadUrl`), never the functions that fetch.
-- **Hooks** hold state and effects, and call `api/`. Browser storage (drafts, ADR 0016) is reached only from hooks, always inside try/catch, and the app works without it.
+- **Hooks** hold state and effects, and call `api/`. Review drafts live on the server (ADR 0020), saved by `useAutosaveDraft`; browser storage is only for per-viewer conveniences, reached only from hooks, always inside try/catch, and the app works without it.
 - **`api/`** is the only code that calls `fetch`. It uses relative `/api/...` URLs, parses every response with a schema from `@mnemosyne/shared`, and throws an `Error` with a readable message on a non-2xx response (using the server's `{ error }` body when it parses) or a network failure.
 - **Route components** (`HomePage`, `JobPage`) own the URL: they read it with `useParams` and change it with `useNavigate` / `Navigate`. Nothing else reads or writes `window.location` or the router.
 - Downloads are `<a href="/api/jobs/:id/download?format=…">` links.

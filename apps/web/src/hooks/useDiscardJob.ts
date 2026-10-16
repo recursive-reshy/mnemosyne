@@ -5,7 +5,6 @@ import type { UseMutationResult } from '@tanstack/react-query'
 import type { Job } from '@mnemosyne/shared'
 // App
 import { discardJob } from '../api/jobs.api'
-import { clearDraft } from './useDraft'
 import { jobKeys } from './queryKeys'
 
 interface DiscardContext {
@@ -35,7 +34,6 @@ export function useDiscardJob(
       queryClient.setQueryData( jobKeys.all, context?.previous )
     },
     onSuccess: () => {
-      clearDraft( jobId )
       queryClient.removeQueries( { queryKey: jobKeys.detail( jobId ) } )
     },
     onSettled: async () => {

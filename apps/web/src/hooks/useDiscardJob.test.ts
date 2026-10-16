@@ -63,16 +63,14 @@ describe( 'useDiscardJob', () => {
     expect( queryClient.getQueryData< Job[] >( jobKeys.all ) ).toEqual( [ first, second ] )
   } )
 
-  it( 'clears the draft and forgets the job on success', async () => {
+  it( 'forgets the job on success', async () => {
     mockedDiscardJob.mockResolvedValue( undefined )
-    window.localStorage.setItem( `mnemosyne:draft:${ first.id }`, '{}' )
     const { result, queryClient } = setup()
     queryClient.setQueryData( jobKeys.detail( first.id ), first )
 
     act( () => result.current.mutate() )
 
     await vi.waitFor( () => expect( result.current.isSuccess ).toBe( true ) )
-    expect( window.localStorage.getItem( `mnemosyne:draft:${ first.id }` ) ).toBeNull()
     expect( queryClient.getQueryData( jobKeys.detail( first.id ) ) ).toBeUndefined()
   } )
 } )
