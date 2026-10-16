@@ -35,7 +35,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 3.3 | `Job` DTO gains `note_markdown` and `target_folder` (old fields kept for now); repository reads and writes them; `completeSummary` also stores the whole note | 0021 | ✅ |
 
 ## Checkpoint B: Phase 4 (server vault and drafts)
-**Plan:** ⬜ [`plans/checkpoint-b.md`](plans/checkpoint-b.md)
+**Plan:** ✅ [`plans/checkpoint-b.md`](plans/checkpoint-b.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
