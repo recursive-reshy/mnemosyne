@@ -5,8 +5,10 @@ import {
   CreateJobBody,
   CreateJobResponse,
   DownloadFormat,
+  FolderNode,
   GetJobResponse,
   GetTranscriptResponse,
+  ListFoldersResponse,
   ListJobsResponse,
   SaveJobBody,
   SaveJobResponse,
@@ -175,5 +177,36 @@ describe( 'SaveJobResponse', () => {
   it( 'rejects an empty or missing saved path', () => {
     expect( SaveJobResponse.safeParse( { saved_path: '' } ).success ).toBe( false )
     expect( SaveJobResponse.safeParse( {} ).success ).toBe( false )
+  } )
+} )
+
+describe( 'FolderNode and ListFoldersResponse', () => {
+  const tree = {
+    name: 'Learning',
+    path: 'Learning',
+    children: [ { name: 'AI', path: 'Learning/AI', children: [] } ],
+  }
+
+  it( 'accepts a nested tree', () => {
+    expect( FolderNode.safeParse( tree ).success ).toBe( true )
+    expect( ListFoldersResponse.safeParse( {
+      default_folder: 'Mnemosyne',
+      folders: [ tree ],
+    } ).success ).toBe( true )
+  } )
+
+  it( 'accepts an empty vault', () => {
+    expect( ListFoldersResponse.safeParse( { default_folder: 'Mnemosyne', folders: [] } ).success )
+      .toBe( true )
+  } )
+
+  it( 'rejects a node without a path, at any depth', () => {
+    const broken = { ...tree, children: [ { name: 'AI', children: [] } ] }
+
+    expect( FolderNode.safeParse( broken ).success ).toBe( false )
+  } )
+
+  it( 'rejects a missing default_folder', () => {
+    expect( ListFoldersResponse.safeParse( { folders: [] } ).success ).toBe( false )
   } )
 } )

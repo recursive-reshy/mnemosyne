@@ -22,7 +22,12 @@ import {
   afterEach,
 } from 'vitest'
 // Clients
-import { assertVaultWritable, resolveFolder, writeNote } from './vault.client.js'
+import {
+  assertVaultWritable,
+  listFolderTree,
+  resolveFolder,
+  writeNote,
+} from './vault.client.js'
 // Errors
 import { ValidationError } from '../errors.js'
 
@@ -160,6 +165,70 @@ describe( 'resolveFolder', () => {
     await expect( resolveFolder( vault, 'link' ) ).rejects.toThrow( ValidationError )
 
     await rm( sibling, { recursive: true, force: true } )
+  } )
+} )
+
+describe( 'listFolderTree', () => {
+  it( 'returns an empty list for an empty vault', async () => {
+    await expect( listFolderTree( vault ) ).resolves.toEqual( [] )
+  } )
+
+  it( 'lists directories only, nested, with vault-relative paths', async () => {
+    await mkdir( join( vault, 'Learning', 'AI' ), { recursive: true } )
+    await mkdir( join( vault, 'Learning', 'Rust' ) )
+    await writeFile( join( vault, 'Learning', 'note.md' ), 'x' )
+    await writeFile( join( vault, 'root.md' ), 'x' )
+
+    await expect( listFolderTree( vault ) ).resolves.toEqual( [
+      {
+        name: 'Learning',
+        path: 'Learning',
+        children: [
+          { name: 'AI', path: 'Learning/AI', children: [] },
+          { name: 'Rust', path: 'Learning/Rust', children: [] },
+        ],
+      },
+    ] )
+  } )
+
+  it( 'skips dot-folders at every level', async () => {
+    await mkdir( join( vault, '.obsidian' ) )
+    await mkdir( join( vault, '.trash', 'x' ), { recursive: true } )
+    await mkdir( join( vault, 'A', '.git' ), { recursive: true } )
+
+    await expect( listFolderTree( vault ) ).resolves.toEqual( [
+      { name: 'A', path: 'A', children: [] },
+    ] )
+  } )
+
+  it( 'does not follow or list symlinks', async () => {
+    const outside = await mkdtemp( join( tmpdir(), 'mnemosyne-outside-' ) )
+    await mkdir( join( outside, 'secret' ) )
+    await mkdir( join( vault, 'Real' ) )
+    await symlink( outside, join( vault, 'link' ) )
+    await symlink( join( vault, 'Real' ), join( vault, 'alias' ) )
+    await writeFile( join( vault, 'file.md' ), 'x' )
+    await symlink( join( vault, 'file.md' ), join( vault, 'filelink' ) )
+
+    await expect( listFolderTree( vault ) ).resolves.toEqual( [
+      { name: 'Real', path: 'Real', children: [] },
+    ] )
+
+    await rm( outside, { recursive: true, force: true } )
+  } )
+
+  it( 'sorts case-insensitively at every level', async () => {
+    for( const name of [ 'beta', 'Alpha', 'gamma', 'Delta' ] ) {
+      await mkdir( join( vault, name ) )
+    }
+    for( const name of [ 'b', 'A', 'c' ] ) {
+      await mkdir( join( vault, 'gamma', name ) )
+    }
+
+    const tree = await listFolderTree( vault )
+
+    expect( tree.map( ( { name } ) => name ) ).toEqual( [ 'Alpha', 'beta', 'Delta', 'gamma' ] )
+    expect( tree[ 3 ]?.children.map( ( { name } ) => name ) ).toEqual( [ 'A', 'b', 'c' ] )
   } )
 } )
 

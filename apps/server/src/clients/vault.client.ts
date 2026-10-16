@@ -3,6 +3,7 @@ import {
   access,
   constants,
   mkdir,
+  readdir,
   realpath,
   stat,
   writeFile,
@@ -14,7 +15,7 @@ import {
   sep,
 } from 'node:path'
 // Shared
-import { noteBasename, parseFolderPath } from '@mnemosyne/shared'
+import { FolderNode, noteBasename, parseFolderPath } from '@mnemosyne/shared'
 // Errors
 import { ValidationError } from '../errors.js'
 
@@ -69,6 +70,25 @@ export const resolveFolder = async (
   }
 
   return created
+}
+
+export const listFolderTree = async (
+  vaultPath: string,
+  relativeFolder = '',
+): Promise< FolderNode[] > => {
+  const entries = await readdir( join( vaultPath, relativeFolder ), { withFileTypes: true } )
+
+  const folders = entries
+    .filter( ( entry ) => entry.isDirectory() && !entry.name.startsWith( '.' ) )
+    .sort( ( a, b ) => {
+      return a.name.localeCompare( b.name, undefined, { sensitivity: 'base' } )
+    } )
+
+  return Promise.all( folders.map( async ( { name } ) => {
+    const path = relativeFolder === '' ? name : `${ relativeFolder }/${ name }`
+
+    return { name, path, children: await listFolderTree( vaultPath, path ) }
+  } ) )
 }
 
 export const writeNote = async (

@@ -44,3 +44,18 @@ export type SaveJobResponse = z.infer< typeof SaveJobResponse >
 
 export const DownloadFormat = z.enum( [ 'md', 'srt', 'txt' ] )
 export type DownloadFormat = z.infer< typeof DownloadFormat >
+
+export const FolderNode = z.object( {
+  name: z.string(),
+  path: z.string(),
+  get children(): z.ZodArray< typeof FolderNode > {
+    return z.array( FolderNode )
+  },
+} )
+export type FolderNode = z.infer< typeof FolderNode >
+
+export const ListFoldersResponse = z.object( {
+  default_folder: z.string(),
+  folders: z.array( FolderNode ),
+} )
+export type ListFoldersResponse = z.infer< typeof ListFoldersResponse >
