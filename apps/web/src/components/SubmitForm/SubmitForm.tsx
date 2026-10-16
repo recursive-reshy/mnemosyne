@@ -1,10 +1,13 @@
 // React
 import { useId, useState } from 'react'
 import type { ChangeEvent, ReactElement, SyntheticEvent } from 'react'
+// Packages
+import Alert from '@mui/material/Alert'
+import Box from '@mui/material/Box'
+import Button from '@mui/material/Button'
+import TextField from '@mui/material/TextField'
 // Shared
 import { CreateJobBody } from '@mnemosyne/shared'
-// App
-import styles from './SubmitForm.module.css'
 
 const TEXT = {
   formName: 'Transcribe a video',
@@ -13,6 +16,12 @@ const TEXT = {
   submit: 'Transcribe',
   submitting: 'Starting…',
   invalidUrl: 'Enter a video URL starting with http:// or https://',
+} as const
+
+// As in 0.3.0: a disabled button still takes the pointer and shows not-allowed.
+const SUBMIT_SX = {
+  alignSelf: 'flex-start',
+  '&.Mui-disabled': { pointerEvents: 'auto', cursor: 'not-allowed' },
 } as const
 
 interface SubmitFormProps {
@@ -24,7 +33,6 @@ interface SubmitFormProps {
 export function SubmitForm( { isSubmitting, error, onSubmit }: SubmitFormProps ): ReactElement {
   const [ url, setUrl ] = useState( '' )
   const [ validationMessage, setValidationMessage ] = useState< string | null >( null )
-  const inputId = useId()
   const messageId = useId()
   const message = validationMessage ?? error
 
@@ -47,29 +55,37 @@ export function SubmitForm( { isSubmitting, error, onSubmit }: SubmitFormProps )
   }
 
   return (
-    <form
-      className={ styles.form }
+    <Box
+      component="form"
       aria-label={ TEXT.formName }
       noValidate
       onSubmit={ handleSubmit }
+      sx={ { display: 'flex', flexDirection: 'column', gap: 1, width: '100%' } }
     >
-      <label className={ styles.label } htmlFor={ inputId }>{ TEXT.inputLabel }</label>
-      <input
-        className={ styles.input }
-        id={ inputId }
+      <TextField
+        label={ TEXT.inputLabel }
         type="url"
         value={ url }
         placeholder={ TEXT.placeholder }
         autoComplete="off"
+        fullWidth
         disabled={ isSubmitting }
-        aria-invalid={ validationMessage ? true : undefined }
-        aria-describedby={ message ? messageId : undefined }
+        error={ validationMessage !== null }
         onChange={ handleChange }
+        slotProps={ {
+          htmlInput: { 'aria-describedby': message ? messageId : undefined },
+          inputLabel: { shrink: true },
+        } }
       />
-      <button className={ styles.submitButton } type="submit" disabled={ isSubmitting }>
+      <Button
+        type="submit"
+        variant="contained"
+        disabled={ isSubmitting }
+        sx={ SUBMIT_SX }
+      >
         { isSubmitting ? TEXT.submitting : TEXT.submit }
-      </button>
-      { message && <p className="alert" id={ messageId } role="alert">{ message }</p> }
-    </form>
+      </Button>
+      { message && <Alert severity="error" id={ messageId }>{ message }</Alert> }
+    </Box>
   )
 }

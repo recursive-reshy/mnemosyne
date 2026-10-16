@@ -107,4 +107,11 @@ describe( 'SubmitForm', () => {
     expect( screen.getByRole( 'textbox', { name: 'Video URL' } ) )
       .toHaveAccessibleDescription( 'Could not reach the server' )
   } )
+
+  it( 'does not mark the input invalid for a server error', () => {
+    setup( { error: 'Could not reach the server' } )
+
+    expect( screen.getByRole( 'textbox', { name: 'Video URL' } ) )
+      .not.toHaveAttribute( 'aria-invalid', 'true' )
+  } )
 } )
