@@ -18,6 +18,7 @@ import type { Job } from '@mnemosyne/shared'
 import { ApiError } from '#src/api/apiError'
 import { createJob, saveJob } from '#src/api/jobs.api'
 import { useJob } from '#src/hooks/useJob'
+import { useFolders } from '#src/hooks/useFolders'
 import { useTranscript } from '#src/hooks/useTranscript'
 import type { JobState } from '#src/hooks/useJob'
 import { jobFixture } from '#src/test-support/job.fixture'
@@ -26,6 +27,7 @@ import { JobPage } from './JobPage'
 
 vi.mock( '#src/hooks/useJob' )
 vi.mock( '#src/hooks/useTranscript' )
+vi.mock( '#src/hooks/useFolders' )
 vi.mock( '#src/api/jobs.api', async ( importOriginal ) => ( {
   ...await importOriginal< typeof import( '#src/api/jobs.api' ) >(),
   createJob: vi.fn(),
@@ -36,6 +38,9 @@ const mockedUseJob = vi.mocked( useJob )
 const mockedCreateJob = vi.mocked( createJob )
 const mockedSaveJob = vi.mocked( saveJob )
 const mockedUseTranscript = vi.mocked( useTranscript )
+vi.mocked( useFolders ).mockReturnValue(
+  { defaultFolder: 'Mnemosyne', folders: [], error: null },
+)
 const jobId = jobFixture().id
 const newJobId = '7a1d9e2c-3b4f-4c5d-8e6f-0a1b2c3d4e5f'
 

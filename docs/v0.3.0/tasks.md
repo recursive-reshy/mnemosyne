@@ -76,7 +76,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | **Phase 7** | **Web folder picker** | | |
 | 7.1 | `useFolders()` (`['vault', 'folders']`, fetched once per review screen) | 0022 | ✅ |
 | 7.2 | `FolderPicker`: tree with the default selected when `target_folder` is null, filter box (matches shown with their ancestors), "New folder" validated with `isValidFolderName` and created client-side only; choosing sets `target_folder` and flushes autosave | 0022 | ✅ |
-| 7.3 | `FilenamePreview` shows `<folder>/<noteBasename(title)>.md`; the destination survives a reload | 0022 | ⬜ |
+| 7.3 | `FilenamePreview` shows `<folder>/<noteBasename(title)>.md`; the destination survives a reload | 0022 | ✅ |
 | **Phase 8** | **Clean-up and verification** | | |
 | 8.1 | Migration 3 drops `summary_markdown` and `suggested_tags` (tested from `user_version = 2`); `completeSummary` stops writing them | 0021 | ⬜ |
 | 8.2 | Remove `summary_markdown`, `suggested_tags` from the `Job` DTO and `SaveJobBody` from shared; remove `TitleField` if unused; fix every reference in both apps | 0020, 0021 | ⬜ |
@@ -113,3 +113,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 - Follow-up: lazy-load NoteEditor (bundle size).
 - 7.1: `useFolders()` on `['vault', 'folders']`, no polling.
 - 7.2: `FolderPicker` (disclosure, filter with ancestors, vault root, client-side new folders, pending destinations shown as new); default folder reports `null`.
+- 7.3: `FilenamePreview` shows `<folder>/<name>.md` ("default folder" wording until known); `NoteDestination` wires picker, preview and folder-load errors into the review screen; `ReviewActions` split out of `ReviewScreen`.

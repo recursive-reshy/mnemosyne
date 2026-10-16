@@ -19,12 +19,14 @@ import {
   saveJob,
   updateDraft,
 } from '#src/api/jobs.api'
+import { useFolders } from '#src/hooks/useFolders'
 import { useTranscript } from '#src/hooks/useTranscript'
 import { jobFixture } from '#src/test-support/job.fixture'
 import { renderWithClient } from '#src/test-support/renderWithClient'
 import { ReviewScreen } from './ReviewScreen'
 
 vi.mock( '#src/hooks/useTranscript' )
+vi.mock( '#src/hooks/useFolders' )
 vi.mock( '../NoteEditor', async () => {
   const { lineAt } = await import( '#src/timestamp' )
 
@@ -66,6 +68,16 @@ const mockedDiscardJob = vi.mocked( discardJob )
 const mockedRetrySummary = vi.mocked( retrySummary )
 
 const mockedUseTranscript = vi.mocked( useTranscript )
+const mockedUseFolders = vi.mocked( useFolders )
+
+const folderTree = [
+  {
+    name: 'Learning',
+    path: 'Learning',
+    children: [ { name: 'Rust', path: 'Learning/Rust', children: [] } ],
+  },
+  { name: 'Mnemosyne', path: 'Mnemosyne', children: [] },
+]
 
 const transcript = {
   meta: {
@@ -80,6 +92,10 @@ const transcript = {
 }
 
 beforeEach( () => {
+  mockedUseFolders.mockReset()
+  mockedUseFolders.mockReturnValue(
+    { defaultFolder: 'Mnemosyne', folders: folderTree, error: null },
+  )
   mockedUseTranscript.mockReset()
   mockedUseTranscript.mockReturnValue( { transcript, error: null } )
   mockedSaveJob.mockReset()
@@ -261,6 +277,51 @@ describe( 'ReviewScreen autosave', () => {
 
     expect( screen.queryByRole( 'textbox', { name: 'Summary' } ) ).not.toBeInTheDocument()
     expect( screen.queryByText( 'Saved' ) ).not.toBeInTheDocument()
+  } )
+} )
+
+describe( 'ReviewScreen destination', () => {
+  it( 'saves a chosen folder to the server draft at once and shows the new path', async () => {
+    renderWithClient( <ReviewScreen job={ reviewJob } { ...handlers() } /> )
+    const user = userEvent.setup()
+
+    await user.click( screen.getByRole( 'button', { name: 'Change folder' } ) )
+    await user.click( screen.getByRole( 'button', { name: 'Rust' } ) )
+
+    await vi.waitFor( () => expect( mockedUpdateDraft ).toHaveBeenCalledExactlyOnceWith(
+      reviewJob.id,
+      { target_folder: 'Learning/Rust' },
+    ) )
+    expect( screen.getByText( 'Learning/Rust/How Rust Works.md' ) ).toBeInTheDocument()
+  } )
+
+  it( 'opens a job with a stored folder on that folder', () => {
+    renderWithClient(
+      <ReviewScreen job={ { ...reviewJob, target_folder: 'Learning' } } { ...handlers() } />,
+    )
+
+    expect( screen.getByText( 'Learning/How Rust Works.md' ) ).toBeInTheDocument()
+  } )
+
+  it( 'tells the user when the folders cannot be loaded, and Save still works', async () => {
+    mockedUseFolders.mockReturnValue(
+      { defaultFolder: null, folders: [], error: 'Could not reach the server' },
+    )
+    mockedSaveJob.mockResolvedValue( 'Mnemosyne/How Rust Works.md' )
+    const onSaved = vi.fn()
+    renderWithClient( <ReviewScreen job={ reviewJob } { ...handlers() } onSaved={ onSaved } /> )
+
+    expect( screen.getByRole( 'alert' ) ).toHaveTextContent( 'Could not reach the server' )
+
+    await userEvent.setup().click( screen.getByRole( 'button', { name: /^Save/ } ) )
+
+    await vi.waitFor( () => expect( onSaved ).toHaveBeenCalled() )
+  } )
+
+  it( 'offers no folder picker when the summary failed', () => {
+    renderWithClient( <ReviewScreen job={ failedJob } { ...handlers() } /> )
+
+    expect( screen.queryByRole( 'button', { name: 'Change folder' } ) ).not.toBeInTheDocument()
   } )
 } )
 

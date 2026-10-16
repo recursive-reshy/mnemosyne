@@ -13,10 +13,11 @@ import { useRetrySummary } from '#src/hooks/useRetrySummary'
 import { useSaveJob } from '#src/hooks/useSaveJob'
 import { useTranscript } from '#src/hooks/useTranscript'
 import { DownloadLinks } from '../DownloadLinks'
-import { FilenamePreview } from '../FilenamePreview'
+import { NoteDestination } from '../NoteDestination'
 import { NoteEditor } from '../NoteEditor'
 import type { NoteEditorMode } from '../NoteEditor'
 import { PropertiesPanel } from '../PropertiesPanel'
+import { ReviewActions } from '../ReviewActions'
 import { TranscriptPane } from '../TranscriptPane'
 import styles from './ReviewScreen.module.css'
 
@@ -89,7 +90,11 @@ export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps )
           { mode === 'rich-text' && (
             <PropertiesPanel note={ autosave.note } onChange={ autosave.setNote } />
           ) }
-          <FilenamePreview title={ title ?? job.title ?? '' } />
+          <NoteDestination
+            title={ title ?? job.title ?? '' }
+            folder={ autosave.folder }
+            onFolderChange={ autosave.setFolder }
+          />
         </>
       ) }
       <div className={ `${ styles.columns } ${ hasFailed ? styles.single : '' }` }>
@@ -120,37 +125,16 @@ export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps )
       ) }
       { retry.isError && <p className="alert" role="alert">{ retry.error.message }</p> }
       { discard.isError && <p className="alert" role="alert">{ discard.error.message }</p> }
-      <div className={ styles.actions }>
-        { hasFailed
-          ? (
-            <button
-              type="button"
-              className={ styles.primary }
-              disabled={ retry.isPending }
-              onClick={ () => retry.mutate() }
-            >
-              { retry.isPending ? 'Retrying…' : 'Retry summary' }
-            </button>
-          )
-          : (
-            <button
-              type="button"
-              className={ styles.primary }
-              disabled={ save.isPending || title === null || title.trim() === '' }
-              onClick={ handleSave }
-            >
-              { save.isPending ? 'Saving…' : 'Save to vault' }
-            </button>
-          ) }
-        <button
-          type="button"
-          className={ styles.secondary }
-          disabled={ discard.isPending }
-          onClick={ handleDiscard }
-        >
-          Discard
-        </button>
-      </div>
+      <ReviewActions
+        hasFailed={ hasFailed }
+        canSave={ title !== null && title.trim() !== '' }
+        isSaving={ save.isPending }
+        isRetrying={ retry.isPending }
+        isDiscarding={ discard.isPending }
+        onSave={ handleSave }
+        onRetry={ () => retry.mutate() }
+        onDiscard={ handleDiscard }
+      />
     </div>
   )
 }
