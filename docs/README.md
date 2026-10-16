@@ -36,6 +36,7 @@ Each significant decision is recorded as a short ADR (Architecture Decision Reco
 | [0020](decisions/0020-server-side-drafts.md) | Server-side drafts | Accepted |
 | [0021](decisions/0021-note-as-one-markdown-string.md) | The draft is the whole note as one Markdown string | Accepted |
 | [0022](decisions/0022-vault-wide-folder-picker.md) | Vault-wide folder picker, writes confined to the vault | Accepted |
+| [0023](decisions/0023-mdxeditor-round-trip-contract.md) | MDXEditor round-trip contract | Accepted |
 
 ## Template for new ADRs
 

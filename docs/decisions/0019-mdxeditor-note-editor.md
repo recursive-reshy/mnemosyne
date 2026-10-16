@@ -1,6 +1,6 @@
 # 0019. MDXEditor for the note editor
 
-- Status: Accepted
+- Status: Accepted (amended by 0023)
 - Date: 2026-10-16
 
 ## Context

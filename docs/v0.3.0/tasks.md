@@ -63,10 +63,10 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
 | **Phase 6** | **Web editor** | | |
-| 6.1 | Add `@mdxeditor/editor` (check its API and React 19 support with Context7); jsdom setup it needs; round-trip tests on real 0.2.0 summaries and fixtures (`[[wikilinks]]`, `*` and `-` bullets, quotes with timestamp links, front-matter). **If round-trip fails, or MDXEditor can't be tested in jsdom, stop and ask** | 0019 | ⬜ |
-| 6.2 | `NoteEditor`: rich text by default, source toggle (`diffSourcePlugin`), `frontmatterPlugin` with its UI hidden in rich mode; `onChange` / `onModeChange`; toggling keeps the text identical | 0019 | ⬜ |
+| 6.1 | Add `@mdxeditor/editor` (check its API and React 19 support with Context7); jsdom setup it needs; round-trip tests on real 0.2.0 summaries and fixtures (`[[wikilinks]]`, `*` and `-` bullets, quotes with timestamp links, front-matter). **If round-trip fails, or MDXEditor can't be tested in jsdom, stop and ask** | 0019, 0023 | ⬜ |
+| 6.2 | `NoteEditor`: rich text by default, source toggle (`diffSourcePlugin`), `frontmatterPlugin` with its UI hidden in rich mode; `onChange` / `onModeChange`; toggling keeps the text identical | 0019, 0023 | ⬜ |
 | 6.3 | `NoteEditor` replaces the textarea on the review screen; flush on mode toggle; the server's normalized note goes into the editor only on blur or mode switch | 0019, 0020 | ⬜ |
-| 6.4 | Caret sync in both modes: source = current line, rich = text of the block holding the selection; transcript scrolls as in 0.2.0. **If MDXEditor's selection can't be read testably, stop and ask.** Remove `SummaryEditor`. Update `apps/web/CLAUDE.md` (Stack: MDXEditor allowed by ADR 0019) | 0019 | ⬜ |
+| 6.4 | Caret sync in both modes: source = current line, rich = text of the block holding the selection; transcript scrolls as in 0.2.0. **If MDXEditor's selection can't be read testably, stop and ask.** Remove `SummaryEditor`. Update `apps/web/CLAUDE.md` (Stack: MDXEditor allowed by ADR 0019) | 0019, 0023 | ⬜ |
 
 ## Checkpoint E: Phases 7–8 (folder picker, clean-up, verification)
 **Plan:** ⬜ [`plans/checkpoint-e.md`](plans/checkpoint-e.md)
@@ -104,4 +104,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 - 5.3: `PropertiesPanel` reads and writes the note with `parseNote` / `serializeNote`; shows "front-matter invalid" for a broken note.
 - 5.4: review screen on the server draft (textarea edits the whole note, `PropertiesPanel`, status line, blur flush, `beforeunload` guard); the 5.1 shim is gone.
 - 5.5: `useSaveJob( jobId, flush )` blocks on a failed flush; `useDraft` and its tests removed; `useRemoveLegacyDrafts` clears `mnemosyne:draft:*`; web `CLAUDE.md` updated.
-- 6.1 (blocked, not ticked): MDXEditor 4.3.3 mounts in jsdom with no stubs, but does not round-trip notes: `[[wikilinks]]` become `\[\[…]]`, plain `[12:34]` stamps become `\[12:34]`, `-` bullets become `*` (a global `bullet` option can't keep both `-` and `*`), and the trailing newline is dropped. Front-matter, headings, quotes, code and rules were unchanged. Waiting for a decision (ADR 0019).
+- 6.1 (was blocked, resolved by ADR 0023): MDXEditor 4.3.3 mounts in jsdom with no stubs, but does not round-trip notes: `[[wikilinks]]` become `\[\[…]]`, plain `[12:34]` stamps become `\[12:34]`, `-` bullets become `*` (a global `bullet` option can't keep both `-` and `*`), and the trailing newline is dropped. Front-matter, headings, quotes, code and rules were unchanged. Waiting for a decision (ADR 0019).
