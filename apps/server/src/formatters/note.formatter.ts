@@ -1,7 +1,10 @@
 // Shared
-import { TranscriptMeta, formatClock, normalizeTag } from '@mnemosyne/shared'
-// Formatters
-import { quoted } from './frontmatter.js'
+import {
+  TranscriptMeta,
+  applyLockedProperties,
+  formatClock,
+  serializeNote,
+} from '@mnemosyne/shared'
 
 interface NoteInput {
   title: string
@@ -11,24 +14,16 @@ interface NoteInput {
   created: string
 }
 
-const FIXED_TAG = 'mnemosyne'
-
 export const formatNote = ( { title, tags, body, meta, created }: NoteInput ): string => {
-  const cleanedTags = tags
-    .map( normalizeTag )
-    .filter( ( tag ) => tag !== '' && tag !== FIXED_TAG )
-  const allTags = [ ...new Set( [ FIXED_TAG, ...cleanedTags ] ) ]
+  const locked = {
+    source: meta.source,
+    channel: meta.channel,
+    duration: formatClock( meta.duration_seconds ),
+    created,
+  }
 
-  const frontmatter = [
-    '---',
-    `title: ${ quoted( title ) }`,
-    `source: ${ quoted( meta.source ) }`,
-    `channel: ${ quoted( meta.channel ) }`,
-    `duration: ${ quoted( formatClock( meta.duration_seconds ) ) }`,
-    `created: ${ created }`,
-    `tags: [${ allTags.join( ', ' ) }]`,
-    '---',
-  ].join( '\n' )
-
-  return `${ frontmatter }\n\n${ body.trim() }\n`
+  return serializeNote( applyLockedProperties(
+    { properties: { title, ...locked, tags }, body: `${ body.trim() }\n` },
+    locked,
+  ) )
 }
