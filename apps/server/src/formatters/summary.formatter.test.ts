@@ -41,8 +41,8 @@ describe( 'formatSummary', () => {
   it( 'uses plain timestamps for non-YouTube sources', () => {
     const body = formatSummary( summary, 'https://vimeo.com/123' )
 
-    expect( body ).toContain( '- Ownership is central ([12:34])' )
-    expect( body ).toContain( '> "Memory safety comes free." ([1:05:20])' )
+    expect( body ).toContain( '- Ownership is central (12:34)' )
+    expect( body ).toContain( '> "Memory safety comes free." (1:05:20)' )
     expect( body ).not.toContain( 'youtu.be' )
   } )
 

@@ -1,4 +1,4 @@
-const STAMP = /\[(?:(\d+):)?(\d{1,2}):(\d{2})\]/
+const STAMP = /(?<![\d:])(?:(\d+):)?(\d{1,2}):(\d{2})(?![\d:])/
 
 export const parseTimestampSeconds = ( line: string ): number | null => {
   const match = STAMP.exec( line )

@@ -10,6 +10,11 @@ describe( 'parseTimestampSeconds', () => {
     [ '- Plain stamp ([00:05])', 5 ],
     [ '[02:15] starts the line', 135 ],
     [ 'first [01:00] then [02:00]', 60 ],
+    [ '- Plain stamp (00:05)', 5 ],
+    [ 'Ownership is central (12:34)', 754 ],
+    [ '> "Quote" (1:05:20)', 3920 ],
+    [ 'A time like 12:34 without brackets', 754 ],
+    [ '[12:34](https://youtu.be/abc?t=754) then 20:00', 754 ],
   ] )( 'reads the first stamp in %j', ( line, seconds ) => {
     expect( parseTimestampSeconds( line ) ).toBe( seconds )
   } )
@@ -17,7 +22,8 @@ describe( 'parseTimestampSeconds', () => {
   it.each( [
     '',
     'No stamp here',
-    'A time like 12:34 without brackets',
+    'A ratio of 3:2 and a version 1:2:3:4',
+    'Digits 123:456 are not a time',
     '[not a time]',
     '[12:99]',
   ] )( 'returns null for %j', ( line ) => {

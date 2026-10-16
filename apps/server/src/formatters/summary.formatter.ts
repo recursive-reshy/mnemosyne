@@ -16,7 +16,7 @@ export const formatSummary = ( summary: SummaryResult, source: string ): string 
     const label = formatClock( seconds )
 
     return videoId === undefined
-      ? `[${ label }]`
+      ? label
       : `[${ label }](https://youtu.be/${ videoId }?t=${ Math.floor( seconds ) })`
   }
 
