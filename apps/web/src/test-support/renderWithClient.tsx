@@ -1,6 +1,7 @@
 // React
 import type { ReactElement, ReactNode } from 'react'
 // Packages
+import { ThemeProvider } from '@mui/material/styles'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, useLocation } from 'react-router'
 import type { InitialEntry, Location } from 'react-router'
@@ -9,6 +10,7 @@ import { render, renderHook } from '@testing-library/react'
 import type { RenderHookResult, RenderResult } from '@testing-library/react'
 // App
 import { createQueryClient } from '#src/queryClient'
+import { theme } from '#src/theme'
 
 interface ClientRender extends RenderResult {
   queryClient: QueryClient
@@ -33,12 +35,14 @@ export const renderWithClient = (
   }
 
   const result = render(
-    <QueryClientProvider client={ queryClient }>
-      <MemoryRouter initialEntries={ [ route ] }>
-        <LocationProbe />
-        { ui }
-      </MemoryRouter>
-    </QueryClientProvider>,
+    <ThemeProvider theme={ theme } defaultMode="system" noSsr>
+      <QueryClientProvider client={ queryClient }>
+        <MemoryRouter initialEntries={ [ route ] }>
+          <LocationProbe />
+          { ui }
+        </MemoryRouter>
+      </QueryClientProvider>
+    </ThemeProvider>,
   )
 
   return {
@@ -60,7 +64,9 @@ export const renderHookWithClient = < Result, Props = undefined >(
 ): ClientHookRender< Result, Props > => {
   const queryClient = options?.queryClient ?? createQueryClient()
   const wrapper = ( { children }: { children: ReactNode } ): ReactElement => (
-    <QueryClientProvider client={ queryClient }>{ children }</QueryClientProvider>
+    <ThemeProvider theme={ theme } defaultMode="system" noSsr>
+      <QueryClientProvider client={ queryClient }>{ children }</QueryClientProvider>
+    </ThemeProvider>
   )
 
   return {
