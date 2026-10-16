@@ -3,10 +3,12 @@ import { useEffect, useRef, useState } from 'react'
 import type { ReactElement } from 'react'
 // Packages
 import { usePublisher, useCellValue, viewMode$ } from '@mdxeditor/editor'
+import Alert from '@mui/material/Alert'
+import Box from '@mui/material/Box'
+import ToggleButton from '@mui/material/ToggleButton'
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
 // Shared
 import { parseNote } from '@mnemosyne/shared'
-// App
-import styles from './NoteEditor.module.css'
 
 export type NoteEditorMode = 'rich-text' | 'source'
 
@@ -58,22 +60,27 @@ export function ModeToggle( { getNote, onModeChange }: ModeToggleProps ): ReactE
   }
 
   return (
-    <div className={ styles.toggle }>
-      { MODES.map( ( { mode, label } ) => (
-        <button
-          key={ mode }
-          type="button"
-          aria-pressed={ current === mode }
-          onClick={ () => handleSelect( mode ) }
-        >
-          { label }
-        </button>
-      ) ) }
+    <Box sx={ { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1 } }>
+      <ToggleButtonGroup
+        exclusive
+        size="small"
+        aria-label="Editor mode"
+        value={ current }
+        onChange={ ( _event, mode: NoteEditorMode | null ) => {
+          if( mode !== null ) {
+            handleSelect( mode )
+          }
+        } }
+      >
+        { MODES.map( ( { mode, label } ) => (
+          <ToggleButton key={ mode } value={ mode }>{ label }</ToggleButton>
+        ) ) }
+      </ToggleButtonGroup>
       { isBlocked && (
-        <p className="alert" role="alert">
+        <Alert severity="error">
           Fix the front-matter in source mode before switching to rich text.
-        </p>
+        </Alert>
       ) }
-    </div>
+    </Box>
   )
 }

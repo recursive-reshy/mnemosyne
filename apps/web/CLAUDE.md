@@ -28,13 +28,12 @@ Don't add a dependency without it being approved first. Ask instead.
 src/
   main.tsx          mounts <App /> inside the MUI theme (ThemeProvider, CssBaseline), the query client provider and BrowserRouter
   theme.ts          the one MUI theme: CSS variables, light and dark colour schemes, radius, font, repeated component overrides
-  editorTokens.ts   three CSS custom properties NoteEditor.module.css still reads; removed in v0.3.2
   App.tsx           the routes inside AppShell: `/` → HomePage, `/jobs/:id` → JobPage
   api/              <name>.api.ts: fetch wrappers; parse responses with shared schemas
   expiry.ts         pure display helpers sit next to main.tsx as small camelCase modules (expiry.ts, later timestamp.ts)
   queryClient.ts    createQueryClient(): the app's TanStack Query defaults (no retries, no refetch on focus)
   hooks/            use<Name>.ts: state and effects, built on TanStack Query; queryKeys.ts holds the cache keys; useAutosaveDraft keeps the review draft on the server
-  components/       <Name>/index.ts, <Name>.tsx, <Name>.test.tsx: one folder per component (no CSS files; NoteEditor keeps its own module until v0.3.2); AppShell and NavDrawer are the navigation shell; HomePage and JobPage are the route components; ReviewScreen is the review layout JobPage shows for `ready_for_review` and `summary_failed`
+  components/       <Name>/index.ts, <Name>.tsx, <Name>.test.tsx: one folder per component (no CSS files); AppShell and NavDrawer are the navigation shell; HomePage and JobPage are the route components; ReviewScreen is the review layout JobPage shows for `ready_for_review` and `summary_failed`
   test-support/     shared test helpers and fixtures
 ```
 
@@ -94,6 +93,6 @@ The server's rules in `apps/server/CLAUDE.md` apply here unchanged (spacing, 100
 - Style with MUI components and their props first, then `sx`. An `sx` object longer than a few lines goes in a module-level `const` in the same file (named `<THING>_SX`).
 - Styling used in more than one component goes in a theme `components` override in `theme.ts`; don't add `styled()` components unless a style is shared across files.
 - Spacing uses the theme scale (`sx={ { p: 2 } }`), not hard-coded rem values. Colours come from the palette (`'text.secondary'`, `'divider'`), not hex values.
-- No new `.css` files or CSS modules. The only one left is `NoteEditor.module.css`, until v0.3.2.
+- No `.css` files or CSS modules. The only stylesheet import is MDXEditor's own (`@mdxeditor/editor/style.css`, in `NoteEditor`).
 - Import MUI by path (`@mui/material/Button`, `@mui/icons-material/Close`) so unused parts are tree-shaken.
 - Status labels shown to the user live in one typed `as const` map, not scattered in JSX.

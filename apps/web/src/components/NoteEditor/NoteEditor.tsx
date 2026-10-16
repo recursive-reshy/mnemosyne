@@ -4,6 +4,7 @@ import type { ReactElement } from 'react'
 // Packages
 import { MDXEditor, toolbarPlugin } from '@mdxeditor/editor'
 import type { MDXEditorMethods } from '@mdxeditor/editor'
+import Paper from '@mui/material/Paper'
 import { useColorScheme } from '@mui/material/styles'
 import '@mdxeditor/editor/style.css'
 // App
@@ -11,7 +12,6 @@ import { richBlockText, sourceLineText } from './caretText'
 import { noteEditorPlugins, noteMarkdownOptions } from './editorConfig'
 import { ModeToggle } from './ModeToggle'
 import type { NoteEditorMode } from './ModeToggle'
-import styles from './NoteEditor.module.css'
 
 interface NoteEditorProps {
   value: string
@@ -20,6 +20,12 @@ interface NoteEditorProps {
   onBlur?: () => void
   onCaretText?: ( text: string ) => void
 }
+
+const WRAPPER_SX = {
+  width: '100%',
+  overflow: 'hidden',
+  '& .noteEditorContent': { minHeight: '12rem', p: 1 },
+} as const
 
 const withOneNewline = ( markdown: string ): string => `${ markdown.replace( /\n+$/, '' ) }\n`
 
@@ -92,7 +98,7 @@ export function NoteEditor(
   }
 
   return (
-    <div ref={ container } className={ styles.editor }>
+    <Paper ref={ container } variant="outlined" sx={ WRAPPER_SX }>
       <MDXEditor
         ref={ editor }
         markdown={ value }
@@ -101,8 +107,8 @@ export function NoteEditor(
         onChange={ handleChange }
         onBlur={ onBlur }
         className={ colorScheme === 'dark' ? 'noteEditor dark-theme' : 'noteEditor' }
-        contentEditableClassName={ styles.content }
+        contentEditableClassName="noteEditorContent"
       />
-    </div>
+    </Paper>
   )
 }
