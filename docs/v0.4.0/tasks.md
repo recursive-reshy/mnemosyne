@@ -66,7 +66,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 6.6 | `PromptHistory` (list, view, restore) | 0027 | ✅ |
 
 ## Checkpoint D: Phases 7–8 (web jobs, clean-up, verification)
-**Plan:** ⬜ [`plans/checkpoint-d.md`](plans/checkpoint-d.md)
+**Plan:** ✅ [`plans/checkpoint-d.md`](plans/checkpoint-d.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
