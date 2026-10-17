@@ -7,6 +7,7 @@ import {
   it,
   expect,
   beforeEach,
+  vi,
 } from 'vitest'
 import request from 'supertest'
 // Shared
@@ -20,6 +21,8 @@ import {
 // App
 import { app } from '../app.js'
 import { config } from '../config.js'
+// Clients
+import { listSummaryModels } from '../clients/anthropicModels.client.js'
 // Repositories
 import { clearJobs, updateJob } from '../repositories/jobStore.repository.js'
 // Services
@@ -35,8 +38,13 @@ import {
 import { formatMarkdown } from '../formatters/markdown.formatter.js'
 import { formatSrt } from '../formatters/srt.formatter.js'
 import { formatTxt } from '../formatters/txt.formatter.js'
+// Services
+import { clearModelCache } from '../services/models.service.js'
+import { listProfiles } from '../services/prompts.service.js'
 // Fixtures
 import { transcriptFixture } from '../test-support/transcript.fixture.js'
+
+vi.mock( '../clients/anthropicModels.client.js' )
 
 const youtubeUrl = 'https://www.youtube.com/watch?v=abc'
 
@@ -79,6 +87,11 @@ const seedJobAt = async ( status: JobStatus ): Promise< string > => {
 
 beforeEach( async () => {
   clearJobs()
+  clearModelCache()
+  vi.mocked( listSummaryModels ).mockResolvedValue( [
+    { id: 'claude-sonnet-5-5', display_name: 'Claude Sonnet 5.5' },
+    { id: 'claude-opus-5-5', display_name: 'Claude Opus 5.5' },
+  ] )
   await rm( config.vaultPath, { recursive: true, force: true } )
   await mkdir( config.vaultPath, { recursive: true } )
 } )
@@ -476,6 +489,114 @@ describe( 'POST /api/jobs/:id/retry-summary', () => {
       const id = await seedJobAt( status )
 
       const response = await request( app ).post( `/api/jobs/${ id }/retry-summary` )
+
+      expect( response.status ).toBe( 409 )
+    },
+  )
+} )
+
+describe( 'POST /api/jobs with summary options', () => {
+  const codingId = (): string => listProfiles().find( ( { name } ) => name === 'Coding' )?.id ?? ''
+
+  it( 'stores the model and profile on the job', async () => {
+    const response = await request( app )
+      .post( '/api/jobs' )
+      .send( { url: youtubeUrl, model: 'claude-opus-5-5', profile_id: codingId() } )
+
+    const { job_id: id } = response.body as { job_id: string }
+    const fetched = await request( app ).get( `/api/jobs/${ id }` )
+    const job = Job.parse( ( fetched.body as { job: unknown } ).job )
+
+    expect( response.status ).toBe( 202 )
+    expect( job ).toMatchObject( {
+      summary_model: 'claude-opus-5-5',
+      prompt_profile_id: codingId(),
+      summary_usage: null,
+    } )
+  } )
+
+  it( 'leaves both null when no options are sent', async () => {
+    const id = await seedJobAt( 'queued' )
+
+    const fetched = await request( app ).get( `/api/jobs/${ id }` )
+    const job = Job.parse( ( fetched.body as { job: unknown } ).job )
+
+    expect( job ).toMatchObject( { summary_model: null, prompt_profile_id: null } )
+  } )
+
+  it.each( [
+    [ 'an unknown model', { model: 'claude-nope' } ],
+    [ 'an unknown profile', { profile_id: crypto.randomUUID() } ],
+    [ 'a profile id that is not a uuid', { profile_id: 'x' } ],
+    [ 'an empty model', { model: '' } ],
+  ] )( 'returns 400 for %s and queues nothing', async ( _name, options ) => {
+    const response = await request( app )
+      .post( '/api/jobs' )
+      .send( { url: youtubeUrl, ...options } )
+
+    expect( response.status ).toBe( 400 )
+    expect( ( await request( app ).get( '/api/jobs' ) ).body ).toEqual( { jobs: [] } )
+  } )
+} )
+
+describe( 'POST /api/jobs/:id/regenerate-summary', () => {
+  it( 'returns 202 with the job back in summarizing and the new choices', async () => {
+    const id = await seedJobAt( 'ready_for_review' )
+    const profileId = listProfiles()[ 1 ]?.id ?? ''
+
+    const response = await request( app )
+      .post( `/api/jobs/${ id }/regenerate-summary` )
+      .send( { model: 'claude-opus-5-5', profile_id: profileId } )
+
+    expect( response.status ).toBe( 202 )
+    expect( Job.parse( ( response.body as { job: unknown } ).job ) ).toMatchObject( {
+      id,
+      status: 'summarizing',
+      error: null,
+      expires_at: null,
+      summary_model: 'claude-opus-5-5',
+      prompt_profile_id: profileId,
+    } )
+  } )
+
+  it( 'accepts an empty body or no body', async () => {
+    const first = await seedJobAt( 'ready_for_review' )
+
+    const response = await request( app ).post( `/api/jobs/${ first }/regenerate-summary` )
+
+    expect( response.status ).toBe( 202 )
+  } )
+
+  it.each( [
+    [ 'an unknown model', { model: 'claude-nope' } ],
+    [ 'an unknown profile', { profile_id: crypto.randomUUID() } ],
+    [ 'a profile id that is not a uuid', { profile_id: 'x' } ],
+  ] )( 'returns 400 for %s', async ( _name, body ) => {
+    const id = await seedJobAt( 'ready_for_review' )
+
+    const response = await request( app )
+      .post( `/api/jobs/${ id }/regenerate-summary` )
+      .send( body )
+
+    expect( response.status ).toBe( 400 )
+  } )
+
+  it( 'returns 404 for an unknown job', async () => {
+    const response = await request( app )
+      .post( `/api/jobs/${ crypto.randomUUID() }/regenerate-summary` )
+      .send( {} )
+
+    expect( response.status ).toBe( 404 )
+  } )
+
+  it.each( [ 'queued', 'summarizing', 'summary_failed', 'failed', 'saved' ] as const )(
+    'returns 409 when the job is %s',
+    async ( status ) => {
+      const id = await seedJobAt( status )
+
+      const response = await request( app )
+        .post( `/api/jobs/${ id }/regenerate-summary` )
+        .send( {} )
 
       expect( response.status ).toBe( 409 )
     },

@@ -8,6 +8,7 @@ import {
   getJob,
   getTranscript,
   listActiveJobs,
+  regenerateJobSummary,
   retryJobSummary,
   saveReviewedJob,
   updateJobDraft,
@@ -22,5 +23,6 @@ jobsRoutes.get( '/jobs/:id/transcript', getTranscript )
 jobsRoutes.patch( '/jobs/:id/draft', updateJobDraft )
 jobsRoutes.post( '/jobs/:id/save', saveReviewedJob )
 jobsRoutes.post( '/jobs/:id/retry-summary', retryJobSummary )
+jobsRoutes.post( '/jobs/:id/regenerate-summary', regenerateJobSummary )
 jobsRoutes.delete( '/jobs/:id', discardReviewedJob )
 jobsRoutes.get( '/jobs/:id/download', downloadTranscript )

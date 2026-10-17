@@ -8,6 +8,7 @@ import {
   GetJobResponse,
   GetTranscriptResponse,
   ListJobsResponse,
+  RegenerateSummaryBody,
   SaveJobResponse,
   UpdateDraftBody,
   UpdateDraftResponse,
@@ -19,6 +20,7 @@ import {
   findTranscript,
   listJobs,
   queueJob,
+  regenerateSummary,
   renderTranscript,
   retrySummary,
   saveJob,
@@ -80,6 +82,17 @@ export const saveReviewedJob = async (
 
 export const retryJobSummary = ( { params }: Request, res: Response< GetJobResponse > ): void => {
   const job = retrySummary( String( params.id ) )
+
+  res.status( 202 ).json( { job } )
+}
+
+export const regenerateJobSummary = async (
+  { params, body }: Request,
+  res: Response< GetJobResponse >,
+): Promise< void > => {
+  const choices = RegenerateSummaryBody.parse( body ?? {} )
+
+  const job = await regenerateSummary( String( params.id ), choices )
 
   res.status( 202 ).json( { job } )
 }
