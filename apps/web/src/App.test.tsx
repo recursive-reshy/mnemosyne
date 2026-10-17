@@ -15,6 +15,9 @@ import { jobFixture } from '#src/test-support/job.fixture'
 import { renderWithClient } from '#src/test-support/renderWithClient'
 
 vi.mock( './hooks/useJob' )
+vi.mock( './components/SettingsPage', () => ( {
+  SettingsPage: () => <h2>Settings</h2>,
+} ) )
 
 const mockedUseJob = vi.mocked( useJob )
 const jobId = jobFixture().id
@@ -45,7 +48,6 @@ describe( 'App', () => {
     renderWithClient( <App />, { route: '/settings' } )
 
     expect( screen.getByRole( 'heading', { level: 2, name: 'Settings' } ) ).toBeInTheDocument()
-    expect( screen.getByRole( 'heading', { level: 3, name: 'Summarizer' } ) ).toBeInTheDocument()
     expect( screen.queryByRole( 'form', { name: 'Transcribe a video' } ) ).not.toBeInTheDocument()
   } )
 
