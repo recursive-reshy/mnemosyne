@@ -13,12 +13,20 @@ import {
 import { ApiError } from '#src/api/apiError'
 import { createJob } from '#src/api/jobs.api'
 import { useJobs } from '#src/hooks/useJobs'
+import { useModels } from '#src/hooks/useModels'
+import { usePromptProfiles } from '#src/hooks/usePromptProfiles'
+import { useSettings } from '#src/hooks/useSettings'
 import { jobFixture } from '#src/test-support/job.fixture'
+import { modelsState, profilesState, settingsState } from '#src/test-support/hookStates'
+import { CODING_ID, settingsFixture } from '#src/test-support/summarizer.fixture'
 import { renderWithClient } from '#src/test-support/renderWithClient'
 import { HomePage } from './HomePage'
 
 vi.mock( '#src/api/jobs.api' )
 vi.mock( '#src/hooks/useJobs' )
+vi.mock( '#src/hooks/useSettings' )
+vi.mock( '#src/hooks/useModels' )
+vi.mock( '#src/hooks/usePromptProfiles' )
 
 const mockedCreateJob = vi.mocked( createJob )
 const mockedUseJobs = vi.mocked( useJobs )
@@ -29,6 +37,9 @@ beforeEach( () => {
   mockedCreateJob.mockReset()
   mockedUseJobs.mockReset()
   mockedUseJobs.mockReturnValue( { jobs: [], error: null, updatedAt: 0 } )
+  vi.mocked( useSettings ).mockReturnValue( settingsState() )
+  vi.mocked( useModels ).mockReturnValue( modelsState() )
+  vi.mocked( usePromptProfiles ).mockReturnValue( profilesState() )
 } )
 
 describe( 'HomePage', () => {
@@ -103,5 +114,109 @@ describe( 'HomePage', () => {
     expect( await screen.findByRole( 'alert' ) ).toHaveTextContent( 'Could not reach the server' )
     expect( screen.getByRole( 'button', { name: 'Transcribe' } ) ).toBeEnabled()
     expect( location().pathname ).toBe( '/' )
+  } )
+} )
+
+describe( 'HomePage, summary options', () => {
+  const submit = async ( user: ReturnType< typeof userEvent.setup > ): Promise< void > => {
+    await user.type( screen.getByRole( 'textbox', { name: 'Video URL' } ), validUrl )
+    await user.click( screen.getByRole( 'button', { name: 'Transcribe' } ) )
+  }
+
+  beforeEach( () => {
+    mockedCreateJob.mockResolvedValue( newJobId )
+  } )
+
+  it( 'starts the selects on the settings defaults', () => {
+    renderWithClient( <HomePage /> )
+
+    expect( screen.getByRole( 'combobox', { name: 'Prompt profile' } ) )
+      .toHaveTextContent( 'Business ideas' )
+    expect( screen.getByRole( 'combobox', { name: 'Model' } ) )
+      .toHaveTextContent( 'Claude Sonnet 5.5' )
+  } )
+
+  it( 'starts on the saved defaults, not the shipped ones', () => {
+    vi.mocked( useSettings ).mockReturnValue( settingsState( {
+      settings: settingsFixture( {
+        default_model: 'claude-opus-5-5',
+        default_profile_id: CODING_ID,
+      } ).settings,
+    } ) )
+    renderWithClient( <HomePage /> )
+
+    expect( screen.getByRole( 'combobox', { name: 'Prompt profile' } ) )
+      .toHaveTextContent( 'Coding' )
+    expect( screen.getByRole( 'combobox', { name: 'Model' } ) )
+      .toHaveTextContent( 'Claude Opus 5.5' )
+  } )
+
+  it( 'sends no options when nothing was changed', async () => {
+    const user = userEvent.setup()
+    renderWithClient( <HomePage /> )
+
+    await submit( user )
+
+    expect( mockedCreateJob ).toHaveBeenCalledExactlyOnceWith( validUrl )
+  } )
+
+  it( 'sends only the model when only the model was changed', async () => {
+    const user = userEvent.setup()
+    renderWithClient( <HomePage /> )
+
+    await user.click( screen.getByRole( 'combobox', { name: 'Model' } ) )
+    await user.click( screen.getByRole( 'option', { name: 'Claude Opus 5.5' } ) )
+    await submit( user )
+
+    expect( mockedCreateJob )
+      .toHaveBeenCalledExactlyOnceWith( validUrl, { model: 'claude-opus-5-5' } )
+  } )
+
+  it( 'sends the profile and the model when both were changed', async () => {
+    const user = userEvent.setup()
+    renderWithClient( <HomePage /> )
+
+    await user.click( screen.getByRole( 'combobox', { name: 'Prompt profile' } ) )
+    await user.click( screen.getByRole( 'option', { name: 'Coding' } ) )
+    await user.click( screen.getByRole( 'combobox', { name: 'Model' } ) )
+    await user.click( screen.getByRole( 'option', { name: 'Claude Opus 5.5' } ) )
+    await submit( user )
+
+    expect( mockedCreateJob ).toHaveBeenCalledExactlyOnceWith( validUrl, {
+      model: 'claude-opus-5-5',
+      profile_id: CODING_ID,
+    } )
+  } )
+
+  it( 'sends nothing for a choice that was changed back to the default', async () => {
+    const user = userEvent.setup()
+    renderWithClient( <HomePage /> )
+
+    await user.click( screen.getByRole( 'combobox', { name: 'Model' } ) )
+    await user.click( screen.getByRole( 'option', { name: 'Claude Opus 5.5' } ) )
+    await user.click( screen.getByRole( 'combobox', { name: 'Model' } ) )
+    await user.click( screen.getByRole( 'option', { name: 'Claude Sonnet 5.5' } ) )
+    await submit( user )
+
+    expect( mockedCreateJob ).toHaveBeenCalledExactlyOnceWith( validUrl )
+  } )
+
+  it( 'still submits, with no options, while the settings are loading', async () => {
+    const user = userEvent.setup()
+    vi.mocked( useSettings ).mockReturnValue( settingsState( { settings: null, isLoading: true } ) )
+    vi.mocked( useModels ).mockReturnValue(
+      modelsState( { models: [], source: null, isLoading: true } ),
+    )
+    vi.mocked( usePromptProfiles ).mockReturnValue(
+      profilesState( { profiles: [], isLoading: true } ),
+    )
+    renderWithClient( <HomePage /> )
+
+    expect( screen.getByRole( 'combobox', { name: 'Model' } ) )
+      .toHaveAttribute( 'aria-disabled', 'true' )
+
+    await submit( user )
+
+    expect( mockedCreateJob ).toHaveBeenCalledExactlyOnceWith( validUrl )
   } )
 } )

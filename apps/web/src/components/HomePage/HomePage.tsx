@@ -5,9 +5,14 @@ import type { ReactElement } from 'react'
 import Alert from '@mui/material/Alert'
 import Stack from '@mui/material/Stack'
 import { useLocation, useNavigate } from 'react-router'
+// Shared
+import type { Settings } from '@mnemosyne/shared'
 // App
 import { createJob } from '#src/api/jobs.api'
 import { useJobs } from '#src/hooks/useJobs'
+import { useModels } from '#src/hooks/useModels'
+import { usePromptProfiles } from '#src/hooks/usePromptProfiles'
+import { useSettings } from '#src/hooks/useSettings'
 import { JobList } from '../JobList'
 import { SubmitForm } from '../SubmitForm'
 
@@ -19,10 +24,38 @@ const readSavedPath = ( state: unknown ): string | null => {
   return typeof state.savedPath === 'string' ? state.savedPath : null
 }
 
+// Only what differs from the defaults is sent, so a job that took the default keeps following it.
+const summaryChoices = (
+  settings: Settings | null,
+  profileChoice: string | null,
+  modelChoice: string | null,
+): { model?: string, profile_id?: string } => {
+  const choices: { model?: string, profile_id?: string } = {}
+
+  if( settings === null ) {
+    return choices
+  }
+
+  if( modelChoice !== null && modelChoice !== settings.default_model ) {
+    choices.model = modelChoice
+  }
+
+  if( profileChoice !== null && profileChoice !== settings.default_profile_id ) {
+    choices.profile_id = profileChoice
+  }
+
+  return choices
+}
+
 export function HomePage(): ReactElement {
   const navigate = useNavigate()
   const savedPath = readSavedPath( useLocation().state )
   const { jobs, updatedAt } = useJobs()
+  const { settings } = useSettings()
+  const { models, isLoading: isLoadingModels } = useModels()
+  const { profiles, isLoading: isLoadingProfiles } = usePromptProfiles()
+  const [ profileChoice, setProfileChoice ] = useState< string | null >( null )
+  const [ modelChoice, setModelChoice ] = useState< string | null >( null )
   const [ isSubmitting, setIsSubmitting ] = useState( false )
   const [ submitError, setSubmitError ] = useState< string | null >( null )
 
@@ -31,7 +64,10 @@ export function HomePage(): ReactElement {
     setSubmitError( null )
 
     try {
-      const jobId = await createJob( url )
+      const options = summaryChoices( settings, profileChoice, modelChoice )
+      const jobId = Object.keys( options ).length === 0
+        ? await createJob( url )
+        : await createJob( url, options )
 
       void navigate( `/jobs/${ jobId }` )
     } catch( caught ) {
@@ -50,6 +86,15 @@ export function HomePage(): ReactElement {
         isSubmitting={ isSubmitting }
         error={ submitError }
         onSubmit={ ( url ) => void handleSubmit( url ) }
+        options={ {
+          profiles,
+          models,
+          profileId: profileChoice ?? settings?.default_profile_id ?? '',
+          model: modelChoice ?? settings?.default_model ?? '',
+          isLoading: settings === null || isLoadingModels || isLoadingProfiles,
+          onProfileChange: setProfileChoice,
+          onModelChange: setModelChoice,
+        } }
       />
       <JobList jobs={ jobs ?? [] } now={ updatedAt } />
     </Stack>

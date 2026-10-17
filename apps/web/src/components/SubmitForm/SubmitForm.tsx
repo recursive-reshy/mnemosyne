@@ -8,6 +8,9 @@ import Button from '@mui/material/Button'
 import TextField from '@mui/material/TextField'
 // Shared
 import { CreateJobBody } from '@mnemosyne/shared'
+// App
+import { SummaryOptions } from '../SummaryOptions'
+import type { SummaryOptionsProps } from '../SummaryOptions'
 
 const TEXT = {
   formName: 'Transcribe a video',
@@ -28,9 +31,12 @@ interface SubmitFormProps {
   isSubmitting: boolean
   error: string | null
   onSubmit: ( url: string ) => void
+  options?: SummaryOptionsProps
 }
 
-export function SubmitForm( { isSubmitting, error, onSubmit }: SubmitFormProps ): ReactElement {
+export function SubmitForm(
+  { isSubmitting, error, onSubmit, options }: SubmitFormProps,
+): ReactElement {
   const [ url, setUrl ] = useState( '' )
   const [ validationMessage, setValidationMessage ] = useState< string | null >( null )
   const messageId = useId()
@@ -77,6 +83,7 @@ export function SubmitForm( { isSubmitting, error, onSubmit }: SubmitFormProps )
           inputLabel: { shrink: true },
         } }
       />
+      { options !== undefined && <SummaryOptions { ...options } /> }
       <Button
         type="submit"
         variant="contained"

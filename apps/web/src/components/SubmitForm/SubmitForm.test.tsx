@@ -9,6 +9,11 @@ import {
   vi,
 } from 'vitest'
 // App
+import {
+  BUSINESS_ID,
+  modelsFixture,
+  profilesFixture,
+} from '#src/test-support/summarizer.fixture'
 import { SubmitForm } from './SubmitForm'
 
 const validUrl = 'https://www.youtube.com/watch?v=cFoaK1OQRhw'
@@ -113,5 +118,62 @@ describe( 'SubmitForm', () => {
 
     expect( screen.getByRole( 'textbox', { name: 'Video URL' } ) )
       .not.toHaveAttribute( 'aria-invalid', 'true' )
+  } )
+} )
+
+describe( 'SubmitForm, summary options', () => {
+  const options = {
+    profiles: profilesFixture(),
+    models: modelsFixture().models,
+    profileId: BUSINESS_ID,
+    model: 'claude-sonnet-5-5',
+    isLoading: false,
+    onProfileChange: vi.fn(),
+    onModelChange: vi.fn(),
+  }
+
+  it( 'has no profile or model selects without options', () => {
+    setup()
+
+    expect( screen.queryByRole( 'combobox', { name: 'Prompt profile' } ) ).not.toBeInTheDocument()
+    expect( screen.queryByRole( 'combobox', { name: 'Model' } ) ).not.toBeInTheDocument()
+  } )
+
+  it( 'shows the profile and model selects between the URL and the button', () => {
+    const onSubmit = vi.fn()
+    render(
+      <SubmitForm
+        isSubmitting={ false }
+        error={ null }
+        onSubmit={ onSubmit }
+        options={ options }
+      />,
+    )
+
+    const url = screen.getByRole( 'textbox', { name: 'Video URL' } )
+    const profile = screen.getByRole( 'combobox', { name: 'Prompt profile' } )
+    const button = screen.getByRole( 'button', { name: 'Transcribe' } )
+
+    expect( url.compareDocumentPosition( profile ) ).toBe( Node.DOCUMENT_POSITION_FOLLOWING )
+    expect( profile.compareDocumentPosition( button ) ).toBe( Node.DOCUMENT_POSITION_FOLLOWING )
+    expect( screen.getByRole( 'combobox', { name: 'Model' } ) ).toBeInTheDocument()
+  } )
+
+  it( 'still submits just the URL', async () => {
+    const onSubmit = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <SubmitForm
+        isSubmitting={ false }
+        error={ null }
+        onSubmit={ onSubmit }
+        options={ options }
+      />,
+    )
+
+    await user.type( screen.getByRole( 'textbox', { name: 'Video URL' } ), validUrl )
+    await user.click( screen.getByRole( 'button', { name: 'Transcribe' } ) )
+
+    expect( onSubmit ).toHaveBeenCalledExactlyOnceWith( validUrl )
   } )
 } )
