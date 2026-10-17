@@ -50,7 +50,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 5.1 | `GET`/`PATCH /api/settings`, `GET /api/models` (routes, controllers) | 0028 | ✅ |
 | 5.2 | Prompt-profile endpoints (TRD §6), each error status tested | 0027 | ✅ |
 | 5.3 | `POST /api/jobs` with options; `POST /api/jobs/:id/regenerate-summary`; extended `Job` in responses | 0028, 0029 | ✅ |
-| 5.4 | Server docs: `apps/server/CLAUDE.md` (summarizer folder, new services and clients, ADR list, no more `settings.ts`), root `CLAUDE.md` architecture paragraph (profiles, model choice, summary runs) | — | ⬜ |
+| 5.4 | Server docs: `apps/server/CLAUDE.md` (summarizer folder, new services and clients, ADR list, no more `settings.ts`), root `CLAUDE.md` architecture paragraph (profiles, model choice, summary runs) | — | ✅ |
 
 ## Checkpoint C: Phase 6 (web Settings)
 **Plan:** ⬜ [`plans/checkpoint-c.md`](plans/checkpoint-c.md)
@@ -99,3 +99,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 - 5.1: `GET`/`PATCH /api/settings` and `GET /api/models` (routes, controllers, mounted in `app.ts`); tested through `app.ts` with the models client mocked. Server 676 tests, lint, typecheck green. No existing test changed.
 - 5.2: the eight prompt-profile endpoints (`promptProfiles.routes.ts`, `promptProfiles.controller.ts`); every row of TRD §6 tested through `app.ts` with each error status (a non-numeric or non-positive `:versionId` returns 400 from the controller's local Zod schema). Server 710 tests, lint, typecheck green. No existing test changed.
 - 5.3: `POST /api/jobs/:id/regenerate-summary` (202, 400, 404, 409) added; `POST /api/jobs` options were already wired in 4.6 and are now covered through `app.ts` (stored on the job; 400 for unknown model, unknown profile, malformed id). Extended `Job` (`summary_model`, `prompt_profile_id`, `summary_usage`) is returned by every job endpoint and parsed with the shared schema in the tests. `jobs.routes.test.ts` now mocks the models client (setup edit only; no assertion changed). Server 727 tests, lint, typecheck green.
+- 5.4: `apps/server/CLAUDE.md` (ADR list adds 0027–0029; `settings.ts` gone; `summarizer/` folder; settings, prompts and models services; `anthropicModels` client; regenerate and summary runs in the worker note) and the root `CLAUDE.md` architecture paragraph (profiles, model choice, summary runs, regenerate). Docs only.
