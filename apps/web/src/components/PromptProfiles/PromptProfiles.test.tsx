@@ -25,6 +25,19 @@ import { PromptProfiles } from './PromptProfiles'
 
 vi.mock( '#src/hooks/useSettings' )
 vi.mock( '#src/hooks/usePromptProfiles' )
+vi.mock( '../PromptHistory', () => ( {
+  PromptHistory: ( props: {
+    profileId: string
+    currentVersionId: number
+    isRestoring: boolean
+    onRestore: ( versionId: number ) => void
+  } ) => (
+    <div>
+      <p>{ `history of ${ props.profileId } at ${ props.currentVersionId }` }</p>
+      <button onClick={ () => props.onRestore( 7 ) }>restore version 7</button>
+    </div>
+  ),
+} ) )
 
 const mockedSettings = vi.mocked( useSettings )
 const mockedProfiles = vi.mocked( usePromptProfiles )
@@ -355,5 +368,35 @@ describe( 'PromptProfiles, editing the field', () => {
     fireEvent.change( guidanceField(), { target: { value } } )
 
     expect( screen.queryByText( 'Unsaved changes' ) ).not.toBeInTheDocument()
+  } )
+} )
+
+describe( 'PromptProfiles, history', () => {
+  it( 'shows the history of the viewed profile', async () => {
+    const user = userEvent.setup()
+    renderWithClient( <PromptProfiles /> )
+
+    expect( screen.getByText( `history of ${ BUSINESS_ID } at 1` ) ).toBeInTheDocument()
+
+    await choose( user, 'Coding' )
+
+    expect( screen.getByText( `history of ${ CODING_ID } at 2` ) ).toBeInTheDocument()
+  } )
+
+  it( 'restores a version and drops any edit', async () => {
+    const user = userEvent.setup()
+    const { stub, mutate } = succeeding( profileFixture() )
+    mockedProfiles.mockReturnValue( state( { restoreVersion: stub } ) )
+    renderWithClient( <PromptProfiles /> )
+    await user.type( guidanceField(), ' more' )
+
+    await user.click( screen.getByRole( 'button', { name: 'restore version 7' } ) )
+
+    expect( mutate ).toHaveBeenCalledWith(
+      { id: BUSINESS_ID, versionId: 7 },
+      expect.anything(),
+    )
+    expect( screen.queryByText( 'Unsaved changes' ) ).not.toBeInTheDocument()
+    expect( guidanceField() ).toHaveValue( 'Focus on ideas worth exploring.' )
   } )
 } )

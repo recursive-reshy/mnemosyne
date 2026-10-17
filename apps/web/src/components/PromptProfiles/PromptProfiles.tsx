@@ -13,8 +13,10 @@ import { useSettings } from '#src/hooks/useSettings'
 import { useUnsavedChangesWarning } from '#src/hooks/useUnsavedChangesWarning'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { ProfileActions } from '../ProfileActions'
+import { deleteBlockedReason } from '../ProfileActions/deleteBlockedReason'
 import { ProfileNameDialog } from '../ProfileNameDialog'
 import { PromptEditor } from '../PromptEditor'
+import { PromptHistory } from '../PromptHistory'
 
 type Dialog = 'create' | 'rename' | 'delete' | { switchTo: string } | null
 
@@ -60,15 +62,6 @@ export function PromptProfiles(): ReactElement {
   }
 
   const switchTo = typeof dialog === 'object' && dialog !== null ? dialog.switchTo : null
-  let deleteBlockedReason: string | null = null
-
-  if( profile.id === defaultId ) {
-    deleteBlockedReason = 'The default profile can\'t be deleted. '
-      + 'Make another profile the default first.'
-  } else if( profiles.length <= 1 ) {
-    deleteBlockedReason = 'The last remaining profile can\'t be deleted.'
-  }
-
   return (
     <Stack spacing={ 2 }>
       <Typography variant="subtitle1" component="h4">Prompt profiles</Typography>
@@ -86,7 +79,7 @@ export function PromptProfiles(): ReactElement {
         ) ) }
       </TextField>
       <ProfileActions
-        deleteBlockedReason={ deleteBlockedReason }
+        deleteBlockedReason={ deleteBlockedReason( profile.id, defaultId, profiles.length ) }
         onNew={ () => open( 'create' ) }
         onRename={ () => open( 'rename' ) }
         onDelete={ () => setDialog( 'delete' ) }
@@ -106,6 +99,16 @@ export function PromptProfiles(): ReactElement {
         onDiscard={ () => setDraft( null ) }
         onReset={ () => state.resetProfile.mutate(
           profile.id,
+          { onSuccess: () => setDraft( null ) },
+        ) }
+      />
+      <PromptHistory
+        profileId={ profile.id }
+        currentVersionId={ profile.current_version.id }
+        isRestoring={ state.restoreVersion.isPending }
+        error={ state.restoreVersion.error?.message ?? null }
+        onRestore={ ( versionId ) => state.restoreVersion.mutate(
+          { id: profile.id, versionId },
           { onSuccess: () => setDraft( null ) },
         ) }
       />
