@@ -2,9 +2,10 @@
 
 ## Plans
 
-Each version has its own folder. The current version is 0.3.1.
+Each version has its own folder. The current version is 0.4.0.
 
-- **v0.3.1:** [PRD](v0.3.1/prd.md) · [TRD](v0.3.1/trd.md) · [Tasks](v0.3.1/tasks.md) · checkpoint plans in `v0.3.1/plans/`
+- **v0.4.0:** [PRD](v0.4.0/prd.md) · [TRD](v0.4.0/trd.md) · [Tasks](v0.4.0/tasks.md) · checkpoint plans in `v0.4.0/plans/`
+- **v0.3.1 (done):** [PRD](v0.3.1/prd.md) · [TRD](v0.3.1/trd.md) · [Tasks](v0.3.1/tasks.md) · checkpoint plans in `v0.3.1/plans/`
 - **v0.3.0 (done):** [PRD](v0.3.0/prd.md) · [TRD](v0.3.0/trd.md) · [Tasks](v0.3.0/tasks.md) · [Release notes](v0.3.0/release-notes.md) · checkpoint plans in `v0.3.0/plans/`
 - **v0.2.0 (done):** [PRD](v0.2.0/prd.md) · [TRD](v0.2.0/trd.md) · [Tasks](v0.2.0/tasks.md) · checkpoint plans in `v0.2.0/plans/`
 - **v0.1.0 (done):** [Server](v0.1.0/implementation-server.md) · [Web](v0.1.0/implementation-web.md)
@@ -41,6 +42,9 @@ Each significant decision is recorded as a short ADR (Architecture Decision Reco
 | [0024](decisions/0024-material-ui-single-ui-library.md) | Material UI as the single UI library | Accepted |
 | [0025](decisions/0025-app-shell-drawer-and-colour-mode.md) | App shell: navigation drawer and colour mode | Accepted |
 | [0026](decisions/0026-bold-around-a-link-is-normalised.md) | Bold around a link is normalised to link around bold | Accepted |
+| [0027](decisions/0027-editable-summarizer-prompts.md) | Editable summarizer prompts: profiles of versioned guidance on a locked contract | Proposed |
+| [0028](decisions/0028-summary-model-from-models-api.md) | Summary model chosen in the app, listed from the Models API | Proposed |
+| [0029](decisions/0029-summary-runs-and-regeneration.md) | Summary runs: provenance and cost in the database, and regenerating a summary | Proposed |
 
 ## Template for new ADRs
 
