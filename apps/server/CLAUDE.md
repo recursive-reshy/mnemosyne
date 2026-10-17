@@ -57,7 +57,7 @@ src/
   routes/            <name>.routes.ts: an Express Router wiring paths to controller functions, nothing else
   controllers/       <name>.controller.ts: HTTP only (parse the request with Zod, call a service, send the response)
   services/          <name>.service.ts: business rules and job state changes (jobs: drafts and save; vault: folder listing)
-  repositories/      <name>.repository.ts: the SQLite job store, and nothing else
+  repositories/      <name>.repository.ts: the SQLite database (jobs, settings, prompts, summary runs), and nothing else; database.ts holds the connection and the migrations
   clients/           ytDlp, ffmpeg, whisperServer, claude, vault: one external tool each (`<name>.client.ts`); the vault client resolves every folder inside the vault (`resolveFolder`), lists the folder tree and writes notes
   worker/            worker.ts, runJob.ts, summarizeJob.ts, sweeper.ts: runs the next runnable job; deletes expired jobs
   formatters/        markdown, srt, txt, summary, note: pure data → string; summary.cleanup.ts filters the model's output
@@ -70,7 +70,7 @@ The order is routes → controllers → services → repositories, and every req
 - **Routes** map a method and path to a controller function. They hold no logic, validation or try/catch.
 - **Controllers** read `params`, `query` and `body`, validate them with a Zod schema, call one service function, and send the response with an explicit status code. They never touch the job store, a client or the worker.
 - **Services** hold the business rules, change job state, call repositories and formatters, and throw typed errors.
-- **Repositories** hold and query the job store and nothing else. The store is SQLite (better-sqlite3, ADR 0012) behind synchronous free functions; `database.ts` owns the connection and the migrations (`openDatabase` / `closeDatabase` are called from `server.ts` and `shutdown.ts`, `getDatabase` from the other repositories), and tests open `':memory:'` through the Vitest setup file `test-support/database.setup.ts`.
+- **Repositories** hold and query the SQLite database (jobs, settings, prompts, summary runs), and nothing else. The database is SQLite (better-sqlite3, ADR 0012) behind synchronous free functions; `database.ts` owns the connection and the migrations (`openDatabase` / `closeDatabase` are called from `server.ts` and `shutdown.ts`, `getDatabase` from the other repositories), and tests open `':memory:'` through the Vitest setup file `test-support/database.setup.ts`.
 - **Clients** wrap one external tool each: run the command or make the HTTP call, parse the output with Zod, return typed data, and throw on failure. They hold no job logic.
 - **The sweeper** calls one service function on a timer and deletes expired jobs; it never touches repositories.
 - **The worker** calls services and clients, never repositories. It processes one job at a time and moves it through `queued → downloading → converting → transcribing → summarizing → ready_for_review | summary_failed` (or `failed`) via services. A job found already `summarizing` runs only the summarize step.

@@ -19,6 +19,8 @@ const JobRow = z.object( {
   transcript: z.string().nullable(),
   note_markdown: z.string().nullable(),
   target_folder: z.string().nullable(),
+  summary_model: z.string().nullable(),
+  prompt_profile_id: z.string().nullable(),
   saved_path: z.string().nullable(),
   expires_at: z.string().nullable(),
   created_at: z.string(),
@@ -30,8 +32,6 @@ const toStoredJob = ( raw: unknown ): StoredJob => {
 
   return StoredJob.parse( {
     ...row,
-    summary_model: null,
-    prompt_profile_id: null,
     transcript: row.transcript === null ? null : JSON.parse( row.transcript ) as unknown,
   } )
 }
@@ -46,6 +46,8 @@ const toRow = ( job: StoredJob ): Record< string, string | null > => {
     transcript: job.transcript === null ? null : JSON.stringify( job.transcript ),
     note_markdown: job.note_markdown,
     target_folder: job.target_folder,
+    summary_model: job.summary_model,
+    prompt_profile_id: job.prompt_profile_id,
     saved_path: job.saved_path,
     expires_at: job.expires_at,
     created_at: job.created_at,
@@ -62,10 +64,10 @@ export const insertJob = ( job: StoredJob ): void => {
 
   db.prepare( `INSERT INTO jobs (
       id, url, status, error, title, transcript, note_markdown, target_folder,
-      saved_path, expires_at, created_at, updated_at
+      summary_model, prompt_profile_id, saved_path, expires_at, created_at, updated_at
     ) VALUES (
       @id, @url, @status, @error, @title, @transcript, @note_markdown, @target_folder,
-      @saved_path, @expires_at, @created_at, @updated_at
+      @summary_model, @prompt_profile_id, @saved_path, @expires_at, @created_at, @updated_at
     )` ).run( toRow( job ) )
 }
 
@@ -90,7 +92,8 @@ export const updateJob = (
   getDatabase().prepare( `UPDATE jobs SET
       url = @url, status = @status, error = @error, title = @title,
       transcript = @transcript, note_markdown = @note_markdown,
-      target_folder = @target_folder, saved_path = @saved_path,
+      target_folder = @target_folder, summary_model = @summary_model,
+      prompt_profile_id = @prompt_profile_id, saved_path = @saved_path,
       expires_at = @expires_at, created_at = @created_at, updated_at = @updated_at
     WHERE id = @id` ).run( toRow( updated ) )
 

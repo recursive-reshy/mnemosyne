@@ -195,6 +195,54 @@ describe( 'clearJobs', () => {
   } )
 } )
 
+describe( 'summary choices', () => {
+  it( 'round-trips summary_model and prompt_profile_id', () => {
+    const job = buildJob( {
+      summary_model: 'claude-opus-5-5',
+      prompt_profile_id: crypto.randomUUID(),
+    } )
+
+    insertJob( job )
+
+    expect( findJobById( job.id ) ).toEqual( job )
+  } )
+
+  it( 'defaults both to null', () => {
+    const job = buildJob()
+
+    insertJob( job )
+
+    expect( findJobById( job.id ) )
+      .toMatchObject( { summary_model: null, prompt_profile_id: null } )
+  } )
+
+  it( 'updates both and can clear them', () => {
+    const job = buildJob()
+    const profileId = crypto.randomUUID()
+    insertJob( job )
+
+    updateJob( job.id, { summary_model: 'm', prompt_profile_id: profileId } )
+
+    expect( findJobById( job.id ) ).toMatchObject( {
+      summary_model: 'm',
+      prompt_profile_id: profileId,
+    } )
+
+    updateJob( job.id, { summary_model: null, prompt_profile_id: null } )
+
+    expect( findJobById( job.id ) )
+      .toMatchObject( { summary_model: null, prompt_profile_id: null } )
+  } )
+
+  it( 'keeps them in listActiveJobs and findNextRunnableJob', () => {
+    const job = buildJob( { status: 'summarizing', summary_model: 'm' } )
+    insertJob( job )
+
+    expect( listActiveJobs()[ 0 ]?.summary_model ).toBe( 'm' )
+    expect( findNextRunnableJob()?.summary_model ).toBe( 'm' )
+  } )
+} )
+
 describe( 'storage', () => {
   const transcript = {
     meta: {
