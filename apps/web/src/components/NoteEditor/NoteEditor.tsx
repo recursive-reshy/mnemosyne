@@ -26,6 +26,8 @@ const WRAPPER_SX = {
   width: '100%',
   overflow: 'hidden',
   '& .noteEditorContent': { minHeight: '12rem', p: 1 },
+  // Let the toolbar wrap on narrow windows instead of clipping its buttons.
+  '& .mdxeditor-toolbar': { flexWrap: 'wrap', overflow: 'visible' },
 } as const
 
 const withOneNewline = ( markdown: string ): string => `${ markdown.replace( /\n+$/, '' ) }\n`

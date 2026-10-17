@@ -1,6 +1,6 @@
 # 0023. MDXEditor round-trip contract
 
-- Status: Accepted
+- Status: Accepted (amended by 0026)
 - Date: 2026-10-16
 - Amends: 0019
 

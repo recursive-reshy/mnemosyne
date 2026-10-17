@@ -49,7 +49,9 @@ describe( 'MDXEditor round-trip of notes (ADR 0023)', () => {
     expect( twice ).toBe( once )
   } )
 
-  it.each( entries.filter( ( [ name ] ) => name !== 'star bullets' ) )(
+  const normalised = [ 'star bullets', 'bold around a link' ]
+
+  it.each( entries.filter( ( [ name ] ) => !normalised.includes( name ) ) )(
     'keeps %s exactly, apart from the final newline',
     async ( _name, note ) => {
       expect( await exportOnce( note ) ).toBe( note )
@@ -60,6 +62,14 @@ describe( 'MDXEditor round-trip of notes (ADR 0023)', () => {
     const note = noteFixtures[ 'star bullets' ] ?? ''
 
     expect( await exportOnce( note ) ).toBe( note.replaceAll( '* ', '- ' ) )
+  } )
+
+  it( 'normalizes bold around a link to link around bold, once (ADR 0026)', async () => {
+    const note = noteFixtures[ 'bold around a link' ] ?? ''
+    const once = await exportOnce( note )
+
+    expect( once ).toBe( note.replace( '**[the guide](https://example.com/guide)**', '[**the guide**](https://example.com/guide)' ) )
+    expect( await exportOnce( once ) ).toBe( once )
   } )
 
   it( 'keeps wikilinks and both timestamp forms byte for byte', async () => {

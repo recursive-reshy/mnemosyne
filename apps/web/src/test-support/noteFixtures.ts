@@ -95,4 +95,43 @@ export const noteFixtures: Record< string, string > = {
     '',
     'Done.',
   ] ),
+
+  'everything the toolbar can write': note( [
+    '# Heading one',
+    '',
+    '## Heading two',
+    '',
+    '### Heading three',
+    '',
+    'Plain text with **bold**, *italic*, ***bold and italic*** and [a link](https://example.com/page).',
+    '',
+    '> A quote with **bold**, *italic* and [a link](https://example.com).',
+    '>',
+    '> - A bullet inside the quote',
+    '> - Another with **bold**',
+    '',
+    '- A bullet with **bold**',
+    '- A bullet with [a link](https://example.com)',
+    '- A bullet with *italic*',
+    '',
+    '1. First step',
+    '2. Second step with **bold**',
+    '3. Third step with [a link](https://example.com)',
+    '',
+    '[**A bold link**](https://example.com/bold) and [*an italic link*](https://example.com/in).',
+  ] ),
+
+  'heading levels four to six': note( [
+    '#### Heading four',
+    '',
+    '##### Heading five',
+    '',
+    '###### Heading six',
+  ] ),
+
+  'bold around a link': note( [
+    '## Links',
+    '',
+    'Read **[the guide](https://example.com/guide)** first.',
+  ] ),
 }
