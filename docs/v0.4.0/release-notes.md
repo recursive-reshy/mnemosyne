@@ -1,6 +1,6 @@
 # Mnemosyne v0.4.0 — Release notes
 
-Prepared 2026-10-17.
+Released 2026-10-17. Tag `v0.4.0`.
 
 v0.4.0 puts the summarizer under your control. You can edit the prompt that tells Claude what to pull out of a video, keep several named prompts for different kinds of video, choose which Claude model runs, regenerate a summary to compare, and see what each summary cost. None of it needs a deploy. The release ships a new default prompt for validating business ideas.
 
