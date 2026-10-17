@@ -134,4 +134,13 @@ export const noteFixtures: Record< string, string > = {
     '',
     'Read **[the guide](https://example.com/guide)** first.',
   ] ),
+  'bold lead-ins in a list': note( [
+    '## Summary',
+    '',
+    '- **The core claim:** Pricing beats features for small SaaS.',
+    '- **Evidence:** $12k MRR after 6 months (at 12:30), using `stripe` checkout.',
+    '- **Next step:** Email five customers this week.',
+    '',
+    '**How to validate:** Pre-sell before building.',
+  ] ),
 }
