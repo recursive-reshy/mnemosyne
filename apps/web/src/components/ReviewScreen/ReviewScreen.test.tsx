@@ -20,13 +20,16 @@ import {
   updateDraft,
 } from '#src/api/jobs.api'
 import { useFolders } from '#src/hooks/useFolders'
+import { useModels } from '#src/hooks/useModels'
 import { useTranscript } from '#src/hooks/useTranscript'
+import { modelsState } from '#src/test-support/hookStates'
 import { jobFixture } from '#src/test-support/job.fixture'
 import { renderWithClient } from '#src/test-support/renderWithClient'
 import { ReviewScreen } from './ReviewScreen'
 
 vi.mock( '#src/hooks/useTranscript' )
 vi.mock( '#src/hooks/useFolders' )
+vi.mock( '#src/hooks/useModels' )
 vi.mock( '../NoteEditor', async () => {
   const { lineAt } = await import( '#src/timestamp' )
 
@@ -602,5 +605,54 @@ describe( 'ReviewScreen caret sync', () => {
     moveCaret( syncedNote.length )
 
     expect( document.getElementById( 'transcript-135' ) ).toHaveAttribute( 'aria-current', 'true' )
+  } )
+} )
+
+describe( 'ReviewScreen summary info', () => {
+  const usage = {
+    last_run: {
+      model: 'claude-sonnet-5-5',
+      profile_id: '0b7c1c3e-5d4a-4e6f-9a7b-1c2d3e4f5a01',
+      profile_name: 'Business ideas',
+      prompt_version: 2,
+      input_tokens: 31_200,
+      output_tokens: 1_400,
+      cost_usd: 0.12,
+      outcome: 'succeeded' as const,
+      created_at: '2026-10-17T10:00:00.000Z',
+    },
+    run_count: 1,
+    total_input_tokens: 31_200,
+    total_output_tokens: 1_400,
+    total_cost_usd: 0.12,
+  }
+
+  beforeEach( () => {
+    vi.mocked( useModels ).mockReturnValue( modelsState() )
+  } )
+
+  it( 'shows how the summary was made under the note', () => {
+    const job = { ...reviewJob, summary_usage: usage }
+    renderWithClient( <ReviewScreen job={ job } { ...handlers() } /> )
+
+    expect( screen.getByText(
+      'Claude Sonnet 5.5 · Business ideas v2 · 31.2k in / 1.4k out · ~US$0.12',
+    ) ).toBeInTheDocument()
+  } )
+
+  it( 'shows nothing for a job without runs', () => {
+    renderWithClient( <ReviewScreen job={ reviewJob } { ...handlers() } /> )
+
+    expect( screen.queryByText( /Business ideas v/ ) ).not.toBeInTheDocument()
+  } )
+
+  it( 'also shows it after a failed summary, where the tokens were still billed', () => {
+    const failed = { ...failedJob, summary_usage: {
+      ...usage,
+      last_run: { ...usage.last_run, outcome: 'failed' as const },
+    } }
+    renderWithClient( <ReviewScreen job={ failed } { ...handlers() } /> )
+
+    expect( screen.getByText( /^Last attempt failed · Claude Sonnet 5.5/ ) ).toBeInTheDocument()
   } )
 } )

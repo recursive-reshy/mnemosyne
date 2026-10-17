@@ -23,6 +23,7 @@ import { NoteEditor } from '../NoteEditor'
 import type { NoteEditorMode } from '../NoteEditor'
 import { PropertiesPanel } from '../PropertiesPanel'
 import { ReviewActions } from '../ReviewActions'
+import { SummaryInfo } from '../SummaryInfo'
 import { TranscriptPane } from '../TranscriptPane'
 
 interface ReviewScreenProps {
@@ -137,6 +138,7 @@ export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps )
       { !hasFailed && autosave.status !== 'error' && (
         <Typography role="status">{ STATUS_LABELS[ autosave.status ] }</Typography>
       ) }
+      { job.summary_usage !== null && <SummaryInfo usage={ job.summary_usage } /> }
       <DownloadLinks jobId={ job.id } />
       { save.isError && autosave.status !== 'error' && (
         <Alert severity="error">{ save.error.message }</Alert>
