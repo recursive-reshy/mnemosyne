@@ -17,6 +17,7 @@ import { SettingsPage } from './SettingsPage'
 
 vi.mock( '#src/hooks/useSettings' )
 vi.mock( '../SummarizerDefaults', () => ( { SummarizerDefaults: () => <p>defaults</p> } ) )
+vi.mock( '../PromptProfiles', () => ( { PromptProfiles: () => <p>profiles</p> } ) )
 vi.mock( '../LockedInstructions', () => ( {
   LockedInstructions: ( { text }: { text: string } ) => <p>{ `locked: ${ text }` }</p>,
 } ) )
@@ -45,6 +46,7 @@ describe( 'SettingsPage', () => {
     expect( screen.getByRole( 'heading', { level: 2, name: 'Settings' } ) ).toBeInTheDocument()
     expect( screen.getByRole( 'heading', { level: 3, name: 'Summarizer' } ) ).toBeInTheDocument()
     expect( screen.getByText( 'defaults' ) ).toBeInTheDocument()
+    expect( screen.getByText( 'profiles' ) ).toBeInTheDocument()
     expect( screen.getByText( `locked: ${ settingsFixture().locked_instructions }` ) )
       .toBeInTheDocument()
   } )
