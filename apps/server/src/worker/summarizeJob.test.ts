@@ -56,13 +56,16 @@ beforeEach( () => {
   clearJobs()
   vi.resetAllMocks()
   summarizeMock.mockResolvedValue( {
-    overview: 'An overview.',
-    key_points: [ { text: 'Ownership', seconds: 2 }, { text: 'Too late', seconds: 999 } ],
-    quotes: [
-      { text: 'Memory safety comes free.', seconds: 5 },
-      { text: 'Invented quote', seconds: 6 },
-    ],
-    tags: [ 'Rust Lang', 'mnemosyne' ],
+    summary: {
+      overview: 'An overview.',
+      key_points: [ { text: 'Ownership', seconds: 2 }, { text: 'Too late', seconds: 999 } ],
+      quotes: [
+        { text: 'Memory safety comes free.', seconds: 5 },
+        { text: 'Invented quote', seconds: 6 },
+      ],
+      tags: [ 'Rust Lang', 'mnemosyne' ],
+    },
+    usage: { input_tokens: 100, output_tokens: 20 },
   } )
 } )
 
@@ -72,7 +75,11 @@ describe( 'summarizeJob', () => {
 
     await summarizeJob( id )
 
-    expect( summarizeMock ).toHaveBeenCalledWith( { transcript } )
+    expect( summarizeMock ).toHaveBeenCalledWith( {
+      transcript,
+      model: 'claude-sonnet-5-5',
+      guidance: expect.any( String ) as string,
+    } )
   } )
 
   it( 'stores the cleaned, rendered summary and moves to ready_for_review', async () => {

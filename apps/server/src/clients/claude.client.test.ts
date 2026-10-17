@@ -8,7 +8,9 @@ import {
   beforeEach,
 } from 'vitest'
 // Clients
-import { SummaryResult, summarizeTranscript } from './claude.client.js'
+import { SummaryError, SummaryResult, summarizeTranscript } from './claude.client.js'
+// Summarizer
+import { buildSystemPrompt } from '../summarizer/prompts.js'
 // Fixtures
 import { transcriptFixture } from '../test-support/transcript.fixture.js'
 
@@ -46,9 +48,16 @@ const summary: SummaryResult = {
   tags: [ 'formatters' ],
 }
 
+const input = {
+  transcript: transcriptFixture,
+  model: 'claude-opus-5-5',
+  guidance: 'Focus on pricing.',
+}
+
 const reply = ( overrides: Record< string, unknown > = {} ): Record< string, unknown > => ( {
   stop_reason: 'end_turn',
   parsed_output: summary,
+  usage: { input_tokens: 1234, output_tokens: 56 },
   ...overrides,
 } )
 
@@ -59,14 +68,17 @@ beforeEach( () => {
 } )
 
 describe( 'summarizeTranscript', () => {
-  it( 'returns the parsed summary', async () => {
-    const result = await summarizeTranscript( { transcript: transcriptFixture } )
+  it( 'returns the parsed summary with the tokens it used', async () => {
+    const result = await summarizeTranscript( input )
 
-    expect( result ).toEqual( summary )
+    expect( result ).toEqual( {
+      summary,
+      usage: { input_tokens: 1234, output_tokens: 56 },
+    } )
   } )
 
   it( 'builds the client with the key, the configured timeout and one retry', async () => {
-    await summarizeTranscript( { transcript: transcriptFixture } )
+    await summarizeTranscript( input )
 
     expect( constructed ).toEqual( [ {
       apiKey: 'sk-test',
@@ -76,20 +88,27 @@ describe( 'summarizeTranscript', () => {
   } )
 
   it( 'asks the summary model for structured output with room to think', async () => {
-    await summarizeTranscript( { transcript: transcriptFixture } )
+    await summarizeTranscript( input )
 
     const [ request ] = parse.mock.calls[ 0 ] as [ Record< string, unknown > ]
 
     expect( request ).toMatchObject( {
-      model: 'claude-sonnet-5-5',
+      model: 'claude-opus-5-5',
       max_tokens: 16_000,
       output_config: { effort: 'medium', format: expect.anything() as unknown },
     } )
-    expect( typeof request.system ).toBe( 'string' )
+  } )
+
+  it( 'sends the locked instructions followed by the guidance as the system prompt', async () => {
+    await summarizeTranscript( input )
+
+    const [ request ] = parse.mock.calls[ 0 ] as [ Record< string, unknown > ]
+
+    expect( request.system ).toBe( buildSystemPrompt( 'Focus on pricing.' ) )
   } )
 
   it( 'sends one [seconds] line per non-blank segment', async () => {
-    await summarizeTranscript( { transcript: transcriptFixture } )
+    await summarizeTranscript( input )
 
     const [ request ] = parse.mock.calls[ 0 ] as [
       { messages: { role: string, content: string }[] },
@@ -110,7 +129,7 @@ describe( 'summarizeTranscript', () => {
   it( 'throws when the output could not be parsed', async () => {
     parse.mockResolvedValue( reply( { parsed_output: null } ) )
 
-    await expect( summarizeTranscript( { transcript: transcriptFixture } ) ).rejects.toThrow(
+    await expect( summarizeTranscript( input ) ).rejects.toThrow(
       'Summary response did not match the expected format',
     )
   } )
@@ -121,15 +140,38 @@ describe( 'summarizeTranscript', () => {
   ] )( 'throws when the stop reason is %s', async ( stopReason, message ) => {
     parse.mockResolvedValue( reply( { stop_reason: stopReason } ) )
 
-    await expect( summarizeTranscript( { transcript: transcriptFixture } ) ).rejects.toThrow(
+    await expect( summarizeTranscript( input ) ).rejects.toThrow(
       message,
     )
+  } )
+
+  it.each( [
+    [ { parsed_output: null }, 'Summary response did not match the expected format' ],
+    [ { stop_reason: 'max_tokens' }, 'Summary was cut off' ],
+    [ { stop_reason: 'refusal' }, 'Summary was declined' ],
+  ] )( 'carries the billed tokens on an unusable response (%j)', async ( overrides, message ) => {
+    parse.mockResolvedValue( reply( overrides ) )
+
+    const error: unknown = await summarizeTranscript( input ).catch( ( caught: unknown ) => caught )
+
+    expect( error ).toBeInstanceOf( SummaryError )
+    expect( ( error as SummaryError ).message ).toContain( message )
+    expect( ( error as SummaryError ).usage ).toEqual( { input_tokens: 1234, output_tokens: 56 } )
+  } )
+
+  it( 'throws a SummaryError without usage for an API error', async () => {
+    parse.mockRejectedValue( new Anthropic.APIError( 500, undefined, 'Overloaded', undefined ) )
+
+    const error: unknown = await summarizeTranscript( input ).catch( ( caught: unknown ) => caught )
+
+    expect( error ).toBeInstanceOf( SummaryError )
+    expect( ( error as SummaryError ).usage ).toBeUndefined()
   } )
 
   it( 'wraps API errors with a readable message', async () => {
     parse.mockRejectedValue( new Anthropic.APIError( 429, undefined, 'Rate limited', undefined ) )
 
-    await expect( summarizeTranscript( { transcript: transcriptFixture } ) ).rejects.toThrow(
+    await expect( summarizeTranscript( input ) ).rejects.toThrow(
       'Summary request failed: Rate limited',
     )
   } )
@@ -137,7 +179,7 @@ describe( 'summarizeTranscript', () => {
   it( 'lets other errors through unchanged', async () => {
     parse.mockRejectedValue( new TypeError( 'boom' ) )
 
-    await expect( summarizeTranscript( { transcript: transcriptFixture } ) ).rejects.toThrow(
+    await expect( summarizeTranscript( input ) ).rejects.toThrow(
       'boom',
     )
   } )

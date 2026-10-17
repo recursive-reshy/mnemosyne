@@ -11,9 +11,14 @@ describe.skipIf( !hasApiKey )( 'claude.client (real Claude API)', () => {
     const { summarizeTranscript } = await import( './claude.client.js' )
     const { cleanSummary } = await import( '../formatters/summary.cleanup.js' )
 
-    const result = await summarizeTranscript( { transcript: transcriptFixture } )
+    const { summary: result, usage } = await summarizeTranscript( {
+      transcript: transcriptFixture,
+      model: 'claude-sonnet-5-5',
+      guidance: 'Write the overview in a few paragraphs.',
+    } )
     const cleaned = cleanSummary( result, transcriptFixture )
 
+    expect( usage.input_tokens ).toBeGreaterThan( 0 )
     expect( result.overview.trim() ).not.toBe( '' )
     expect( Array.isArray( result.key_points ) ).toBe( true )
     expect( Array.isArray( result.quotes ) ).toBe( true )

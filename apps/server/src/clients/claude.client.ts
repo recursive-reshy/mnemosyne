@@ -6,7 +6,9 @@ import { z } from 'zod'
 import { Transcript, cleanText } from '@mnemosyne/shared'
 // Config
 import { config } from '../config.js'
-import { getSummaryModel } from '../settings.js'
+// Summarizer
+import { buildSystemPrompt } from '../summarizer/prompts.js'
+import { SUMMARY_MAX_TOKENS } from '../summarizer/models.js'
 
 const Timestamped = z.object( {
   text: z.string(),
@@ -21,21 +23,31 @@ export const SummaryResult = z.object( {
 } )
 export type SummaryResult = z.infer< typeof SummaryResult >
 
-interface SummaryInput {
-  transcript: Transcript
+export interface TokenUsage {
+  input_tokens: number
+  output_tokens: number
 }
 
-const MAX_TOKENS = 16_000
+export interface SummaryOutcome {
+  summary: SummaryResult
+  usage: TokenUsage
+}
 
-const SYSTEM_PROMPT = [
-  'You summarize a transcript of a talk or video for a personal note-taking vault.',
-  'Each transcript line starts with the second at which it begins, in square brackets.',
-  'Write the overview in a few paragraphs covering the main argument.',
-  'List the key points, and give each the second where it is made.',
-  'Pick notable quotes. Copy each one verbatim from the transcript, and give the second',
-  'where it occurs.',
-  'Suggest 3 to 5 short topical tags.',
-].join( ' ' )
+interface SummaryInput {
+  transcript: Transcript
+  model: string
+  guidance: string
+}
+
+export class SummaryError extends Error {
+  readonly usage: TokenUsage | undefined
+
+  constructor( message: string, options: { usage?: TokenUsage, cause?: unknown } = {} ) {
+    super( message, { cause: options.cause } )
+    this.name = 'SummaryError'
+    this.usage = options.usage
+  }
+}
 
 const toTranscriptLines = ( { segments }: Transcript ): string => {
   return segments
@@ -46,8 +58,8 @@ const toTranscriptLines = ( { segments }: Transcript ): string => {
 }
 
 export const summarizeTranscript = async (
-  { transcript }: SummaryInput,
-): Promise< SummaryResult > => {
+  { transcript, model, guidance }: SummaryInput,
+): Promise< SummaryOutcome > => {
   const client = new Anthropic( {
     apiKey: config.anthropicApiKey,
     timeout: config.summaryTimeoutMs,
@@ -56,29 +68,33 @@ export const summarizeTranscript = async (
 
   try {
     const response = await client.messages.parse( {
-      model: getSummaryModel(),
-      max_tokens: MAX_TOKENS,
-      system: SYSTEM_PROMPT,
+      model,
+      max_tokens: SUMMARY_MAX_TOKENS,
+      system: buildSystemPrompt( guidance ),
       messages: [ { role: 'user', content: toTranscriptLines( transcript ) } ],
       output_config: { effort: 'medium', format: zodOutputFormat( SummaryResult ) },
     } )
+    const usage = {
+      input_tokens: response.usage.input_tokens,
+      output_tokens: response.usage.output_tokens,
+    }
 
     if( response.stop_reason === 'max_tokens' ) {
-      throw new Error( 'Summary was cut off before it finished' )
+      throw new SummaryError( 'Summary was cut off before it finished', { usage } )
     }
 
     if( response.stop_reason === 'refusal' ) {
-      throw new Error( 'Summary was declined by the model' )
+      throw new SummaryError( 'Summary was declined by the model', { usage } )
     }
 
     if( response.parsed_output === null ) {
-      throw new Error( 'Summary response did not match the expected format' )
+      throw new SummaryError( 'Summary response did not match the expected format', { usage } )
     }
 
-    return response.parsed_output
+    return { summary: response.parsed_output, usage }
   } catch( error ) {
     if( error instanceof Anthropic.APIError ) {
-      throw new Error( `Summary request failed: ${ error.message }`, { cause: error } )
+      throw new SummaryError( `Summary request failed: ${ error.message }`, { cause: error } )
     }
 
     throw error
