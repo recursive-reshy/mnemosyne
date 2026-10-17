@@ -1,7 +1,6 @@
 // Shared
 import {
   CreateJobResponse,
-  ErrorResponse,
   GetJobResponse,
   GetTranscriptResponse,
   ListJobsResponse,
@@ -12,60 +11,31 @@ import type {
   CreateJobBody,
   DownloadFormat,
   Job,
+  RegenerateSummaryBody,
   Transcript,
   UpdateDraftBody,
 } from '@mnemosyne/shared'
 // App
-import { ApiError } from './apiError'
-
-interface Schema< T > {
-  safeParse( data: unknown ): { success: true, data: T } | { success: false }
-}
-
-const send = async ( input: string, init?: RequestInit ): Promise< Response > => {
-  let response: Response
-
-  try {
-    response = await fetch( input, init )
-  } catch{
-    throw new ApiError( 'Could not reach the server', null )
-  }
-
-  if( !response.ok ) {
-    const body: unknown = await response.json().catch( () => null )
-    const parsedError = ErrorResponse.safeParse( body )
-
-    throw new ApiError(
-      parsedError.success
-        ? parsedError.data.error
-        : `Request failed with status ${ response.status }`,
-      response.status,
-    )
-  }
-
-  return response
-}
-
-const request = async < T >(
-  input: string,
-  schema: Schema< T >,
-  init?: RequestInit,
-): Promise< T > => {
-  const response = await send( input, init )
-  const body: unknown = await response.json().catch( () => null )
-  const parsed = schema.safeParse( body )
-
-  if( !parsed.success ) {
-    throw new ApiError( 'Unexpected response from the server', response.status )
-  }
-
-  return parsed.data
-}
+import { request, send } from './request'
 
 const jobPath = ( id: string ): string => `/api/jobs/${ encodeURIComponent( id ) }`
 
-export const createJob = async ( url: string ): Promise< string > => {
+type SummaryOptions = Pick< CreateJobBody, 'model' | 'profile_id' >
+
+export const createJob = async (
+  url: string,
+  options: SummaryOptions = {},
+): Promise< string > => {
   const body: CreateJobBody = { url }
+
+  if( options.model !== undefined ) {
+    body.model = options.model
+  }
+
+  if( options.profile_id !== undefined ) {
+    body.profile_id = options.profile_id
+  }
+
   const { job_id } = await request( '/api/jobs', CreateJobResponse, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -108,6 +78,18 @@ export const saveJob = async ( id: string ): Promise< string > => {
 export const retrySummary = async ( id: string ): Promise< Job > => {
   const { job } = await request( `${ jobPath( id ) }/retry-summary`, GetJobResponse, {
     method: 'POST',
+  } )
+  return job
+}
+
+export const regenerateSummary = async (
+  id: string,
+  body: RegenerateSummaryBody,
+): Promise< Job > => {
+  const { job } = await request( `${ jobPath( id ) }/regenerate-summary`, GetJobResponse, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify( body ),
   } )
   return job
 }

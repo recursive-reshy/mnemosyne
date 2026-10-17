@@ -1,0 +1,82 @@
+// Shared
+import type {
+  GetSettingsResponse,
+  ListModelsResponse,
+  PromptProfile,
+  PromptVersion,
+} from '@mnemosyne/shared'
+
+export const BUSINESS_ID = '0b7c1c3e-5d4a-4e6f-9a7b-1c2d3e4f5a01'
+export const CODING_ID = '0b7c1c3e-5d4a-4e6f-9a7b-1c2d3e4f5a02'
+export const GENERAL_ID = '0b7c1c3e-5d4a-4e6f-9a7b-1c2d3e4f5a03'
+
+export const versionFixture = ( overrides: Partial< PromptVersion > = {} ): PromptVersion => {
+  return {
+    id: 1,
+    profile_id: BUSINESS_ID,
+    version: 1,
+    guidance: 'Focus on ideas worth exploring.',
+    source: 'seed',
+    created_at: '2026-10-17T10:00:00.000Z',
+    ...overrides,
+  }
+}
+
+export const profileFixture = ( overrides: Partial< PromptProfile > = {} ): PromptProfile => {
+  return {
+    id: BUSINESS_ID,
+    name: 'Business ideas',
+    can_reset: true,
+    current_version: versionFixture(),
+    created_at: '2026-10-17T10:00:00.000Z',
+    ...overrides,
+  }
+}
+
+export const profilesFixture = (): PromptProfile[] => [
+  profileFixture(),
+  profileFixture( {
+    id: CODING_ID,
+    name: 'Coding',
+    current_version: versionFixture( {
+      id: 2,
+      profile_id: CODING_ID,
+      guidance: 'Focus on techniques.',
+    } ),
+  } ),
+  profileFixture( {
+    id: GENERAL_ID,
+    name: 'General',
+    current_version: versionFixture( {
+      id: 3,
+      profile_id: GENERAL_ID,
+      guidance: 'Write a few paragraphs.',
+    } ),
+  } ),
+]
+
+export const modelsFixture = (
+  overrides: Partial< ListModelsResponse > = {},
+): ListModelsResponse => {
+  return {
+    models: [
+      { id: 'claude-sonnet-5-5', display_name: 'Claude Sonnet 5.5' },
+      { id: 'claude-opus-5-5', display_name: 'Claude Opus 5.5' },
+    ],
+    source: 'api',
+    ...overrides,
+  }
+}
+
+export const settingsFixture = (
+  overrides: Partial< GetSettingsResponse[ 'settings' ] > = {},
+): GetSettingsResponse => {
+  return {
+    settings: {
+      default_model: 'claude-sonnet-5-5',
+      default_profile_id: BUSINESS_ID,
+      ...overrides,
+    },
+    locked_instructions: 'You summarize the transcript of a video.',
+  }
+}

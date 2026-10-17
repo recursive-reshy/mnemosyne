@@ -19,6 +19,7 @@ import {
   getJob,
   getTranscript,
   listJobs,
+  regenerateSummary,
   retrySummary,
   saveJob,
   updateDraft,
@@ -59,6 +60,18 @@ describe( 'createJob', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify( { url } ),
     } )
+  } )
+
+  it( 'adds the model and profile only when they are given', async () => {
+    fetchMock.mockImplementation( () => Promise.resolve( jsonResponse( { job_id: jobId }, 202 ) ) )
+
+    await createJob( url, { model: 'claude-opus-5-5', profile_id: jobId } )
+    await createJob( url, { model: undefined, profile_id: undefined } )
+
+    expect( fetchMock.mock.calls[ 0 ]?.[ 1 ] ).toMatchObject( {
+      body: JSON.stringify( { url, model: 'claude-opus-5-5', profile_id: jobId } ),
+    } )
+    expect( fetchMock.mock.calls[ 1 ]?.[ 1 ] ).toMatchObject( { body: JSON.stringify( { url } ) } )
   } )
 
   it( 'returns the job id', async () => {
@@ -325,5 +338,28 @@ describe( 'discardJob', () => {
 describe( 'downloadUrl', () => {
   it.each< DownloadFormat >( [ 'md', 'srt', 'txt' ] )( 'builds the %s link', ( format ) => {
     expect( downloadUrl( 'a/b', format ) ).toBe( `/api/jobs/a%2Fb/download?format=${ format }` )
+  } )
+} )
+
+describe( 'regenerateSummary', () => {
+  it( 'posts the choices to the job and returns the job', async () => {
+    const job = jobFixture( { status: 'summarizing' } )
+    fetchMock.mockResolvedValue( jsonResponse( { job }, 202 ) )
+
+    await expect( regenerateSummary( 'a/b', { model: 'claude-opus-5-5' } ) ).resolves.toEqual( job )
+    expect( fetchMock ).toHaveBeenCalledWith( '/api/jobs/a%2Fb/regenerate-summary', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify( { model: 'claude-opus-5-5' } ),
+    } )
+  } )
+
+  it( 'uses the server message when the job is not in review', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse( { error: 'Cannot move job from queued to summarizing' }, 409 ),
+    )
+
+    await expect( regenerateSummary( jobId, {} ) )
+      .rejects.toThrow( 'Cannot move job from queued to summarizing' )
   } )
 } )
