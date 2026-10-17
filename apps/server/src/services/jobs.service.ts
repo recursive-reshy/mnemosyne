@@ -3,6 +3,7 @@ import {
   DownloadFormat,
   Job,
   JobStatus,
+  SummaryUsage,
   NoteParseError,
   Transcript,
   UpdateDraftBody,
@@ -13,6 +14,7 @@ import {
   serializeNote,
 } from '@mnemosyne/shared'
 // Clients
+import type { TokenUsage } from '../clients/claude.client.js'
 import { writeNote } from '../clients/vault.client.js'
 // Config
 import { config } from '../config.js'
@@ -36,6 +38,10 @@ import {
   markInterruptedJobs,
   updateJob,
 } from '../repositories/jobStore.repository.js'
+import { findProfileById, findVersionById } from '../repositories/promptProfiles.repository.js'
+import { insertSummaryRun, listRunsForJob } from '../repositories/summaryRuns.repository.js'
+// Summarizer
+import { estimateCostUsd } from '../summarizer/pricing.js'
 
 type StepStatus = 'downloading' | 'converting' | 'transcribing'
 
@@ -70,6 +76,46 @@ const expiryFromNow = (): string => {
   return new Date( Date.now() + config.reviewTtlHours * HOUR_MS ).toISOString()
 }
 
+const toSummaryUsage = ( jobId: string ): SummaryUsage | null => {
+  const runs = listRunsForJob( jobId )
+  const last = runs.at( -1 )
+
+  if( last === undefined ) {
+    return null
+  }
+
+  const version = findVersionById( last.prompt_version_id )
+  const profile = version === undefined ? undefined : findProfileById( version.profile_id )
+
+  if( version === undefined || profile === undefined ) {
+    throw new Error( `Summary run for job ${ jobId } points at a missing prompt version` )
+  }
+
+  const hasUnpricedTokens = runs.some(
+    ( run ) => run.input_tokens !== null && run.cost_usd === null,
+  )
+
+  return {
+    last_run: {
+      model: last.model,
+      profile_id: profile.id,
+      profile_name: profile.name,
+      prompt_version: version.version,
+      input_tokens: last.input_tokens,
+      output_tokens: last.output_tokens,
+      cost_usd: last.cost_usd,
+      outcome: last.outcome,
+      created_at: last.created_at,
+    },
+    run_count: runs.length,
+    total_input_tokens: runs.reduce( ( sum, run ) => sum + ( run.input_tokens ?? 0 ), 0 ),
+    total_output_tokens: runs.reduce( ( sum, run ) => sum + ( run.output_tokens ?? 0 ), 0 ),
+    total_cost_usd: hasUnpricedTokens
+      ? null
+      : runs.reduce( ( sum, run ) => sum + ( run.cost_usd ?? 0 ), 0 ),
+  }
+}
+
 const toPublicJob = ( job: StoredJob ): Job => {
   return {
     id: job.id,
@@ -85,7 +131,7 @@ const toPublicJob = ( job: StoredJob ): Job => {
     saved_path: job.saved_path,
     summary_model: job.summary_model,
     prompt_profile_id: job.prompt_profile_id,
-    summary_usage: null,
+    summary_usage: toSummaryUsage( job.id ),
   }
 }
 
@@ -201,6 +247,31 @@ export const completeSummary = (
     } ),
     error: null,
     expires_at: expiryFromNow(),
+  } )
+}
+
+export const recordSummaryRun = (
+  jobId: string,
+  run: {
+    model: string
+    promptVersionId: number
+    usage: TokenUsage | undefined
+    error?: string
+  },
+): void => {
+  const inputTokens = run.usage?.input_tokens ?? null
+  const outputTokens = run.usage?.output_tokens ?? null
+
+  insertSummaryRun( {
+    job_id: jobId,
+    model: run.model,
+    prompt_version_id: run.promptVersionId,
+    input_tokens: inputTokens,
+    output_tokens: outputTokens,
+    cost_usd: estimateCostUsd( run.model, inputTokens, outputTokens ),
+    outcome: run.error === undefined ? 'succeeded' : 'failed',
+    error: run.error ?? null,
+    created_at: new Date().toISOString(),
   } )
 }
 

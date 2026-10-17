@@ -2,27 +2,45 @@
 import {
   completeSummary,
   failSummary,
+  findJob,
   getTranscript,
+  recordSummaryRun,
 } from '../services/jobs.service.js'
+import { resolvePrompt } from '../services/prompts.service.js'
+import { getSettings } from '../services/settings.service.js'
 // Clients
-import { summarizeTranscript } from '../clients/claude.client.js'
-// Summarizer
-import { SHIPPED_DEFAULT_MODEL } from '../summarizer/models.js'
-import { SEEDED_PROFILES } from '../summarizer/prompts.js'
+import { SummaryError, summarizeTranscript } from '../clients/claude.client.js'
+import type { SummaryOutcome } from '../clients/claude.client.js'
 // Formatters
 import { cleanSummary } from '../formatters/summary.cleanup.js'
 import { formatSummary } from '../formatters/summary.formatter.js'
 
 export const summarizeJob = async ( jobId: string ): Promise< void > => {
   try {
+    const job = findJob( jobId )
     const transcript = getTranscript( jobId )
+    const { version } = resolvePrompt( job.prompt_profile_id )
+    const model = job.summary_model ?? getSettings().default_model
+    const promptVersionId = version.id
 
-    const { summary: raw } = await summarizeTranscript( {
-      transcript,
-      model: SHIPPED_DEFAULT_MODEL,
-      guidance: SEEDED_PROFILES[ 2 ]?.guidance ?? '',
-    } )
-    const summary = cleanSummary( raw, transcript )
+    let outcome: SummaryOutcome
+
+    try {
+      outcome = await summarizeTranscript( { transcript, model, guidance: version.guidance } )
+    } catch( error ) {
+      recordSummaryRun( jobId, {
+        model,
+        promptVersionId,
+        usage: error instanceof SummaryError ? error.usage : undefined,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      } )
+
+      throw error
+    }
+
+    recordSummaryRun( jobId, { model, promptVersionId, usage: outcome.usage } )
+
+    const summary = cleanSummary( outcome.summary, transcript )
 
     completeSummary(
       jobId,

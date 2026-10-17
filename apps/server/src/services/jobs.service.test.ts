@@ -28,12 +28,20 @@ import {
   listJobs,
   markStatus,
   queueJob,
+  recordSummaryRun,
   recoverInterruptedJobs,
   renderTranscript,
   retrySummary,
   saveJob,
   updateDraft,
 } from './jobs.service.js'
+// Prompts
+import {
+  createProfile,
+  deleteProfile,
+  resolvePrompt,
+  saveVersion,
+} from './prompts.service.js'
 // Clients
 import { writeNote } from '../clients/vault.client.js'
 // Formatters
@@ -894,4 +902,155 @@ describe( 'updateDraft', () => {
       expect( () => updateDraft( id, { target_folder: 'A' } ) ).toThrow( ConflictError )
     },
   )
+} )
+
+describe( 'recordSummaryRun and summary_usage', () => {
+  const version = (): number => resolvePrompt( null ).version.id
+
+  it( 'has no usage before the first attempt', () => {
+    expect( findJob( queueJobAt( 'queued' ) ).summary_usage ).toBeNull()
+  } )
+
+  it( 'records a succeeded run with tokens and the estimated cost', () => {
+    const id = queueJobAt( 'ready_for_review' )
+
+    recordSummaryRun( id, {
+      model: 'claude-sonnet-5-5',
+      promptVersionId: version(),
+      usage: { input_tokens: 1_000_000, output_tokens: 100_000 },
+    } )
+
+    expect( findJob( id ).summary_usage ).toEqual( {
+      last_run: {
+        model: 'claude-sonnet-5-5',
+        profile_id: resolvePrompt( null ).profile.id,
+        profile_name: 'Business ideas',
+        prompt_version: 1,
+        input_tokens: 1_000_000,
+        output_tokens: 100_000,
+        cost_usd: 3,
+        outcome: 'succeeded',
+        created_at: startTime.toISOString(),
+      },
+      run_count: 1,
+      total_input_tokens: 1_000_000,
+      total_output_tokens: 100_000,
+      total_cost_usd: 3,
+    } )
+  } )
+
+  it( 'records tokens but no cost for a model without a price', () => {
+    const id = queueJobAt( 'ready_for_review' )
+
+    recordSummaryRun( id, {
+      model: 'claude-haiku-5-5',
+      promptVersionId: version(),
+      usage: { input_tokens: 10, output_tokens: 5 },
+    } )
+
+    expect( findJob( id ).summary_usage ).toMatchObject( {
+      last_run: { input_tokens: 10, output_tokens: 5, cost_usd: null },
+      total_cost_usd: null,
+    } )
+  } )
+
+  it( 'records a failed run with the billed tokens and the error', () => {
+    const id = queueJobAt( 'summary_failed' )
+
+    recordSummaryRun( id, {
+      model: 'claude-sonnet-5-5',
+      promptVersionId: version(),
+      usage: { input_tokens: 1_000_000, output_tokens: 0 },
+      error: 'Summary was cut off',
+    } )
+
+    expect( findJob( id ).summary_usage ).toMatchObject( {
+      last_run: { outcome: 'failed', input_tokens: 1_000_000, cost_usd: 2 },
+      total_cost_usd: 2,
+    } )
+  } )
+
+  it( 'records a failed run without tokens or cost when no response came back', () => {
+    const id = queueJobAt( 'summary_failed' )
+
+    recordSummaryRun( id, {
+      model: 'claude-sonnet-5-5',
+      promptVersionId: version(),
+      usage: undefined,
+      error: 'Summary request failed: Overloaded',
+    } )
+
+    expect( findJob( id ).summary_usage ).toEqual( expect.objectContaining( {
+      last_run: expect.objectContaining( {
+        outcome: 'failed',
+        input_tokens: null,
+        output_tokens: null,
+        cost_usd: null,
+      } ) as unknown,
+      run_count: 1,
+      total_input_tokens: 0,
+      total_output_tokens: 0,
+      total_cost_usd: 0,
+    } ) )
+  } )
+
+  it( 'reports the latest run, the count and the totals over several runs', () => {
+    const id = queueJobAt( 'ready_for_review' )
+    const first = version()
+    saveVersion( resolvePrompt( null ).profile.id, 'A newer prompt' )
+
+    recordSummaryRun( id, {
+      model: 'claude-sonnet-5-5',
+      promptVersionId: first,
+      usage: { input_tokens: 1_000_000, output_tokens: 0 },
+    } )
+    recordSummaryRun( id, {
+      model: 'claude-opus-5-5',
+      promptVersionId: version(),
+      usage: { input_tokens: 500_000, output_tokens: 100_000 },
+    } )
+
+    expect( findJob( id ).summary_usage ).toMatchObject( {
+      last_run: { model: 'claude-opus-5-5', prompt_version: 2, cost_usd: 4 },
+      run_count: 2,
+      total_input_tokens: 1_500_000,
+      total_output_tokens: 100_000,
+      total_cost_usd: 6,
+    } )
+  } )
+
+  it( 'has no total cost when any run with tokens is unpriced', () => {
+    const id = queueJobAt( 'ready_for_review' )
+
+    recordSummaryRun( id, {
+      model: 'claude-sonnet-5-5',
+      promptVersionId: version(),
+      usage: { input_tokens: 1000, output_tokens: 10 },
+    } )
+    recordSummaryRun( id, {
+      model: 'claude-haiku-5-5',
+      promptVersionId: version(),
+      usage: { input_tokens: 1000, output_tokens: 10 },
+    } )
+
+    expect( findJob( id ).summary_usage?.total_cost_usd ).toBeNull()
+  } )
+
+  it( 'keeps the profile name after the profile is deleted', () => {
+    const id = queueJobAt( 'ready_for_review' )
+    const { id: profileId } = createProfile( { name: 'Temporary', guidance: 'x' } )
+    const versionId = resolvePrompt( profileId ).version.id
+
+    recordSummaryRun( id, {
+      model: 'claude-sonnet-5-5',
+      promptVersionId: versionId,
+      usage: { input_tokens: 1, output_tokens: 1 },
+    } )
+    deleteProfile( profileId )
+
+    expect( findJob( id ).summary_usage?.last_run ).toMatchObject( {
+      profile_id: profileId,
+      profile_name: 'Temporary',
+    } )
+  } )
 } )
