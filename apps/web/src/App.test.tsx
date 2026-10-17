@@ -41,6 +41,14 @@ describe( 'App', () => {
     expect( screen.queryByRole( 'form', { name: 'Transcribe a video' } ) ).not.toBeInTheDocument()
   } )
 
+  it( 'shows the settings page on /settings', () => {
+    renderWithClient( <App />, { route: '/settings' } )
+
+    expect( screen.getByRole( 'heading', { level: 2, name: 'Settings' } ) ).toBeInTheDocument()
+    expect( screen.getByRole( 'heading', { level: 3, name: 'Summarizer' } ) ).toBeInTheDocument()
+    expect( screen.queryByRole( 'form', { name: 'Transcribe a video' } ) ).not.toBeInTheDocument()
+  } )
+
   it( 'sends an unknown path to the home route', () => {
     const { location } = renderWithClient( <App />, { route: '/nowhere' } )
 

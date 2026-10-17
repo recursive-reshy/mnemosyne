@@ -62,6 +62,66 @@ describe( 'NavDrawer, wide', () => {
   } )
 } )
 
+describe( 'NavDrawer, Settings item', () => {
+  it( 'links to the settings page', () => {
+    renderWithClient( <NavDrawer { ...defaults } /> )
+
+    expect( screen.getByRole( 'link', { name: 'Settings' } ) )
+      .toHaveAttribute( 'href', '/settings' )
+  } )
+
+  it( 'sits above the colour mode control, after the module items', () => {
+    renderWithClient( <NavDrawer { ...defaults } /> )
+
+    const transcriber = screen.getByRole( 'link', { name: 'Transcriber' } )
+    const settings = screen.getByRole( 'link', { name: 'Settings' } )
+    const colourMode = screen.getByRole( 'group', { name: 'Colour mode' } )
+
+    expect( transcriber.compareDocumentPosition( settings ) )
+      .toBe( Node.DOCUMENT_POSITION_FOLLOWING )
+    expect( settings.compareDocumentPosition( colourMode ) )
+      .toBe( Node.DOCUMENT_POSITION_FOLLOWING )
+  } )
+
+  it( 'is current on /settings, and Transcriber is not', () => {
+    renderWithClient( <NavDrawer { ...defaults } />, { route: '/settings' } )
+
+    expect( screen.getByRole( 'link', { name: 'Settings' } ) )
+      .toHaveAttribute( 'aria-current', 'page' )
+    expect( screen.getByRole( 'link', { name: 'Transcriber' } ) )
+      .not.toHaveAttribute( 'aria-current' )
+  } )
+
+  it( 'is not current elsewhere', () => {
+    renderWithClient( <NavDrawer { ...defaults } />, { route: '/' } )
+
+    expect( screen.getByRole( 'link', { name: 'Settings' } ) )
+      .not.toHaveAttribute( 'aria-current' )
+  } )
+
+  it( 'keeps its name when collapsed, with a tooltip on hover', async () => {
+    const user = userEvent.setup()
+    renderWithClient( <NavDrawer { ...defaults } isExpanded={ false } /> )
+
+    await user.hover( screen.getByRole( 'link', { name: 'Settings' } ) )
+
+    expect( await screen.findByRole( 'tooltip' ) ).toHaveTextContent( 'Settings' )
+  } )
+
+  it( 'asks a narrow drawer to close when chosen, and navigates', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    const { location } = renderWithClient(
+      <NavDrawer { ...defaults } isNarrow isOpen onClose={ onClose } />,
+    )
+
+    await user.click( screen.getByRole( 'link', { name: 'Settings' } ) )
+
+    expect( onClose ).toHaveBeenCalledTimes( 1 )
+    expect( location().pathname ).toBe( '/settings' )
+  } )
+} )
+
 describe( 'NavDrawer, narrow', () => {
   it( 'shows nothing while closed', () => {
     renderWithClient( <NavDrawer { ...defaults } isNarrow /> )
