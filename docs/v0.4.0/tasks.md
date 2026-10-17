@@ -35,7 +35,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 3.4 | `settings.repository.ts`, `promptProfiles.repository.ts`, `summaryRuns.repository.ts`; `jobStore.repository.ts` reads and writes the new job columns (TRD §2.3). Update `apps/server/CLAUDE.md` (repositories line, setup file) | 0027, 0029 | ✅ |
 
 ## Checkpoint B: Phases 4–5 (server summarizer and API)
-**Plan:** ⬜ [`plans/checkpoint-b.md`](plans/checkpoint-b.md)
+**Plan:** ✅ [`plans/checkpoint-b.md`](plans/checkpoint-b.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
