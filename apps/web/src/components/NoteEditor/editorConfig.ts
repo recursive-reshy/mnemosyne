@@ -5,6 +5,7 @@ import {
   diffSourcePlugin,
   frontmatterPlugin,
   headingsPlugin,
+  linkDialogPlugin,
   linkPlugin,
   listsPlugin,
   markdownShortcutPlugin,
@@ -16,10 +17,11 @@ import type { MDXEditorProps, ToMarkdownOptions } from '@mdxeditor/editor'
 import { wikilinkTextHandler } from './wikilinkMarkdown'
 
 export const noteEditorPlugins = (): NonNullable< MDXEditorProps[ 'plugins' ] > => [
-  headingsPlugin(),
+  headingsPlugin( { allowedHeadingLevels: [ 1, 2, 3 ] } ),
   listsPlugin(),
   quotePlugin(),
   linkPlugin(),
+  linkDialogPlugin(),
   thematicBreakPlugin(),
   codeBlockPlugin( { defaultCodeBlockLanguage: '' } ),
   codeMirrorPlugin( { codeBlockLanguages: { '': 'Text', rust: 'Rust' } } ),

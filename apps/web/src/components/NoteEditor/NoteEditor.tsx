@@ -10,6 +10,7 @@ import '@mdxeditor/editor/style.css'
 // App
 import { richBlockText, sourceLineText } from './caretText'
 import { noteEditorPlugins, noteMarkdownOptions } from './editorConfig'
+import { FormattingToolbar } from './FormattingToolbar'
 import { ModeToggle } from './ModeToggle'
 import type { NoteEditorMode } from './ModeToggle'
 
@@ -32,7 +33,7 @@ const withOneNewline = ( markdown: string ): string => `${ markdown.replace( /\n
 export function NoteEditor(
   { value, onChange, onModeChange, onBlur, onCaretText }: NoteEditorProps,
 ): ReactElement {
-  const { colorScheme } = useColorScheme()
+  const isDark = useColorScheme().colorScheme === 'dark'
   const editor = useRef< MDXEditorMethods >( null )
   const container = useRef< HTMLDivElement >( null )
   const held = useRef( value )
@@ -41,13 +42,45 @@ export function NoteEditor(
     ...noteEditorPlugins(),
     toolbarPlugin( {
       toolbarContents: () => (
-        <ModeToggle
-          getNote={ () => held.current }
-          onModeChange={ ( mode ) => modeCallback.current?.( mode ) }
-        />
+        <>
+          <ModeToggle
+            getNote={ () => held.current }
+            onModeChange={ ( mode ) => modeCallback.current?.( mode ) }
+          />
+          <FormattingToolbar />
+        </>
       ),
     } ),
   ] )
+
+  // The class prop stays constant on purpose: when it changes, MDXEditor recreates its popup
+  // container, which orphans the open Radix popups (the block type dropdown stops opening). So the
+  // dark theme is toggled by hand on the editor root and on the popup container instead. Both are
+  // created a moment after mount (the popup container under <body>), so they are watched for.
+  useEffect( () => {
+    const wrapper = container.current
+
+    const apply = (): void => {
+      const roots = [
+        ...( wrapper?.querySelectorAll( '.mdxeditor' ) ?? [] ),
+        ...document.querySelectorAll( '.mdxeditor-popup-container.noteEditor' ),
+      ]
+
+      for( const element of roots ) {
+        element.classList.toggle( 'dark-theme', isDark )
+      }
+    }
+    const observer = new MutationObserver( apply )
+
+    apply()
+    observer.observe( document.body, { childList: true } )
+
+    if( wrapper !== null ) {
+      observer.observe( wrapper, { childList: true } )
+    }
+
+    return () => observer.disconnect()
+  }, [ isDark ] )
 
   useEffect( () => {
     modeCallback.current = onModeChange
@@ -106,7 +139,7 @@ export function NoteEditor(
         toMarkdownOptions={ noteMarkdownOptions }
         onChange={ handleChange }
         onBlur={ onBlur }
-        className={ colorScheme === 'dark' ? 'noteEditor dark-theme' : 'noteEditor' }
+        className="noteEditor"
         contentEditableClassName="noteEditorContent"
       />
     </Paper>

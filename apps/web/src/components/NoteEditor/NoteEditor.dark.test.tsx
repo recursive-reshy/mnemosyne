@@ -1,5 +1,9 @@
 // Testing Library
 import { act, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+// React
+import { useState } from 'react'
+import type { ReactElement } from 'react'
 // Vitest
 import {
   beforeEach,
@@ -75,5 +79,103 @@ describe( 'NoteEditor dark mode', () => {
     act( () => os.setDark( false ) )
 
     expect( document.querySelectorAll( '.mdxeditor-popup-container' ) ).toHaveLength( 1 )
+  } )
+} )
+
+// A popup is dark when it sits in the popup container and that container has the dark class.
+const expectInPopups = ( popup: HTMLElement, isDark: boolean ): void => {
+  expect( popup.closest( '.mdxeditor-popup-container' ) ).toBe( popups() )
+  expect( popup.closest( '.dark-theme' ) !== null ).toBe( isDark )
+}
+
+const openBlockTypes = async ( isDark: boolean ): Promise< void > => {
+  const user = userEvent.setup()
+
+  await user.click( screen.getByRole( 'combobox', { name: 'Block type' } ) )
+  expectInPopups( await screen.findByRole( 'listbox' ), isDark )
+  await user.keyboard( '{Escape}' )
+  await vi.waitFor( () => expect( screen.queryByRole( 'listbox' ) ).not.toBeInTheDocument() )
+}
+
+const selectWord = (): void => {
+  const content = document.querySelector( '[contenteditable="true"]' ) as HTMLElement
+  const walker = document.createTreeWalker( content, NodeFilter.SHOW_TEXT )
+  let text: Node | null = null
+
+  while( walker.nextNode() ) {
+    if( walker.currentNode.textContent === 'First paragraph.' ) {
+      text = walker.currentNode
+      break
+    }
+  }
+
+  const range = document.createRange()
+
+  range.setStart( text as Node, 0 )
+  range.setEnd( text as Node, 5 )
+  content.focus()
+  document.getSelection()?.removeAllRanges()
+  document.getSelection()?.addRange( range )
+  document.dispatchEvent( new Event( 'selectionchange' ) )
+}
+
+describe( 'NoteEditor popups after a colour switch', () => {
+  it( 'opens the block type dropdown after light to dark and dark to light', async () => {
+    const os = mockMatchMedia( { isDark: false } )
+    await open()
+
+    await openBlockTypes( false )
+    act( () => os.setDark( true ) )
+    await openBlockTypes( true )
+    act( () => os.setDark( false ) )
+    await openBlockTypes( false )
+  } )
+
+  it( 'opens the block type dropdown after several switches in a row', async () => {
+    const os = mockMatchMedia( { isDark: false } )
+    await open()
+
+    for( const isDark of [ true, false, true, true, false, true ] ) {
+      act( () => os.setDark( isDark ) )
+      await openBlockTypes( isDark )
+    }
+  } )
+
+  it( 'opens the link dialog after a switch, in the dark popup container', async () => {
+    const os = mockMatchMedia( { isDark: false } )
+    await open()
+
+    act( () => os.setDark( true ) )
+    selectWord()
+    await userEvent.setup().click( screen.getByRole( 'button', { name: 'Create link' } ) )
+
+    expectInPopups( await screen.findByRole( 'dialog' ), true )
+  } )
+
+  it( 'keeps the dark class when the editor re-renders with a new value', async () => {
+    function Harness(): ReactElement {
+      const [ value, setValue ] = useState( note )
+
+      return (
+        <>
+          <button type="button" onClick={ () => setValue( `${ note }\nA new line.\n` ) }>
+            Change
+          </button>
+          <NoteEditor value={ value } onChange={ vi.fn() } />
+        </>
+      )
+    }
+
+    const os = mockMatchMedia( { isDark: false } )
+    renderWithClient( <Harness /> )
+    await screen.findByRole( 'heading', { name: 'Key points' } )
+
+    act( () => os.setDark( true ) )
+    await userEvent.setup().click( screen.getByRole( 'button', { name: 'Change' } ) )
+    await screen.findByText( 'A new line.' )
+
+    expect( root() ).toHaveClass( 'dark-theme' )
+    expect( popups() ).toHaveClass( 'dark-theme' )
+    await openBlockTypes( true )
   } )
 } )
