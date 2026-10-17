@@ -43,8 +43,8 @@ const useRealisticRunJob = (): void => {
   } )
 }
 
-const queue = (): string => {
-  return queueJob( 'https://example.com/video' ).id
+const queue = async (): Promise< string > => {
+  return ( await queueJob( 'https://example.com/video' ) ).id
 }
 
 beforeEach( () => {
@@ -67,7 +67,7 @@ afterEach( async () => {
 
 describe( 'startWorker', () => {
   it( 'also picks up a job that is already summarizing', async () => {
-    const id = queue()
+    const id = await queue()
     updateJob( id, { status: 'summarizing' } )
 
     stopWorker = startWorker()
@@ -77,7 +77,7 @@ describe( 'startWorker', () => {
   } )
 
   it( 'runs a queued job immediately', async () => {
-    const id = queue()
+    const id = await queue()
 
     stopWorker = startWorker()
     await vi.advanceTimersByTimeAsync( 0 )
@@ -86,8 +86,8 @@ describe( 'startWorker', () => {
   } )
 
   it( 'runs queued jobs oldest first', async () => {
-    const first = queue()
-    const second = queue()
+    const first = await queue()
+    const second = await queue()
 
     stopWorker = startWorker()
     await vi.advanceTimersByTimeAsync( 0 )
@@ -102,8 +102,8 @@ describe( 'startWorker', () => {
 
   it( 'never runs two jobs at once', async () => {
     hold = true
-    const first = queue()
-    const second = queue()
+    const first = await queue()
+    const second = await queue()
 
     stopWorker = startWorker()
     await vi.advanceTimersByTimeAsync( 5000 )
@@ -128,7 +128,7 @@ describe( 'startWorker', () => {
     await vi.advanceTimersByTimeAsync( 0 )
     expect( runJobMock ).not.toHaveBeenCalled()
 
-    const id = queue()
+    const id = await queue()
     await vi.advanceTimersByTimeAsync( 1000 )
 
     expect( runJobMock ).toHaveBeenCalledWith( id )
@@ -136,11 +136,11 @@ describe( 'startWorker', () => {
 
   it( 'runs a job queued during a run in the same pass', async () => {
     hold = true
-    const first = queue()
+    const first = await queue()
 
     stopWorker = startWorker()
     await vi.advanceTimersByTimeAsync( 0 )
-    const second = queue()
+    const second = await queue()
 
     hold = false
     gates.get( first )?.()
@@ -151,7 +151,7 @@ describe( 'startWorker', () => {
 
   it( 'keeps going after a job throws', async () => {
     const errorSpy = vi.spyOn( console, 'error' ).mockImplementation( () => undefined )
-    const broken = queue()
+    const broken = await queue()
     runJobMock.mockRejectedValueOnce( new Error( 'broken' ) )
 
     stopWorker = startWorker()
@@ -159,7 +159,7 @@ describe( 'startWorker', () => {
     expect( errorSpy ).toHaveBeenCalled()
 
     markStatus( broken, 'downloading' )
-    const later = queue()
+    const later = await queue()
     await vi.advanceTimersByTimeAsync( 1000 )
 
     expect( runJobMock ).toHaveBeenCalledWith( later )
@@ -167,7 +167,7 @@ describe( 'startWorker', () => {
 
   it( 'makes one call per pass when a job stays queued', async () => {
     vi.spyOn( console, 'error' ).mockImplementation( () => undefined )
-    const id = queue()
+    const id = await queue()
     runJobMock.mockRejectedValue( new Error( 'broken' ) )
 
     stopWorker = startWorker()
@@ -185,7 +185,7 @@ describe( 'startWorker', () => {
     await vi.advanceTimersByTimeAsync( 0 )
 
     await stopWorker()
-    queue()
+    await queue()
     await vi.advanceTimersByTimeAsync( 5000 )
 
     expect( runJobMock ).not.toHaveBeenCalled()
@@ -200,7 +200,7 @@ describe( 'startWorker', () => {
 
   it( 'resolves the stop promise only after the running job finishes', async () => {
     hold = true
-    const id = queue()
+    const id = await queue()
 
     stopWorker = startWorker()
     await vi.advanceTimersByTimeAsync( 0 )
@@ -220,8 +220,8 @@ describe( 'startWorker', () => {
 
   it( 'does not run the next job once stopped', async () => {
     hold = true
-    const first = queue()
-    queue()
+    const first = await queue()
+    await queue()
 
     stopWorker = startWorker()
     await vi.advanceTimersByTimeAsync( 0 )

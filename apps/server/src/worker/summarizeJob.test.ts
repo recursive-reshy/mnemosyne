@@ -14,7 +14,9 @@ import {
   findJob,
   markStatus,
   queueJob,
+  regenerateSummary,
   retrySummary,
+  updateDraft,
 } from '../services/jobs.service.js'
 // Repositories
 import { clearJobs, updateJob } from '../repositories/jobStore.repository.js'
@@ -23,6 +25,8 @@ import { setSetting } from '../repositories/settings.repository.js'
 import { listProfiles, saveVersion } from '../services/prompts.service.js'
 // Clients
 import { SummaryError, summarizeTranscript } from '../clients/claude.client.js'
+// Models
+import { assertKnownModel } from '../services/models.service.js'
 // Worker
 import { summarizeJob } from './summarizeJob.js'
 
@@ -31,6 +35,8 @@ vi.mock( '../clients/claude.client.js', async ( importOriginal ) => {
 
   return { ...original, summarizeTranscript: vi.fn() }
 } )
+
+vi.mock( '../services/models.service.js' )
 
 const summarizeMock = vi.mocked( summarizeTranscript )
 
@@ -49,8 +55,8 @@ const transcript: Transcript = {
   ],
 }
 
-const queueSummarizing = (): string => {
-  const { id } = queueJob( transcript.meta.source )
+const queueSummarizing = async (): Promise< string > => {
+  const { id } = await queueJob( transcript.meta.source )
   markStatus( id, 'downloading' )
   markStatus( id, 'converting' )
   markStatus( id, 'transcribing' )
@@ -62,6 +68,7 @@ const queueSummarizing = (): string => {
 beforeEach( () => {
   clearJobs()
   vi.resetAllMocks()
+  vi.mocked( assertKnownModel ).mockResolvedValue( undefined )
   summarizeMock.mockResolvedValue( {
     summary: {
       overview: 'An overview.',
@@ -78,7 +85,7 @@ beforeEach( () => {
 
 describe( 'summarizeJob', () => {
   it( 'sends the stored transcript to the client', async () => {
-    const id = queueSummarizing()
+    const id = await queueSummarizing()
 
     await summarizeJob( id )
 
@@ -90,7 +97,7 @@ describe( 'summarizeJob', () => {
   } )
 
   it( 'stores the cleaned, rendered summary and moves to ready_for_review', async () => {
-    const id = queueSummarizing()
+    const id = await queueSummarizing()
 
     await summarizeJob( id )
 
@@ -119,7 +126,7 @@ describe( 'summarizeJob', () => {
     [ new Error( 'Rate limited' ), 'Rate limited' ],
     [ 'nope', 'Unknown error' ],
   ] )( 'marks the summary failed when the client rejects', async ( reason, message ) => {
-    const id = queueSummarizing()
+    const id = await queueSummarizing()
     summarizeMock.mockRejectedValue( reason )
 
     await expect( summarizeJob( id ) ).resolves.toBeUndefined()
@@ -128,7 +135,7 @@ describe( 'summarizeJob', () => {
   } )
 
   it( 'uses the default model and the default profile\'s current guidance', async () => {
-    const id = queueSummarizing()
+    const id = await queueSummarizing()
     saveVersion( listProfiles()[ 0 ]?.id ?? '', 'Be brief.' )
     setSetting( 'default_model', 'claude-opus-5-5' )
 
@@ -142,7 +149,7 @@ describe( 'summarizeJob', () => {
   } )
 
   it( 'uses the model and profile stored on the job', async () => {
-    const id = queueSummarizing()
+    const id = await queueSummarizing()
     const coding = listProfiles().find( ( { name } ) => name === 'Coding' )
     updateJob( id, { summary_model: 'claude-sonnet-4-6', prompt_profile_id: coding?.id ?? null } )
 
@@ -156,7 +163,7 @@ describe( 'summarizeJob', () => {
   } )
 
   it( 'records a succeeded run with tokens and cost', async () => {
-    const id = queueSummarizing()
+    const id = await queueSummarizing()
 
     await summarizeJob( id )
 
@@ -175,7 +182,7 @@ describe( 'summarizeJob', () => {
   } )
 
   it( 'records a failed run with the tokens of an unusable response', async () => {
-    const id = queueSummarizing()
+    const id = await queueSummarizing()
     const usage = { input_tokens: 500, output_tokens: 16_000 }
     summarizeMock.mockRejectedValue( new SummaryError( 'Summary was cut off', { usage } ) )
 
@@ -191,7 +198,7 @@ describe( 'summarizeJob', () => {
   } )
 
   it( 'records a failed run without tokens when the request itself failed', async () => {
-    const id = queueSummarizing()
+    const id = await queueSummarizing()
     summarizeMock.mockRejectedValue( new SummaryError( 'Summary request failed: Overloaded' ) )
 
     await summarizeJob( id )
@@ -205,7 +212,7 @@ describe( 'summarizeJob', () => {
   } )
 
   it( 'records a run for every attempt', async () => {
-    const id = queueSummarizing()
+    const id = await queueSummarizing()
     summarizeMock.mockRejectedValueOnce( new Error( 'Rate limited' ) )
     await summarizeJob( id )
     retrySummary( id )
@@ -219,7 +226,7 @@ describe( 'summarizeJob', () => {
   } )
 
   it( 'completes after a failed summary is retried', async () => {
-    const id = queueSummarizing()
+    const id = await queueSummarizing()
     summarizeMock.mockRejectedValueOnce( new Error( 'Rate limited' ) )
     await summarizeJob( id )
     expect( findJob( id ).status ).toBe( 'summary_failed' )
@@ -228,5 +235,30 @@ describe( 'summarizeJob', () => {
     await summarizeJob( id )
 
     expect( findJob( id ) ).toMatchObject( { status: 'ready_for_review', error: null } )
+  } )
+
+  it( 'replaces the note when a summary in review is regenerated, keeping the folder', async () => {
+    const id = await queueSummarizing()
+    await summarizeJob( id )
+    updateDraft( id, { target_folder: 'Learning' } )
+    summarizeMock.mockResolvedValue( {
+      summary: { overview: 'A second take.', key_points: [], quotes: [], tags: [ 'rust' ] },
+      usage: { input_tokens: 80, output_tokens: 10 },
+    } )
+
+    await regenerateSummary( id, { model: 'claude-opus-5-5' } )
+    await summarizeJob( id )
+
+    const job = findJob( id )
+
+    expect( summarizeMock ).toHaveBeenLastCalledWith( expect.objectContaining( {
+      model: 'claude-opus-5-5',
+    } ) )
+    expect( job ).toMatchObject( { status: 'ready_for_review', target_folder: 'Learning' } )
+    expect( parseNote( job.note_markdown ?? '' ).body ).toContain( 'A second take.' )
+    expect( job.summary_usage ).toMatchObject( {
+      run_count: 2,
+      last_run: { model: 'claude-opus-5-5' },
+    } )
   } )
 } )

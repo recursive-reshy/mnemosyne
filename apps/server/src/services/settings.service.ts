@@ -1,7 +1,5 @@
 // Shared
 import { Settings, UpdateSettingsBody } from '@mnemosyne/shared'
-// Errors
-import { ValidationError } from '../errors.js'
 // Repositories
 import { getSetting, setSetting } from '../repositories/settings.repository.js'
 // Summarizer
@@ -9,7 +7,7 @@ import { SHIPPED_DEFAULT_MODEL } from '../summarizer/models.js'
 import { LOCKED_INSTRUCTIONS } from '../summarizer/prompts.js'
 // Services
 import { assertKnownModel } from './models.service.js'
-import { listProfiles, resolvePrompt } from './prompts.service.js'
+import { assertActiveProfile, resolvePrompt } from './prompts.service.js'
 
 export const getSettings = (): Settings => {
   const model = getSetting( 'default_model' )
@@ -28,9 +26,7 @@ export const updateSettings = async ( body: UpdateSettingsBody ): Promise< Setti
   }
 
   if( body.default_profile_id !== undefined ) {
-    if( !listProfiles().some( ( { id } ) => id === body.default_profile_id ) ) {
-      throw new ValidationError( 'Unknown prompt profile' )
-    }
+    assertActiveProfile( body.default_profile_id )
   }
 
   if( body.default_model !== undefined ) {

@@ -3,7 +3,7 @@ import { z } from 'zod'
 // Shared
 import { PromptProfile, PromptVersion } from '@mnemosyne/shared'
 // Errors
-import { ConflictError, NotFoundError } from '../errors.js'
+import { ConflictError, NotFoundError, ValidationError } from '../errors.js'
 // Repositories
 import {
   ProfileRecord,
@@ -55,6 +55,12 @@ const defaultProfileId = (): string => z.string().parse( getSetting( 'default_pr
 export const listProfiles = (): PromptProfile[] => listActiveProfiles().map( toProfile )
 
 export const findProfile = ( id: string ): PromptProfile => toProfile( requireActive( id ) )
+
+export const assertActiveProfile = ( id: string ): void => {
+  if( !listActiveProfiles().some( ( record ) => record.id === id ) ) {
+    throw new ValidationError( 'Unknown prompt profile' )
+  }
+}
 
 export const createProfile = (
   { name, guidance }: { name: string, guidance: string },

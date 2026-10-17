@@ -42,6 +42,9 @@ import { findProfileById, findVersionById } from '../repositories/promptProfiles
 import { insertSummaryRun, listRunsForJob } from '../repositories/summaryRuns.repository.js'
 // Summarizer
 import { estimateCostUsd } from '../summarizer/pricing.js'
+// Services
+import { assertKnownModel } from './models.service.js'
+import { assertActiveProfile } from './prompts.service.js'
 
 type StepStatus = 'downloading' | 'converting' | 'transcribing'
 
@@ -163,7 +166,21 @@ const conflict = ( from: JobStatus, to: JobStatus ): ConflictError => {
   return new ConflictError( `Cannot move job from ${ from } to ${ to }` )
 }
 
-export const queueJob = ( url: string ): Job => {
+type SummaryChoices = { model?: string | undefined, profile_id?: string | undefined }
+
+const validateChoices = async ( { model, profile_id }: SummaryChoices ): Promise< void > => {
+  if( model !== undefined ) {
+    await assertKnownModel( model )
+  }
+
+  if( profile_id !== undefined ) {
+    assertActiveProfile( profile_id )
+  }
+}
+
+export const queueJob = async ( url: string, options: SummaryChoices = {} ): Promise< Job > => {
+  await validateChoices( options )
+
   const now = new Date().toISOString()
   const job: StoredJob = {
     id: crypto.randomUUID(),
@@ -177,8 +194,8 @@ export const queueJob = ( url: string ): Job => {
     target_folder: null,
     expires_at: null,
     saved_path: null,
-    summary_model: null,
-    prompt_profile_id: null,
+    summary_model: options.model ?? null,
+    prompt_profile_id: options.profile_id ?? null,
     transcript: null,
   }
 
@@ -293,6 +310,26 @@ export const retrySummary = ( id: string ): Job => {
   }
 
   return moveTo( job, 'summarizing', { error: null, expires_at: null } )
+}
+
+export const regenerateSummary = async (
+  id: string,
+  choices: SummaryChoices,
+): Promise< Job > => {
+  const job = requireJob( id )
+
+  if( job.status !== 'ready_for_review' ) {
+    throw conflict( job.status, 'summarizing' )
+  }
+
+  await validateChoices( choices )
+
+  return moveTo( job, 'summarizing', {
+    summary_model: choices.model ?? job.summary_model,
+    prompt_profile_id: choices.profile_id ?? job.prompt_profile_id,
+    error: null,
+    expires_at: null,
+  } )
 }
 
 export const discardJob = ( id: string ): void => {

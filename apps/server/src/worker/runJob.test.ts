@@ -58,8 +58,8 @@ const transcribeMock = vi.mocked( transcribeAudio )
 const rmMock = vi.mocked( rm )
 const summarizeJobMock = vi.mocked( summarizeJob )
 
-const queue = (): string => {
-  return queueJob( 'https://www.youtube.com/watch?v=abc' ).id
+const queue = async (): Promise< string > => {
+  return ( await queueJob( 'https://www.youtube.com/watch?v=abc' ) ).id
 }
 
 const expectClientsNotCalled = (): void => {
@@ -87,7 +87,7 @@ afterEach( () => {
 
 describe( 'runJob', () => {
   it( 'moves the job to summarizing and stores the transcript and title', async () => {
-    const id = queue()
+    const id = await queue()
 
     await runJob( id )
 
@@ -99,7 +99,7 @@ describe( 'runJob', () => {
   } )
 
   it( 'passes the right arguments to each client', async () => {
-    const id = queue()
+    const id = await queue()
 
     await runJob( id )
 
@@ -112,7 +112,7 @@ describe( 'runJob', () => {
   } )
 
   it( 'moves through downloading, converting and transcribing', async () => {
-    const id = queue()
+    const id = await queue()
     const seen: string[] = []
     downloadMock.mockImplementation( () => {
       seen.push( findJob( id ).status )
@@ -138,7 +138,7 @@ describe( 'runJob', () => {
     { step: 'transcribe', fail: () => transcribeMock, later: [] },
   ] )( 'when $step fails', ( { fail, later } ) => {
     it( 'fails the job with the message and skips later clients', async () => {
-      const id = queue()
+      const id = await queue()
       fail().mockRejectedValue( new Error( 'boom' ) )
 
       await runJob( id )
@@ -148,7 +148,7 @@ describe( 'runJob', () => {
     } )
 
     it( 'still removes the work folder', async () => {
-      const id = queue()
+      const id = await queue()
       fail().mockRejectedValue( new Error( 'boom' ) )
 
       await runJob( id )
@@ -157,7 +157,7 @@ describe( 'runJob', () => {
     } )
 
     it( 'fails with Unknown error for a non-Error rejection', async () => {
-      const id = queue()
+      const id = await queue()
       fail().mockRejectedValue( 'nope' )
 
       await runJob( id )
@@ -167,7 +167,7 @@ describe( 'runJob', () => {
   } )
 
   it( 'summarizes after the audio is removed', async () => {
-    const id = queue()
+    const id = await queue()
 
     await runJob( id )
 
@@ -178,7 +178,7 @@ describe( 'runJob', () => {
   } )
 
   it( 'does not summarize when the pipeline fails', async () => {
-    const id = queue()
+    const id = await queue()
     transcribeMock.mockRejectedValue( new Error( 'boom' ) )
 
     await runJob( id )
@@ -187,7 +187,7 @@ describe( 'runJob', () => {
   } )
 
   it( 'removes the work folder after success', async () => {
-    const id = queue()
+    const id = await queue()
 
     await runJob( id )
 
@@ -195,7 +195,7 @@ describe( 'runJob', () => {
   } )
 
   it( 'keeps the job summarizing and resolves when cleanup fails', async () => {
-    const id = queue()
+    const id = await queue()
     const errorSpy = vi.spyOn( console, 'error' ).mockImplementation( () => undefined )
     rmMock.mockRejectedValue( new Error( 'disk' ) )
 
@@ -206,7 +206,7 @@ describe( 'runJob', () => {
   } )
 
   it( 'retries once after a 403, cleaning up first', async () => {
-    const id = queue()
+    const id = await queue()
     downloadMock
       .mockRejectedValueOnce( new Error( URL_FORBIDDEN ) )
       .mockResolvedValueOnce( download )
@@ -223,7 +223,7 @@ describe( 'runJob', () => {
   } )
 
   it( 'fails after a second 403 without a third attempt', async () => {
-    const id = queue()
+    const id = await queue()
     downloadMock.mockRejectedValue( new Error( URL_FORBIDDEN ) )
 
     const run = runJob( id )
@@ -235,7 +235,7 @@ describe( 'runJob', () => {
   } )
 
   it( 'does not retry other download errors', async () => {
-    const id = queue()
+    const id = await queue()
     downloadMock.mockRejectedValue( new Error( 'Video unavailable' ) )
 
     await runJob( id )
@@ -244,7 +244,7 @@ describe( 'runJob', () => {
   } )
 
   it( 'rejects with ConflictError when the job is not queued', async () => {
-    const id = queue()
+    const id = await queue()
     markStatus( id, 'downloading' )
 
     await expect( runJob( id ) ).rejects.toBeInstanceOf( ConflictError )
@@ -255,8 +255,8 @@ describe( 'runJob', () => {
   } )
 
   describe( 'when the job is already summarizing', () => {
-    const queueSummarizing = (): string => {
-      const id = queue()
+    const queueSummarizing = async (): Promise< string > => {
+      const id = await queue()
       markStatus( id, 'downloading' )
       markStatus( id, 'converting' )
       markStatus( id, 'transcribing' )
@@ -269,7 +269,7 @@ describe( 'runJob', () => {
     }
 
     it( 'runs only the summarize step', async () => {
-      const id = queueSummarizing()
+      const id = await queueSummarizing()
 
       await runJob( id )
 
@@ -279,7 +279,7 @@ describe( 'runJob', () => {
     } )
 
     it( 'leaves the status to the summarize step', async () => {
-      const id = queueSummarizing()
+      const id = await queueSummarizing()
 
       await runJob( id )
 

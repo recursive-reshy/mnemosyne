@@ -30,15 +30,19 @@ import {
   queueJob,
   recordSummaryRun,
   recoverInterruptedJobs,
+  regenerateSummary,
   renderTranscript,
   retrySummary,
   saveJob,
   updateDraft,
 } from './jobs.service.js'
+// Models
+import { assertKnownModel } from './models.service.js'
 // Prompts
 import {
   createProfile,
   deleteProfile,
+  listProfiles,
   resolvePrompt,
   saveVersion,
 } from './prompts.service.js'
@@ -53,8 +57,10 @@ import { formatTxt } from '../formatters/txt.formatter.js'
 import { transcriptFixture } from '../test-support/transcript.fixture.js'
 
 vi.mock( '../clients/vault.client.js' )
+vi.mock( './models.service.js' )
 
 const writeNoteMock = vi.mocked( writeNote )
+const assertKnownModelMock = vi.mocked( assertKnownModel )
 
 const url = 'https://www.youtube.com/watch?v=abc'
 const startTime = new Date( '2026-10-14T10:00:00.000Z' )
@@ -72,8 +78,8 @@ const transcript: Transcript = {
   segments: [ { start: 0, end: 1, text: 'Hello' } ],
 }
 
-const queueJobAt = ( status: JobStatus ): string => {
-  const { id } = queueJob( url )
+const queueJobAt = async ( status: JobStatus ): Promise< string > => {
+  const { id } = await queueJob( url )
   const path: JobStatus[] = [ 'downloading', 'converting', 'transcribing' ]
 
   for( const step of path ) {
@@ -101,6 +107,8 @@ beforeEach( () => {
   clearJobs()
   writeNoteMock.mockReset()
   writeNoteMock.mockResolvedValue( 'Mnemosyne/Edited title.md' )
+  assertKnownModelMock.mockReset()
+  assertKnownModelMock.mockResolvedValue( undefined )
 } )
 
 afterEach( () => {
@@ -108,8 +116,8 @@ afterEach( () => {
 } )
 
 describe( 'queueJob', () => {
-  it( 'returns a queued public job', () => {
-    const job = queueJob( url )
+  it( 'returns a queued public job', async () => {
+    const job = await queueJob( url )
 
     expect( job ).toEqual( {
       id: expect.stringMatching( /^[0-9a-f-]{36}$/ ) as string,
@@ -129,18 +137,18 @@ describe( 'queueJob', () => {
     } )
   } )
 
-  it( 'does not expose a transcript property', () => {
-    expect( queueJob( url ) ).not.toHaveProperty( 'transcript' )
+  it( 'does not expose a transcript property', async () => {
+    expect( await queueJob( url ) ).not.toHaveProperty( 'transcript' )
   } )
 
-  it( 'produces a different id on each call', () => {
-    expect( queueJob( url ).id ).not.toBe( queueJob( url ).id )
+  it( 'produces a different id on each call', async () => {
+    expect( ( await queueJob( url ) ).id ).not.toBe( ( await queueJob( url ) ).id )
   } )
 } )
 
 describe( 'findJob', () => {
-  it( 'returns the public job', () => {
-    const { id } = queueJob( url )
+  it( 'returns the public job', async () => {
+    const { id } = await queueJob( url )
 
     const job = findJob( id )
 
@@ -148,8 +156,8 @@ describe( 'findJob', () => {
     expect( job ).not.toHaveProperty( 'transcript' )
   } )
 
-  it( 'returns the stored fields of a job', () => {
-    const { id } = queueJob( url )
+  it( 'returns the stored fields of a job', async () => {
+    const { id } = await queueJob( url )
     updateJob( id, {
       title: 'A talk',
       expires_at: laterTime.toISOString(),
@@ -169,16 +177,16 @@ describe( 'findJob', () => {
 } )
 
 describe( 'markStatus', () => {
-  it( 'walks queued to transcribing', () => {
-    const { id } = queueJob( url )
+  it( 'walks queued to transcribing', async () => {
+    const { id } = await queueJob( url )
 
     expect( markStatus( id, 'downloading' ).status ).toBe( 'downloading' )
     expect( markStatus( id, 'converting' ).status ).toBe( 'converting' )
     expect( markStatus( id, 'transcribing' ).status ).toBe( 'transcribing' )
   } )
 
-  it( 'updates updated_at and keeps created_at', () => {
-    const { id } = queueJob( url )
+  it( 'updates updated_at and keeps created_at', async () => {
+    const { id } = await queueJob( url )
     vi.setSystemTime( laterTime )
 
     const job = markStatus( id, 'downloading' )
@@ -187,8 +195,8 @@ describe( 'markStatus', () => {
     expect( job.created_at ).toBe( startTime.toISOString() )
   } )
 
-  it( 'throws ConflictError when skipping a step', () => {
-    const { id } = queueJob( url )
+  it( 'throws ConflictError when skipping a step', async () => {
+    const { id } = await queueJob( url )
 
     expect( () => markStatus( id, 'converting' ) ).toThrow( ConflictError )
     expect( () => markStatus( id, 'converting' ) ).toThrow(
@@ -196,14 +204,14 @@ describe( 'markStatus', () => {
     )
   } )
 
-  it( 'throws ConflictError when moving backwards', () => {
-    const id = queueJobAt( 'converting' )
+  it( 'throws ConflictError when moving backwards', async () => {
+    const id = await queueJobAt( 'converting' )
 
     expect( () => markStatus( id, 'downloading' ) ).toThrow( ConflictError )
   } )
 
-  it( 'throws ConflictError from a final status', () => {
-    const id = queueJobAt( 'failed' )
+  it( 'throws ConflictError from a final status', async () => {
+    const id = await queueJobAt( 'failed' )
 
     expect( () => markStatus( id, 'downloading' ) ).toThrow( ConflictError )
   } )
@@ -216,8 +224,8 @@ describe( 'markStatus', () => {
 describe( 'failJob', () => {
   it.each( [ 'queued', 'downloading', 'converting', 'transcribing' ] as const )(
     'fails a job from %s with the message',
-    ( status ) => {
-      const id = queueJobAt( status )
+    async ( status ) => {
+      const id = await queueJobAt( status )
 
       const job = failJob( id, 'yt-dlp exited with 1' )
 
@@ -226,16 +234,18 @@ describe( 'failJob', () => {
     },
   )
 
-  it.each( [ 'failed' ] as const )( 'throws ConflictError from %s', ( status ) => {
-    const id = queueJobAt( status )
+  it.each( [ 'failed' ] as const )( 'throws ConflictError from %s', async ( status ) => {
+    const id = await queueJobAt( status )
 
     expect( () => failJob( id, 'late' ) ).toThrow( ConflictError )
   } )
 } )
 
 describe( 'renderTranscript', () => {
-  const queueReviewJob = ( outcome: 'ready_for_review' | 'summary_failed' ): string => {
-    const { id } = queueJob( url )
+  const queueReviewJob = async (
+    outcome: 'ready_for_review' | 'summary_failed',
+  ): Promise< string > => {
+    const { id } = await queueJob( url )
 
     markStatus( id, 'downloading' )
     markStatus( id, 'converting' )
@@ -255,26 +265,29 @@ describe( 'renderTranscript', () => {
     [ 'md', 'Video title.md', 'text/markdown; charset=utf-8', formatMarkdown ],
     [ 'srt', 'Video title.srt', 'application/x-subrip; charset=utf-8', formatSrt ],
     [ 'txt', 'Video title.txt', 'text/plain; charset=utf-8', formatTxt ],
-  ] as const )( 'renders a review job as %s', ( format, filename, contentType, formatter ) => {
-    const id = queueReviewJob( 'ready_for_review' )
+  ] as const )(
+    'renders a review job as %s',
+    async ( format, filename, contentType, formatter ) => {
+      const id = await queueReviewJob( 'ready_for_review' )
 
-    const rendered = renderTranscript( id, format )
+      const rendered = renderTranscript( id, format )
 
-    expect( rendered ).toEqual( {
-      filename,
-      contentType,
-      body: formatter( transcriptFixture ),
-    } )
-  } )
+      expect( rendered ).toEqual( {
+        filename,
+        contentType,
+        body: formatter( transcriptFixture ),
+      } )
+    },
+  )
 
-  it( 'still renders after the summary failed', () => {
-    const id = queueReviewJob( 'summary_failed' )
+  it( 'still renders after the summary failed', async () => {
+    const id = await queueReviewJob( 'summary_failed' )
 
     expect( renderTranscript( id, 'md' ).body ).toBe( formatMarkdown( transcriptFixture ) )
   } )
 
-  it( 'throws ConflictError once the job is saved', () => {
-    const id = queueReviewJob( 'ready_for_review' )
+  it( 'throws ConflictError once the job is saved', async () => {
+    const id = await queueReviewJob( 'ready_for_review' )
     updateJob( id, { status: 'saved', transcript: null } )
 
     expect( () => renderTranscript( id, 'md' ) ).toThrow(
@@ -295,8 +308,8 @@ describe( 'renderTranscript', () => {
     'failed',
   ] as const )(
     'throws ConflictError from %s',
-    ( status ) => {
-      const id = status === 'summarizing' ? queueSummarizing() : queueJobAt( status )
+    async ( status ) => {
+      const id = status === 'summarizing' ? await queueSummarizing() : await queueJobAt( status )
 
       expect( () => renderTranscript( id, 'md' ) ).toThrow(
         new ConflictError( 'Transcript not ready' ),
@@ -306,8 +319,8 @@ describe( 'renderTranscript', () => {
 } )
 
 describe( 'findNextRunnableJob', () => {
-  it( 'returns a summarizing job so it can be resumed', () => {
-    const id = queueSummarizing()
+  it( 'returns a summarizing job so it can be resumed', async () => {
+    const id = await queueSummarizing()
 
     expect( findNextRunnableJob()?.id ).toBe( id )
   } )
@@ -316,43 +329,43 @@ describe( 'findNextRunnableJob', () => {
     expect( findNextRunnableJob() ).toBeUndefined()
   } )
 
-  it( 'returns the oldest queued job', () => {
-    const first = queueJob( 'https://example.com/a' )
-    queueJob( 'https://example.com/b' )
+  it( 'returns the oldest queued job', async () => {
+    const first = await queueJob( 'https://example.com/a' )
+    await queueJob( 'https://example.com/b' )
 
     expect( findNextRunnableJob() ).toEqual( first )
   } )
 
-  it( 'skips jobs that are no longer queued', () => {
-    const first = queueJob( 'https://example.com/a' )
-    const second = queueJob( 'https://example.com/b' )
+  it( 'skips jobs that are no longer queued', async () => {
+    const first = await queueJob( 'https://example.com/a' )
+    const second = await queueJob( 'https://example.com/b' )
     markStatus( first.id, 'downloading' )
 
     expect( findNextRunnableJob() ).toEqual( second )
   } )
 
-  it( 'returns undefined when every job has moved on', () => {
-    const first = queueJob( 'https://example.com/a' )
-    const second = queueJob( 'https://example.com/b' )
+  it( 'returns undefined when every job has moved on', async () => {
+    const first = await queueJob( 'https://example.com/a' )
+    const second = await queueJob( 'https://example.com/b' )
     markStatus( first.id, 'downloading' )
     markStatus( second.id, 'downloading' )
 
     expect( findNextRunnableJob() ).toBeUndefined()
   } )
 
-  it( 'returns a job without a transcript field', () => {
-    queueJob( 'https://example.com/a' )
+  it( 'returns a job without a transcript field', async () => {
+    await queueJob( 'https://example.com/a' )
 
     expect( findNextRunnableJob() ).not.toHaveProperty( 'transcript' )
   } )
 } )
 
 describe( 'recoverInterruptedJobs', () => {
-  it( 'fails jobs left mid-processing and returns how many', () => {
-    const queued = queueJobAt( 'queued' )
-    const downloading = queueJobAt( 'downloading' )
-    const transcribing = queueJobAt( 'transcribing' )
-    const finished = queueJobAt( 'ready_for_review' )
+  it( 'fails jobs left mid-processing and returns how many', async () => {
+    const queued = await queueJobAt( 'queued' )
+    const downloading = await queueJobAt( 'downloading' )
+    const transcribing = await queueJobAt( 'transcribing' )
+    const finished = await queueJobAt( 'ready_for_review' )
     vi.setSystemTime( laterTime )
 
     expect( recoverInterruptedJobs() ).toBe( 2 )
@@ -372,16 +385,16 @@ describe( 'recoverInterruptedJobs', () => {
   } )
 } )
 
-const queueSummarizing = (): string => {
-  const id = queueJobAt( 'transcribing' )
+const queueSummarizing = async (): Promise< string > => {
+  const id = await queueJobAt( 'transcribing' )
   completeTranscription( id, transcript )
 
   return id
 }
 
 describe( 'completeTranscription', () => {
-  it( 'moves a transcribing job to summarizing and stores transcript and title', () => {
-    const id = queueJobAt( 'transcribing' )
+  it( 'moves a transcribing job to summarizing and stores transcript and title', async () => {
+    const id = await queueJobAt( 'transcribing' )
 
     const job = completeTranscription( id, transcript )
 
@@ -393,8 +406,8 @@ describe( 'completeTranscription', () => {
 
   it.each( [ 'queued', 'downloading', 'converting', 'failed' ] as const )(
     'throws ConflictError from %s and changes nothing',
-    ( status ) => {
-      const id = queueJobAt( status )
+    async ( status ) => {
+      const id = await queueJobAt( status )
       const before = findJobById( id )
 
       expect( () => completeTranscription( id, transcript ) ).toThrow( ConflictError )
@@ -404,8 +417,8 @@ describe( 'completeTranscription', () => {
 } )
 
 describe( 'completeSummary', () => {
-  it( 'stores the note and sets the expiry from the review TTL', () => {
-    const id = queueSummarizing()
+  it( 'stores the note and sets the expiry from the review TTL', async () => {
+    const id = await queueSummarizing()
 
     const job = completeSummary( id, '## Summary\nText', [ 'rust' ] )
 
@@ -416,8 +429,8 @@ describe( 'completeSummary', () => {
     } )
   } )
 
-  it( 'stores the whole note: properties from the transcript, today as created', () => {
-    const id = queueSummarizing()
+  it( 'stores the whole note: properties from the transcript, today as created', async () => {
+    const id = await queueSummarizing()
 
     const job = completeSummary( id, '## Summary\nText\n\n', [ 'Rust', 'mnemosyne' ] )
 
@@ -433,15 +446,15 @@ describe( 'completeSummary', () => {
 
   it.each( [ 'queued', 'transcribing', 'failed' ] as const )(
     'throws ConflictError from %s',
-    ( status ) => {
-      const id = queueJobAt( status )
+    async ( status ) => {
+      const id = await queueJobAt( status )
 
       expect( () => completeSummary( id, 'x', [] ) ).toThrow( ConflictError )
     },
   )
 
-  it( 'throws ConflictError when called twice', () => {
-    const id = queueSummarizing()
+  it( 'throws ConflictError when called twice', async () => {
+    const id = await queueSummarizing()
     completeSummary( id, 'x', [] )
 
     expect( () => completeSummary( id, 'y', [] ) ).toThrow( ConflictError )
@@ -449,8 +462,8 @@ describe( 'completeSummary', () => {
 } )
 
 describe( 'failSummary', () => {
-  it( 'moves a summarizing job to summary_failed with the error and an expiry', () => {
-    const id = queueSummarizing()
+  it( 'moves a summarizing job to summary_failed with the error and an expiry', async () => {
+    const id = await queueSummarizing()
 
     const job = failSummary( id, 'Rate limited' )
 
@@ -462,8 +475,8 @@ describe( 'failSummary', () => {
     expect( findJobById( id )?.transcript ).toEqual( transcript )
   } )
 
-  it( 'throws ConflictError from a non-summarizing status', () => {
-    const id = queueJobAt( 'transcribing' )
+  it( 'throws ConflictError from a non-summarizing status', async () => {
+    const id = await queueJobAt( 'transcribing' )
 
     expect( () => failSummary( id, 'x' ) ).toThrow( ConflictError )
   } )
@@ -472,8 +485,8 @@ describe( 'failSummary', () => {
 describe( 'failJob after the summary steps', () => {
   it.each( [ 'ready_for_review', 'summary_failed' ] as const )(
     'refuses to fail a job in %s',
-    ( status ) => {
-      const id = queueSummarizing()
+    async ( status ) => {
+      const id = await queueSummarizing()
 
       if( status === 'ready_for_review' ) {
         completeSummary( id, 'x', [] )
@@ -486,24 +499,24 @@ describe( 'failJob after the summary steps', () => {
     },
   )
 
-  it( 'refuses to fail a saved job', () => {
-    const id = queueSummarizing()
+  it( 'refuses to fail a saved job', async () => {
+    const id = await queueSummarizing()
     completeSummary( id, 'x', [] )
     updateJob( id, { status: 'saved' } )
 
     expect( () => failJob( id, 'late' ) ).toThrow( ConflictError )
   } )
 
-  it( 'can still fail a summarizing job', () => {
-    const id = queueSummarizing()
+  it( 'can still fail a summarizing job', async () => {
+    const id = await queueSummarizing()
 
     expect( failJob( id, 'boom' ).status ).toBe( 'failed' )
   } )
 } )
 
 describe( 'getTranscript', () => {
-  it( 'returns the stored transcript', () => {
-    const id = queueSummarizing()
+  it( 'returns the stored transcript', async () => {
+    const id = await queueSummarizing()
 
     expect( getTranscript( id ) ).toEqual( transcript )
   } )
@@ -512,18 +525,18 @@ describe( 'getTranscript', () => {
     expect( () => getTranscript( 'missing' ) ).toThrow( NotFoundError )
   } )
 
-  it( 'throws when the job has no transcript', () => {
-    const { id } = queueJob( url )
+  it( 'throws when the job has no transcript', async () => {
+    const { id } = await queueJob( url )
 
     expect( () => getTranscript( id ) ).toThrow( 'has no transcript' )
   } )
 } )
 
 describe( 'listJobs', () => {
-  it( 'returns public jobs, newest first', () => {
-    const first = queueJob( url )
+  it( 'returns public jobs, newest first', async () => {
+    const first = await queueJob( url )
     vi.setSystemTime( laterTime )
-    const second = queueJob( url )
+    const second = await queueJob( url )
 
     const jobs = listJobs()
 
@@ -531,9 +544,9 @@ describe( 'listJobs', () => {
     expect( jobs[ 0 ] ).not.toHaveProperty( 'transcript' )
   } )
 
-  it( 'leaves out failed and saved jobs', () => {
-    const failed = queueJobAt( 'failed' )
-    const review = queueJobAt( 'ready_for_review' )
+  it( 'leaves out failed and saved jobs', async () => {
+    const failed = await queueJobAt( 'failed' )
+    const review = await queueJobAt( 'ready_for_review' )
 
     expect( listJobs().map( ( { id } ) => id ) ).toEqual( [ review ] )
     expect( listJobs().map( ( { id } ) => id ) ).not.toContain( failed )
@@ -543,15 +556,15 @@ describe( 'listJobs', () => {
 describe( 'findTranscript', () => {
   it.each( [ 'ready_for_review', 'summary_failed' ] as const )(
     'returns the transcript when the job is %s',
-    ( status ) => {
-      const id = queueJobAt( status )
+    async ( status ) => {
+      const id = await queueJobAt( status )
 
       expect( findTranscript( id ) ).toEqual( transcript )
     },
   )
 
-  it( 'throws ConflictError while summarizing', () => {
-    const id = queueSummarizing()
+  it( 'throws ConflictError while summarizing', async () => {
+    const id = await queueSummarizing()
 
     expect( () => findTranscript( id ) ).toThrow( new ConflictError( 'Transcript not ready' ) )
   } )
@@ -577,15 +590,15 @@ describe( 'saveJob', () => {
     '',
   ].join( '\n' )
 
-  const queueDrafted = ( target_folder?: string ): string => {
-    const id = queueJobAt( 'ready_for_review' )
+  const queueDrafted = async ( target_folder?: string ): Promise< string > => {
+    const id = await queueJobAt( 'ready_for_review' )
     updateDraft( id, { note_markdown: draft, target_folder: target_folder ?? null } )
 
     return id
   }
 
   it( 'writes the stored draft, with locked properties and today as created', async () => {
-    const id = queueDrafted()
+    const id = await queueDrafted()
 
     await saveJob( id )
 
@@ -611,7 +624,7 @@ describe( 'saveJob', () => {
   } )
 
   it( 'writes to the chosen folder', async () => {
-    const id = queueDrafted( 'Learning/AI' )
+    const id = await queueDrafted( 'Learning/AI' )
 
     await saveJob( id )
 
@@ -624,7 +637,7 @@ describe( 'saveJob', () => {
   } )
 
   it( 'marks the job saved, keeps the title and note, and drops the transcript', async () => {
-    const id = queueDrafted()
+    const id = await queueDrafted()
     const note = findJobById( id )?.note_markdown
 
     const savedPath = await saveJob( id )
@@ -641,14 +654,14 @@ describe( 'saveJob', () => {
   } )
 
   it( 'uses the path the vault returns, collision suffix included', async () => {
-    const id = queueDrafted()
+    const id = await queueDrafted()
     writeNoteMock.mockResolvedValue( 'Mnemosyne/Edited title (2).md' )
 
     await expect( saveJob( id ) ).resolves.toBe( 'Mnemosyne/Edited title (2).md' )
   } )
 
   it( 'keeps the job in review when the folder is no longer valid', async () => {
-    const id = queueDrafted()
+    const id = await queueDrafted()
     updateJob( id, { target_folder: '../outside' } )
     writeNoteMock.mockRejectedValue( new ValidationError( 'outside the vault' ) )
 
@@ -658,7 +671,7 @@ describe( 'saveJob', () => {
   } )
 
   it( 'throws ConflictError when there is no draft', async () => {
-    const id = queueDrafted()
+    const id = await queueDrafted()
     updateJob( id, { note_markdown: null } )
 
     await expect( saveJob( id ) ).rejects.toThrow( ConflictError )
@@ -666,7 +679,7 @@ describe( 'saveJob', () => {
   } )
 
   it( 'keeps the job in review with its transcript when the write fails', async () => {
-    const id = queueDrafted()
+    const id = await queueDrafted()
     writeNoteMock.mockRejectedValue( new Error( 'EACCES' ) )
 
     await expect( saveJob( id ) ).rejects.toThrow( 'EACCES' )
@@ -678,7 +691,7 @@ describe( 'saveJob', () => {
   it.each( [ 'queued', 'transcribing', 'summary_failed', 'failed' ] as const )(
     'throws ConflictError from %s without writing',
     async ( status ) => {
-      const id = queueJobAt( status )
+      const id = await queueJobAt( status )
 
       await expect( saveJob( id ) ).rejects.toThrow( ConflictError )
       expect( writeNoteMock ).not.toHaveBeenCalled()
@@ -686,7 +699,7 @@ describe( 'saveJob', () => {
   )
 
   it( 'throws ConflictError when saved twice', async () => {
-    const id = queueDrafted()
+    const id = await queueDrafted()
     await saveJob( id )
 
     await expect( saveJob( id ) ).rejects.toThrow( ConflictError )
@@ -699,8 +712,8 @@ describe( 'saveJob', () => {
 } )
 
 describe( 'retrySummary', () => {
-  it( 'moves a failed summary back to summarizing, clearing error and expiry', () => {
-    const id = queueJobAt( 'summary_failed' )
+  it( 'moves a failed summary back to summarizing, clearing error and expiry', async () => {
+    const id = await queueJobAt( 'summary_failed' )
 
     const job = retrySummary( id )
 
@@ -708,8 +721,8 @@ describe( 'retrySummary', () => {
     expect( findJobById( id )?.transcript ).toEqual( transcript )
   } )
 
-  it( 'makes the job runnable again', () => {
-    const id = queueJobAt( 'summary_failed' )
+  it( 'makes the job runnable again', async () => {
+    const id = await queueJobAt( 'summary_failed' )
 
     retrySummary( id )
 
@@ -718,8 +731,8 @@ describe( 'retrySummary', () => {
 
   it.each( [ 'queued', 'transcribing', 'ready_for_review', 'failed' ] as const )(
     'throws ConflictError from %s',
-    ( status ) => {
-      const id = queueJobAt( status )
+    async ( status ) => {
+      const id = await queueJobAt( status )
 
       expect( () => retrySummary( id ) ).toThrow( ConflictError )
     },
@@ -733,8 +746,8 @@ describe( 'retrySummary', () => {
 describe( 'discardJob', () => {
   it.each( [ 'ready_for_review', 'summary_failed' ] as const )(
     'deletes a job that is %s',
-    ( status ) => {
-      const id = queueJobAt( status )
+    async ( status ) => {
+      const id = await queueJobAt( status )
 
       discardJob( id )
 
@@ -745,16 +758,16 @@ describe( 'discardJob', () => {
 
   it.each( [ 'queued', 'transcribing', 'failed' ] as const )(
     'throws ConflictError from %s and keeps the job',
-    ( status ) => {
-      const id = queueJobAt( status )
+    async ( status ) => {
+      const id = await queueJobAt( status )
 
       expect( () => discardJob( id ) ).toThrow( ConflictError )
       expect( findJob( id ).status ).toBe( status )
     },
   )
 
-  it( 'throws ConflictError for a summarizing job', () => {
-    const id = queueSummarizing()
+  it( 'throws ConflictError for a summarizing job', async () => {
+    const id = await queueSummarizing()
 
     expect( () => discardJob( id ) ).toThrow( ConflictError )
   } )
@@ -765,10 +778,10 @@ describe( 'discardJob', () => {
 } )
 
 describe( 'deleteExpiredJobs', () => {
-  it( 'deletes jobs past their expiry and returns how many', () => {
-    const expiredReview = queueJobAt( 'ready_for_review' )
-    const expiredFailed = queueJobAt( 'summary_failed' )
-    const fresh = queueJobAt( 'ready_for_review' )
+  it( 'deletes jobs past their expiry and returns how many', async () => {
+    const expiredReview = await queueJobAt( 'ready_for_review' )
+    const expiredFailed = await queueJobAt( 'summary_failed' )
+    const fresh = await queueJobAt( 'ready_for_review' )
     updateJob( expiredReview, { expires_at: '2026-10-14T09:00:00.000Z' } )
     updateJob( expiredFailed, { expires_at: '2026-10-14T09:59:59.000Z' } )
     updateJob( fresh, { expires_at: '2026-10-14T10:00:01.000Z' } )
@@ -780,16 +793,16 @@ describe( 'deleteExpiredJobs', () => {
     expect( findJob( fresh ).status ).toBe( 'ready_for_review' )
   } )
 
-  it( 'returns 0 when nothing has expired', () => {
-    queueJobAt( 'ready_for_review' )
+  it( 'returns 0 when nothing has expired', async () => {
+    await queueJobAt( 'ready_for_review' )
 
     expect( deleteExpiredJobs() ).toBe( 0 )
   } )
 } )
 
 describe( 'updateDraft', () => {
-  const queueReview = (): string => {
-    const id = queueSummarizing()
+  const queueReview = async (): Promise< string > => {
+    const id = await queueSummarizing()
     completeSummary( id, '## Summary\nText', [ 'rust' ] )
 
     return id
@@ -820,8 +833,8 @@ describe( 'updateDraft', () => {
     ].join( '\n' )
   }
 
-  it( 'stores the note with locked properties re-applied and syncs the title', () => {
-    const id = queueReview()
+  it( 'stores the note with locked properties re-applied and syncs the title', async () => {
+    const id = await queueReview()
 
     const job = updateDraft( id, { note_markdown: draft() } )
 
@@ -844,8 +857,8 @@ describe( 'updateDraft', () => {
 
   it.each( [ 'not a note', '---\ntitle: "A\ntags: [a\n---\n\nBody\n' ] )(
     'rejects %j with ValidationError and stores nothing',
-    ( note ) => {
-      const id = queueReview()
+    async ( note ) => {
+      const id = await queueReview()
       const before = findJobById( id )
 
       expect( () => updateDraft( id, { note_markdown: note } ) ).toThrow( ValidationError )
@@ -854,8 +867,8 @@ describe( 'updateDraft', () => {
     },
   )
 
-  it( 'sets and clears the target folder without requiring it to exist', () => {
-    const id = queueReview()
+  it( 'sets and clears the target folder without requiring it to exist', async () => {
+    const id = await queueReview()
 
     expect( updateDraft( id, { target_folder: 'New/Nested' } ).target_folder )
       .toBe( 'New/Nested' )
@@ -864,16 +877,16 @@ describe( 'updateDraft', () => {
 
   it.each( [ '../x', '/abs', 'a//b', '.hidden' ] )(
     'rejects the folder %j with ValidationError',
-    ( folder ) => {
-      const id = queueReview()
+    async ( folder ) => {
+      const id = await queueReview()
 
       expect( () => updateDraft( id, { target_folder: folder } ) ).toThrow( ValidationError )
       expect( findJobById( id )?.target_folder ).toBeNull()
     },
   )
 
-  it( 'restarts the expiry and bumps updated_at, for a folder-only change too', () => {
-    const id = queueReview()
+  it( 'restarts the expiry and bumps updated_at, for a folder-only change too', async () => {
+    const id = await queueReview()
     vi.setSystemTime( laterTime )
 
     const job = updateDraft( id, { target_folder: 'A' } )
@@ -882,8 +895,8 @@ describe( 'updateDraft', () => {
     expect( job.updated_at ).toBe( laterTime.toISOString() )
   } )
 
-  it( 'leaves the note alone when only the folder changes', () => {
-    const id = queueReview()
+  it( 'leaves the note alone when only the folder changes', async () => {
+    const id = await queueReview()
     const before = findJobById( id )?.note_markdown
 
     expect( updateDraft( id, { target_folder: 'A' } ).note_markdown ).toBe( before )
@@ -896,8 +909,8 @@ describe( 'updateDraft', () => {
 
   it.each( [ 'queued', 'transcribing', 'failed', 'summary_failed' ] as const )(
     'throws ConflictError from %s',
-    ( status ) => {
-      const id = queueJobAt( status )
+    async ( status ) => {
+      const id = await queueJobAt( status )
 
       expect( () => updateDraft( id, { target_folder: 'A' } ) ).toThrow( ConflictError )
     },
@@ -907,12 +920,12 @@ describe( 'updateDraft', () => {
 describe( 'recordSummaryRun and summary_usage', () => {
   const version = (): number => resolvePrompt( null ).version.id
 
-  it( 'has no usage before the first attempt', () => {
-    expect( findJob( queueJobAt( 'queued' ) ).summary_usage ).toBeNull()
+  it( 'has no usage before the first attempt', async () => {
+    expect( findJob( await queueJobAt( 'queued' ) ).summary_usage ).toBeNull()
   } )
 
-  it( 'records a succeeded run with tokens and the estimated cost', () => {
-    const id = queueJobAt( 'ready_for_review' )
+  it( 'records a succeeded run with tokens and the estimated cost', async () => {
+    const id = await queueJobAt( 'ready_for_review' )
 
     recordSummaryRun( id, {
       model: 'claude-sonnet-5-5',
@@ -939,8 +952,8 @@ describe( 'recordSummaryRun and summary_usage', () => {
     } )
   } )
 
-  it( 'records tokens but no cost for a model without a price', () => {
-    const id = queueJobAt( 'ready_for_review' )
+  it( 'records tokens but no cost for a model without a price', async () => {
+    const id = await queueJobAt( 'ready_for_review' )
 
     recordSummaryRun( id, {
       model: 'claude-haiku-5-5',
@@ -954,8 +967,8 @@ describe( 'recordSummaryRun and summary_usage', () => {
     } )
   } )
 
-  it( 'records a failed run with the billed tokens and the error', () => {
-    const id = queueJobAt( 'summary_failed' )
+  it( 'records a failed run with the billed tokens and the error', async () => {
+    const id = await queueJobAt( 'summary_failed' )
 
     recordSummaryRun( id, {
       model: 'claude-sonnet-5-5',
@@ -970,8 +983,8 @@ describe( 'recordSummaryRun and summary_usage', () => {
     } )
   } )
 
-  it( 'records a failed run without tokens or cost when no response came back', () => {
-    const id = queueJobAt( 'summary_failed' )
+  it( 'records a failed run without tokens or cost when no response came back', async () => {
+    const id = await queueJobAt( 'summary_failed' )
 
     recordSummaryRun( id, {
       model: 'claude-sonnet-5-5',
@@ -994,8 +1007,8 @@ describe( 'recordSummaryRun and summary_usage', () => {
     } ) )
   } )
 
-  it( 'reports the latest run, the count and the totals over several runs', () => {
-    const id = queueJobAt( 'ready_for_review' )
+  it( 'reports the latest run, the count and the totals over several runs', async () => {
+    const id = await queueJobAt( 'ready_for_review' )
     const first = version()
     saveVersion( resolvePrompt( null ).profile.id, 'A newer prompt' )
 
@@ -1019,8 +1032,8 @@ describe( 'recordSummaryRun and summary_usage', () => {
     } )
   } )
 
-  it( 'has no total cost when any run with tokens is unpriced', () => {
-    const id = queueJobAt( 'ready_for_review' )
+  it( 'has no total cost when any run with tokens is unpriced', async () => {
+    const id = await queueJobAt( 'ready_for_review' )
 
     recordSummaryRun( id, {
       model: 'claude-sonnet-5-5',
@@ -1036,8 +1049,8 @@ describe( 'recordSummaryRun and summary_usage', () => {
     expect( findJob( id ).summary_usage?.total_cost_usd ).toBeNull()
   } )
 
-  it( 'keeps the profile name after the profile is deleted', () => {
-    const id = queueJobAt( 'ready_for_review' )
+  it( 'keeps the profile name after the profile is deleted', async () => {
+    const id = await queueJobAt( 'ready_for_review' )
     const { id: profileId } = createProfile( { name: 'Temporary', guidance: 'x' } )
     const versionId = resolvePrompt( profileId ).version.id
 
@@ -1052,5 +1065,149 @@ describe( 'recordSummaryRun and summary_usage', () => {
       profile_id: profileId,
       profile_name: 'Temporary',
     } )
+  } )
+} )
+
+describe( 'queueJob options', () => {
+  const codingId = (): string => listProfiles().find( ( { name } ) => name === 'Coding' )?.id ?? ''
+
+  it( 'stores the model and profile when given', async () => {
+    const profileId = codingId()
+
+    const job = await queueJob( url, { model: 'claude-opus-5-5', profile_id: profileId } )
+
+    expect( assertKnownModelMock ).toHaveBeenCalledWith( 'claude-opus-5-5' )
+    expect( job )
+      .toMatchObject( { summary_model: 'claude-opus-5-5', prompt_profile_id: profileId } )
+    expect( findJobById( job.id ) ).toMatchObject( {
+      summary_model: 'claude-opus-5-5',
+      prompt_profile_id: profileId,
+    } )
+  } )
+
+  it( 'stores null for both when no options are given', async () => {
+    const none = { summary_model: null, prompt_profile_id: null }
+
+    expect( await queueJob( url ) ).toMatchObject( none )
+    expect( await queueJob( url, {} ) ).toMatchObject( none )
+    expect( assertKnownModelMock ).not.toHaveBeenCalled()
+  } )
+
+  it( 'rejects an unknown model and queues nothing', async () => {
+    assertKnownModelMock.mockRejectedValue( new ValidationError( 'Unknown model: nope' ) )
+
+    await expect( queueJob( url, { model: 'nope' } ) ).rejects.toThrow( 'Unknown model: nope' )
+    expect( listJobs() ).toEqual( [] )
+  } )
+
+  it( 'rejects an unknown profile', async () => {
+    await expect( queueJob( url, { profile_id: crypto.randomUUID() } ) )
+      .rejects.toThrow( ValidationError )
+    expect( listJobs() ).toEqual( [] )
+  } )
+
+  it( 'rejects a deleted profile', async () => {
+    const profileId = codingId()
+    deleteProfile( profileId )
+
+    await expect( queueJob( url, { profile_id: profileId } ) ).rejects.toThrow( ValidationError )
+  } )
+} )
+
+describe( 'regenerateSummary', () => {
+  const codingId = (): string => listProfiles().find( ( { name } ) => name === 'Coding' )?.id ?? ''
+
+  const queueReviewed = async (): Promise< string > => {
+    const id = await queueJobAt( 'ready_for_review' )
+    const note_markdown = findJobById( id )?.note_markdown ?? ''
+    updateDraft( id, { note_markdown, target_folder: 'Learning' } )
+
+    return id
+  }
+
+  it( 'moves a job in review to summarizing and keeps the note and folder', async () => {
+    const id = await queueReviewed()
+    const before = findJobById( id )
+
+    const job = await regenerateSummary( id, {} )
+
+    expect( job ).toMatchObject( {
+      status: 'summarizing',
+      error: null,
+      expires_at: null,
+      target_folder: 'Learning',
+      note_markdown: before?.note_markdown,
+    } )
+    expect( findJobById( id )?.transcript ).not.toBeNull()
+  } )
+
+  it( 'stores the new model and profile when given', async () => {
+    const id = await queueReviewed()
+
+    const job = await regenerateSummary( id, { model: 'claude-opus-5-5', profile_id: codingId() } )
+
+    expect( assertKnownModelMock ).toHaveBeenCalledWith( 'claude-opus-5-5' )
+    expect( job ).toMatchObject( {
+      summary_model: 'claude-opus-5-5',
+      prompt_profile_id: codingId(),
+    } )
+  } )
+
+  it( 'keeps the earlier choices when none are given', async () => {
+    const profileId = codingId()
+    const { id } = await queueJob( url, { model: 'claude-opus-5-5', profile_id: profileId } )
+    markStatus( id, 'downloading' )
+    markStatus( id, 'converting' )
+    markStatus( id, 'transcribing' )
+    completeTranscription( id, transcript )
+    completeSummary( id, '## Summary', [] )
+
+    const job = await regenerateSummary( id, {} )
+
+    expect( job )
+      .toMatchObject( { summary_model: 'claude-opus-5-5', prompt_profile_id: profileId } )
+  } )
+
+  it.each( [
+    'queued',
+    'downloading',
+    'converting',
+    'transcribing',
+    'summary_failed',
+    'failed',
+  ] as const )( 'refuses a job that is %s', async ( status ) => {
+    const id = await queueJobAt( status )
+
+    await expect( regenerateSummary( id, {} ) ).rejects.toThrow( ConflictError )
+    expect( findJob( id ).status ).toBe( status )
+  } )
+
+  it( 'refuses a job that is already summarizing', async () => {
+    const id = await queueJobAt( 'transcribing' )
+    completeTranscription( id, transcript )
+
+    await expect( regenerateSummary( id, {} ) ).rejects.toThrow( ConflictError )
+    expect( findJob( id ).status ).toBe( 'summarizing' )
+  } )
+
+  it( 'refuses a saved job', async () => {
+    const id = await queueReviewed()
+    await saveJob( id )
+
+    await expect( regenerateSummary( id, {} ) ).rejects.toThrow( ConflictError )
+  } )
+
+  it( 'throws NotFoundError for an unknown job', async () => {
+    await expect( regenerateSummary( crypto.randomUUID(), {} ) ).rejects.toThrow( NotFoundError )
+  } )
+
+  it( 'rejects an unknown model or profile and leaves the job in review', async () => {
+    const id = await queueReviewed()
+    assertKnownModelMock.mockRejectedValueOnce( new ValidationError( 'Unknown model: nope' ) )
+
+    await expect( regenerateSummary( id, { model: 'nope' } ) ).rejects.toThrow( ValidationError )
+    await expect( regenerateSummary( id, { profile_id: crypto.randomUUID() } ) )
+      .rejects.toThrow( ValidationError )
+    expect( findJob( id ).status ).toBe( 'ready_for_review' )
   } )
 } )

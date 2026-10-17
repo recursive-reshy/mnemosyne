@@ -11,6 +11,7 @@ import {
 import {
   ConflictError,
   NotFoundError,
+  ValidationError,
 } from '../errors.js'
 // Repositories
 import { getSetting, setSetting } from '../repositories/settings.repository.js'
@@ -18,6 +19,7 @@ import { getSetting, setSetting } from '../repositories/settings.repository.js'
 import { SEEDED_PROFILES } from '../summarizer/prompts.js'
 // Services
 import {
+  assertActiveProfile,
   createProfile,
   deleteProfile,
   findProfile,
@@ -277,5 +279,19 @@ describe( 'resolvePrompt', () => {
 
     expect( profile.id ).toBe( defaultId() )
     expect( console.error ).toHaveBeenCalled()
+  } )
+} )
+
+describe( 'assertActiveProfile', () => {
+  it( 'accepts an active profile', () => {
+    expect( () => assertActiveProfile( byName( 'Coding' ) ) ).not.toThrow()
+  } )
+
+  it( 'rejects an unknown and a deleted profile with a ValidationError', () => {
+    const id = byName( 'Coding' )
+    deleteProfile( id )
+
+    expect( () => assertActiveProfile( id ) ).toThrow( ValidationError )
+    expect( () => assertActiveProfile( crypto.randomUUID() ) ).toThrow( ValidationError )
   } )
 } )

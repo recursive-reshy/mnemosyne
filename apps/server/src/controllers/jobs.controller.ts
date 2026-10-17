@@ -25,10 +25,13 @@ import {
   updateDraft,
 } from '../services/jobs.service.js'
 
-export const createJob = ( { body }: Request, res: Response< CreateJobResponse > ): void => {
-  const { url } = CreateJobBody.parse( body )
+export const createJob = async (
+  { body }: Request,
+  res: Response< CreateJobResponse >,
+): Promise< void > => {
+  const { url, model, profile_id } = CreateJobBody.parse( body )
 
-  const job = queueJob( url )
+  const job = await queueJob( url, { model, profile_id } )
 
   res
     .status( 202 )

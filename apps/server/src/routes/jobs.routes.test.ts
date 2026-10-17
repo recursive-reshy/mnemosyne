@@ -40,8 +40,8 @@ import { transcriptFixture } from '../test-support/transcript.fixture.js'
 
 const youtubeUrl = 'https://www.youtube.com/watch?v=abc'
 
-const seedJobAt = ( status: JobStatus ): string => {
-  const { id } = queueJob( youtubeUrl )
+const seedJobAt = async ( status: JobStatus ): Promise< string > => {
+  const { id } = await queueJob( youtubeUrl )
   const steps = [ 'downloading', 'converting', 'transcribing' ] as const
 
   if( status === 'queued' ) {
@@ -155,8 +155,8 @@ describe( 'GET /api/jobs', () => {
   } )
 
   it( 'lists active jobs newest first, without transcripts', async () => {
-    const first = queueJob( youtubeUrl )
-    const second = queueJob( 'https://www.youtube.com/watch?v=def' )
+    const first = await queueJob( youtubeUrl )
+    const second = await queueJob( 'https://www.youtube.com/watch?v=def' )
     markStatus( second.id, 'downloading' )
 
     const response = await request( app ).get( '/api/jobs' )
@@ -168,7 +168,7 @@ describe( 'GET /api/jobs', () => {
   } )
 
   it( 'leaves out failed jobs', async () => {
-    const { id } = queueJob( youtubeUrl )
+    const { id } = await queueJob( youtubeUrl )
     failJob( id, 'boom' )
 
     const response = await request( app ).get( '/api/jobs' )
@@ -206,8 +206,8 @@ describe( 'GET /api/jobs/:id', () => {
 } )
 
 describe( 'GET /api/jobs/:id/download', () => {
-  const seedReviewJob = ( title?: string ): string => {
-    const { id } = queueJob( youtubeUrl )
+  const seedReviewJob = async ( title?: string ): Promise< string > => {
+    const { id } = await queueJob( youtubeUrl )
 
     markStatus( id, 'downloading' )
     markStatus( id, 'converting' )
@@ -226,7 +226,7 @@ describe( 'GET /api/jobs/:id/download', () => {
     [ 'srt', 'application/x-subrip; charset=utf-8', formatSrt ],
     [ 'txt', 'text/plain; charset=utf-8', formatTxt ],
   ] as const )( 'downloads %s', async ( format, contentType, formatter ) => {
-    const id = seedReviewJob()
+    const id = await seedReviewJob()
 
     const response = await request( app ).get( `/api/jobs/${ id }/download?format=${ format }` )
 
@@ -239,7 +239,7 @@ describe( 'GET /api/jobs/:id/download', () => {
   } )
 
   it( 'defaults to Markdown', async () => {
-    const id = seedReviewJob()
+    const id = await seedReviewJob()
 
     const response = await request( app ).get( `/api/jobs/${ id }/download` )
 
@@ -249,7 +249,7 @@ describe( 'GET /api/jobs/:id/download', () => {
   } )
 
   it.each( [ 'format=pdf', 'format=md&format=srt' ] )( 'rejects ?%s with 400', async ( query ) => {
-    const id = seedReviewJob()
+    const id = await seedReviewJob()
 
     const response = await request( app ).get( `/api/jobs/${ id }/download?${ query }` )
 
@@ -270,7 +270,7 @@ describe( 'GET /api/jobs/:id/download', () => {
   } )
 
   it( 'returns 409 for a queued job', async () => {
-    const { id } = queueJob( youtubeUrl )
+    const { id } = await queueJob( youtubeUrl )
 
     const response = await request( app ).get( `/api/jobs/${ id }/download` )
 
@@ -279,7 +279,7 @@ describe( 'GET /api/jobs/:id/download', () => {
   } )
 
   it( 'encodes a non-ASCII title with filename*', async () => {
-    const id = seedReviewJob( '日本語のタイトル' )
+    const id = await seedReviewJob( '日本語のタイトル' )
 
     const response = await request( app ).get( `/api/jobs/${ id }/download?format=txt` )
 
@@ -293,7 +293,7 @@ describe( 'GET /api/jobs/:id/transcript', () => {
   it.each( [ 'ready_for_review', 'summary_failed' ] as const )(
     'returns the transcript when the job is %s',
     async ( status ) => {
-      const id = seedJobAt( status )
+      const id = await seedJobAt( status )
 
       const response = await request( app ).get( `/api/jobs/${ id }/transcript` )
 
@@ -307,7 +307,7 @@ describe( 'GET /api/jobs/:id/transcript', () => {
   it.each( [ 'queued', 'transcribing', 'summarizing', 'failed', 'saved' ] as const )(
     'returns 409 when the job is %s',
     async ( status ) => {
-      const id = seedJobAt( status )
+      const id = await seedJobAt( status )
 
       const response = await request( app ).get( `/api/jobs/${ id }/transcript` )
 
@@ -340,7 +340,7 @@ describe( 'POST /api/jobs/:id/save', () => {
   ].join( '\n' )
 
   const seedDrafted = async ( target_folder?: string ): Promise< string > => {
-    const id = seedJobAt( 'ready_for_review' )
+    const id = await seedJobAt( 'ready_for_review' )
 
     await request( app )
       .patch( `/api/jobs/${ id }/draft` )
@@ -422,7 +422,7 @@ describe( 'POST /api/jobs/:id/save', () => {
   } )
 
   it( 'returns 409 when the job has no draft', async () => {
-    const id = seedJobAt( 'ready_for_review' )
+    const id = await seedJobAt( 'ready_for_review' )
     updateJob( id, { note_markdown: null } )
 
     const response = await request( app ).post( `/api/jobs/${ id }/save` )
@@ -439,7 +439,7 @@ describe( 'POST /api/jobs/:id/save', () => {
   it.each( [ 'queued', 'summarizing', 'summary_failed', 'saved' ] as const )(
     'returns 409 when the job is %s',
     async ( status ) => {
-      const id = seedJobAt( status )
+      const id = await seedJobAt( status )
 
       const response = await request( app ).post( `/api/jobs/${ id }/save` )
 
@@ -450,7 +450,7 @@ describe( 'POST /api/jobs/:id/save', () => {
 
 describe( 'POST /api/jobs/:id/retry-summary', () => {
   it( 'returns 202 with the job back in summarizing', async () => {
-    const id = seedJobAt( 'summary_failed' )
+    const id = await seedJobAt( 'summary_failed' )
 
     const response = await request( app ).post( `/api/jobs/${ id }/retry-summary` )
 
@@ -473,7 +473,7 @@ describe( 'POST /api/jobs/:id/retry-summary', () => {
   it.each( [ 'queued', 'summarizing', 'ready_for_review', 'failed', 'saved' ] as const )(
     'returns 409 when the job is %s',
     async ( status ) => {
-      const id = seedJobAt( status )
+      const id = await seedJobAt( status )
 
       const response = await request( app ).post( `/api/jobs/${ id }/retry-summary` )
 
@@ -486,7 +486,7 @@ describe( 'DELETE /api/jobs/:id', () => {
   it.each( [ 'ready_for_review', 'summary_failed' ] as const )(
     'discards a job that is %s with 204',
     async ( status ) => {
-      const id = seedJobAt( status )
+      const id = await seedJobAt( status )
 
       const response = await request( app ).delete( `/api/jobs/${ id }` )
 
@@ -505,7 +505,7 @@ describe( 'DELETE /api/jobs/:id', () => {
   it.each( [ 'queued', 'transcribing', 'summarizing', 'failed', 'saved' ] as const )(
     'returns 409 when the job is %s',
     async ( status ) => {
-      const id = seedJobAt( status )
+      const id = await seedJobAt( status )
 
       const response = await request( app ).delete( `/api/jobs/${ id }` )
 
@@ -531,7 +531,7 @@ describe( 'PATCH /api/jobs/:id/draft', () => {
   ].join( '\n' )
 
   it( 'stores the draft and returns the job', async () => {
-    const id = seedJobAt( 'ready_for_review' )
+    const id = await seedJobAt( 'ready_for_review' )
 
     const response = await request( app )
       .patch( `/api/jobs/${ id }/draft` )
@@ -555,7 +555,7 @@ describe( 'PATCH /api/jobs/:id/draft', () => {
     [ 'an escaping folder', { target_folder: '../x' } ],
     [ 'an empty body', {} ],
   ] )( 'responds 400 for %s', async ( _label, body ) => {
-    const id = seedJobAt( 'ready_for_review' )
+    const id = await seedJobAt( 'ready_for_review' )
 
     const response = await request( app ).patch( `/api/jobs/${ id }/draft` ).send( body )
 
@@ -573,7 +573,7 @@ describe( 'PATCH /api/jobs/:id/draft', () => {
   it.each( [ 'queued', 'summarizing', 'summary_failed', 'failed' ] as const )(
     'responds 409 from %s',
     async ( status ) => {
-      const id = seedJobAt( status )
+      const id = await seedJobAt( status )
 
       const response = await request( app )
         .patch( `/api/jobs/${ id }/draft` )
