@@ -4,7 +4,7 @@ Paste a video URL (YouTube or anything yt-dlp supports) and get a timestamped tr
 
 ## How it works
 
-You submit a URL in the browser. The Express server queues a job, and a worker runs one job at a time: yt-dlp downloads the audio, ffmpeg converts it to 16 kHz mono WAV, and the WAV is sent over HTTP to whisper-server. The transcript is stored in a SQLite database and rendered to Markdown, SRT or TXT when you download it. The worker then sends the transcript to the Claude API for a summary (key points, quotes, tags). You review the note in the browser, where every edit is saved to the server as a draft, pick the vault folder it goes to, and saving writes it there and deletes the transcript. Jobs you leave in review are deleted after 24 hours; every edit starts the 24 hours again. The browser polls the job's status.
+You submit a URL in the browser. The Express server queues a job, and a worker runs one job at a time: yt-dlp downloads the audio, ffmpeg converts it to 16 kHz mono WAV, and the WAV is sent over HTTP to whisper-server. The transcript is stored in a SQLite database and rendered to Markdown, SRT or TXT when you download it. The worker then sends the transcript to the Claude API for a summary (key points, quotes, tags), using the prompt profile and model you picked in Settings or for that video. You review the note in the browser, where every edit is saved to the server as a draft, pick the vault folder it goes to, and saving writes it there and deletes the transcript. Jobs you leave in review are deleted after 24 hours; every edit starts the 24 hours again. The browser polls the job's status.
 
 ```text
 browser ──> Express + worker (Docker, :3100)
@@ -62,20 +62,31 @@ brew install yt-dlp ffmpeg
 
 ## Using it
 
-1. Paste a video URL and submit.
+1. Paste a video URL and submit. Below the field, **Prompt profile** and **Model** start on your defaults (see Settings below); change them to use another for this video only.
 2. Watch the stages: queued, downloading, converting, transcribing, summarizing, ready for review.
 3. Download the transcript as Markdown, SRT or TXT while the job is in review.
 4. Review the note. It opens in a rendered editor with a properties panel (title and tags). A toolbar above the note formats it: undo and redo, block type (paragraph, heading 1 to 3, quote), bold, italic, bulleted and numbered lists, and links. It writes plain Markdown (`#`–`###`, `>`, `**bold**`, `*italic*`, `-`, `1.`, `[text](url)`), so Obsidian reads the note as expected. Switch to source mode to see and edit the raw Markdown, front-matter included; the formatting buttons are hidden there. The transcript sits beside it.
 5. Choose where the note goes with **Change folder**: filter the vault's folders (hidden folders are not shown), pick one, or type a new folder name under the chosen folder. A new folder is created only when you save. Without a choice the note goes to `DEFAULT_NOTE_FOLDER`.
 6. **Save to vault** writes the note and deletes the transcript, or **Discard** deletes the job.
+7. Under the note a line shows how the summary was made: the model, the prompt profile and its version, the tokens in and out, and an estimated cost (for example `Claude Sonnet 5.5 · Business ideas v3 · 31.2k in / 1.4k out · ~US$0.12`). If the summary was made more than once it also gives the number of attempts and the total. The cost is an estimate from a price table in the app, marked with `~`; a model that isn't in the table shows tokens only. The record is kept in the database even after you save or discard the job.
+8. **Regenerate summary** runs the summary again on the same transcript, with the profile and model you choose in a dialog (they start on what the job used). It replaces the current note, including your edits, and keeps the vault folder. Use it to compare prompts or models on a real video.
 
-The app opens with a navigation drawer on the left (for now just **Transcriber**). The hamburger in the top bar collapses it to icons or expands it again, and the choice is remembered in the browser. On a narrow window the drawer is hidden and opens over the page. At the bottom of the drawer, **Light**, **Dark** and **System** set the colour mode (System follows the OS and is the default); that choice is remembered too. The note editor follows the colour mode too.
+### Settings
+
+The gear at the bottom of the navigation drawer opens **Settings**. The Summarizer section has:
+
+- **Default model and default prompt profile.** They save as soon as you change them. The model list comes from Anthropic, so new models appear without an update, and only models that can produce the structured summary are listed. If Anthropic can't be reached the list shows just the current default and says it is offline. The submit form and the Regenerate dialog can pick another profile or model for one video.
+- **Prompt profiles.** A profile is a named prompt (up to 20,000 characters) that tells Claude what to pull out of a video. Three ship with the app: **Business ideas** (the default, aimed at validating ideas), **Coding** and **General** (the 0.3 summary). You can create, rename and delete profiles (the default and the last remaining one can't be deleted). Edit a prompt and **Save** to store it as a new version; unsaved changes are marked, and switching profile or closing the tab asks first. A changed prompt applies to summaries that start after you save; notes already in review keep what they have.
+- **History.** Every save is a numbered version. Open any version to read it, and **Restore this version** saves a copy of it as the newest. **Reset to default** does the same with the shipped text, for the profiles that ship.
+- **Instructions the app always sends.** A read-only view of the fixed part of the prompt that keeps the output in the shape the app needs. Your prompt is added after it, so no edit can break the note.
+
+The app opens with a navigation drawer on the left (**Transcriber**, with **Settings** and the colour-mode control at the bottom). The hamburger in the top bar collapses it to icons or expands it again, and the choice is remembered in the browser. On a narrow window the drawer is hidden and opens over the page. At the bottom of the drawer, **Light**, **Dark** and **System** set the colour mode (System follows the OS and is the default); that choice is remembered too. The note editor follows the colour mode too.
 
 Edits are saved to the server about a second and a half after you stop typing, when you switch editor mode, leave the editor or choose a folder, and before saving, so a refresh, a crash or another browser shows your latest draft. The status line under the editor reads Saved, Saving… or Not saved, with the reason.
 
 The page address carries the job (`?job=<id>`), so refreshing the page keeps you on the same job. Jobs and their transcripts live in a SQLite database on a Docker volume, so they survive a container restart or rebuild. A job that was downloading, converting or transcribing when the app stopped is marked failed on the next start.
 
-The API also supports listing jobs, listing the vault's folders, updating a review draft, saving it, retrying a failed summary and discarding a job (`GET /api/jobs`, `GET /api/vault/folders`, `PATCH /api/jobs/:id/draft`, `POST /api/jobs/:id/save` with no body, `POST /api/jobs/:id/retry-summary`, `DELETE /api/jobs/:id`).
+The API also supports listing jobs, listing the vault's folders, updating a review draft, saving it, retrying a failed summary and discarding a job (`GET /api/jobs`, `GET /api/vault/folders`, `PATCH /api/jobs/:id/draft`, `POST /api/jobs/:id/save` with no body, `POST /api/jobs/:id/retry-summary`, `DELETE /api/jobs/:id`). Settings and summaries add `GET` and `PATCH /api/settings`, `GET /api/models`, the prompt profile endpoints under `/api/prompt-profiles` (list, create, rename, delete, versions, restore, reset), `POST /api/jobs/:id/regenerate-summary`, and optional `model` and `profile_id` in the `POST /api/jobs` body.
 
 ## Output formats
 
@@ -145,14 +156,14 @@ On a stop signal the server stops taking work and lets a running job finish, for
 
 ## Status and roadmap
 
-Version 0.3.1. A single-user tool: one job at a time, jobs kept in SQLite, no accounts.
+Version 0.4.0. A single-user tool: one job at a time, jobs kept in SQLite, no accounts.
 
 Known issue: in a real browser, clicking a timestamp in the summary doesn't open the video, and moving the cursor in the editor doesn't scroll the transcript to the matching moment (it works in the unit tests).
 
 Possible next steps:
 
 - Lazy-load the note editor (the web bundle is about 1.5 MB).
-- Choose the Claude model from the UI.
+- A spend summary (per month, per model) built on the recorded usage.
 - Add `[[wikilinks]]` to related notes with an agent that knows the vault.
 - Remember the last-used folder, or pick a folder by tag.
 - Live progress with Server-Sent Events instead of polling.

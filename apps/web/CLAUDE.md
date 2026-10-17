@@ -2,13 +2,13 @@
 
 React UI for Mnemosyne: submit a video URL, follow the job, download the transcript. Screens only: all data and rules live in the server. The root `CLAUDE.md` covers the workflow, precedence, cross-app rules, git and secrets; this file does not repeat them. The server's style rules in `apps/server/CLAUDE.md` apply here too unless this file says otherwise.
 
-The relevant ADRs are 0004, 0006, 0008, 0009, 0011, 0013, 0015, 0019, 0020, 0021, 0022, 0023, 0024 and 0025. Read the ones a task lists.
+The relevant ADRs are 0004, 0006, 0008, 0009, 0011, 0013, 0015, 0019, 0020, 0021, 0022, 0023, 0024, 0025, 0027, 0028 and 0029. Read the ones a task lists.
 
 ## Stack
 
 - Vite, React, TypeScript `strict`, ESM.
 - Vitest, React Testing Library, user-event, jest-dom, jsdom.
-- TanStack Query for server state and React Router for `/` and `/jobs/:id` (ADR 0013).
+- TanStack Query for server state and React Router for `/`, `/jobs/:id` and `/settings` (ADR 0013).
 - Material UI (`@mui/material`, Emotion, `@mui/icons-material`, `@mui/x-tree-view`) is the only UI library, themed from `src/theme.ts` (ADR 0024). `@mdxeditor/editor` is the note editor (ADR 0019; round-trip rules in ADRs 0023 and 0026; see "Note editor" below).
 - Shared contracts come from `@mnemosyne/shared`.
 
@@ -28,12 +28,12 @@ Don't add a dependency without it being approved first. Ask instead.
 src/
   main.tsx          mounts <App /> inside the MUI theme (ThemeProvider, CssBaseline), the query client provider and BrowserRouter
   theme.ts          the one MUI theme: CSS variables, light and dark colour schemes, radius, font, repeated component overrides
-  App.tsx           the routes inside AppShell: `/` → HomePage, `/jobs/:id` → JobPage
+  App.tsx           the routes inside AppShell: `/` → HomePage, `/jobs/:id` → JobPage, `/settings` → SettingsPage
   api/              <name>.api.ts: fetch wrappers; parse responses with shared schemas
   expiry.ts         pure display helpers sit next to main.tsx as small camelCase modules (expiry.ts, later timestamp.ts)
   queryClient.ts    createQueryClient(): the app's TanStack Query defaults (no retries, no refetch on focus)
   hooks/            use<Name>.ts: state and effects, built on TanStack Query; queryKeys.ts holds the cache keys; useAutosaveDraft keeps the review draft on the server
-  components/       <Name>/index.ts, <Name>.tsx, <Name>.test.tsx: one folder per component (no CSS files); AppShell and NavDrawer are the navigation shell; HomePage and JobPage are the route components; ReviewScreen is the review layout JobPage shows for `ready_for_review` and `summary_failed`
+  components/       <Name>/index.ts, <Name>.tsx, <Name>.test.tsx: one folder per component (no CSS files); AppShell and NavDrawer are the navigation shell; HomePage and JobPage are the route components; ReviewScreen is the review layout JobPage shows for `ready_for_review` and `summary_failed`; the Settings page is `SettingsPage` with `SummarizerDefaults`, `PromptProfiles` (`PromptEditor`, `ProfileActions`, `ProfileNameDialog`, `PromptHistory`) and `LockedInstructions`; `SummaryOptions` (profile and model selects) sits on the submit form and in `RegenerateDialog`, and `SummaryInfo` shows how a summary was made; `ConfirmDialog` is the shared confirm
   test-support/     shared test helpers and fixtures
 ```
 
@@ -42,7 +42,7 @@ src/
 - **Components** render props and call handlers. No `fetch`, no timers, no URL handling (only the route components and the navigation shell touch the router). They may import the URL builders from `api/` (such as `downloadUrl`), never the functions that fetch.
 - **Hooks** hold state and effects, and call `api/`. Review drafts live on the server (ADR 0020), saved by `useAutosaveDraft`; browser storage is only for per-viewer conveniences, reached only from hooks, always inside try/catch, and the app works without it.
 - **`api/`** is the only code that calls `fetch`. It uses relative `/api/...` URLs, parses every response with a schema from `@mnemosyne/shared`, and throws an `Error` with a readable message on a non-2xx response (using the server's `{ error }` body when it parses) or a network failure.
-- **Navigation shell** (`NavDrawer`) may render router `Link`s and read `useLocation` to mark the current item (ADR 0025). Nothing else in it reads or changes the URL.
+- **Navigation shell** (`NavDrawer`) may render router `Link`s and read `useLocation` to mark the current item (ADR 0025). Its footer holds the Settings item (a utility entry, not a module, so not in `NAV_ITEMS`) above the colour-mode control. Nothing else in it reads or changes the URL.
 - **Route components** (`HomePage`, `JobPage`) own the URL: they read it with `useParams` and change it with `useNavigate` / `Navigate`. Nothing else reads or writes `window.location` or the router.
 - Downloads are `<a href="/api/jobs/:id/download?format=…">` links.
 
