@@ -1,5 +1,7 @@
 // Packages
 import { z } from 'zod'
+// Summarizer
+import { SummaryUsage } from './summarizer.js'
 
 export const JobStatus = z.enum( [
   'queued',
@@ -26,5 +28,8 @@ export const Job = z.object( {
   target_folder: z.string().nullable(),
   expires_at: z.iso.datetime().nullable(),
   saved_path: z.string().nullable(),
+  summary_model: z.string().nullable(),
+  prompt_profile_id: z.uuid().nullable(),
+  summary_usage: SummaryUsage.nullable(),
 } )
 export type Job = z.infer< typeof Job >

@@ -47,6 +47,8 @@ const buildJob = ( overrides: Partial< StoredJob > = {} ): StoredJob => {
     target_folder: null,
     expires_at: null,
     saved_path: null,
+    summary_model: null,
+    prompt_profile_id: null,
     transcript: null,
     ...overrides,
   }

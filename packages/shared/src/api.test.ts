@@ -35,6 +35,23 @@ describe( 'CreateJobBody', () => {
   it( 'rejects a missing url', () => {
     expect( CreateJobBody.safeParse( {} ).success ).toBe( false )
   } )
+
+  it( 'accepts an optional model and profile_id', () => {
+    const body = {
+      url: 'https://example.com/v',
+      model: 'claude-sonnet-5-5',
+      profile_id: jobId,
+    }
+
+    expect( CreateJobBody.safeParse( body ).success ).toBe( true )
+  } )
+
+  it( 'rejects an empty model and a profile_id that is not a uuid', () => {
+    const url = 'https://example.com/v'
+
+    expect( CreateJobBody.safeParse( { url, model: '' } ).success ).toBe( false )
+    expect( CreateJobBody.safeParse( { url, profile_id: 'x' } ).success ).toBe( false )
+  } )
 } )
 
 describe( 'CreateJobResponse', () => {
@@ -60,6 +77,9 @@ describe( 'GetJobResponse', () => {
     target_folder: null,
     expires_at: null,
     saved_path: null,
+    summary_model: null,
+    prompt_profile_id: null,
+    summary_usage: null,
   }
 
   it( 'accepts a job', () => {
@@ -92,6 +112,9 @@ const jobFields = {
   target_folder: null,
   expires_at: '2026-10-15T10:00:00.000Z',
   saved_path: null,
+  summary_model: null,
+  prompt_profile_id: null,
+  summary_usage: null,
 }
 
 const transcript = {

@@ -7,6 +7,8 @@ import { Transcript } from './transcript.js'
 
 export const CreateJobBody = z.object( {
   url: z.url( { protocol: /^https?$/ } ),
+  model: z.string().min( 1 ).optional(),
+  profile_id: z.uuid().optional(),
 } )
 export type CreateJobBody = z.infer< typeof CreateJobBody >
 

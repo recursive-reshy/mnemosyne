@@ -15,6 +15,9 @@ const validJob = {
   target_folder: null,
   expires_at: null,
   saved_path: null,
+  summary_model: null,
+  prompt_profile_id: null,
+  summary_usage: null,
 }
 
 describe( 'JobStatus', () => {
@@ -121,5 +124,50 @@ describe( 'Job', () => {
 
     expect( parsed ).not.toHaveProperty( 'summary_markdown' )
     expect( parsed ).not.toHaveProperty( 'suggested_tags' )
+  } )
+} )
+
+describe( 'Job summary fields', () => {
+  const usage = {
+    last_run: {
+      model: 'claude-sonnet-5-5',
+      profile_id: '3f2b8c1e-6d1a-4b8e-9a53-0c1d2e3f4a5b',
+      profile_name: 'Business ideas',
+      prompt_version: 1,
+      input_tokens: 100,
+      output_tokens: 20,
+      cost_usd: 0.01,
+      outcome: 'succeeded',
+      created_at: '2026-10-17T10:00:00.000Z',
+    },
+    run_count: 1,
+    total_input_tokens: 100,
+    total_output_tokens: 20,
+    total_cost_usd: 0.01,
+  }
+
+  it( 'accepts a model, a profile and usage', () => {
+    const job = {
+      ...validJob,
+      summary_model: 'claude-sonnet-5-5',
+      prompt_profile_id: '3f2b8c1e-6d1a-4b8e-9a53-0c1d2e3f4a5b',
+      summary_usage: usage,
+    }
+
+    expect( Job.safeParse( job ).success ).toBe( true )
+  } )
+
+  it.each( [ 'summary_model', 'prompt_profile_id', 'summary_usage' ] )(
+    'requires %s to be present',
+    ( field ) => {
+      const without: Record< string, unknown > = { ...validJob }
+      delete without[ field ]
+
+      expect( Job.safeParse( without ).success ).toBe( false )
+    },
+  )
+
+  it( 'rejects a profile id that is not a uuid', () => {
+    expect( Job.safeParse( { ...validJob, prompt_profile_id: 'x' } ).success ).toBe( false )
   } )
 } )

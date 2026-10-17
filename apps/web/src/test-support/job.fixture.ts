@@ -14,6 +14,9 @@ export const jobFixture = ( overrides: Partial< Job > = {} ): Job => {
     target_folder: null,
     expires_at: null,
     saved_path: null,
+    summary_model: null,
+    prompt_profile_id: null,
+    summary_usage: null,
     ...overrides,
   }
 }

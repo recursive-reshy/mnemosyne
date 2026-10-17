@@ -10,7 +10,7 @@ import {
   serializeNote,
 } from '@mnemosyne/shared'
 
-export const StoredJob = Job.extend( {
+export const StoredJob = Job.omit( { summary_usage: true } ).extend( {
   transcript: Transcript.nullable(),
 } )
 export type StoredJob = z.infer< typeof StoredJob >
@@ -146,6 +146,8 @@ const toStoredJob = ( raw: unknown ): StoredJob => {
 
   return StoredJob.parse( {
     ...row,
+    summary_model: null,
+    prompt_profile_id: null,
     transcript: row.transcript === null ? null : JSON.parse( row.transcript ) as unknown,
   } )
 }

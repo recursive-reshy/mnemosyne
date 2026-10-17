@@ -83,6 +83,9 @@ const toPublicJob = ( job: StoredJob ): Job => {
     target_folder: job.target_folder,
     expires_at: job.expires_at,
     saved_path: job.saved_path,
+    summary_model: job.summary_model,
+    prompt_profile_id: job.prompt_profile_id,
+    summary_usage: null,
   }
 }
 
@@ -128,6 +131,8 @@ export const queueJob = ( url: string ): Job => {
     target_folder: null,
     expires_at: null,
     saved_path: null,
+    summary_model: null,
+    prompt_profile_id: null,
     transcript: null,
   }
 
