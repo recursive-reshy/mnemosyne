@@ -64,7 +64,7 @@ As a user, I want the folder picker to behave like a proper tree.
 As a user, I want to format my note with buttons, the way I can in GitLab, and to read it in dark mode.
 - [ ] In rich-text mode, a toolbar next to the Rich text / Source mode toggle offers: undo and redo; block type (paragraph, Heading 1, Heading 2, Heading 3, quote); bold and italic; bulleted and numbered lists; insert or edit a link.
 - [ ] The formatting buttons are hidden in source mode, where the Markdown is edited directly. The mode toggle stays in both modes.
-- [ ] Every button is a real button with an accessible name and a tooltip, and the current state shows as pressed (for example, Bold while the cursor is in bold text).
+- [ ] Every control has an accessible name and a tooltip, and exposes its state to screen readers (for example, Bold shows as on while the cursor is in bold text). MDXEditor's own controls are used as they come: the formatting toggles are radio-style items with `aria-checked`, and the block type is a combobox.
 - [ ] What the buttons produce is plain Markdown that Obsidian reads as expected: `#`–`###` headings, `>` quotes, `**bold**`, `*italic*`, `-` bullets, `1.` numbered lists, `[text](url)` links. No underline, because Markdown has no underline and it would be written as HTML.
 - [ ] The editor follows Light / Dark / System like the rest of the app: text, background, toolbar, dropdowns and the link dialog are all readable in both modes, and switching modes while editing doesn't lose text or the cursor.
 - [ ] The Rich text / Source mode toggle and its "Fix the front-matter" message look like the rest of the app.
