@@ -1,122 +1,14 @@
 // Packages
-import Database from 'better-sqlite3'
 import { z } from 'zod'
 // Shared
-import {
-  Job,
-  Transcript,
-  applyLockedProperties,
-  formatClock,
-  serializeNote,
-} from '@mnemosyne/shared'
+import { Job, Transcript } from '@mnemosyne/shared'
+// Repositories
+import { getDatabase } from './database.js'
 
 export const StoredJob = Job.omit( { summary_usage: true } ).extend( {
   transcript: Transcript.nullable(),
 } )
 export type StoredJob = z.infer< typeof StoredJob >
-
-const addNoteColumns = ( db: Database.Database ): void => {
-  db.exec( 'ALTER TABLE jobs ADD COLUMN note_markdown TEXT' )
-  db.exec( 'ALTER TABLE jobs ADD COLUMN target_folder TEXT' )
-
-  const rows = z.array( z.object( {
-    id: z.string(),
-    title: z.string().nullable(),
-    transcript: z.string().nullable(),
-    summary_markdown: z.string().nullable(),
-    suggested_tags: z.string(),
-  } ) ).parse( db.prepare( `SELECT id, title, transcript, summary_markdown, suggested_tags
-    FROM jobs WHERE status = 'ready_for_review'` ).all() )
-  const created = new Date().toISOString().slice( 0, 10 )
-  const update = db.prepare( 'UPDATE jobs SET note_markdown = ? WHERE id = ?' )
-
-  for( const row of rows ) {
-    const meta = row.transcript === null
-      ? undefined
-      : Transcript.parse( JSON.parse( row.transcript ) ).meta
-    const tags = z.array( z.string() ).parse( JSON.parse( row.suggested_tags ) )
-
-    const note = applyLockedProperties(
-      {
-        properties: {
-          title: row.title ?? meta?.title ?? '',
-          source: '',
-          channel: '',
-          duration: '',
-          created,
-          tags,
-        },
-        body: `${ ( row.summary_markdown ?? '' ).trim() }\n`,
-      },
-      {
-        source: meta?.source ?? '',
-        channel: meta?.channel ?? '',
-        duration: formatClock( meta?.duration_seconds ?? 0 ),
-        created,
-      },
-    )
-
-    update.run( serializeNote( note ), row.id )
-  }
-}
-
-export type Migration = string | ( ( db: Database.Database ) => void )
-
-export const jobStoreMigrations: Migration[] = [
-  `CREATE TABLE jobs (
-    id TEXT PRIMARY KEY,
-    url TEXT NOT NULL,
-    status TEXT NOT NULL,
-    error TEXT,
-    title TEXT,
-    transcript TEXT,
-    summary_markdown TEXT,
-    suggested_tags TEXT NOT NULL DEFAULT '[]',
-    saved_path TEXT,
-    expires_at TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-  )`,
-  addNoteColumns,
-  `ALTER TABLE jobs DROP COLUMN summary_markdown;
-  ALTER TABLE jobs DROP COLUMN suggested_tags;`,
-]
-
-let database: Database.Database | undefined
-
-export const runMigrations = ( db: Database.Database, migrations: Migration[] ): void => {
-  const applied = z.number().parse( db.pragma( 'user_version', { simple: true } ) )
-
-  db.transaction( () => {
-    for( const [ index, migration ] of migrations.entries() ) {
-      if( index >= applied ) {
-        if( typeof migration === 'string' ) {
-          db.exec( migration )
-        } else {
-          migration( db )
-        }
-
-        db.pragma( `user_version = ${ index + 1 }` )
-      }
-    }
-  } )()
-}
-
-export const openJobStore = ( path: string ): void => {
-  closeJobStore()
-
-  const opened = new Database( path )
-  opened.pragma( 'journal_mode = WAL' )
-
-  runMigrations( opened, jobStoreMigrations )
-
-  database = opened
-}
-
-export const closeJobStore = (): void => {
-  database?.close()
-  database = undefined
-}
 
 const JobRow = z.object( {
   id: z.string(),
@@ -132,14 +24,6 @@ const JobRow = z.object( {
   created_at: z.string(),
   updated_at: z.string(),
 } )
-
-const requireDatabase = (): Database.Database => {
-  if( database === undefined ) {
-    throw new Error( 'Job store is not open' )
-  }
-
-  return database
-}
 
 const toStoredJob = ( raw: unknown ): StoredJob => {
   const row = JobRow.parse( raw )
@@ -170,7 +54,7 @@ const toRow = ( job: StoredJob ): Record< string, string | null > => {
 }
 
 export const insertJob = ( job: StoredJob ): void => {
-  const db = requireDatabase()
+  const db = getDatabase()
 
   if( db.prepare( 'SELECT 1 FROM jobs WHERE id = ?' ).get( job.id ) !== undefined ) {
     throw new Error( `Job ${ job.id } already exists` )
@@ -186,7 +70,7 @@ export const insertJob = ( job: StoredJob ): void => {
 }
 
 export const findJobById = ( id: string ): StoredJob | undefined => {
-  const row = requireDatabase().prepare( 'SELECT * FROM jobs WHERE id = ?' ).get( id )
+  const row = getDatabase().prepare( 'SELECT * FROM jobs WHERE id = ?' ).get( id )
 
   return row === undefined ? undefined : toStoredJob( row )
 }
@@ -203,7 +87,7 @@ export const updateJob = (
 
   const updated: StoredJob = { ...job, ...changes }
 
-  requireDatabase().prepare( `UPDATE jobs SET
+  getDatabase().prepare( `UPDATE jobs SET
       url = @url, status = @status, error = @error, title = @title,
       transcript = @transcript, note_markdown = @note_markdown,
       target_folder = @target_folder, saved_path = @saved_path,
@@ -214,7 +98,7 @@ export const updateJob = (
 }
 
 export const findNextRunnableJob = (): StoredJob | undefined => {
-  const row = requireDatabase()
+  const row = getDatabase()
     .prepare( `SELECT * FROM jobs WHERE status IN ( 'queued', 'summarizing' )
       ORDER BY rowid LIMIT 1` )
     .get()
@@ -223,11 +107,11 @@ export const findNextRunnableJob = (): StoredJob | undefined => {
 }
 
 export const clearJobs = (): void => {
-  requireDatabase().exec( 'DELETE FROM jobs' )
+  getDatabase().exec( 'DELETE FROM jobs' )
 }
 
 export const markInterruptedJobs = ( message: string, now: string ): number => {
-  const { changes } = requireDatabase()
+  const { changes } = getDatabase()
     .prepare( `UPDATE jobs SET status = 'failed', error = ?, updated_at = ?
       WHERE status IN ( 'downloading', 'converting', 'transcribing' )` )
     .run( message, now )
@@ -236,7 +120,7 @@ export const markInterruptedJobs = ( message: string, now: string ): number => {
 }
 
 export const listActiveJobs = (): StoredJob[] => {
-  return requireDatabase()
+  return getDatabase()
     .prepare( `SELECT * FROM jobs
       WHERE status NOT IN ( 'failed', 'saved' )
       ORDER BY created_at DESC, rowid DESC` )
@@ -245,13 +129,13 @@ export const listActiveJobs = (): StoredJob[] => {
 }
 
 export const deleteJob = ( id: string ): boolean => {
-  const { changes } = requireDatabase().prepare( 'DELETE FROM jobs WHERE id = ?' ).run( id )
+  const { changes } = getDatabase().prepare( 'DELETE FROM jobs WHERE id = ?' ).run( id )
 
   return changes > 0
 }
 
 export const findExpiredJobs = ( now: string ): StoredJob[] => {
-  return requireDatabase()
+  return getDatabase()
     .prepare( `SELECT * FROM jobs
       WHERE status IN ( 'ready_for_review', 'summary_failed' )
         AND expires_at IS NOT NULL AND expires_at <= ?` )

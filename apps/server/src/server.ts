@@ -8,7 +8,7 @@ import { assertVaultWritable, resolveFolder } from './clients/vault.client.js'
 // Config
 import { config } from './config.js'
 // Repositories
-import { closeJobStore, openJobStore } from './repositories/jobStore.repository.js'
+import { closeDatabase, openDatabase } from './repositories/database.js'
 // Services
 import { recoverInterruptedJobs } from './services/jobs.service.js'
 // Shutdown
@@ -29,7 +29,7 @@ try {
 }
 
 await mkdir( config.dataDir, { recursive: true } )
-openJobStore( join( config.dataDir, 'mnemosyne.db' ) )
+openDatabase( join( config.dataDir, 'mnemosyne.db' ) )
 
 const interrupted = recoverInterruptedJobs()
 
@@ -52,7 +52,7 @@ const closeServer = (): Promise< void > => new Promise( ( resolve, reject ) => {
 const shutdown = createShutdown( {
   stopWorker,
   closeServer,
-  closeStore: closeJobStore,
+  closeStore: closeDatabase,
   stopSweeper,
   timeoutMs: SHUTDOWN_TIMEOUT_MS,
   exit: ( code ) => process.exit( code ),

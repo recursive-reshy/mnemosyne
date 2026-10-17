@@ -6,7 +6,7 @@ export default defineConfig( {
   },
   test: {
     env: { ANTHROPIC_API_KEY: 'test-key', VAULT_PATH: '/tmp/mnemosyne-test-vault' },
-    setupFiles: [ './src/test-support/jobStore.setup.ts' ],
+    setupFiles: [ './src/test-support/database.setup.ts' ],
     include: [ 'src/**/*.test.ts' ],
     exclude: [ 'src/**/*.integration.test.ts' ],
   },
