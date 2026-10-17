@@ -53,7 +53,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 5.4 | Server docs: `apps/server/CLAUDE.md` (summarizer folder, new services and clients, ADR list, no more `settings.ts`), root `CLAUDE.md` architecture paragraph (profiles, model choice, summary runs) | — | ✅ |
 
 ## Checkpoint C: Phase 6 (web Settings)
-**Plan:** ⬜ [`plans/checkpoint-c.md`](plans/checkpoint-c.md)
+**Plan:** ✅ [`plans/checkpoint-c.md`](plans/checkpoint-c.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
