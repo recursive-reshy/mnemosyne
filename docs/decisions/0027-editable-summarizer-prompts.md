@@ -1,6 +1,6 @@
 # 0027. Editable summarizer prompts: profiles of versioned guidance on a locked contract
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-17
 - Amends: 0014
 

@@ -1,6 +1,6 @@
 # 0028. Summary model chosen in the app, listed from the Models API
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-17
 - Amends: 0014
 

@@ -24,7 +24,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
 | **Phase 1** | **Kick-off** | | |
-| 1.1 | Set ADRs 0027–0029 to Accepted (Status lines and the `docs/README.md` index, already listed as Proposed); mark 0014 "Amended by 0027, 0028" in the index and in its file | 0027, 0028, 0029 | ⬜ |
+| 1.1 | Set ADRs 0027–0029 to Accepted (Status lines and the `docs/README.md` index, already listed as Proposed); mark 0014 "Amended by 0027, 0028" in the index and in its file | 0027, 0028, 0029 | ✅ |
 | **Phase 2** | **Shared contracts** | | |
 | 2.1 | `summarizer.ts`: `ModelOption`, `ListModelsResponse`, `Settings`, `GetSettingsResponse`, `UpdateSettingsBody`, `PromptVersionSource`, `PromptVersion`, `PromptProfile`, `Guidance`, `ProfileName`, the profile request/response schemas, `SummaryRun`, `SummaryUsage`, `RegenerateSummaryBody` (TRD §3), exported from `index.ts`, with tests | 0027, 0028, 0029 | ⬜ |
 | 2.2 | `CreateJobBody` gains `model?` and `profile_id?`; `Job` gains `summary_model`, `prompt_profile_id`, `summary_usage`. Fix every reference in both apps so they compile (server returns NULLs, web fixtures gain the fields); no behaviour yet | 0028, 0029 | ⬜ |
@@ -83,3 +83,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 ---
 
 ## Log
+- 1.1: ADRs 0027–0029 set to Accepted in their files and the index; 0014 marked "Amended by 0027, 0028" in the index and its file. Docs only.

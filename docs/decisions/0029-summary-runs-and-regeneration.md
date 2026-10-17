@@ -1,6 +1,6 @@
 # 0029. Summary runs: provenance and cost in the database, and regenerating a summary
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-17
 
 ## Context

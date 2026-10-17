@@ -29,7 +29,7 @@ Each significant decision is recorded as a short ADR (Architecture Decision Reco
 | [0011](decisions/0011-web-stack.md) | Web app: Vite, React, plain CSS, hand-written polling | Partly superseded by 0013, 0024 |
 | [0012](decisions/0012-sqlite-job-store.md) | SQLite job store with better-sqlite3 | Accepted |
 | [0013](decisions/0013-tanstack-query-react-router.md) | TanStack Query and React Router | Accepted |
-| [0014](decisions/0014-claude-summarizer.md) | Summaries with the Claude API, called from the server | Accepted |
+| [0014](decisions/0014-claude-summarizer.md) | Summaries with the Claude API, called from the server | Accepted (amended by 0027, 0028) |
 | [0015](decisions/0015-transcript-lifecycle.md) | Transcript lifecycle: reviewed, then deleted | Accepted |
 | [0016](decisions/0016-local-drafts.md) | Review edits drafted in localStorage | Superseded by 0020 |
 | [0017](decisions/0017-commit-docs-and-claude-md.md) | Commit docs/ and the CLAUDE.md files | Accepted |
@@ -42,9 +42,9 @@ Each significant decision is recorded as a short ADR (Architecture Decision Reco
 | [0024](decisions/0024-material-ui-single-ui-library.md) | Material UI as the single UI library | Accepted |
 | [0025](decisions/0025-app-shell-drawer-and-colour-mode.md) | App shell: navigation drawer and colour mode | Accepted |
 | [0026](decisions/0026-bold-around-a-link-is-normalised.md) | Bold around a link is normalised to link around bold | Accepted |
-| [0027](decisions/0027-editable-summarizer-prompts.md) | Editable summarizer prompts: profiles of versioned guidance on a locked contract | Proposed |
-| [0028](decisions/0028-summary-model-from-models-api.md) | Summary model chosen in the app, listed from the Models API | Proposed |
-| [0029](decisions/0029-summary-runs-and-regeneration.md) | Summary runs: provenance and cost in the database, and regenerating a summary | Proposed |
+| [0027](decisions/0027-editable-summarizer-prompts.md) | Editable summarizer prompts: profiles of versioned guidance on a locked contract | Accepted |
+| [0028](decisions/0028-summary-model-from-models-api.md) | Summary model chosen in the app, listed from the Models API | Accepted |
+| [0029](decisions/0029-summary-runs-and-regeneration.md) | Summary runs: provenance and cost in the database, and regenerating a summary | Accepted |
 
 ## Template for new ADRs
 
