@@ -16,6 +16,8 @@ import {
 import { parseNote } from '@mnemosyne/shared'
 // Test support
 import { transcriptFixture } from '../test-support/transcript.fixture.js'
+// Summarizer
+import { SEEDED_PROFILES } from '../summarizer/prompts.js'
 // Repositories
 import {
   closeDatabase,
@@ -69,6 +71,8 @@ describe( 'openDatabase and closeDatabase', () => {
       'updated_at',
       'note_markdown',
       'target_folder',
+      'summary_model',
+      'prompt_profile_id',
     ] )
   } )
 
@@ -282,7 +286,7 @@ describe( 'migration 3', () => {
 
     runMigrations( database, migrations.slice( 0, 2 ) )
     setup( database )
-    runMigrations( database, migrations )
+    runMigrations( database, migrations.slice( 0, 3 ) )
 
     return database
   }
@@ -362,5 +366,172 @@ describe( 'getDatabase', () => {
     openDatabase( ':memory:' )
 
     expect( getDatabase().open ).toBe( true )
+  } )
+} )
+
+describe( 'migration 4', () => {
+  const insertV3 = ( database: Database.Database ): void => {
+    database.prepare( `INSERT INTO jobs (
+        id, url, status, title, transcript, note_markdown, target_folder, saved_path,
+        expires_at, created_at, updated_at
+      ) VALUES ( 'review', 'https://www.youtube.com/watch?v=abc', 'ready_for_review',
+        'Video title', NULL, ?, 'Learning', NULL, '2026-10-15T10:00:00.000Z',
+        '2026-10-14T10:00:00.000Z', '2026-10-14T10:00:00.000Z' )` )
+      .run( '---\ntitle: "T"\n---\n\nBody\n' )
+  }
+
+  const upgrade = ( setup: ( database: Database.Database ) => void ): Database.Database => {
+    const database = new Database( ':memory:' )
+
+    runMigrations( database, migrations.slice( 0, 3 ) )
+    setup( database )
+    runMigrations( database, migrations )
+
+    return database
+  }
+
+  const tableNames = ( database: Database.Database ): string[] => {
+    return ( database
+      .prepare( 'SELECT name FROM sqlite_master WHERE type = \'table\' ORDER BY name' )
+      .all() as { name: string }[] ).map( ( { name } ) => name )
+  }
+
+  it( 'records user_version 4 and creates the new tables', () => {
+    const database = upgrade( () => undefined )
+
+    expect( database.pragma( 'user_version', { simple: true } ) ).toBe( 4 )
+    expect( migrations ).toHaveLength( 4 )
+    expect( tableNames( database ) ).toEqual( expect.arrayContaining( [
+      'jobs',
+      'prompt_profiles',
+      'prompt_versions',
+      'settings',
+      'summary_runs',
+    ] ) )
+  } )
+
+  it( 'runs from an empty database to the same result', () => {
+    const database = new Database( ':memory:' )
+
+    runMigrations( database, migrations )
+
+    expect( database.pragma( 'user_version', { simple: true } ) ).toBe( 4 )
+    expect( database.prepare( 'SELECT COUNT(*) AS count FROM prompt_profiles' ).get() )
+      .toEqual( { count: 3 } )
+  } )
+
+  it( 'leaves a job in review untouched and gives it empty model and profile', () => {
+    const database = upgrade( insertV3 )
+
+    expect( database.prepare( 'SELECT * FROM jobs' ).all() ).toEqual( [ {
+      id: 'review',
+      url: 'https://www.youtube.com/watch?v=abc',
+      status: 'ready_for_review',
+      error: null,
+      title: 'Video title',
+      transcript: null,
+      saved_path: null,
+      expires_at: '2026-10-15T10:00:00.000Z',
+      created_at: '2026-10-14T10:00:00.000Z',
+      updated_at: '2026-10-14T10:00:00.000Z',
+      note_markdown: '---\ntitle: "T"\n---\n\nBody\n',
+      target_folder: 'Learning',
+      summary_model: null,
+      prompt_profile_id: null,
+    } ] )
+  } )
+
+  it( 'seeds the shipped profiles, each with version 1 from the constants', () => {
+    const database = upgrade( () => undefined )
+
+    const rows = database.prepare( `SELECT p.name, p.seed_key, p.deleted_at,
+        v.version, v.guidance, v.source
+      FROM prompt_profiles p JOIN prompt_versions v ON v.profile_id = p.id
+      ORDER BY p.rowid` ).all()
+
+    expect( rows ).toEqual( SEEDED_PROFILES.map( ( profile ) => ( {
+      name: profile.name,
+      seed_key: profile.seedKey,
+      deleted_at: null,
+      version: 1,
+      guidance: profile.guidance,
+      source: 'seed',
+    } ) ) )
+  } )
+
+  it( 'makes Business ideas the default profile and leaves default_model unset', () => {
+    const database = upgrade( () => undefined )
+
+    const business = database
+      .prepare( 'SELECT id FROM prompt_profiles WHERE seed_key = \'business\'' )
+      .get() as { id: string }
+    const settings = database.prepare( 'SELECT key, value FROM settings' ).all()
+
+    expect( settings ).toEqual( [
+      { key: 'default_profile_id', value: JSON.stringify( business.id ) },
+    ] )
+  } )
+
+  it( 'gives profiles uuid ids and iso creation times', () => {
+    const database = upgrade( () => undefined )
+
+    const rows = database.prepare( 'SELECT id, created_at FROM prompt_profiles' ).all() as {
+      id: string
+      created_at: string
+    }[]
+
+    for( const row of rows ) {
+      expect( row.id ).toMatch( /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/ )
+      expect( new Date( row.created_at ).toISOString() ).toBe( row.created_at )
+    }
+  } )
+
+  it( 'rejects a second active profile whose name differs only in case', () => {
+    const database = upgrade( () => undefined )
+    const insert = database.prepare( `INSERT INTO prompt_profiles ( id, name, created_at )
+      VALUES ( ?, ?, 'now' )` )
+
+    expect( () => insert.run( 'x', 'BUSINESS IDEAS' ) ).toThrow( /UNIQUE/ )
+  } )
+
+  it( 'allows a name to be reused once its profile is deleted', () => {
+    const database = upgrade( () => undefined )
+    database.prepare( 'UPDATE prompt_profiles SET deleted_at = \'now\' WHERE name = ?' )
+      .run( 'Coding' )
+
+    expect( () => database.prepare( `INSERT INTO prompt_profiles ( id, name, created_at )
+      VALUES ( 'x', 'coding', 'now' )` ).run() ).not.toThrow()
+  } )
+
+  it( 'rejects a duplicate version number within one profile', () => {
+    const database = upgrade( () => undefined )
+    const { id } = database.prepare( 'SELECT id FROM prompt_profiles LIMIT 1' ).get() as {
+      id: string
+    }
+
+    expect( () => database.prepare( `INSERT INTO prompt_versions
+      ( profile_id, version, guidance, source, created_at ) VALUES ( ?, 1, 'g', 'edit', 'now' )` )
+      .run( id ) ).toThrow( /UNIQUE/ )
+  } )
+
+  it( 'lets summary runs outlive their job', () => {
+    const database = upgrade( () => undefined )
+    const { id } = database.prepare( 'SELECT id FROM prompt_versions LIMIT 1' ).get() as {
+      id: number
+    }
+
+    expect( () => database.prepare( `INSERT INTO summary_runs
+      ( job_id, model, prompt_version_id, outcome, created_at )
+      VALUES ( 'no-such-job', 'm', ?, 'failed', 'now' )` ).run( id ) ).not.toThrow()
+  } )
+
+  it( 'rolls back completely when seeding fails', () => {
+    const database = new Database( ':memory:' )
+    runMigrations( database, migrations.slice( 0, 3 ) )
+    database.exec( 'CREATE TABLE settings ( blocker TEXT )' )
+
+    expect( () => runMigrations( database, migrations ) ).toThrow()
+    expect( database.pragma( 'user_version', { simple: true } ) ).toBe( 3 )
+    expect( tableNames( database ) ).not.toContain( 'prompt_profiles' )
   } )
 } )

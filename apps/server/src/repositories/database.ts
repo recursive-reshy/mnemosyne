@@ -8,6 +8,8 @@ import {
   formatClock,
   serializeNote,
 } from '@mnemosyne/shared'
+// Summarizer
+import { SEEDED_PROFILES } from '../summarizer/prompts.js'
 
 const addNoteColumns = ( db: Database.Database ): void => {
   db.exec( 'ALTER TABLE jobs ADD COLUMN note_markdown TEXT' )
@@ -54,6 +56,67 @@ const addNoteColumns = ( db: Database.Database ): void => {
   }
 }
 
+const addSummarizerTables = ( db: Database.Database ): void => {
+  db.exec( `CREATE TABLE settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+  CREATE TABLE prompt_profiles (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    seed_key TEXT,
+    created_at TEXT NOT NULL,
+    deleted_at TEXT
+  );
+  CREATE UNIQUE INDEX prompt_profiles_active_name
+    ON prompt_profiles ( lower( name ) ) WHERE deleted_at IS NULL;
+  CREATE TABLE prompt_versions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    profile_id TEXT NOT NULL REFERENCES prompt_profiles ( id ),
+    version INTEGER NOT NULL,
+    guidance TEXT NOT NULL,
+    source TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE ( profile_id, version )
+  );
+  CREATE TABLE summary_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    job_id TEXT NOT NULL,
+    model TEXT NOT NULL,
+    prompt_version_id INTEGER NOT NULL REFERENCES prompt_versions ( id ),
+    input_tokens INTEGER,
+    output_tokens INTEGER,
+    cost_usd REAL,
+    outcome TEXT NOT NULL,
+    error TEXT,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX summary_runs_job ON summary_runs ( job_id, id );
+  ALTER TABLE jobs ADD COLUMN summary_model TEXT;
+  ALTER TABLE jobs ADD COLUMN prompt_profile_id TEXT;` )
+
+  const now = new Date().toISOString()
+  const insertProfile = db.prepare( `INSERT INTO prompt_profiles ( id, name, seed_key, created_at )
+    VALUES ( ?, ?, ?, ? )` )
+  const insertVersion = db.prepare( `INSERT INTO prompt_versions
+    ( profile_id, version, guidance, source, created_at ) VALUES ( ?, 1, ?, 'seed', ? )` )
+  let businessId = ''
+
+  for( const profile of SEEDED_PROFILES ) {
+    const id = crypto.randomUUID()
+
+    insertProfile.run( id, profile.name, profile.seedKey, now )
+    insertVersion.run( id, profile.guidance, now )
+
+    if( profile.seedKey === 'business' ) {
+      businessId = id
+    }
+  }
+
+  db.prepare( 'INSERT INTO settings ( key, value ) VALUES ( ?, ? )' )
+    .run( 'default_profile_id', JSON.stringify( businessId ) )
+}
+
 export type Migration = string | ( ( db: Database.Database ) => void )
 
 export const migrations: Migration[] = [
@@ -74,6 +137,7 @@ export const migrations: Migration[] = [
   addNoteColumns,
   `ALTER TABLE jobs DROP COLUMN summary_markdown;
   ALTER TABLE jobs DROP COLUMN suggested_tags;`,
+  addSummarizerTables,
 ]
 
 let database: Database.Database | undefined
