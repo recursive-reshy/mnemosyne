@@ -21,6 +21,7 @@ export interface AutosaveState {
   status: AutosaveStatus
   message: string | null
   adoptServerNote: () => void
+  cancelPending: () => void
 }
 
 interface Values {
@@ -40,6 +41,7 @@ export function useAutosaveDraft( job: Job ): AutosaveState {
   const serverNote = useRef< string | null >( null )
   const timer = useRef< ReturnType< typeof setTimeout > | undefined >( undefined )
   const inFlight = useRef< Promise< boolean > | null >( null )
+  const isCancelled = useRef( false )
   const flushRef = useRef< () => Promise< boolean > >( () => Promise.resolve( true ) )
 
   const isDirty = (): boolean => {
@@ -109,6 +111,7 @@ export function useAutosaveDraft( job: Job ): AutosaveState {
   }
 
   const setNote = ( note: string ): void => {
+    isCancelled.current = false
     latest.current = { ...latest.current, note }
     setValues( latest.current )
 
@@ -120,9 +123,17 @@ export function useAutosaveDraft( job: Job ): AutosaveState {
   }
 
   const setFolder = ( folder: string | null ): void => {
+    isCancelled.current = false
     latest.current = { ...latest.current, folder }
     setValues( latest.current )
     void flush()
+  }
+
+  // For when the note is about to be replaced: no timer and no save on unmount. The edit stays
+  // on screen, still unsaved, and the next edit or an explicit flush saves it again.
+  const cancelPending = (): void => {
+    clearTimeout( timer.current )
+    isCancelled.current = true
   }
 
   const adoptServerNote = (): void => {
@@ -141,7 +152,7 @@ export function useAutosaveDraft( job: Job ): AutosaveState {
     return () => {
       clearTimeout( timer.current )
 
-      if( isDirty() ) {
+      if( isDirty() && !isCancelled.current ) {
         void flushRef.current()
       }
     }
@@ -172,5 +183,6 @@ export function useAutosaveDraft( job: Job ): AutosaveState {
     status,
     message,
     adoptServerNote,
+    cancelPending,
   }
 }

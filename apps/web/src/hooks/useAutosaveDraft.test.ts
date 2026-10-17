@@ -17,7 +17,7 @@ import { updateDraft } from '../api/jobs.api'
 import { jobFixture } from '../test-support/job.fixture'
 import { renderHookWithClient } from '../test-support/renderWithClient'
 import { jobKeys } from './queryKeys'
-import { useAutosaveDraft } from './useAutosaveDraft'
+import { AUTOSAVE_DEBOUNCE_MS, useAutosaveDraft } from './useAutosaveDraft'
 
 vi.mock( '../api/jobs.api' )
 
@@ -286,6 +286,72 @@ describe( 'useAutosaveDraft', () => {
       job.id,
       { note_markdown: 'edited' },
     )
+  } )
+
+  describe( 'cancelPending', () => {
+    it( 'stops the debounced save', async () => {
+      const { result } = setup()
+      act( () => result.current.setNote( 'edited' ) )
+
+      act( () => result.current.cancelPending() )
+      await vi.advanceTimersByTimeAsync( AUTOSAVE_DEBOUNCE_MS * 2 )
+
+      expect( mockedUpdateDraft ).not.toHaveBeenCalled()
+    } )
+
+    it( 'stops the save that happens when the screen unmounts', async () => {
+      const { result, unmount } = setup()
+      act( () => result.current.setNote( 'edited' ) )
+      act( () => result.current.cancelPending() )
+
+      unmount()
+      await vi.advanceTimersByTimeAsync( 0 )
+
+      expect( mockedUpdateDraft ).not.toHaveBeenCalled()
+    } )
+
+    it( 'keeps the edit and still calls it unsaved', () => {
+      const { result } = setup()
+      act( () => result.current.setNote( 'edited' ) )
+
+      act( () => result.current.cancelPending() )
+
+      expect( result.current.note ).toBe( 'edited' )
+      expect( result.current.status ).toBe( 'unsaved' )
+    } )
+
+    it( 'resumes saving at the next edit', async () => {
+      const { result } = setup()
+      act( () => result.current.setNote( 'edited' ) )
+      act( () => result.current.cancelPending() )
+
+      act( () => result.current.setNote( 'edited again' ) )
+      await vi.advanceTimersByTimeAsync( AUTOSAVE_DEBOUNCE_MS )
+
+      expect( mockedUpdateDraft ).toHaveBeenCalledExactlyOnceWith(
+        job.id,
+        { note_markdown: 'edited again' },
+      )
+    } )
+
+    it( 'still lets an explicit flush save', async () => {
+      const { result } = setup()
+      act( () => result.current.setNote( 'edited' ) )
+      act( () => result.current.cancelPending() )
+
+      await act( async () => {
+        await result.current.flush()
+      } )
+
+      expect( mockedUpdateDraft ).toHaveBeenCalledTimes( 1 )
+    } )
+
+    it( 'does nothing when there is nothing pending', () => {
+      const { result } = setup()
+
+      expect( () => act( () => result.current.cancelPending() ) ).not.toThrow()
+      expect( result.current.status ).toBe( 'saved' )
+    } )
   } )
 
   describe( 'leaving the page', () => {

@@ -15,9 +15,11 @@ interface ReviewActionsProps {
   isSaving: boolean
   isRetrying: boolean
   isDiscarding: boolean
+  isRegenerating: boolean
   onSave: () => void
   onRetry: () => void
   onDiscard: () => void
+  onRegenerate: () => void
 }
 
 export function ReviewActions(
@@ -27,9 +29,11 @@ export function ReviewActions(
     isSaving,
     isRetrying,
     isDiscarding,
+    isRegenerating,
     onSave,
     onRetry,
     onDiscard,
+    onRegenerate,
   }: ReviewActionsProps,
 ): ReactElement {
   return (
@@ -50,6 +54,16 @@ export function ReviewActions(
             { isSaving ? 'Saving…' : 'Save to vault' }
           </Button>
         ) }
+      { !hasFailed && (
+        <Button
+          variant="outlined"
+          disabled={ isRegenerating }
+          onClick={ onRegenerate }
+          sx={ BUTTON_SX }
+        >
+          Regenerate summary
+        </Button>
+      ) }
       <Button
         variant="outlined"
         color="inherit"

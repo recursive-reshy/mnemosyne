@@ -15,14 +15,17 @@ import {
 import { ApiError } from '#src/api/apiError'
 import {
   discardJob,
+  regenerateSummary,
   retrySummary,
   saveJob,
   updateDraft,
 } from '#src/api/jobs.api'
 import { useFolders } from '#src/hooks/useFolders'
 import { useModels } from '#src/hooks/useModels'
+import { usePromptProfiles } from '#src/hooks/usePromptProfiles'
+import { useSettings } from '#src/hooks/useSettings'
 import { useTranscript } from '#src/hooks/useTranscript'
-import { modelsState } from '#src/test-support/hookStates'
+import { modelsState, profilesState, settingsState } from '#src/test-support/hookStates'
 import { jobFixture } from '#src/test-support/job.fixture'
 import { renderWithClient } from '#src/test-support/renderWithClient'
 import { ReviewScreen } from './ReviewScreen'
@@ -30,6 +33,8 @@ import { ReviewScreen } from './ReviewScreen'
 vi.mock( '#src/hooks/useTranscript' )
 vi.mock( '#src/hooks/useFolders' )
 vi.mock( '#src/hooks/useModels' )
+vi.mock( '#src/hooks/useSettings' )
+vi.mock( '#src/hooks/usePromptProfiles' )
 vi.mock( '../NoteEditor', async () => {
   const { lineAt } = await import( '#src/timestamp' )
 
@@ -654,5 +659,83 @@ describe( 'ReviewScreen summary info', () => {
     renderWithClient( <ReviewScreen job={ failed } { ...handlers() } /> )
 
     expect( screen.getByText( /^Last attempt failed · Claude Sonnet 5.5/ ) ).toBeInTheDocument()
+  } )
+} )
+
+describe( 'ReviewScreen regenerate', () => {
+  const mockedRegenerate = vi.mocked( regenerateSummary )
+
+  beforeEach( () => {
+    mockedRegenerate.mockReset()
+    mockedRegenerate.mockResolvedValue( { ...reviewJob, status: 'summarizing' } )
+    vi.mocked( useModels ).mockReturnValue( modelsState() )
+    vi.mocked( useSettings ).mockReturnValue( settingsState() )
+    vi.mocked( usePromptProfiles ).mockReturnValue( profilesState() )
+  } )
+
+  it( 'is offered for a note in review and opens the dialog', async () => {
+    renderWithClient( <ReviewScreen job={ reviewJob } { ...handlers() } /> )
+
+    await userEvent.setup().click( screen.getByRole( 'button', { name: 'Regenerate summary' } ) )
+
+    expect( screen.getByRole( 'dialog', { name: 'Regenerate summary' } ) ).toBeInTheDocument()
+    expect( mockedRegenerate ).not.toHaveBeenCalled()
+  } )
+
+  it( 'is not offered after a failed summary', () => {
+    renderWithClient( <ReviewScreen job={ failedJob } { ...handlers() } /> )
+
+    expect( screen.queryByRole( 'button', { name: 'Regenerate summary' } ) ).not.toBeInTheDocument()
+  } )
+
+  it( 'regenerates with the chosen model and keeps nothing else', async () => {
+    const user = userEvent.setup()
+    renderWithClient( <ReviewScreen job={ reviewJob } { ...handlers() } /> )
+
+    await user.click( screen.getByRole( 'button', { name: 'Regenerate summary' } ) )
+    await user.click( screen.getByRole( 'combobox', { name: 'Model' } ) )
+    await user.click( screen.getByRole( 'option', { name: 'Claude Opus 5.5' } ) )
+    await user.click( screen.getByRole( 'button', { name: 'Regenerate' } ) )
+
+    expect( mockedRegenerate ).toHaveBeenCalledExactlyOnceWith(
+      reviewJob.id,
+      { model: 'claude-opus-5-5' },
+    )
+  } )
+
+  it( 'puts the summarizing job in the cache', async () => {
+    const user = userEvent.setup()
+    const { queryClient } = renderWithClient( <ReviewScreen job={ reviewJob } { ...handlers() } /> )
+
+    await user.click( screen.getByRole( 'button', { name: 'Regenerate summary' } ) )
+    await user.click( screen.getByRole( 'button', { name: 'Regenerate' } ) )
+
+    await vi.waitFor( () => {
+      expect( queryClient.getQueryData( [ 'jobs', reviewJob.id ] ) )
+        .toMatchObject( { status: 'summarizing' } )
+    } )
+  } )
+
+  it( 'shows the server message and keeps the dialog open when it fails', async () => {
+    mockedRegenerate.mockRejectedValue( new ApiError( 'Unknown model: x', 400 ) )
+    const user = userEvent.setup()
+    renderWithClient( <ReviewScreen job={ reviewJob } { ...handlers() } /> )
+
+    await user.click( screen.getByRole( 'button', { name: 'Regenerate summary' } ) )
+    await user.click( screen.getByRole( 'button', { name: 'Regenerate' } ) )
+
+    const dialog = await screen.findByRole( 'dialog', { name: 'Regenerate summary' } )
+    expect( await within( dialog ).findByRole( 'alert' ) ).toHaveTextContent( 'Unknown model: x' )
+  } )
+
+  it( 'closes the dialog with Cancel and sends nothing', async () => {
+    const user = userEvent.setup()
+    renderWithClient( <ReviewScreen job={ reviewJob } { ...handlers() } /> )
+
+    await user.click( screen.getByRole( 'button', { name: 'Regenerate summary' } ) )
+    await user.click( screen.getByRole( 'button', { name: 'Cancel' } ) )
+
+    await vi.waitFor( () => expect( screen.queryByRole( 'dialog' ) ).not.toBeInTheDocument() )
+    expect( mockedRegenerate ).not.toHaveBeenCalled()
   } )
 } )

@@ -7,13 +7,12 @@ import Box from '@mui/material/Box'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 // Shared
-import { parseNote } from '@mnemosyne/shared'
-import type { Job } from '@mnemosyne/shared'
+import type { Job, RegenerateSummaryBody } from '@mnemosyne/shared'
 // App
 import { parseTimestampSeconds } from '#src/timestamp'
 import { useDiscardJob } from '#src/hooks/useDiscardJob'
 import { useAutosaveDraft } from '#src/hooks/useAutosaveDraft'
-import type { AutosaveStatus } from '#src/hooks/useAutosaveDraft'
+import { useRegenerateSummary } from '#src/hooks/useRegenerateSummary'
 import { useRetrySummary } from '#src/hooks/useRetrySummary'
 import { useSaveJob } from '#src/hooks/useSaveJob'
 import { useTranscript } from '#src/hooks/useTranscript'
@@ -22,40 +21,21 @@ import { NoteDestination } from '../NoteDestination'
 import { NoteEditor } from '../NoteEditor'
 import type { NoteEditorMode } from '../NoteEditor'
 import { PropertiesPanel } from '../PropertiesPanel'
+import { RegenerateDialog } from '../RegenerateDialog'
 import { ReviewActions } from '../ReviewActions'
 import { SummaryInfo } from '../SummaryInfo'
 import { TranscriptPane } from '../TranscriptPane'
+import {
+  COLUMNS_SX,
+  STATUS_LABELS,
+  TWO_COLUMNS_SX,
+  noteTitle,
+} from './reviewLayout'
 
 interface ReviewScreenProps {
   job: Job
   onSaved: ( savedPath: string ) => void
   onDiscarded: () => void
-}
-
-const STATUS_LABELS: Record< Exclude< AutosaveStatus, 'error' >, string > = {
-  saved: 'Saved',
-  saving: 'Saving…',
-  unsaved: 'Unsaved changes',
-}
-
-const COLUMNS_SX = {
-  display: 'grid',
-  gap: 2,
-  gridTemplateColumns: 'minmax( 0, 1fr )',
-} as const
-
-const TWO_COLUMNS_SX = {
-  ...COLUMNS_SX,
-  alignItems: 'start',
-  gridTemplateColumns: { xs: 'minmax( 0, 1fr )', lg: 'repeat( 2, minmax( 0, 1fr ) )' },
-} as const
-
-const noteTitle = ( note: string ): string | null => {
-  try {
-    return parseNote( note ).properties.title
-  } catch{
-    return null
-  }
 }
 
 export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps ): ReactElement {
@@ -68,6 +48,8 @@ export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps )
   const save = useSaveJob( job.id, autosave.flush )
   const discard = useDiscardJob( job.id )
   const retry = useRetrySummary( job.id )
+  const regenerate = useRegenerateSummary( job.id )
+  const [ isRegenerating, setIsRegenerating ] = useState( false )
 
   const handleCaretLine = ( line: string ): void => {
     const seconds = parseTimestampSeconds( line )
@@ -92,6 +74,12 @@ export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps )
   const handleModeChange = ( next: NoteEditorMode ): void => {
     setMode( next )
     handleBlur()
+  }
+
+  const handleRegenerate = ( choices: RegenerateSummaryBody ): void => {
+    // The note is about to be replaced; a save now would meet a job that is summarizing.
+    autosave.cancelPending()
+    regenerate.mutate( choices, { onSuccess: () => setIsRegenerating( false ) } )
   }
 
   const handleSave = (): void => {
@@ -151,10 +139,24 @@ export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps )
         isSaving={ save.isPending }
         isRetrying={ retry.isPending }
         isDiscarding={ discard.isPending }
+        isRegenerating={ regenerate.isPending }
         onSave={ handleSave }
         onRetry={ () => retry.mutate() }
         onDiscard={ handleDiscard }
+        onRegenerate={ () => {
+          regenerate.reset()
+          setIsRegenerating( true )
+        } }
       />
+      { isRegenerating && (
+        <RegenerateDialog
+          job={ job }
+          isSubmitting={ regenerate.isPending }
+          error={ regenerate.error?.message ?? null }
+          onSubmit={ handleRegenerate }
+          onCancel={ () => setIsRegenerating( false ) }
+        />
+      ) }
     </Stack>
   )
 }
