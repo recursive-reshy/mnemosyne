@@ -9,7 +9,7 @@ The relevant ADRs are 0004, 0006, 0008, 0009, 0011, 0013, 0015, 0019, 0020, 0021
 - Vite, React, TypeScript `strict`, ESM.
 - Vitest, React Testing Library, user-event, jest-dom, jsdom.
 - TanStack Query for server state and React Router for `/` and `/jobs/:id` (ADR 0013).
-- Material UI (`@mui/material`, Emotion, `@mui/icons-material`, `@mui/x-tree-view`) is the only UI library, themed from `src/theme.ts` (ADR 0024). `@mdxeditor/editor` is the note editor (ADR 0019, round-trip rules in ADR 0023).
+- Material UI (`@mui/material`, Emotion, `@mui/icons-material`, `@mui/x-tree-view`) is the only UI library, themed from `src/theme.ts` (ADR 0024). `@mdxeditor/editor` is the note editor (ADR 0019; round-trip rules in ADRs 0023 and 0026; see "Note editor" below).
 - Shared contracts come from `@mnemosyne/shared`.
 
 Don't add a dependency without it being approved first. Ask instead.
@@ -45,6 +45,13 @@ src/
 - **Navigation shell** (`NavDrawer`) may render router `Link`s and read `useLocation` to mark the current item (ADR 0025). Nothing else in it reads or changes the URL.
 - **Route components** (`HomePage`, `JobPage`) own the URL: they read it with `useParams` and change it with `useNavigate` / `Navigate`. Nothing else reads or writes `window.location` or the router.
 - Downloads are `<a href="/api/jobs/:id/download?format=…">` links.
+
+## Note editor
+
+`NoteEditor` wraps MDXEditor. Styled by MUI and `theme.ts` only; its own stylesheet import is the one CSS import in the app.
+- **Toolbar:** the Rich text / Source mode toggle (`ModeToggle`, MUI) plus `FormattingToolbar`, shown in rich-text mode only. `FormattingToolbar` uses MDXEditor's own components as they come (they own focus and state): undo and redo, block type (paragraph, Heading 1 to 3, quote), bold, italic, bulleted and numbered lists, create link. No underline (Markdown has none, so it would be written as HTML), no check lists, code, tables or images. Before adding a control, add what it writes to the fixtures in `test-support/noteFixtures.ts` and check the round trip (ADR 0023); if MDXEditor writes something else, stop and ask.
+- **Dark mode:** MDXEditor is themed by the `dark-theme` class. `NoteEditor` keeps its `className` constant (`"noteEditor"`) and toggles `dark-theme` by hand with `classList` (an effect on the resolved colour scheme, on the editor root and on `.mdxeditor-popup-container`). Never make `className` depend on the colour scheme: a changing `className` makes MDXEditor recreate its popup container and orphans the Radix popups (the block type dropdown stops opening). The mapping of MDXEditor's colour variables to the MUI palette lives in `theme.ts` (`MuiCssBaseline` overrides on `.noteEditor`), because popups render under `<body>`, outside the editor wrapper.
+- **Tests:** toggles are `radio` items with `aria-checked` (Bold is named "Remove bold" while on), the block type is a combobox named "Block type", Create link is a button, and Undo and Redo are named "Undo ..." / "Redo ...". jsdom needs the stubs in `test-support/setup.ts` for Radix Select and the link dialog. jsdom cannot show the block type's label; check that in the browser. After a colour switch, test that the dropdown and the link dialog still open and sit in the popup container.
 
 ## Accessibility
 

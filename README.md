@@ -65,11 +65,11 @@ brew install yt-dlp ffmpeg
 1. Paste a video URL and submit.
 2. Watch the stages: queued, downloading, converting, transcribing, summarizing, ready for review.
 3. Download the transcript as Markdown, SRT or TXT while the job is in review.
-4. Review the note. It opens in a rendered editor with a properties panel (title and tags); switch to source mode to see and edit the raw Markdown, front-matter included. The transcript sits beside it.
+4. Review the note. It opens in a rendered editor with a properties panel (title and tags). A toolbar above the note formats it: undo and redo, block type (paragraph, heading 1 to 3, quote), bold, italic, bulleted and numbered lists, and links. It writes plain Markdown (`#`–`###`, `>`, `**bold**`, `*italic*`, `-`, `1.`, `[text](url)`), so Obsidian reads the note as expected. Switch to source mode to see and edit the raw Markdown, front-matter included; the formatting buttons are hidden there. The transcript sits beside it.
 5. Choose where the note goes with **Change folder**: filter the vault's folders (hidden folders are not shown), pick one, or type a new folder name under the chosen folder. A new folder is created only when you save. Without a choice the note goes to `DEFAULT_NOTE_FOLDER`.
 6. **Save to vault** writes the note and deletes the transcript, or **Discard** deletes the job.
 
-The app opens with a navigation drawer on the left (for now just **Transcriber**). The hamburger in the top bar collapses it to icons or expands it again, and the choice is remembered in the browser. On a narrow window the drawer is hidden and opens over the page. At the bottom of the drawer, **Light**, **Dark** and **System** set the colour mode (System follows the OS and is the default); that choice is remembered too. The note editor itself stays light in dark mode until 0.3.2.
+The app opens with a navigation drawer on the left (for now just **Transcriber**). The hamburger in the top bar collapses it to icons or expands it again, and the choice is remembered in the browser. On a narrow window the drawer is hidden and opens over the page. At the bottom of the drawer, **Light**, **Dark** and **System** set the colour mode (System follows the OS and is the default); that choice is remembered too. The note editor follows the colour mode too.
 
 Edits are saved to the server about a second and a half after you stop typing, when you switch editor mode, leave the editor or choose a folder, and before saving, so a refresh, a crash or another browser shows your latest draft. The status line under the editor reads Saved, Saving… or Not saved, with the reason.
 
