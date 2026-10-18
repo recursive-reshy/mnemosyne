@@ -20,6 +20,7 @@ export interface FeedsState {
   feeds: Feed[]
   isLoading: boolean
   error: string | null
+  updatedAt: number
   createFeed: Mutation< CreateFeedBody >
   updateFeed: Mutation< { id: string, body: UpdateFeedBody } >
   deleteFeed: Mutation< { id: string, removeItems: boolean }, void >
@@ -29,7 +30,7 @@ export interface FeedsState {
 
 export function useFeeds(): FeedsState {
   const queryClient = useQueryClient()
-  const { data, error, isPending } = useQuery( {
+  const { data, error, isPending, dataUpdatedAt } = useQuery( {
     queryKey: feedKeys.all,
     queryFn: listFeeds,
   } )
@@ -69,6 +70,7 @@ export function useFeeds(): FeedsState {
     feeds: data ?? [],
     isLoading: isPending,
     error: error === null ? null : error.message,
+    updatedAt: dataUpdatedAt,
     createFeed: create,
     updateFeed: update,
     deleteFeed: remove,

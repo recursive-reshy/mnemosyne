@@ -1,0 +1,1 @@
+export { FeedSettings } from './FeedSettings'

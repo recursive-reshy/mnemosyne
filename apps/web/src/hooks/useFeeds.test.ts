@@ -57,6 +57,7 @@ describe( 'useFeeds', () => {
     await vi.waitFor( () => expect( result.current.isLoading ).toBe( false ) )
     expect( result.current.feeds ).toEqual( [ feedFixture() ] )
     expect( result.current.error ).toBeNull()
+    expect( result.current.updatedAt ).toBeGreaterThan( 0 )
   } )
 
   it( 'reports a load error', async () => {
