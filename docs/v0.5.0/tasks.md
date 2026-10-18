@@ -63,7 +63,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 6.7 | Endpoints: `POST /api/jobs` new fields, `POST /api/jobs/:id/text`, download 409 for articles; `PATCH /api/settings` interval; each error status through `app.ts` (TRD §7) | 0030 | ✅ |
 
 ## Checkpoint D: Phase 7 (web articles)
-**Plan:** ⬜ [`plans/checkpoint-d.md`](plans/checkpoint-d.md)
+**Plan:** ✅ [`plans/checkpoint-d.md`](plans/checkpoint-d.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
