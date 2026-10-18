@@ -97,7 +97,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 9.4 | Home page `FeedInbox` and `SummarizeItemsDialog`; feed chip in the job list and on the review screen (TRD §8.4, §8.6) | 0032 | ✅ |
 
 ## Checkpoint G: Phase 10 (clean-up and verification)
-**Plan:** ⬜ [`plans/checkpoint-g.md`](plans/checkpoint-g.md)
+**Plan:** ✅ [`plans/checkpoint-g.md`](plans/checkpoint-g.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |

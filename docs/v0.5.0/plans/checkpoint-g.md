@@ -1,0 +1,35 @@
+# Checkpoint G plan: Phase 10 (clean-up and verification)
+
+Next: **Checkpoint G, task 10.1** (Plan cell ⬜). A–F are done (last commit `0ad119a`). On approval: save this to `docs/v0.5.0/plans/checkpoint-g.md`, tick the Plan cell, commit `docs(plan): checkpoint G`, push, then start 10.1.
+
+Read: PRD, TRD §9 and §10, `tasks.md`, the root and app `CLAUDE.md` files, the README, `docs/README.md`, `docs/v0.4.0/release-notes.md` (the template for 10.4). No code changes and so no TDD; the checks are the tests that already exist. Gate after each task that touches a package: that package's test, lint, typecheck. Docs-only commits state "docs only, no tests" in the log line.
+
+## 10.1 Docs
+- `apps/web/CLAUDE.md`: mostly done in 9.4 (ADR list, feeds components, browser tests). Add what is still missing: the submit form (`SourceTypeSwitch`, `PasteSection`, `PastedTextFields`, `PasteTextDialog`), `SourcePane` (renamed from `TranscriptPane`) with its article view, `useSource`, and the `useFeeds` family in the hooks line. Check the folder-structure and layers text for any leftover "transcript" wording.
+- `README.md`: "How it works" (articles, pasted text, feeds and the inbox, ADR 0030–0032 in one short paragraph each way the server fetches pages itself), the diagram, **Using it** (article URL, the Video/Article switch, Paste text instead and Paste text on a failed job, Settings → Feeds, the From feeds inbox, Summarize automatically), **Settings** (both locked instruction texts, Feeds section), the API paragraph (new endpoints: `GET /api/jobs/:id/source` replacing `/transcript`, `POST /api/jobs/:id/text`, the feeds and feed-items endpoints, `source_type`/`text`/`title` on `POST /api/jobs`), **Output formats** (article front-matter: `author`, `site`, `published`; no SRT/TXT for articles), **Development** (`pnpm --filter web test:browser`, the one-time `playwright install chromium webkit` line already exists), **Troubleshooting** (a page that needs a login: use Paste text; a feed with an error), **Status and roadmap** (remove the caret-sync known issue, which 0.5.0 fixes; add Gmail adapter and OPML as next steps from PRD §8).
+- Commit `docs(10.1): web CLAUDE.md and README for 0.5.0` (task id format: `feat` is for code, so `docs(10.1)`).
+
+## 10.2 Version 0.5.0
+- `"version": "0.5.0"` in the root, `apps/server`, `apps/web` and `packages/shared` `package.json`, and the README status line ("Version 0.5.0."). `src/version.ts` reads the nearest `package.json`, so the HTTP User-Agent follows.
+- Check first with a search that no test pins 0.4.0 (server `version.test.ts`, health response). If one does, it is changed in this commit and listed in the log line.
+- Gate: root `pnpm test`, `lint`, `typecheck` (all three packages). Commit `feat(10.2): version 0.5.0` (a `chore` would not fit the task-id format used so far).
+
+## 10.3 Final checks (reported, not ticked until Naresh confirms)
+1. `pnpm test`, `pnpm --filter web test:browser`, `pnpm lint`, `pnpm typecheck` in shared, server and web; `pnpm build` (web and server). Report the counts per package.
+2. **Migration against a copy of the real 0.4.0 database.** The volume `mnemosyne_mnemosyne-data` exists in Docker. Read-only steps: stop nothing; copy `mnemosyne.db*` out with a throwaway `alpine` container into the scratchpad (the live container keeps running; if the database is mid-write I copy while the container is stopped only if Naresh agrees), run the built server against the copy (`DATA_DIR` = the copy, scratch vault, Claude on a closed port), and check: startup reaches `user_version 5`; jobs and settings and profiles are intact (counts before and after through the API and `sqlite3`); `GET /api/jobs/:id/source` returns `kind: "video"` for an old job; a saved or review job opens. The real volume is never written to.
+3. **Browser checks from TRD §9**, on the real app (scratch database, built web app, the local Node feed host from checkpoint E, Claude on a closed port), Chromium and WebKit, light and dark, 1280 and 390 wide: the submit form with the switch and paste box, an article in review (seeded review job with an article document), a failed article with Paste text and its dialog, Settings → Feeds with the Add dialog, the home inbox. Checkpoints D and F already screenshotted each of these; this run repeats them on the final build and is the one I report from. I look at the screenshots and say what I saw.
+4. **The real check with Naresh** (TRD §9, needs his API key, vault and the network): one real article URL; one paywalled article through Paste text; two real feeds (a full-text blog and a Medium or Substack feed) and a YouTube channel; baseline item, Check now, Summarize from the inbox with a different profile, Dismiss; caret sync on a real video in Chrome and Safari. I give him a short numbered list to follow and wait for his result; I do not tick 10.3 until he confirms.
+- No commit for the checks themselves; the results go in the checkpoint report. On Naresh's confirmation, the tick and log line go in a `docs(10.3): final checks` commit.
+
+## 10.4 Release notes
+- `docs/v0.5.0/release-notes.md` in the 0.4.0 shape: summary; **New** (articles, pasted text, video/article detection, feeds and the inbox, auto-summarize, source adapters, caret-sync fix); **Changes** (`/transcript` → `/source`, `locked_instructions` now `{ video, article }`, the `transcript` column renamed `source_document`, new job statuses and fields, front-matter keys per source); **Upgrading** (back up the database with the same `docker run … cp` command as 0.4.0 notes, rebuild, migration 4 → 5 note with the result of the real-copy run from 10.3, no new environment variables, the one-time browser-test setup for development); **Known issues** (only real ones from the real check; the fetched-page limits: no JavaScript rendering, paywalled pages need Paste text); **ADRs** (0030–0034 with a line each, and which ones change the TRD: none expected); a Design notes block as in 0.4.0.
+- Link it from `docs/README.md` (the v0.5.0 line gets "Release notes" and loses "(in progress)", ADR index already has 0030–0034). Release date and the tag line are left for Naresh to set when he tags (I don't tag or release).
+- Commit `docs(10.4): release notes`.
+
+## Checkpoint end and report
+Commits per task, per-package results, the migration-copy result, screenshots seen, the real-check list for Naresh, ADRs (0030–0034, whether any changes the TRD), and anything deferred (OPML, Gmail, per-feed model, lazy-loaded editor: all PRD §8). Tag and Docker rebuild are Naresh's.
+
+## Decisions to confirm
+1. **Copying the real database.** I copy it from the live Docker volume with a read-only throwaway container. If you would rather stop the container first (a clean copy), say so; I will not stop it myself.
+2. **10.3 stays unticked** until you have done the real check and confirmed, as `tasks.md` says; the checkpoint report will therefore end with 10.3 open.
+3. **Commit types** for docs and version tasks use `docs(10.x)` and `feat(10.2)`; say if you prefer `chore` for the version bump.
