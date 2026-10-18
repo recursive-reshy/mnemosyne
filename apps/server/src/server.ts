@@ -14,6 +14,7 @@ import { recoverInterruptedJobs } from './services/jobs.service.js'
 // Shutdown
 import { SHUTDOWN_TIMEOUT_MS, createShutdown } from './shutdown.js'
 // Worker
+import { startFeedPoller } from './worker/feedPoller.js'
 import { startSweeper } from './worker/sweeper.js'
 import { startWorker } from './worker/worker.js'
 
@@ -39,6 +40,7 @@ if( interrupted > 0 ) {
 
 const stopSweeper = startSweeper()
 const stopWorker = startWorker()
+const stopFeedPoller = startFeedPoller()
 
 const server = app.listen( config.port, () => {
   console.log( `Mnemosyne server listening on http://localhost:${ config.port }` )
@@ -54,6 +56,7 @@ const shutdown = createShutdown( {
   closeServer,
   closeStore: closeDatabase,
   stopSweeper,
+  stopFeedPoller,
   timeoutMs: SHUTDOWN_TIMEOUT_MS,
   exit: ( code ) => process.exit( code ),
   log: ( message ) => console.log( message ),
