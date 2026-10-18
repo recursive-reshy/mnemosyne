@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/">
+<channel>
+<title>Example Blog</title>
+<link>https://blog.example.com</link>
+<description>Posts</description>
+<item>
+<title>Newest post</title>
+<link>https://blog.example.com/posts/newest#comments</link>
+<guid isPermaLink="false">post-3</guid>
+<pubDate>Thu, 15 Oct 2026 09:00:00 GMT</pubDate>
+<dc:creator>Ada Lovelace</dc:creator>
+<description>A short teaser only.</description>
+<content:encoded><![CDATA[<p>Paragraph 0 of the full text of this post, written to be long enough to pass the content threshold for a feed item. It talks about ownership, borrowing and lifetimes in some depth.</p><p>Paragraph 1 of the full text of this post, written to be long enough to pass the content threshold for a feed item. It talks about ownership, borrowing and lifetimes in some depth.</p><p>Paragraph 2 of the full text of this post, written to be long enough to pass the content threshold for a feed item. It talks about ownership, borrowing and lifetimes in some depth.</p><p>Paragraph 3 of the full text of this post, written to be long enough to pass the content threshold for a feed item. It talks about ownership, borrowing and lifetimes in some depth.</p><p>Paragraph 4 of the full text of this post, written to be long enough to pass the content threshold for a feed item. It talks about ownership, borrowing and lifetimes in some depth.</p><p>Paragraph 5 of the full text of this post, written to be long enough to pass the content threshold for a feed item. It talks about ownership, borrowing and lifetimes in some depth.</p>]]></content:encoded>
+</item>
+<item>
+<title>Middle post</title>
+<link>https://blog.example.com/posts/middle</link>
+<guid isPermaLink="true">https://blog.example.com/posts/middle</guid>
+<pubDate>Mon, 12 Oct 2026 09:00:00 GMT</pubDate>
+<description>Just a teaser, no full text.</description>
+</item>
+<item>
+<title>Old post with a bad date</title>
+<link>https://blog.example.com/posts/old</link>
+<pubDate>not a date</pubDate>
+</item>
+<item>
+<title>An item with no link</title>
+<guid>no-link</guid>
+</item>
+</channel>
+</rss>

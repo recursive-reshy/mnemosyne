@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+<title>Atom Notes</title>
+<id>urn:uuid:atom-notes</id>
+<updated>2026-10-16T00:00:00Z</updated>
+<link rel="self" href="https://atom.example.com/feed.atom"/>
+<entry>
+<title>First entry</title>
+<id>tag:atom.example.com,2026:1</id>
+<link rel="replies" href="https://atom.example.com/1/comments"/>
+<link rel="alternate" href="https://atom.example.com/1"/>
+<published>2026-10-10T08:00:00Z</published>
+<updated>2026-10-16T00:00:00Z</updated>
+<author><name>Grace Hopper</name></author>
+<content type="html"><![CDATA[<p>Paragraph 0 of the full text of this post, written to be long enough to pass the content threshold for a feed item. It talks about ownership, borrowing and lifetimes in some depth.</p><p>Paragraph 1 of the full text of this post, written to be long enough to pass the content threshold for a feed item. It talks about ownership, borrowing and lifetimes in some depth.</p><p>Paragraph 2 of the full text of this post, written to be long enough to pass the content threshold for a feed item. It talks about ownership, borrowing and lifetimes in some depth.</p><p>Paragraph 3 of the full text of this post, written to be long enough to pass the content threshold for a feed item. It talks about ownership, borrowing and lifetimes in some depth.</p><p>Paragraph 4 of the full text of this post, written to be long enough to pass the content threshold for a feed item. It talks about ownership, borrowing and lifetimes in some depth.</p><p>Paragraph 5 of the full text of this post, written to be long enough to pass the content threshold for a feed item. It talks about ownership, borrowing and lifetimes in some depth.</p>]]></content>
+</entry>
+<entry>
+<title>Second entry</title>
+<id>tag:atom.example.com,2026:2</id>
+<link href="https://atom.example.com/2"/>
+<updated>2026-10-09T08:00:00Z</updated>
+<summary>Only a summary.</summary>
+</entry>
+</feed>

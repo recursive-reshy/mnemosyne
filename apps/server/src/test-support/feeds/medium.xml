@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:content="http://purl.org/rss/1.0/modules/content/" version="2.0">
+<channel>
+<title><![CDATA[Stories by Grace on Medium]]></title>
+<link>https://medium.com/@grace?source=rss</link>
+<item>
+<title><![CDATA[Why I Stopped Using Frameworks]]></title>
+<link>https://medium.com/@grace/why-i-stopped-using-frameworks-abc123?source=rss-1</link>
+<guid isPermaLink="false">https://medium.com/p/abc123</guid>
+<dc:creator><![CDATA[Grace Hopper]]></dc:creator>
+<pubDate>Sun, 11 Oct 2026 12:00:00 GMT</pubDate>
+<content:encoded><![CDATA[<p>Paragraph 0 of the full text of this post, written to be long enough to pass the content threshold for a feed item. It talks about ownership, borrowing and lifetimes in some depth.</p><p>Paragraph 1 of the full text of this post, written to be long enough to pass the content threshold for a feed item. It talks about ownership, borrowing and lifetimes in some depth.</p><p>Paragraph 2 of the full text of this post, written to be long enough to pass the content threshold for a feed item. It talks about ownership, borrowing and lifetimes in some depth.</p><p>Paragraph 3 of the full text of this post, written to be long enough to pass the content threshold for a feed item. It talks about ownership, borrowing and lifetimes in some depth.</p><p>Paragraph 4 of the full text of this post, written to be long enough to pass the content threshold for a feed item. It talks about ownership, borrowing and lifetimes in some depth.</p><p>Paragraph 5 of the full text of this post, written to be long enough to pass the content threshold for a feed item. It talks about ownership, borrowing and lifetimes in some depth.</p>]]></content:encoded>
+</item>
+</channel>
+</rss>
