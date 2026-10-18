@@ -16,7 +16,7 @@ import { listSummaryModels } from '../clients/anthropicModels.client.js'
 // Services
 import { clearModelCache } from '../services/models.service.js'
 import { listProfiles } from '../services/prompts.service.js'
-import { LOCKED_INSTRUCTIONS } from '../summarizer/prompts.js'
+import { LOCKED_INSTRUCTIONS_ARTICLE, LOCKED_INSTRUCTIONS_VIDEO } from '../summarizer/prompts.js'
 
 vi.mock( '../clients/anthropicModels.client.js' )
 
@@ -46,7 +46,10 @@ describe( 'GET /api/settings', () => {
         default_profile_id: profileId( 'Business ideas' ),
         feed_check_interval_minutes: 60,
       },
-      locked_instructions: { video: LOCKED_INSTRUCTIONS, article: LOCKED_INSTRUCTIONS },
+      locked_instructions: {
+        video: LOCKED_INSTRUCTIONS_VIDEO,
+        article: LOCKED_INSTRUCTIONS_ARTICLE,
+      },
     } )
   } )
 } )

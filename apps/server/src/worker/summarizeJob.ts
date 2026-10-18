@@ -9,7 +9,7 @@ import {
 import { resolvePrompt } from '../services/prompts.service.js'
 import { getSettings } from '../services/settings.service.js'
 // Clients
-import { SummaryError, summarizeTranscript } from '../clients/claude.client.js'
+import { SummaryError, summarizeSource } from '../clients/claude.client.js'
 import type { SummaryOutcome } from '../clients/claude.client.js'
 // Formatters
 import { cleanSummary } from '../formatters/summary.cleanup.js'
@@ -18,13 +18,7 @@ import { formatSummary } from '../formatters/summary.formatter.js'
 export const summarizeJob = async ( jobId: string ): Promise< void > => {
   try {
     const job = findJob( jobId )
-    const source = getSource( jobId )
-
-    if( source.kind !== 'video' ) {
-      throw new Error( 'Article summaries are not supported yet' )
-    }
-
-    const transcript = { meta: source.meta, segments: source.segments }
+    const document = getSource( jobId )
     const { version } = resolvePrompt( job.prompt_profile_id )
     const model = job.summary_model ?? getSettings().default_model
     const promptVersionId = version.id
@@ -32,7 +26,7 @@ export const summarizeJob = async ( jobId: string ): Promise< void > => {
     let outcome: SummaryOutcome
 
     try {
-      outcome = await summarizeTranscript( { transcript, model, guidance: version.guidance } )
+      outcome = await summarizeSource( { document, model, guidance: version.guidance } )
     } catch( error ) {
       recordSummaryRun( jobId, {
         model,
@@ -46,11 +40,11 @@ export const summarizeJob = async ( jobId: string ): Promise< void > => {
 
     recordSummaryRun( jobId, { model, promptVersionId, usage: outcome.usage } )
 
-    const summary = cleanSummary( outcome.summary, transcript )
+    const summary = cleanSummary( outcome.summary, document )
 
     completeSummary(
       jobId,
-      formatSummary( summary, transcript.meta.source ),
+      formatSummary( summary, document ),
       summary.tags,
     )
   } catch( error ) {

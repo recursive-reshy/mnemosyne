@@ -1,6 +1,7 @@
 // Shared
 import {
   FeedCheckInterval,
+  GetSettingsResponse,
   Settings,
   UpdateSettingsBody,
 } from '@mnemosyne/shared'
@@ -8,7 +9,7 @@ import {
 import { getSetting, setSetting } from '../repositories/settings.repository.js'
 // Summarizer
 import { SHIPPED_DEFAULT_MODEL } from '../summarizer/models.js'
-import { LOCKED_INSTRUCTIONS } from '../summarizer/prompts.js'
+import { LOCKED_INSTRUCTIONS_ARTICLE, LOCKED_INSTRUCTIONS_VIDEO } from '../summarizer/prompts.js'
 // Services
 import { assertKnownModel } from './models.service.js'
 import { assertActiveProfile, resolvePrompt } from './prompts.service.js'
@@ -26,7 +27,10 @@ export const getSettings = (): Settings => {
   }
 }
 
-export const getLockedInstructions = (): string => LOCKED_INSTRUCTIONS
+export const getLockedInstructions = (): GetSettingsResponse[ 'locked_instructions' ] => ( {
+  video: LOCKED_INSTRUCTIONS_VIDEO,
+  article: LOCKED_INSTRUCTIONS_ARTICLE,
+} )
 
 export const updateSettings = async ( body: UpdateSettingsBody ): Promise< Settings > => {
   if( body.default_model !== undefined ) {

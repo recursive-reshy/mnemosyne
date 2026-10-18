@@ -11,7 +11,7 @@ import { ValidationError } from '../errors.js'
 // Repositories
 import { getSetting, setSetting } from '../repositories/settings.repository.js'
 // Summarizer
-import { LOCKED_INSTRUCTIONS } from '../summarizer/prompts.js'
+import { LOCKED_INSTRUCTIONS_ARTICLE, LOCKED_INSTRUCTIONS_VIDEO } from '../summarizer/prompts.js'
 // Services
 import { assertKnownModel } from './models.service.js'
 import { deleteProfile, listProfiles } from './prompts.service.js'
@@ -51,8 +51,11 @@ describe( 'getSettings', () => {
 } )
 
 describe( 'getLockedInstructions', () => {
-  it( 'returns the locked instructions', () => {
-    expect( getLockedInstructions() ).toBe( LOCKED_INSTRUCTIONS )
+  it( 'returns the locked instructions for videos and articles', () => {
+    expect( getLockedInstructions() ).toEqual( {
+      video: LOCKED_INSTRUCTIONS_VIDEO,
+      article: LOCKED_INSTRUCTIONS_ARTICLE,
+    } )
   } )
 } )
 

@@ -8,7 +8,12 @@ import {
   beforeEach,
 } from 'vitest'
 // Clients
-import { SummaryError, SummaryResult, summarizeTranscript } from './claude.client.js'
+import {
+  ArticleSummaryResult,
+  SummaryError,
+  SummaryResult,
+  summarizeSource,
+} from './claude.client.js'
 // Summarizer
 import { buildSystemPrompt } from '../summarizer/prompts.js'
 // Fixtures
@@ -48,8 +53,33 @@ const summary: SummaryResult = {
   tags: [ 'formatters' ],
 }
 
+const articleSummary: ArticleSummaryResult = {
+  overview: 'A short post about habits.',
+  key_points: [ 'Small habits compound' ],
+  quotes: [ 'Do it daily.' ],
+  tags: [ 'habits' ],
+}
+
+const articleInput = {
+  document: {
+    kind: 'article' as const,
+    meta: {
+      title: 'The Quiet Compounding of Small Habits',
+      source: 'https://example.com/habits',
+      author: 'Alan Turing',
+      site: 'Notes on Work',
+      published: '2026-08-30',
+      fetched_at: '2026-10-18T10:00:00.000Z',
+      origin: 'fetched' as const,
+    },
+    markdown: '## What to do\n\nDo it daily.',
+  },
+  model: 'claude-sonnet-5-5',
+  guidance: 'Focus on pricing.',
+}
+
 const input = {
-  transcript: transcriptFixture,
+  document: { kind: 'video' as const, ...transcriptFixture },
   model: 'claude-opus-5-5',
   guidance: 'Focus on pricing.',
 }
@@ -67,18 +97,18 @@ beforeEach( () => {
   parse.mockResolvedValue( reply() )
 } )
 
-describe( 'summarizeTranscript', () => {
+describe( 'summarizeSource', () => {
   it( 'returns the parsed summary with the tokens it used', async () => {
-    const result = await summarizeTranscript( input )
+    const result = await summarizeSource( input )
 
     expect( result ).toEqual( {
-      summary,
+      summary: { kind: 'video', ...summary },
       usage: { input_tokens: 1234, output_tokens: 56 },
     } )
   } )
 
   it( 'builds the client with the key, the configured timeout and one retry', async () => {
-    await summarizeTranscript( input )
+    await summarizeSource( input )
 
     expect( constructed ).toEqual( [ {
       apiKey: 'sk-test',
@@ -88,7 +118,7 @@ describe( 'summarizeTranscript', () => {
   } )
 
   it( 'asks the summary model for structured output with room to think', async () => {
-    await summarizeTranscript( input )
+    await summarizeSource( input )
 
     const [ request ] = parse.mock.calls[ 0 ] as [ Record< string, unknown > ]
 
@@ -100,15 +130,15 @@ describe( 'summarizeTranscript', () => {
   } )
 
   it( 'sends the locked instructions followed by the guidance as the system prompt', async () => {
-    await summarizeTranscript( input )
+    await summarizeSource( input )
 
     const [ request ] = parse.mock.calls[ 0 ] as [ Record< string, unknown > ]
 
-    expect( request.system ).toBe( buildSystemPrompt( 'Focus on pricing.' ) )
+    expect( request.system ).toBe( buildSystemPrompt( 'Focus on pricing.', 'video' ) )
   } )
 
   it( 'sends one [seconds] line per non-blank segment', async () => {
-    await summarizeTranscript( input )
+    await summarizeSource( input )
 
     const [ request ] = parse.mock.calls[ 0 ] as [
       { messages: { role: string, content: string }[] },
@@ -129,7 +159,7 @@ describe( 'summarizeTranscript', () => {
   it( 'throws when the output could not be parsed', async () => {
     parse.mockResolvedValue( reply( { parsed_output: null } ) )
 
-    await expect( summarizeTranscript( input ) ).rejects.toThrow(
+    await expect( summarizeSource( input ) ).rejects.toThrow(
       'Summary response did not match the expected format',
     )
   } )
@@ -140,7 +170,7 @@ describe( 'summarizeTranscript', () => {
   ] )( 'throws when the stop reason is %s', async ( stopReason, message ) => {
     parse.mockResolvedValue( reply( { stop_reason: stopReason } ) )
 
-    await expect( summarizeTranscript( input ) ).rejects.toThrow(
+    await expect( summarizeSource( input ) ).rejects.toThrow(
       message,
     )
   } )
@@ -152,7 +182,7 @@ describe( 'summarizeTranscript', () => {
   ] )( 'carries the billed tokens on an unusable response (%j)', async ( overrides, message ) => {
     parse.mockResolvedValue( reply( overrides ) )
 
-    const error: unknown = await summarizeTranscript( input ).catch( ( caught: unknown ) => caught )
+    const error: unknown = await summarizeSource( input ).catch( ( caught: unknown ) => caught )
 
     expect( error ).toBeInstanceOf( SummaryError )
     expect( ( error as SummaryError ).message ).toContain( message )
@@ -162,7 +192,7 @@ describe( 'summarizeTranscript', () => {
   it( 'throws a SummaryError without usage for an API error', async () => {
     parse.mockRejectedValue( new Anthropic.APIError( 500, undefined, 'Overloaded', undefined ) )
 
-    const error: unknown = await summarizeTranscript( input ).catch( ( caught: unknown ) => caught )
+    const error: unknown = await summarizeSource( input ).catch( ( caught: unknown ) => caught )
 
     expect( error ).toBeInstanceOf( SummaryError )
     expect( ( error as SummaryError ).usage ).toBeUndefined()
@@ -171,7 +201,7 @@ describe( 'summarizeTranscript', () => {
   it( 'wraps API errors with a readable message', async () => {
     parse.mockRejectedValue( new Anthropic.APIError( 429, undefined, 'Rate limited', undefined ) )
 
-    await expect( summarizeTranscript( input ) ).rejects.toThrow(
+    await expect( summarizeSource( input ) ).rejects.toThrow(
       'Summary request failed: Rate limited',
     )
   } )
@@ -179,7 +209,7 @@ describe( 'summarizeTranscript', () => {
   it( 'lets other errors through unchanged', async () => {
     parse.mockRejectedValue( new TypeError( 'boom' ) )
 
-    await expect( summarizeTranscript( input ) ).rejects.toThrow(
+    await expect( summarizeSource( input ) ).rejects.toThrow(
       'boom',
     )
   } )
@@ -189,5 +219,64 @@ describe( 'SummaryResult', () => {
   it( 'accepts a valid summary and rejects a missing overview', () => {
     expect( SummaryResult.safeParse( summary ).success ).toBe( true )
     expect( SummaryResult.safeParse( { ...summary, overview: undefined } ).success ).toBe( false )
+  } )
+} )
+
+describe( 'summarizeSource for an article', () => {
+  beforeEach( () => {
+    parse.mockResolvedValue( reply( { parsed_output: articleSummary } ) )
+  } )
+
+  it( 'returns the summary tagged as an article, with the tokens it used', async () => {
+    expect( await summarizeSource( articleInput ) ).toEqual( {
+      summary: { kind: 'article', ...articleSummary },
+      usage: { input_tokens: 1234, output_tokens: 56 },
+    } )
+  } )
+
+  it( 'sends the article locked instructions followed by the guidance', async () => {
+    await summarizeSource( articleInput )
+
+    const [ request ] = parse.mock.calls[ 0 ] as [ Record< string, unknown > ]
+
+    expect( request.system ).toBe( buildSystemPrompt( 'Focus on pricing.', 'article' ) )
+  } )
+
+  it( 'sends the title and the Markdown as the one user message', async () => {
+    await summarizeSource( articleInput )
+
+    const [ request ] = parse.mock.calls[ 0 ] as [
+      { messages: { role: string, content: string }[] },
+    ]
+
+    expect( request.messages ).toEqual( [ {
+      role: 'user',
+      content: '# The Quiet Compounding of Small Habits\n\n## What to do\n\nDo it daily.',
+    } ] )
+  } )
+
+  it( 'keeps the model, the token limit and the effort of the video call', async () => {
+    await summarizeSource( articleInput )
+
+    const [ request ] = parse.mock.calls[ 0 ] as [ Record< string, unknown > ]
+
+    expect( request ).toMatchObject( {
+      model: 'claude-sonnet-5-5',
+      max_tokens: 16_000,
+      output_config: { effort: 'medium', format: expect.anything() as unknown },
+    } )
+  } )
+
+  it( 'throws when the output does not match the article format', async () => {
+    parse.mockResolvedValue( reply( { parsed_output: null } ) )
+
+    await expect( summarizeSource( articleInput ) )
+      .rejects.toThrow( 'Summary response did not match the expected format' )
+  } )
+
+  it( 'rejects an output shaped like a video summary', async () => {
+    parse.mockResolvedValue( reply( { parsed_output: summary } ) )
+
+    await expect( summarizeSource( articleInput ) ).rejects.toThrow( SummaryError )
   } )
 } )

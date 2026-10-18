@@ -24,7 +24,7 @@ import { setSetting } from '../repositories/settings.repository.js'
 // Prompts
 import { listProfiles, saveVersion } from '../services/prompts.service.js'
 // Clients
-import { SummaryError, summarizeTranscript } from '../clients/claude.client.js'
+import { SummaryError, summarizeSource } from '../clients/claude.client.js'
 // Models
 import { assertKnownModel } from '../services/models.service.js'
 // Worker
@@ -33,12 +33,12 @@ import { summarizeJob } from './summarizeJob.js'
 vi.mock( '../clients/claude.client.js', async ( importOriginal ) => {
   const original = await importOriginal< typeof import( '../clients/claude.client.js' ) >()
 
-  return { ...original, summarizeTranscript: vi.fn() }
+  return { ...original, summarizeSource: vi.fn() }
 } )
 
 vi.mock( '../services/models.service.js' )
 
-const summarizeMock = vi.mocked( summarizeTranscript )
+const summarizeMock = vi.mocked( summarizeSource )
 
 const transcript: Transcript = {
   meta: {
@@ -71,6 +71,7 @@ beforeEach( () => {
   vi.mocked( assertKnownModel ).mockResolvedValue( undefined )
   summarizeMock.mockResolvedValue( {
     summary: {
+      kind: 'video',
       overview: 'An overview.',
       key_points: [ { text: 'Ownership', seconds: 2 }, { text: 'Too late', seconds: 999 } ],
       quotes: [
@@ -90,7 +91,7 @@ describe( 'summarizeJob', () => {
     await summarizeJob( id )
 
     expect( summarizeMock ).toHaveBeenCalledWith( {
-      transcript,
+      document: { kind: 'video', ...transcript },
       model: 'claude-sonnet-5-5',
       guidance: expect.any( String ) as string,
     } )
@@ -142,7 +143,7 @@ describe( 'summarizeJob', () => {
     await summarizeJob( id )
 
     expect( summarizeMock ).toHaveBeenCalledWith( {
-      transcript,
+      document: { kind: 'video', ...transcript },
       model: 'claude-opus-5-5',
       guidance: 'Be brief.',
     } )
@@ -156,7 +157,7 @@ describe( 'summarizeJob', () => {
     await summarizeJob( id )
 
     expect( summarizeMock ).toHaveBeenCalledWith( {
-      transcript,
+      document: { kind: 'video', ...transcript },
       model: 'claude-sonnet-4-6',
       guidance: coding?.current_version.guidance,
     } )
@@ -242,7 +243,13 @@ describe( 'summarizeJob', () => {
     await summarizeJob( id )
     updateDraft( id, { target_folder: 'Learning' } )
     summarizeMock.mockResolvedValue( {
-      summary: { overview: 'A second take.', key_points: [], quotes: [], tags: [ 'rust' ] },
+      summary: {
+        kind: 'video',
+        overview: 'A second take.',
+        key_points: [],
+        quotes: [],
+        tags: [ 'rust' ],
+      },
       usage: { input_tokens: 80, output_tokens: 10 },
     } )
 
@@ -262,46 +269,105 @@ describe( 'summarizeJob', () => {
     } )
   } )
 
-  it( 'fails the summary for an article until articles are supported', async () => {
-    const id = crypto.randomUUID()
-    insertJob( {
-      id,
-      url: 'https://example.com/post',
-      status: 'summarizing',
-      error: null,
-      created_at: '2026-10-18T10:00:00.000Z',
-      updated_at: '2026-10-18T10:00:00.000Z',
-      title: 'A post',
-      note_markdown: null,
-      target_folder: null,
-      expires_at: null,
-      saved_path: null,
-      summary_model: null,
-      prompt_profile_id: null,
-      source_type: 'article',
-      feed_id: null,
-      feed_name: null,
-      source_document: {
-        kind: 'article',
-        meta: {
-          title: 'A post',
-          source: 'https://example.com/post',
-          author: null,
-          site: null,
-          published: null,
-          fetched_at: '2026-10-18T10:00:00.000Z',
-          origin: 'pasted',
-        },
-        markdown: 'Some text.',
+  describe( 'for an article', () => {
+    const markdown = 'Small things *compound* over time.\n\nDo it daily.'
+    const articleDocument = {
+      kind: 'article' as const,
+      meta: {
+        title: 'A post',
+        source: 'https://example.com/post',
+        author: 'Ada',
+        site: 'Example',
+        published: '2026-10-01',
+        fetched_at: '2026-10-18T10:00:00.000Z',
+        origin: 'fetched' as const,
       },
+      markdown,
+    }
+
+    const queueArticle = (): string => {
+      const id = crypto.randomUUID()
+
+      insertJob( {
+        id,
+        url: articleDocument.meta.source,
+        status: 'summarizing',
+        error: null,
+        created_at: '2026-10-18T10:00:00.000Z',
+        updated_at: '2026-10-18T10:00:00.000Z',
+        title: 'A post',
+        note_markdown: null,
+        target_folder: null,
+        expires_at: null,
+        saved_path: null,
+        summary_model: null,
+        prompt_profile_id: null,
+        source_type: 'article',
+        feed_id: null,
+        feed_name: null,
+        source_document: articleDocument,
+      } )
+
+      return id
+    }
+
+    beforeEach( () => {
+      summarizeMock.mockResolvedValue( {
+        summary: {
+          kind: 'article',
+          overview: 'An overview of habits.',
+          key_points: [ 'Small things compound' ],
+          quotes: [ 'Small things compound over time.', 'An invented sentence.' ],
+          tags: [ 'Habits', 'mnemosyne' ],
+        },
+        usage: { input_tokens: 50, output_tokens: 10 },
+      } )
     } )
 
-    await summarizeJob( id )
+    it( 'sends the stored article to the client', async () => {
+      const id = queueArticle()
 
-    expect( summarizeMock ).not.toHaveBeenCalled()
-    expect( findJob( id ) ).toMatchObject( {
-      status: 'summary_failed',
-      error: 'Article summaries are not supported yet',
+      await summarizeJob( id )
+
+      expect( summarizeMock ).toHaveBeenCalledWith( {
+        document: articleDocument,
+        model: 'claude-sonnet-5-5',
+        guidance: expect.any( String ) as string,
+      } )
+    } )
+
+    it( 'stores a cleaned note with article front-matter and no timestamps', async () => {
+      const id = queueArticle()
+
+      await summarizeJob( id )
+
+      const job = findJob( id )
+      const note = parseNote( job.note_markdown ?? '' )
+
+      expect( job.status ).toBe( 'ready_for_review' )
+      expect( note.properties ).toEqual( {
+        title: 'A post',
+        source: 'https://example.com/post',
+        author: 'Ada',
+        site: 'Example',
+        published: '2026-10-01',
+        created: new Date().toISOString().slice( 0, 10 ),
+        tags: [ 'mnemosyne', 'habits' ],
+      } )
+      expect( note.body ).toBe( [
+        '## Summary',
+        '',
+        'An overview of habits.',
+        '',
+        '## Key points',
+        '',
+        '- Small things compound',
+        '',
+        '## Notable quotes',
+        '',
+        '> "Small things compound over time."',
+        '',
+      ].join( '\n' ) )
     } )
   } )
 } )

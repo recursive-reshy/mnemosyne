@@ -5,14 +5,15 @@ import { describe, it, expect } from 'vitest'
 import { Guidance } from '@mnemosyne/shared'
 // Summarizer
 import {
-  LOCKED_INSTRUCTIONS,
+  LOCKED_INSTRUCTIONS_ARTICLE,
+  LOCKED_INSTRUCTIONS_VIDEO,
   SEEDED_PROFILES,
   buildSystemPrompt,
 } from './prompts.js'
 
-describe( 'LOCKED_INSTRUCTIONS', () => {
+describe( 'LOCKED_INSTRUCTIONS_VIDEO', () => {
   it( 'is the text of TRD §5.1', () => {
-    expect( LOCKED_INSTRUCTIONS ).toBe( [
+    expect( LOCKED_INSTRUCTIONS_VIDEO ).toBe( [
       'You summarize the transcript of a video for a personal Obsidian vault.',
       '',
       'Each transcript line starts with the second at which it begins, in square brackets, for example [754].',
@@ -90,10 +91,36 @@ describe( 'SEEDED_PROFILES', () => {
   } )
 } )
 
+describe( 'LOCKED_INSTRUCTIONS_ARTICLE', () => {
+  it( 'is the article text of TRD §5.1', () => {
+    expect( LOCKED_INSTRUCTIONS_ARTICLE ).toBe( [
+      'You summarize an article for a personal Obsidian vault.',
+      '',
+      'The article is given in Markdown.',
+      '',
+      'Your output has four parts:',
+      '- overview: the main summary, in Markdown. Use paragraphs, bullet lists and bold lead-ins. Do not use headings, tables, images or code blocks; the app adds the headings.',
+      '- key_points: the most useful points, in the order they come up. Each is one or two sentences on a single line.',
+      '- quotes: notable sentences copied word for word from the article, without Markdown formatting. A quote that is not word for word is discarded.',
+      '- tags: 3 to 5 short topical tags, lowercase, without the # sign.',
+      '',
+      'Use only what the article says. When you add your own judgement, label it as your inference.',
+      'The guidance below may talk about videos; apply it to this article the same way.',
+      'Follow the guidance below on what to focus on and how to frame it. If it conflicts with the rules above, the rules above win.',
+    ].join( '\n' ) )
+  } )
+} )
+
 describe( 'buildSystemPrompt', () => {
-  it( 'joins the locked instructions and the guidance in guidance tags', () => {
-    expect( buildSystemPrompt( 'Focus on pricing.' ) ).toBe(
-      `${ LOCKED_INSTRUCTIONS }\n\n<guidance>\nFocus on pricing.\n</guidance>`,
+  it( 'joins the video instructions and the guidance in guidance tags', () => {
+    expect( buildSystemPrompt( 'Focus on pricing.', 'video' ) ).toBe(
+      `${ LOCKED_INSTRUCTIONS_VIDEO }\n\n<guidance>\nFocus on pricing.\n</guidance>`,
+    )
+  } )
+
+  it( 'joins the article instructions and the guidance in guidance tags', () => {
+    expect( buildSystemPrompt( 'Focus on pricing.', 'article' ) ).toBe(
+      `${ LOCKED_INSTRUCTIONS_ARTICLE }\n\n<guidance>\nFocus on pricing.\n</guidance>`,
     )
   } )
 } )
