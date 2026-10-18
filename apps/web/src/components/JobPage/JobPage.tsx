@@ -8,10 +8,11 @@ import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import { Navigate, useNavigate, useParams } from 'react-router'
 // Shared
-import { Job } from '@mnemosyne/shared'
+import { Job, detectSourceType } from '@mnemosyne/shared'
 // App
 import { createJob } from '#src/api/jobs.api'
 import { useJob } from '#src/hooks/useJob'
+import { useSubmitPastedText } from '#src/hooks/useSubmitPastedText'
 import { JobProgress } from '../JobProgress'
 import { ReviewScreen } from '../ReviewScreen'
 
@@ -25,6 +26,7 @@ export function JobPage(): ReactElement {
   const parsedId = Job.shape.id.safeParse( id )
   const { job, error } = useJob( parsedId.success ? parsedId.data : null )
   const [ submitError, setSubmitError ] = useState< string | null >( null )
+  const paste = useSubmitPastedText( id ?? '' )
 
   if( !parsedId.success ) {
     return <Navigate to="/" replace />
@@ -34,11 +36,12 @@ export function JobPage(): ReactElement {
     void navigate( '/' )
   }
 
-  const handleRetry = async ( url: string ): Promise< void > => {
+  const handleRetry = async ( { url, source_type }: Job ): Promise< void > => {
     setSubmitError( null )
 
     try {
-      const newJobId = await createJob( { url } )
+      const isOverride = detectSourceType( url ) !== source_type
+      const newJobId = await createJob( isOverride ? { url, source_type } : { url } )
 
       void navigate( `/jobs/${ newJobId }` )
     } catch( caught ) {
@@ -84,7 +87,10 @@ export function JobPage(): ReactElement {
           <JobProgress
             job={ job }
             connectionError={ error }
-            onRetry={ () => void handleRetry( job.url ) }
+            onRetry={ () => void handleRetry( job ) }
+            onPasteText={ ( body ) => paste.mutate( body ) }
+            isPasting={ paste.isPending }
+            pasteError={ paste.error?.message ?? null }
           />
         ) }
       { submitError && <Alert severity="error">{ submitError }</Alert> }

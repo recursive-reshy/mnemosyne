@@ -16,7 +16,11 @@ import { serializeNote } from '@mnemosyne/shared'
 import type { Job } from '@mnemosyne/shared'
 // App
 import { ApiError } from '#src/api/apiError'
-import { createJob, saveJob } from '#src/api/jobs.api'
+import {
+  createJob,
+  saveJob,
+  submitPastedText,
+} from '#src/api/jobs.api'
 import { useJob } from '#src/hooks/useJob'
 import { useFolders } from '#src/hooks/useFolders'
 import { useSource } from '#src/hooks/useSource'
@@ -32,11 +36,13 @@ vi.mock( '#src/api/jobs.api', async ( importOriginal ) => ( {
   ...await importOriginal< typeof import( '#src/api/jobs.api' ) >(),
   createJob: vi.fn(),
   saveJob: vi.fn(),
+  submitPastedText: vi.fn(),
 } ) )
 
 const mockedUseJob = vi.mocked( useJob )
 const mockedCreateJob = vi.mocked( createJob )
 const mockedSaveJob = vi.mocked( saveJob )
+const mockedSubmitPastedText = vi.mocked( submitPastedText )
 const mockedUseTranscript = vi.mocked( useSource )
 vi.mocked( useFolders ).mockReturnValue(
   { defaultFolder: 'Mnemosyne', folders: [], error: null },
@@ -67,6 +73,7 @@ const lastUseJobArgument = (): string | null | undefined => {
 beforeEach( () => {
   mockedUseJob.mockReset()
   mockedCreateJob.mockReset()
+  mockedSubmitPastedText.mockReset()
   mockedUseTranscript.mockReset()
   mockedUseTranscript.mockReturnValue( { source: null, error: null } )
   showJob( null )
@@ -277,5 +284,79 @@ describe( 'JobPage', () => {
     await user.click( screen.getByRole( 'button', { name: 'Transcribe another video' } ) )
 
     expect( location().pathname ).toBe( '/' )
+  } )
+} )
+
+describe( 'JobPage, articles', () => {
+  const articleUrl = 'https://example.com/post'
+  const failedArticle = jobFixture( {
+    status: 'failed',
+    source_type: 'article',
+    url: articleUrl,
+    error: 'The page needs a login or is paywalled',
+  } )
+  const pasted = 'Pasted words go here. '.repeat( 15 )
+
+  it( 'continues a failed article with pasted text and follows it into summarizing', async () => {
+    const summarizing = { ...failedArticle, status: 'summarizing' as const, error: null }
+    mockedSubmitPastedText.mockImplementation( () => {
+      showJob( summarizing )
+
+      return Promise.resolve( summarizing )
+    } )
+    showJob( failedArticle )
+    renderPage()
+    const user = userEvent.setup()
+
+    await user.click( screen.getByRole( 'button', { name: 'Paste text' } ) )
+    await user.type( screen.getByRole( 'textbox', { name: 'Title' } ), 'Mine' )
+    await user.click( screen.getByRole( 'textbox', { name: 'Article text' } ) )
+    await user.paste( pasted )
+    await user.click( screen.getByRole( 'button', { name: 'Summarize' } ) )
+
+    expect( await screen.findByRole( 'status' ) ).toHaveTextContent( 'Summarizing…' )
+    expect( mockedSubmitPastedText ).toHaveBeenCalledExactlyOnceWith(
+      jobId,
+      { text: pasted.trim(), title: 'Mine' },
+    )
+    expect( screen.queryByRole( 'dialog' ) ).not.toBeInTheDocument()
+  } )
+
+  it( 'shows a failed paste in the dialog and keeps the text', async () => {
+    mockedSubmitPastedText.mockRejectedValue( new ApiError( 'Invalid request', 400 ) )
+    showJob( failedArticle )
+    renderPage()
+    const user = userEvent.setup()
+
+    await user.click( screen.getByRole( 'button', { name: 'Paste text' } ) )
+    await user.click( screen.getByRole( 'textbox', { name: 'Article text' } ) )
+    await user.paste( pasted )
+    await user.click( screen.getByRole( 'button', { name: 'Summarize' } ) )
+
+    expect( await screen.findByText( 'Invalid request' ) ).toBeInTheDocument()
+    expect( screen.getByRole( 'textbox', { name: 'Article text' } ) ).toHaveValue( pasted )
+  } )
+
+  it( 'retries a failed article keeping its type, even for a video-looking URL', async () => {
+    mockedCreateJob.mockResolvedValue( newJobId )
+    const odd = { ...failedArticle, url: 'https://www.youtube.com/watch?v=abc' }
+    showJob( odd )
+    renderPage()
+    const user = userEvent.setup()
+
+    await user.click( screen.getByRole( 'button', { name: 'Try again' } ) )
+
+    expect( mockedCreateJob ).toHaveBeenCalledWith( { url: odd.url, source_type: 'article' } )
+  } )
+
+  it( 'retries a plain article URL with just the URL', async () => {
+    mockedCreateJob.mockResolvedValue( newJobId )
+    showJob( failedArticle )
+    renderPage()
+    const user = userEvent.setup()
+
+    await user.click( screen.getByRole( 'button', { name: 'Try again' } ) )
+
+    expect( mockedCreateJob ).toHaveBeenCalledWith( { url: articleUrl } )
   } )
 } )

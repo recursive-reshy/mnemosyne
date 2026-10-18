@@ -138,3 +138,93 @@ describe( 'JobProgress', () => {
     expect( screen.queryByRole( 'alert' ) ).not.toBeInTheDocument()
   } )
 } )
+
+describe( 'JobProgress for an article', () => {
+  const articleJob = ( status: Job[ 'status' ], error: string | null = null ) => {
+    return jobFixture( { status, source_type: 'article', url: 'https://example.com/post', error } )
+  }
+
+  const setupArticle = ( job: Job ) => {
+    const onRetry = vi.fn()
+    const onPasteText = vi.fn()
+
+    render(
+      <JobProgress
+        job={ job }
+        connectionError={ null }
+        onRetry={ onRetry }
+        onPasteText={ onPasteText }
+        isPasting={ false }
+        pasteError={ null }
+      />,
+    )
+
+    return { onRetry, onPasteText, user: userEvent.setup() }
+  }
+
+  it( 'lists the four article stages, with no download, convert or transcribe', () => {
+    setupArticle( articleJob( 'queued' ) )
+
+    const items = within( screen.getByRole( 'list' ) ).getAllByRole( 'listitem' )
+
+    expect( items.map( ( item ) => item.textContent ) ).toEqual( [
+      'Waiting to start',
+      'Fetching the article',
+      'Summarizing',
+      'Ready for review',
+    ] )
+  } )
+
+  it( 'makes fetching the current step', () => {
+    setupArticle( articleJob( 'fetching' ) )
+
+    expect( screen.getByRole( 'status' ) ).toHaveTextContent( 'Fetching the article…' )
+    expect( screen.getAllByRole( 'listitem' ).map( ( item ) => item.dataset.state ) )
+      .toEqual( [ 'complete', 'current', 'pending', 'pending' ] )
+  } )
+
+  it( 'marks summarizing as current after the fetch', () => {
+    setupArticle( articleJob( 'summarizing' ) )
+
+    expect( screen.getAllByRole( 'listitem' ).map( ( item ) => item.dataset.state ) )
+      .toEqual( [ 'complete', 'complete', 'current', 'pending' ] )
+  } )
+
+  it( 'shows the error, Paste text and Try again for a failed article', async () => {
+    const { onRetry, user } = setupArticle( articleJob( 'failed', 'The page needs a login' ) )
+
+    expect( screen.getByRole( 'alert' ) ).toHaveTextContent( 'The page needs a login' )
+    expect( screen.getByRole( 'button', { name: 'Paste text' } ) ).toBeInTheDocument()
+
+    await user.click( screen.getByRole( 'button', { name: 'Try again' } ) )
+
+    expect( onRetry ).toHaveBeenCalledTimes( 1 )
+  } )
+
+  it( 'opens the paste dialog and passes the text on', async () => {
+    const { onPasteText, user } = setupArticle( articleJob( 'failed', 'Paywalled' ) )
+    const text = 'Pasted words go here. '.repeat( 15 )
+
+    await user.click( screen.getByRole( 'button', { name: 'Paste text' } ) )
+    await user.click( screen.getByRole( 'textbox', { name: 'Article text' } ) )
+    await user.paste( text )
+    await user.click( screen.getByRole( 'button', { name: 'Summarize' } ) )
+
+    expect( onPasteText ).toHaveBeenCalledExactlyOnceWith( { text: text.trim() } )
+  } )
+
+  it( 'closes the dialog on Cancel', async () => {
+    const { user } = setupArticle( articleJob( 'failed', 'Paywalled' ) )
+
+    await user.click( screen.getByRole( 'button', { name: 'Paste text' } ) )
+    await user.click( screen.getByRole( 'button', { name: 'Cancel' } ) )
+
+    expect( screen.queryByRole( 'dialog' ) ).not.toBeInTheDocument()
+  } )
+
+  it( 'offers no Paste text for a failed video', () => {
+    setupArticle( jobFixture( { status: 'failed', error: 'Video unavailable' } ) )
+
+    expect( screen.queryByRole( 'button', { name: 'Paste text' } ) ).not.toBeInTheDocument()
+  } )
+} )

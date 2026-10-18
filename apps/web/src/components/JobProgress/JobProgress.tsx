@@ -1,4 +1,5 @@
 // React
+import { useState } from 'react'
 import type { ReactElement } from 'react'
 // Packages
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
@@ -13,13 +14,22 @@ import ListItemText from '@mui/material/ListItemText'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 // Shared
-import type { Job } from '@mnemosyne/shared'
+import type { Job, SubmitPastedTextBody } from '@mnemosyne/shared'
+// App
+import { PasteTextDialog } from '../PasteTextDialog'
 
-const STAGES = [
+const VIDEO_STAGES = [
   { status: 'queued', label: 'Waiting to start' },
   { status: 'downloading', label: 'Downloading audio' },
   { status: 'converting', label: 'Converting audio' },
   { status: 'transcribing', label: 'Transcribing' },
+  { status: 'summarizing', label: 'Summarizing' },
+  { status: 'ready_for_review', label: 'Ready for review' },
+] as const
+
+const ARTICLE_STAGES = [
+  { status: 'queued', label: 'Waiting to start' },
+  { status: 'fetching', label: 'Fetching the article' },
   { status: 'summarizing', label: 'Summarizing' },
   { status: 'ready_for_review', label: 'Ready for review' },
 ] as const
@@ -62,20 +72,47 @@ interface JobProgressProps {
   job: Job
   connectionError: string | null
   onRetry: () => void
+  onPasteText?: ( body: SubmitPastedTextBody ) => void
+  isPasting?: boolean
+  pasteError?: string | null
 }
 
-export function JobProgress( { job, connectionError, onRetry }: JobProgressProps ): ReactElement {
+export function JobProgress( props: JobProgressProps ): ReactElement {
+  const { job, connectionError, onRetry, onPasteText } = props
+  const { isPasting = false, pasteError = null } = props
+  const [ isDialogOpen, setIsDialogOpen ] = useState( false )
+  const stages = job.source_type === 'article' ? ARTICLE_STAGES : VIDEO_STAGES
+
   if( job.status === 'failed' ) {
+    const canPaste = job.source_type === 'article' && onPasteText !== undefined
+
     return (
       <Stack component="section" aria-label="Job progress" spacing={ 2 } sx={ SECTION_SX }>
         <Typography variant="body2" color="text.secondary" sx={ URL_SX }>{ job.url }</Typography>
         <Alert severity="error">{ job.error ?? FAILED_MESSAGE }</Alert>
-        <Button variant="contained" onClick={ onRetry }>Try again</Button>
+        <Stack direction="row" spacing={ 1 }>
+          { canPaste && (
+            <Button variant="contained" onClick={ () => setIsDialogOpen( true ) }>
+              Paste text
+            </Button>
+          ) }
+          <Button variant={ canPaste ? 'outlined' : 'contained' } onClick={ onRetry }>
+            Try again
+          </Button>
+        </Stack>
+        { canPaste && isDialogOpen && (
+          <PasteTextDialog
+            isSubmitting={ isPasting }
+            error={ pasteError }
+            onSubmit={ onPasteText }
+            onCancel={ () => setIsDialogOpen( false ) }
+          />
+        ) }
       </Stack>
     )
   }
 
-  const currentIndex = STAGES.findIndex( ( { status } ) => status === job.status )
+  const currentIndex = stages.findIndex( ( { status } ) => status === job.status )
 
   return (
     <Stack component="section" aria-label="Job progress" spacing={ 2 } sx={ SECTION_SX }>
@@ -87,7 +124,7 @@ export function JobProgress( { job, connectionError, onRetry }: JobProgressProps
         { STATUS_MESSAGES[ job.status ] }
       </Typography>
       <List component="ol" disablePadding>
-        { STAGES.map( ( { status, label }, index ) => {
+        { stages.map( ( { status, label }, index ) => {
           const isCurrent = index === currentIndex
           const state = job.status === 'ready_for_review'
             ? 'complete'
