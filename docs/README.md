@@ -2,8 +2,9 @@
 
 ## Plans
 
-Each version has its own folder. The current version is 0.4.0.
+Each version has its own folder. The current version is 0.5.0.
 
+- **v0.5.0 (in progress):** [PRD](v0.5.0/prd.md) · [TRD](v0.5.0/trd.md) · [Tasks](v0.5.0/tasks.md) · checkpoint plans in `v0.5.0/plans/`
 - **v0.4.0 (done):** [PRD](v0.4.0/prd.md) · [TRD](v0.4.0/trd.md) · [Tasks](v0.4.0/tasks.md) · [Release notes](v0.4.0/release-notes.md) · checkpoint plans in `v0.4.0/plans/`
 - **v0.3.1 (done):** [PRD](v0.3.1/prd.md) · [TRD](v0.3.1/trd.md) · [Tasks](v0.3.1/tasks.md) · checkpoint plans in `v0.3.1/plans/`
 - **v0.3.0 (done):** [PRD](v0.3.0/prd.md) · [TRD](v0.3.0/trd.md) · [Tasks](v0.3.0/tasks.md) · [Release notes](v0.3.0/release-notes.md) · checkpoint plans in `v0.3.0/plans/`
@@ -45,6 +46,10 @@ Each significant decision is recorded as a short ADR (Architecture Decision Reco
 | [0027](decisions/0027-editable-summarizer-prompts.md) | Editable summarizer prompts: profiles of versioned guidance on a locked contract | Accepted |
 | [0028](decisions/0028-summary-model-from-models-api.md) | Summary model chosen in the app, listed from the Models API | Accepted |
 | [0029](decisions/0029-summary-runs-and-regeneration.md) | Summary runs: provenance and cost in the database, and regenerating a summary | Accepted |
+| [0030](decisions/0030-source-adapters-and-intakes.md) | Source adapters and intakes: one `SourceDocument` for every source | Proposed |
+| [0031](decisions/0031-article-extraction.md) | Article extraction: Readability on linkedom, turndown to Markdown, fetch limits | Proposed |
+| [0032](decisions/0032-rss-feeds-inbox-poller.md) | RSS feeds with feedsmith, an inbox before summarizing, and a separate poller | Proposed |
+| [0033](decisions/0033-browser-mode-tests.md) | Browser-mode tests with Vitest and Playwright for real-DOM behaviour | Proposed |
 
 ## Template for new ADRs
 
