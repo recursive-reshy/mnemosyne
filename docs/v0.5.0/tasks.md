@@ -27,7 +27,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | **Phase 1** | **Kick-off** | | |
 | 1.1 | Set ADRs 0030–0033 to Accepted (Status lines and the `docs/README.md` index, already listed as Proposed); mark 0014 and 0015 as amended by 0030 in the index and their files | 0030–0033 | ✅ |
 | **Phase 2** | **Shared contracts** | | |
-| 2.1 | `source.ts` (`SourceType`, `VideoSource`, `ArticleMeta`, `ArticleSource`, `SourceDocument`, `ARTICLE_LIMITS`) and `detectSourceType.ts`, exported from `index.ts`, with tests (TRD §2.1–2.2) | 0030 | ⬜ |
+| 2.1 | `source.ts` (`SourceType`, `VideoSource`, `ArticleMeta`, `ArticleSource`, `SourceDocument`, `ARTICLE_LIMITS`) and `detectSourceType.ts`, exported from `index.ts`, with tests (TRD §2.1–2.2) | 0030 | ✅ |
 | 2.2 | `NoteProperties` with optional video and article keys, key order, `lockedPropertiesFor`, `applyLockedProperties` removing absent locked keys; existing video notes byte-identical (TRD §2.3) | 0030 | ⬜ |
 | 2.3 | `JobStatus` `fetching`; `Job` `source_type`, `feed_id`, `feed_name`; `CreateJobBody` `source_type?`, `text?`, `title?` with the refinement; `SubmitPastedTextBody`; `GetSourceResponse` replaces `GetTranscriptResponse`; `Settings` `feed_check_interval_minutes`; `locked_instructions` as `{ video, article }`. Fix every reference in both apps so they compile (server returns `video`/NULLs, web fixtures gain the fields); no behaviour yet (TRD §2.4–2.5) | 0030 | ⬜ |
 | 2.4 | `feeds.ts`: every feed and inbox schema in TRD §2.6, with tests | 0032 | ⬜ |
@@ -111,3 +111,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 
 ## Log
 - 1.1: ADRs 0030–0033 set to Accepted in their files and the index; 0014 and 0015 marked as amended by 0030 in the index and their files. Docs only, no tests.
+- 2.1: `source.ts` (`SourceType`, `VideoSource`, `ArticleMeta`, `ArticleSource`, `SourceDocument`, `ARTICLE_LIMITS`) and `detectSourceType.ts`, exported from the index. Host match is exact or a dot-boundary suffix, so `notyoutube.com` is an article. Shared 238 tests; lint and typecheck green. No existing test changed.
