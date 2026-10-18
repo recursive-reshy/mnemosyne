@@ -10,6 +10,7 @@ import {
   vi,
 } from 'vitest'
 // App
+import { previewFeed } from '#src/api/feeds.api'
 import { useFeeds } from '#src/hooks/useFeeds'
 import { usePromptProfiles } from '#src/hooks/usePromptProfiles'
 import { useSettings } from '#src/hooks/useSettings'
@@ -21,6 +22,7 @@ import { settingsFixture } from '#src/test-support/summarizer.fixture'
 import { FeedSettings } from './FeedSettings'
 
 vi.mock( '#src/hooks/useFeeds' )
+vi.mock( '#src/api/feeds.api' )
 vi.mock( '#src/hooks/useSettings' )
 vi.mock( '#src/hooks/usePromptProfiles' )
 
@@ -165,5 +167,93 @@ describe( 'FeedSettings', () => {
     await user.click( screen.getByRole( 'button', { name: 'Example Blog actions' } ) )
     await user.click( screen.getByRole( 'menuitem', { name: 'Check now' } ) )
     expect( check ).toHaveBeenCalledWith( FEED_ID )
+  } )
+
+  it( 'adds a feed through the Add feed dialog', async () => {
+    const user = userEvent.setup()
+    const mutate = vi.fn()
+    vi.mocked( previewFeed ).mockResolvedValue( {
+      feed_url: 'https://blog.example.com/feed.xml',
+      title: 'Example Blog',
+      latest_item: null,
+    } )
+    mockedFeeds.mockReturnValue( feedsState( { createFeed: mutationStub( { mutate } ) } ) )
+    renderWithClient( <FeedSettings /> )
+
+    await user.click( screen.getByRole( 'button', { name: 'Add feed' } ) )
+    await user.type(
+      screen.getByRole( 'textbox', { name: 'Feed or page address' } ),
+      'https://blog.example.com{Enter}',
+    )
+    await user.click( await screen.findByRole( 'button', { name: 'Add' } ) )
+
+    expect( mutate ).toHaveBeenCalledWith(
+      { url: 'https://blog.example.com' },
+      { onSuccess: expect.any( Function ) as () => void },
+    )
+  } )
+
+  it( 'closes the Add dialog on success and when cancelled', async () => {
+    const user = userEvent.setup()
+    const reset = vi.fn()
+    mockedFeeds.mockReturnValue( feedsState( { createFeed: mutationStub( { reset } ) } ) )
+    renderWithClient( <FeedSettings /> )
+
+    await user.click( screen.getByRole( 'button', { name: 'Add feed' } ) )
+    await user.click( screen.getByRole( 'button', { name: 'Cancel' } ) )
+
+    await vi.waitFor( () => expect( screen.queryByRole( 'dialog' ) ).not.toBeInTheDocument() )
+    expect( reset ).toHaveBeenCalled()
+  } )
+
+  it( 'edits a feed from its menu', async () => {
+    const user = userEvent.setup()
+    const mutate = vi.fn()
+    mockedFeeds.mockReturnValue( feedsState( { updateFeed: mutationStub( { mutate } ) } ) )
+    renderWithClient( <FeedSettings /> )
+
+    await user.click( screen.getByRole( 'button', { name: 'Example Blog actions' } ) )
+    await user.click( screen.getByRole( 'menuitem', { name: 'Edit' } ) )
+    await user.type( screen.getByRole( 'textbox', { name: 'Name' } ), '!' )
+    await user.click( screen.getByRole( 'button', { name: 'Save' } ) )
+
+    expect( mutate ).toHaveBeenCalledWith(
+      { id: FEED_ID, body: { name: 'Example Blog!' } },
+      { onSuccess: expect.any( Function ) as () => void },
+    )
+  } )
+
+  it( 'deletes a feed from its menu, with the remove-items choice', async () => {
+    const user = userEvent.setup()
+    const mutate = vi.fn()
+    mockedFeeds.mockReturnValue( feedsState( {
+      feeds: [ feedFixture( { inbox_count: 2 } ) ],
+      deleteFeed: mutationStub( { mutate } ),
+    } ) )
+    renderWithClient( <FeedSettings /> )
+
+    await user.click( screen.getByRole( 'button', { name: 'Example Blog actions' } ) )
+    await user.click( screen.getByRole( 'menuitem', { name: 'Delete' } ) )
+    await user.click( screen.getByRole( 'checkbox' ) )
+    await user.click( screen.getByRole( 'button', { name: 'Delete' } ) )
+
+    expect( mutate ).toHaveBeenCalledWith(
+      { id: FEED_ID, removeItems: true },
+      { onSuccess: expect.any( Function ) as () => void },
+    )
+  } )
+
+  it( 'shows a dialog\'s failed change inside the dialog', async () => {
+    const user = userEvent.setup()
+    mockedFeeds.mockReturnValue( feedsState( {
+      deleteFeed: mutationStub( { isError: true, error: new Error( 'Feed not found' ) } ),
+    } ) )
+    renderWithClient( <FeedSettings /> )
+
+    await user.click( screen.getByRole( 'button', { name: 'Example Blog actions' } ) )
+    await user.click( screen.getByRole( 'menuitem', { name: 'Delete' } ) )
+
+    expect( within( screen.getByRole( 'dialog' ) ).getByRole( 'alert' ) )
+      .toHaveTextContent( 'Feed not found' )
   } )
 } )

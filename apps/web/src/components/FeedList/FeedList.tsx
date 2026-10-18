@@ -42,6 +42,8 @@ interface FeedListProps {
   checkingId: string | null
   onUpdate: ( id: string, body: UpdateFeedBody ) => void
   onCheck: ( id: string ) => void
+  onEdit: ( feed: Feed ) => void
+  onDelete: ( feed: Feed ) => void
 }
 
 interface MenuState {
@@ -50,7 +52,7 @@ interface MenuState {
 }
 
 export function FeedList(
-  { feeds, profiles, now, checkingId, onUpdate, onCheck }: FeedListProps,
+  { feeds, profiles, now, checkingId, onUpdate, onCheck, onEdit, onDelete }: FeedListProps,
 ): ReactElement {
   const [ menu, setMenu ] = useState< MenuState | null >( null )
 
@@ -66,9 +68,9 @@ export function FeedList(
     setMenu( { feed, anchor: event.currentTarget } )
   }
 
-  const handleCheck = (): void => {
+  const handleAction = ( action: ( feed: Feed ) => void ) => (): void => {
     if( menu !== null ) {
-      onCheck( menu.feed.id )
+      action( menu.feed )
     }
 
     setMenu( null )
@@ -139,9 +141,14 @@ export function FeedList(
         open={ menu !== null }
         onClose={ () => setMenu( null ) }
       >
-        <MenuItem onClick={ handleCheck } disabled={ menu?.feed.id === checkingId }>
+        <MenuItem
+          onClick={ handleAction( ( { id } ) => onCheck( id ) ) }
+          disabled={ menu?.feed.id === checkingId }
+        >
           Check now
         </MenuItem>
+        <MenuItem onClick={ handleAction( onEdit ) }>Edit</MenuItem>
+        <MenuItem onClick={ handleAction( onDelete ) }>Delete</MenuItem>
       </Menu>
     </>
   )

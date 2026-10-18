@@ -19,6 +19,8 @@ const NOW = Date.parse( '2026-10-18T10:00:00.000Z' )
 const setup = ( overrides: Partial< Parameters< typeof FeedList >[ 0 ] > = {} ) => {
   const onUpdate = vi.fn()
   const onCheck = vi.fn()
+  const onEdit = vi.fn()
+  const onDelete = vi.fn()
 
   renderWithClient(
     <FeedList
@@ -28,11 +30,18 @@ const setup = ( overrides: Partial< Parameters< typeof FeedList >[ 0 ] > = {} ) 
       checkingId={ null }
       onUpdate={ onUpdate }
       onCheck={ onCheck }
+      onEdit={ onEdit }
+      onDelete={ onDelete }
       { ...overrides }
     />,
   )
 
-  return { onUpdate, onCheck }
+  return {
+    onUpdate,
+    onCheck,
+    onEdit,
+    onDelete,
+  }
 }
 
 describe( 'FeedList', () => {
@@ -129,6 +138,27 @@ describe( 'FeedList', () => {
 
     expect( onCheck ).toHaveBeenCalledWith( FEED_ID )
     expect( screen.queryByRole( 'menu' ) ).not.toBeInTheDocument()
+  } )
+
+  it( 'opens Edit for the feed from its menu', async () => {
+    const user = userEvent.setup()
+    const { onEdit } = setup()
+
+    await user.click( screen.getByRole( 'button', { name: 'Example Blog actions' } ) )
+    await user.click( screen.getByRole( 'menuitem', { name: 'Edit' } ) )
+
+    expect( onEdit ).toHaveBeenCalledWith( feedFixture() )
+    expect( screen.queryByRole( 'menu' ) ).not.toBeInTheDocument()
+  } )
+
+  it( 'opens Delete for the feed from its menu', async () => {
+    const user = userEvent.setup()
+    const { onDelete } = setup()
+
+    await user.click( screen.getByRole( 'button', { name: 'Example Blog actions' } ) )
+    await user.click( screen.getByRole( 'menuitem', { name: 'Delete' } ) )
+
+    expect( onDelete ).toHaveBeenCalledWith( feedFixture() )
   } )
 
   it( 'shows Checking… and disables Check now for the feed being checked', async () => {
