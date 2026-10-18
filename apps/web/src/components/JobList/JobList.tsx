@@ -12,6 +12,7 @@ import { Link as RouterLink } from 'react-router'
 import type { Job } from '@mnemosyne/shared'
 // App
 import { formatExpiry } from '#src/expiry'
+import { FeedChip } from '../FeedChip'
 
 const STATUS_LABELS = {
   queued: 'Queued',
@@ -63,6 +64,7 @@ export function JobList( { jobs, now }: JobListProps ): ReactElement | null {
           <Link component={ RouterLink } to={ `/jobs/${ job.id }` } sx={ LINK_SX }>
             { job.title ?? job.url }
           </Link>
+          { job.feed_name !== null && <FeedChip name={ job.feed_name } /> }
           <Typography component="span" sx={ { fontWeight: 600 } }>
             { STATUS_LABELS[ job.status ] }
           </Typography>

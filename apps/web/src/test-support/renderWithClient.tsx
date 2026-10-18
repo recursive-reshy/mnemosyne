@@ -34,19 +34,22 @@ export const renderWithClient = (
     return null
   }
 
-  const result = render(
+  const wrap = ( content: ReactNode ): ReactElement => (
     <ThemeProvider theme={ theme } defaultMode="system" noSsr>
       <QueryClientProvider client={ queryClient }>
         <MemoryRouter initialEntries={ [ route ] }>
           <LocationProbe />
-          { ui }
+          { content }
         </MemoryRouter>
       </QueryClientProvider>
-    </ThemeProvider>,
+    </ThemeProvider>
   )
+  const result = render( wrap( ui ) )
 
   return {
     ...result,
+    // Rerender inside the same providers, so the component keeps its state.
+    rerender: ( next ) => result.rerender( wrap( next ) ),
     queryClient,
     location: () => {
       if( current === undefined ) {

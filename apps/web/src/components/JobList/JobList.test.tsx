@@ -34,6 +34,23 @@ describe( 'JobList', () => {
     expect( within( items[ 1 ] ).getByRole( 'img', { name: 'Article' } ) ).toBeInTheDocument()
   } )
 
+  it( 'shows the feed name on a feed job and nothing on the others', () => {
+    renderWithClient(
+      <JobList
+        now={ now }
+        jobs={ [
+          jobFixture( { title: 'A post', feed_id: other, feed_name: 'Example Blog' } ),
+          jobFixture( { id: other, title: 'A talk' } ),
+        ] }
+      />,
+    )
+
+    const items = within( screen.getByRole( 'list', { name: 'Jobs' } ) ).getAllByRole( 'listitem' )
+
+    expect( within( items[ 0 ] ).getByText( 'Example Blog' ) ).toBeInTheDocument()
+    expect( within( items[ 1 ] ).queryByTestId( 'RssFeedIcon' ) ).not.toBeInTheDocument()
+  } )
+
   it( 'lists each job with its title, status and a link to the job', () => {
     renderWithClient(
       <JobList

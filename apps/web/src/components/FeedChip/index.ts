@@ -1,0 +1,1 @@
+export { FeedChip } from './FeedChip'

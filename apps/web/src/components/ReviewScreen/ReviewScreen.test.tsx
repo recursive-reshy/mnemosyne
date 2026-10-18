@@ -140,6 +140,21 @@ const handlers = () => ( { onSaved: vi.fn(), onDiscarded: vi.fn() } )
 
 const failedJob = { ...reviewJob, status: 'summary_failed' as const, error: 'x' }
 
+describe( 'ReviewScreen feed chip', () => {
+  it( 'shows the feed name for a feed job', () => {
+    const feedJob = { ...reviewJob, feed_id: reviewJob.id, feed_name: 'Example Blog' }
+    renderWithClient( <ReviewScreen job={ feedJob } { ...handlers() } /> )
+
+    expect( screen.getByText( 'Example Blog' ) ).toBeInTheDocument()
+  } )
+
+  it( 'shows no chip for a job that did not come from a feed', () => {
+    renderWithClient( <ReviewScreen job={ reviewJob } { ...handlers() } /> )
+
+    expect( screen.queryByTestId( 'RssFeedIcon' ) ).not.toBeInTheDocument()
+  } )
+} )
+
 describe( 'ReviewScreen title', () => {
   it( 'starts with the job title and shows the file name it will get', () => {
     renderWithClient( <ReviewScreen job={ reviewJob } { ...handlers() } /> )

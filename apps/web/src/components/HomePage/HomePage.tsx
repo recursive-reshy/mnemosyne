@@ -13,6 +13,7 @@ import { useJobs } from '#src/hooks/useJobs'
 import { useModels } from '#src/hooks/useModels'
 import { usePromptProfiles } from '#src/hooks/usePromptProfiles'
 import { useSettings } from '#src/hooks/useSettings'
+import { FeedInbox } from '../FeedInbox'
 import { JobList } from '../JobList'
 import { SubmitForm } from '../SubmitForm'
 
@@ -94,6 +95,7 @@ export function HomePage(): ReactElement {
           onModelChange: setModelChoice,
         } }
       />
+      <FeedInbox />
       <JobList jobs={ jobs ?? [] } now={ updatedAt } />
     </Stack>
   )

@@ -17,6 +17,7 @@ import { useRetrySummary } from '#src/hooks/useRetrySummary'
 import { useSaveJob } from '#src/hooks/useSaveJob'
 import { useSource } from '#src/hooks/useSource'
 import { DownloadLinks } from '../DownloadLinks'
+import { JobHeading } from '../JobHeading'
 import { NoteDestination } from '../NoteDestination'
 import { NoteEditor } from '../NoteEditor'
 import type { NoteEditorMode } from '../NoteEditor'
@@ -88,9 +89,7 @@ export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps )
 
   return (
     <Stack spacing={ 2 } sx={ { width: '100%' } }>
-      <Typography variant="h6" component="h2" sx={ { overflowWrap: 'anywhere' } }>
-        { job.title ?? job.url }
-      </Typography>
+      <JobHeading title={ job.title ?? job.url } feedName={ job.feed_name } />
       { hasFailed && <Alert severity="error">{ job.error ?? 'Summary failed.' }</Alert> }
       { !hasFailed && (
         <>

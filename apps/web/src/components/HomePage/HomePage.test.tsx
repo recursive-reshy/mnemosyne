@@ -27,6 +27,7 @@ vi.mock( '#src/hooks/useJobs' )
 vi.mock( '#src/hooks/useSettings' )
 vi.mock( '#src/hooks/useModels' )
 vi.mock( '#src/hooks/usePromptProfiles' )
+vi.mock( '../FeedInbox', () => ( { FeedInbox: () => <p>inbox</p> } ) )
 
 const mockedCreateJob = vi.mocked( createJob )
 const mockedUseJobs = vi.mocked( useJobs )
@@ -47,6 +48,24 @@ describe( 'HomePage', () => {
     renderWithClient( <HomePage /> )
 
     expect( screen.getByRole( 'form', { name: 'Add a video or article' } ) ).toBeInTheDocument()
+  } )
+
+  it( 'shows the feed inbox between the form and the job list', () => {
+    mockedUseJobs.mockReturnValue( {
+      jobs: [ jobFixture( { title: 'How Rust Works', status: 'summarizing' } ) ],
+      error: null,
+      updatedAt: Date.now(),
+    } )
+    renderWithClient( <HomePage /> )
+
+    const form = screen.getByRole( 'form', { name: 'Add a video or article' } )
+    const inbox = screen.getByText( 'inbox' )
+    const jobs = screen.getByRole( 'list', { name: 'Jobs' } )
+
+    expect( form.compareDocumentPosition( inbox ) & Node.DOCUMENT_POSITION_FOLLOWING )
+      .toBeTruthy()
+    expect( inbox.compareDocumentPosition( jobs ) & Node.DOCUMENT_POSITION_FOLLOWING )
+      .toBeTruthy()
   } )
 
   it( 'lists the jobs under the form', () => {

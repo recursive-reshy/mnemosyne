@@ -2,7 +2,7 @@
 
 React UI for Mnemosyne: submit a video URL, follow the job, download the transcript. Screens only: all data and rules live in the server. The root `CLAUDE.md` covers the workflow, precedence, cross-app rules, git and secrets; this file does not repeat them. The server's style rules in `apps/server/CLAUDE.md` apply here too unless this file says otherwise.
 
-The relevant ADRs are 0004, 0006, 0008, 0009, 0011, 0013, 0015, 0019, 0020, 0021, 0022, 0023, 0024, 0025, 0027, 0028, 0029, 0033 and 0034. Read the ones a task lists.
+The relevant ADRs are 0004, 0006, 0008, 0009, 0011, 0013, 0015, 0019, 0020, 0021, 0022, 0023, 0024, 0025, 0027, 0028, 0029, 0032, 0033 and 0034. Read the ones a task lists.
 
 ## Stack
 
@@ -34,7 +34,7 @@ src/
   expiry.ts         pure display helpers sit next to main.tsx as small camelCase modules (expiry.ts, later timestamp.ts)
   queryClient.ts    createQueryClient(): the app's TanStack Query defaults (no retries, no refetch on focus)
   hooks/            use<Name>.ts: state and effects, built on TanStack Query; queryKeys.ts holds the cache keys; useAutosaveDraft keeps the review draft on the server
-  components/       <Name>/index.ts, <Name>.tsx, <Name>.test.tsx: one folder per component (no CSS files); AppShell and NavDrawer are the navigation shell; HomePage and JobPage are the route components; ReviewScreen is the review layout JobPage shows for `ready_for_review` and `summary_failed`; the Settings page is `SettingsPage` with `SummarizerDefaults`, `PromptProfiles` (`PromptEditor`, `ProfileActions`, `ProfileNameDialog`, `PromptHistory`) and `LockedInstructions`; `SummaryOptions` (profile and model selects) sits on the submit form and in `RegenerateDialog`, and `SummaryInfo` shows how a summary was made; `ConfirmDialog` is the shared confirm
+  components/       <Name>/index.ts, <Name>.tsx, <Name>.test.tsx: one folder per component (no CSS files); AppShell and NavDrawer are the navigation shell; HomePage and JobPage are the route components; ReviewScreen is the review layout JobPage shows for `ready_for_review` and `summary_failed`; the Settings page is `SettingsPage` with `SummarizerDefaults`, `PromptProfiles` (`PromptEditor`, `ProfileActions`, `ProfileNameDialog`, `PromptHistory`) and `LockedInstructions`; `SummaryOptions` (profile and model selects) sits on the submit form and in `RegenerateDialog`, and `SummaryInfo` shows how a summary was made; Feeds (ADR 0032): the Settings page also has `FeedSettings` (check interval, Check all now, Add feed, with `FeedList` and the add, edit and delete dialogs wired in `FeedDialogs`; `AddFeedDialog`, `EditFeedDialog` and `DeleteFeedDialog` share `FeedFields`), and the home page shows `FeedInbox` (with `SummarizeItemsDialog`) above the job list; `FeedChip` and `JobHeading` show a feed job's feed name; `ConfirmDialog` is the shared confirm
   test-support/     shared test helpers and fixtures
 ```
 

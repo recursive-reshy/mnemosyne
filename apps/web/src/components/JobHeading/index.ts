@@ -1,0 +1,1 @@
+export { JobHeading } from './JobHeading'
