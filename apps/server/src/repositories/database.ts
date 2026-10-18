@@ -226,3 +226,7 @@ export const getDatabase = (): Database.Database => {
 
   return database
 }
+
+export const inTransaction = < Result >( work: () => Result ): Result => {
+  return getDatabase().transaction( work )()
+}

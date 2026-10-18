@@ -22,6 +22,7 @@ import { SEEDED_PROFILES } from '../summarizer/prompts.js'
 import {
   closeDatabase,
   getDatabase,
+  inTransaction,
   migrations,
   openDatabase,
   runMigrations,
@@ -776,5 +777,53 @@ describe( 'migration 5', () => {
     expect( database.pragma( 'user_version', { simple: true } ) ).toBe( 4 )
     expect( columnNames( database, 'jobs' ) ).toContain( 'transcript' )
     expect( columnNames( database, 'jobs' ) ).not.toContain( 'source_type' )
+  } )
+} )
+
+describe( 'inTransaction', () => {
+  const count = (): number => {
+    return ( getDatabase().prepare( 'SELECT COUNT(*) AS count FROM settings' ).get() as {
+      count: number
+    } ).count
+  }
+
+  const add = ( key: string ): void => {
+    getDatabase().prepare( 'INSERT INTO settings ( key, value ) VALUES ( ?, \'1\' )' ).run( key )
+  }
+
+  it( 'returns what the function returns and keeps its writes', () => {
+    const before = count()
+
+    expect( inTransaction( () => {
+      add( 'a' )
+      add( 'b' )
+
+      return 'done'
+    } ) ).toBe( 'done' )
+    expect( count() ).toBe( before + 2 )
+  } )
+
+  it( 'rolls every write back when the function throws, and rethrows', () => {
+    const before = count()
+
+    expect( () => inTransaction( () => {
+      add( 'a' )
+      throw new Error( 'boom' )
+    } ) ).toThrow( 'boom' )
+    expect( count() ).toBe( before )
+  } )
+
+  it( 'can be nested', () => {
+    const before = count()
+
+    inTransaction( () => {
+      add( 'a' )
+      expect( () => inTransaction( () => {
+        add( 'b' )
+        throw new Error( 'inner' )
+      } ) ).toThrow( 'inner' )
+    } )
+
+    expect( count() ).toBe( before + 1 )
   } )
 } )

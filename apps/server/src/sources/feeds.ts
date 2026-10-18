@@ -198,11 +198,24 @@ const alternateFeedLink = ( html: string, baseUrl: string ): string | undefined 
   return undefined
 }
 
-const fetchFeed = async ( url: string ): ReturnType< typeof fetchResource > => {
-  return fetchResource(
-    url,
-    { accept: ACCEPT, maxBytes: MAX_FEED_BYTES, timeoutMs: FETCH_TIMEOUT_MS },
-  )
+interface Validators {
+  etag?: string | undefined
+  lastModified?: string | undefined
+}
+
+export const fetchFeed = async (
+  url: string,
+  validators: Validators = {},
+): ReturnType< typeof fetchResource > => {
+  const { etag, lastModified } = validators
+
+  return fetchResource( url, {
+    accept: ACCEPT,
+    maxBytes: MAX_FEED_BYTES,
+    timeoutMs: FETCH_TIMEOUT_MS,
+    ...etag === undefined ? {} : { etag },
+    ...lastModified === undefined ? {} : { lastModified },
+  } )
 }
 
 export const discoverFeed = async ( url: string ): Promise< DiscoveredFeed > => {
