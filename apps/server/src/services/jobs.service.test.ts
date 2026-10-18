@@ -1425,6 +1425,31 @@ describe( 'queueJob with source types', () => {
       .rejects.toThrow( ValidationError )
   } )
 
+  it( 'stores a ready-made article document and goes straight to summarizing', async () => {
+    const document: SourceDocument = {
+      kind: 'article',
+      meta: {
+        title: 'From a feed',
+        source: articleUrl,
+        author: 'Ada',
+        site: 'A blog',
+        published: '2026-10-01',
+        fetched_at: startTime.toISOString(),
+        origin: 'feed',
+      },
+      markdown: 'Full text from the feed.',
+    }
+
+    const job = await queueJob( { url: articleUrl }, { document } )
+
+    expect( job ).toMatchObject( {
+      status: 'summarizing',
+      source_type: 'article',
+      title: 'From a feed',
+    } )
+    expect( findJobById( job.id )?.source_document ).toEqual( document )
+  } )
+
   it( 'stores a feed id that the caller passes', async () => {
     const feedId = crypto.randomUUID()
 

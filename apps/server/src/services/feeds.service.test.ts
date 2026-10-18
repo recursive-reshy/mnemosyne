@@ -26,6 +26,7 @@ import {
 } from '../repositories/feeds.repository.js'
 import { findItemsByIds, listInbox } from '../repositories/feedItems.repository.js'
 import { getDatabase } from '../repositories/database.js'
+import { clearJobs } from '../repositories/jobStore.repository.js'
 import { setSetting } from '../repositories/settings.repository.js'
 // Services
 import {
@@ -38,8 +39,15 @@ import {
   previewFeed,
   updateFeed,
 } from './feeds.service.js'
+import { queueFeedItem } from './feedInbox.service.js'
+import { listJobs } from './jobs.service.js'
 import { listProfiles } from './prompts.service.js'
 
+vi.mock( './feedInbox.service.js', async ( importOriginal ) => {
+  const original = await importOriginal< typeof import( './feedInbox.service.js' ) >()
+
+  return { ...original, queueFeedItem: vi.fn( original.queueFeedItem ) }
+} )
 vi.mock( '../clients/http.client.js', async ( importOriginal ) => ( {
   ...await importOriginal< typeof import( '../clients/http.client.js' ) >(),
   fetchResource: vi.fn(),
@@ -577,5 +585,75 @@ describe( 'checkAllFeeds and checkDueFeeds', () => {
     markFeedDeleted( 'a', NOW.toISOString() )
 
     expect( await checkDueFeeds() ).toBe( 0 )
+  } )
+} )
+
+describe( 'automatic feeds', () => {
+  beforeEach( () => {
+    clearJobs()
+  } )
+
+  const longItem = ( index: number ): string => {
+    const day = String( 28 - index ).padStart( 2, '0' )
+
+    return `<item><title>Item ${ index }</title><link>https://blog.example.com/p/${ index }</link>
+      <guid>g${ index }</guid><pubDate>Mon, ${ day } Sep 2026 09:00:00 GMT</pubDate>
+      <content:encoded><![CDATA[<p>${ 'word '.repeat( 150 ) }</p>]]></content:encoded></item>`
+  }
+
+  const richFeed = ( count: number ): string => {
+    return '<?xml version="1.0"?><rss version="2.0" '
+      + 'xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Auto</title>'
+      + `${ Array.from( { length: count }, ( _, index ) => longItem( index ) ).join( '' ) }`
+      + '</channel></rss>'
+  }
+
+  it( 'queues the newest item of a new automatic feed, not the inbox', async () => {
+    serve( { [ feedUrl ]: { body: richFeed( 3 ) } } )
+
+    const feed = await createFeed( { url: feedUrl, auto_summarize: true } )
+
+    expect( feed.inbox_count ).toBe( 0 )
+    expect( statusesOf( feed.id ) ).toEqual( { baseline: 2, queued: 1 } )
+    expect( listJobs() ).toHaveLength( 1 )
+    expect( listJobs()[ 0 ] ).toMatchObject( {
+      status: 'summarizing',
+      source_type: 'article',
+      feed_id: feed.id,
+      title: 'Item 0',
+    } )
+  } )
+
+  it( 'queues new items on a check, still capped at 10 per check', async () => {
+    serve( { [ feedUrl ]: { body: richFeed( 2 ), etag: '"v1"' } } )
+    const feed = await createFeed( { url: feedUrl, auto_summarize: true } )
+    clearJobs()
+    serve( { [ feedUrl ]: { body: richFeed( 16 ), etag: '"v2"' } } )
+
+    const checked = await checkFeed( feed.id )
+
+    expect( checked ).toMatchObject( { inbox_count: 0, last_skipped_count: 4 } )
+    expect( statusesOf( feed.id ) ).toEqual( { baseline: 1, queued: 11, skipped: 4 } )
+    expect( listJobs() ).toHaveLength( 10 )
+  } )
+
+  it( 'leaves items in the inbox for a feed that is not automatic', async () => {
+    serve( { [ feedUrl ]: { body: richFeed( 3 ) } } )
+
+    await createFeed( { url: feedUrl } )
+
+    expect( listJobs() ).toEqual( [] )
+  } )
+
+  it( 'leaves an item in the inbox, and says so in the log, when it cannot be queued', async () => {
+    serve( { [ feedUrl ]: { body: richFeed( 3 ) } } )
+    const errorSpy = vi.spyOn( console, 'error' ).mockImplementation( () => undefined )
+    vi.mocked( queueFeedItem ).mockRejectedValueOnce( new Error( 'boom' ) )
+
+    const feed = await createFeed( { url: feedUrl, auto_summarize: true } )
+
+    expect( feed.inbox_count ).toBe( 1 )
+    expect( errorSpy ).toHaveBeenCalledOnce()
+    expect( listJobs() ).toEqual( [] )
   } )
 } )

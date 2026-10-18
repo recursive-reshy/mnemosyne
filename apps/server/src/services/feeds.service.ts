@@ -35,6 +35,7 @@ import {
 } from '../sources/feeds.js'
 import type { FeedItemData, ParsedFeed } from '../sources/feeds.js'
 // Services
+import { queueFeedItem } from './feedInbox.service.js'
 import { assertActiveProfile } from './prompts.service.js'
 import { getSettings } from './settings.service.js'
 
@@ -104,6 +105,21 @@ const toStoredItem = (
   }
 }
 
+// Items of an automatic feed skip the inbox. One that can't be queued stays there instead.
+const queueAutomatically = async ( feed: StoredFeed, items: StoredFeedItem[] ): Promise< void > => {
+  if( !feed.auto_summarize ) {
+    return
+  }
+
+  for( const item of items ) {
+    try {
+      await queueFeedItem( feed, item )
+    } catch( error ) {
+      console.error( `Could not queue "${ item.title }" from ${ feed.name }`, error )
+    }
+  }
+}
+
 export const previewFeed = async ( url: string ): Promise< PreviewFeedResponse > => {
   const found = await discoverFeed( url )
   const items = found.items.map( toFeedItem )
@@ -151,15 +167,16 @@ export const createFeed = async ( body: CreateFeedBody ): Promise< Feed > => {
     deleted_at: null,
   }
 
+  const stored = items.map( ( item, index ) => {
+    return toStoredItem( feed.id, item, index === newest ? 'inbox' : 'baseline', now )
+  } )
+
   inTransaction( () => {
     insertFeed( feed )
-
-    items.forEach( ( item, index ) => {
-      const status = index === newest ? 'inbox' : 'baseline'
-
-      insertItemIfNew( toStoredItem( feed.id, item, status, now ) )
-    } )
+    stored.forEach( insertItemIfNew )
   } )
+
+  await queueAutomatically( feed, stored.filter( ( { status } ) => status === 'inbox' ) )
 
   return toPublicFeed( feed )
 }
@@ -263,6 +280,7 @@ export const checkFeed = async ( id: string ): Promise< Feed > => {
   }
 
   let skipped = feed.last_skipped_count
+  const added: StoredFeedItem[] = []
 
   if( outcome.parsed !== null ) {
     const items = outcome.parsed.items.map( toFeedItem )
@@ -277,9 +295,12 @@ export const checkFeed = async ( id: string ): Promise< Feed > => {
         const status = inbox < MAX_NEW_ITEMS_PER_CHECK ? 'inbox' : 'skipped'
         const addedAt = new Date( Date.parse( now ) - index ).toISOString()
 
-        if( insertItemIfNew( toStoredItem( id, item, status, addedAt ) ) ) {
+        const stored = toStoredItem( id, item, status, addedAt )
+
+        if( insertItemIfNew( stored ) ) {
           inbox += status === 'inbox' ? 1 : 0
           overflow += status === 'skipped' ? 1 : 0
+          added.push( stored )
         }
       } )
 
@@ -293,6 +314,8 @@ export const checkFeed = async ( id: string ): Promise< Feed > => {
     last_error: null,
     last_skipped_count: skipped,
   } )
+
+  await queueAutomatically( feed, added.filter( ( { status } ) => status === 'inbox' ) )
 
   return toPublicFeed( requireActiveFeed( id ) )
 }

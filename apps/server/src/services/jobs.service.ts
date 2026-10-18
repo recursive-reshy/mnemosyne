@@ -6,6 +6,7 @@ import {
   JobStatus,
   SummaryUsage,
   NoteParseError,
+  ArticleSource,
   SourceDocument,
   SourceType,
   SubmitPastedTextBody,
@@ -43,6 +44,7 @@ import {
   markInterruptedJobs,
   updateJob,
 } from '../repositories/jobStore.repository.js'
+import { findFeedById } from '../repositories/feeds.repository.js'
 import { findProfileById, findVersionById } from '../repositories/promptProfiles.repository.js'
 import { insertSummaryRun, listRunsForJob } from '../repositories/summaryRuns.repository.js'
 // Sources
@@ -201,20 +203,20 @@ const validateChoices = async ( { model, profile_id }: SummaryChoices ): Promise
 
 export const queueJob = async (
   body: CreateJobBody,
-  extra: { feed_id?: string } = {},
+  extra: { feed_id?: string, document?: ArticleSource } = {},
 ): Promise< Job > => {
   const { url, text, title } = body
   const sourceType = body.source_type ?? detectSourceType( url )
 
   await validateChoices( body )
 
-  if( text !== undefined && sourceType !== 'article' ) {
+  if( ( text !== undefined || extra.document !== undefined ) && sourceType !== 'article' ) {
     throw new ValidationError( 'Pasted text is only for articles' )
   }
 
-  const document = text === undefined
+  const document = extra.document ?? ( text === undefined
     ? null
-    : articleFromText( { url, text, title, origin: 'pasted' } )
+    : articleFromText( { url, text, title, origin: 'pasted' } ) )
   const now = new Date().toISOString()
   const job: StoredJob = {
     id: crypto.randomUUID(),
@@ -233,7 +235,7 @@ export const queueJob = async (
     source_document: document,
     source_type: sourceType,
     feed_id: extra.feed_id ?? null,
-    feed_name: null,
+    feed_name: extra.feed_id === undefined ? null : findFeedById( extra.feed_id )?.name ?? null,
   }
 
   insertJob( job )
