@@ -86,7 +86,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 8.5 | Feed and inbox endpoints, `BadGatewayError`, each error status through `app.ts` (TRD §7). Server docs: `apps/server/CLAUDE.md` (sources folder, new services, clients and worker, ADR list), root `CLAUDE.md` architecture paragraph (articles, pasted text, feeds and the inbox) | 0032 | ✅ |
 
 ## Checkpoint F: Phase 9 (web feeds)
-**Plan:** ⬜ [`plans/checkpoint-f.md`](plans/checkpoint-f.md)
+**Plan:** ✅ [`plans/checkpoint-f.md`](plans/checkpoint-f.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
