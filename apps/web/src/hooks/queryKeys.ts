@@ -20,3 +20,8 @@ export const promptKeys = {
   profiles: [ 'prompt-profiles' ] as const,
   versions: ( id: string ) => [ 'prompt-profiles', id, 'versions' ] as const,
 }
+
+export const feedKeys = {
+  all: [ 'feeds' ] as const,
+  inbox: [ 'feed-items' ] as const,
+}

@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest'
 // App
 import {
+  feedKeys,
   modelKeys,
   promptKeys,
   settingsKeys,
@@ -16,5 +17,12 @@ describe( 'summarizer query keys', () => {
 
   it( 'nests a profile\'s versions under the profiles key', () => {
     expect( promptKeys.versions( 'abc' ) ).toEqual( [ 'prompt-profiles', 'abc', 'versions' ] )
+  } )
+} )
+
+describe( 'feed query keys', () => {
+  it( 'has stable keys for feeds and the inbox', () => {
+    expect( feedKeys.all ).toEqual( [ 'feeds' ] )
+    expect( feedKeys.inbox ).toEqual( [ 'feed-items' ] )
   } )
 } )
