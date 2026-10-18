@@ -2,14 +2,34 @@
 import { z } from 'zod'
 // Job
 import { Job } from './job.js'
-// Transcript
-import { Transcript } from './transcript.js'
+// Source
+import { detectSourceType } from './detectSourceType.js'
+import {
+  ARTICLE_LIMITS,
+  SourceDocument,
+  SourceType,
+} from './source.js'
+
+const PastedText = z.string().trim()
+  .min( ARTICLE_LIMITS.minPastedChars )
+  .max( ARTICLE_LIMITS.maxChars )
+const PastedTitle = z.string().trim().min( 1 ).max( 300 )
 
 export const CreateJobBody = z.object( {
   url: z.url( { protocol: /^https?$/ } ),
   model: z.string().min( 1 ).optional(),
   profile_id: z.uuid().optional(),
-} )
+  source_type: SourceType.optional(),
+  text: PastedText.optional(),
+  title: PastedTitle.optional(),
+} ).refine(
+  ( body ) => {
+    const hasPasted = body.text !== undefined || body.title !== undefined
+
+    return !hasPasted || ( body.source_type ?? detectSourceType( body.url ) ) === 'article'
+  },
+  { message: 'Pasted text and a title are only for articles', path: [ 'text' ] },
+)
 export type CreateJobBody = z.infer< typeof CreateJobBody >
 
 export const CreateJobResponse = z.object( {
@@ -27,10 +47,16 @@ export const ListJobsResponse = z.object( {
 } )
 export type ListJobsResponse = z.infer< typeof ListJobsResponse >
 
-export const GetTranscriptResponse = z.object( {
-  transcript: Transcript,
+export const SubmitPastedTextBody = z.object( {
+  text: PastedText,
+  title: PastedTitle.optional(),
 } )
-export type GetTranscriptResponse = z.infer< typeof GetTranscriptResponse >
+export type SubmitPastedTextBody = z.infer< typeof SubmitPastedTextBody >
+
+export const GetSourceResponse = z.object( {
+  source: SourceDocument,
+} )
+export type GetSourceResponse = z.infer< typeof GetSourceResponse >
 
 export const SaveJobResponse = z.object( {
   saved_path: z.string().min( 1 ),

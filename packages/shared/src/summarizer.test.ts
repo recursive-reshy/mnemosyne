@@ -72,26 +72,44 @@ describe( 'ModelOption and ListModelsResponse', () => {
 } )
 
 describe( 'Settings', () => {
-  it( 'accepts a model and a profile id', () => {
-    const settings = { default_model: 'm', default_profile_id: profileId }
+  const settings = {
+    default_model: 'm',
+    default_profile_id: profileId,
+    feed_check_interval_minutes: 60,
+  }
 
+  it( 'accepts a model, a profile id and a feed interval', () => {
     expect( Settings.safeParse( settings ).success ).toBe( true )
   } )
 
   it( 'rejects a profile id that is not a uuid', () => {
-    const settings = { default_model: 'm', default_profile_id: 'x' }
-
-    expect( Settings.safeParse( settings ).success ).toBe( false )
+    expect( Settings.safeParse( { ...settings, default_profile_id: 'x' } ).success ).toBe( false )
   } )
 
-  it( 'GetSettingsResponse carries the locked instructions', () => {
+  it.each( [ 15, 30, 60, 180, 360, 1440 ] )( 'accepts a feed interval of %s', ( minutes ) => {
+    expect( Settings.safeParse( { ...settings, feed_check_interval_minutes: minutes } ).success )
+      .toBe( true )
+  } )
+
+  it.each( [ 0, 5, 45, '60' ] )( 'rejects a feed interval of %s', ( minutes ) => {
+    expect( Settings.safeParse( { ...settings, feed_check_interval_minutes: minutes } ).success )
+      .toBe( false )
+  } )
+
+  it( 'GetSettingsResponse carries the locked instructions for videos and articles', () => {
     const body = {
-      settings: { default_model: 'm', default_profile_id: profileId },
-      locked_instructions: 'text',
+      settings,
+      locked_instructions: { video: 'video text', article: 'article text' },
     }
 
     expect( GetSettingsResponse.safeParse( body ).success ).toBe( true )
-    expect( GetSettingsResponse.safeParse( { settings: body.settings } ).success ).toBe( false )
+    expect( GetSettingsResponse.safeParse( { settings } ).success ).toBe( false )
+    expect( GetSettingsResponse.safeParse( { ...body, locked_instructions: 'text' } ).success )
+      .toBe( false )
+    expect( GetSettingsResponse.safeParse( {
+      ...body,
+      locked_instructions: { video: 'only' },
+    } ).success ).toBe( false )
   } )
 } )
 
@@ -102,6 +120,16 @@ describe( 'UpdateSettingsBody', () => {
 
   it( 'accepts a profile alone', () => {
     expect( UpdateSettingsBody.safeParse( { default_profile_id: profileId } ).success ).toBe( true )
+  } )
+
+  it( 'accepts a feed interval alone', () => {
+    expect( UpdateSettingsBody.safeParse( { feed_check_interval_minutes: 180 } ).success )
+      .toBe( true )
+  } )
+
+  it( 'rejects an interval that is not on the list', () => {
+    expect( UpdateSettingsBody.safeParse( { feed_check_interval_minutes: 10 } ).success )
+      .toBe( false )
   } )
 
   it( 'rejects an empty body', () => {

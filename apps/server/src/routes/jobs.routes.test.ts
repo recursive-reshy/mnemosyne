@@ -12,7 +12,7 @@ import {
 import request from 'supertest'
 // Shared
 import {
-  GetTranscriptResponse,
+  GetSourceResponse,
   Job,
   JobStatus,
   ListJobsResponse,
@@ -304,15 +304,15 @@ describe( 'GET /api/jobs/:id/download', () => {
 
 describe( 'GET /api/jobs/:id/transcript', () => {
   it.each( [ 'ready_for_review', 'summary_failed' ] as const )(
-    'returns the transcript when the job is %s',
+    'returns the source when the job is %s',
     async ( status ) => {
       const id = await seedJobAt( status )
 
       const response = await request( app ).get( `/api/jobs/${ id }/transcript` )
 
       expect( response.status ).toBe( 200 )
-      expect( GetTranscriptResponse.parse( response.body ) ).toEqual( {
-        transcript: transcriptFixture,
+      expect( GetSourceResponse.parse( response.body ) ).toEqual( {
+        source: { kind: 'video', ...transcriptFixture },
       } )
     },
   )

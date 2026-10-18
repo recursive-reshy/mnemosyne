@@ -41,7 +41,7 @@ describe( 'useSettings', () => {
     await vi.waitFor( () => expect( result.current.isLoading ).toBe( false ) )
     expect( result.current ).toMatchObject( {
       settings: settingsFixture().settings,
-      lockedInstructions: settingsFixture().locked_instructions,
+      lockedInstructions: settingsFixture().locked_instructions.video,
       error: null,
     } )
   } )

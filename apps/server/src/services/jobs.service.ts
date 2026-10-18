@@ -135,6 +135,9 @@ const toPublicJob = ( job: StoredJob ): Job => {
     summary_model: job.summary_model,
     prompt_profile_id: job.prompt_profile_id,
     summary_usage: toSummaryUsage( job.id ),
+    source_type: 'video',
+    feed_id: null,
+    feed_name: null,
   }
 }
 

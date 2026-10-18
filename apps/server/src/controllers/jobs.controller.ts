@@ -6,7 +6,7 @@ import {
   CreateJobResponse,
   DownloadFormat,
   GetJobResponse,
-  GetTranscriptResponse,
+  GetSourceResponse,
   ListJobsResponse,
   RegenerateSummaryBody,
   SaveJobResponse,
@@ -53,11 +53,11 @@ export const getJob = ( { params }: Request, res: Response< GetJobResponse > ): 
 
 export const getTranscript = (
   { params }: Request,
-  res: Response< GetTranscriptResponse >,
+  res: Response< GetSourceResponse >,
 ): void => {
   const transcript = findTranscript( String( params.id ) )
 
-  res.status( 200 ).json( { transcript } )
+  res.status( 200 ).json( { source: { kind: 'video', ...transcript } } )
 }
 
 export const updateJobDraft = (

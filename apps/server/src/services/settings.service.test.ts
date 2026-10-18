@@ -9,7 +9,7 @@ import {
 // Errors
 import { ValidationError } from '../errors.js'
 // Repositories
-import { getSetting } from '../repositories/settings.repository.js'
+import { getSetting, setSetting } from '../repositories/settings.repository.js'
 // Summarizer
 import { LOCKED_INSTRUCTIONS } from '../summarizer/prompts.js'
 // Services
@@ -39,7 +39,14 @@ describe( 'getSettings', () => {
     expect( getSettings() ).toEqual( {
       default_model: 'claude-sonnet-5-5',
       default_profile_id: byName( 'Business ideas' ),
+      feed_check_interval_minutes: 60,
     } )
+  } )
+
+  it( 'reads the feed check interval from the stored setting when there is one', () => {
+    setSetting( 'feed_check_interval_minutes', 180 )
+
+    expect( getSettings().feed_check_interval_minutes ).toBe( 180 )
   } )
 } )
 
@@ -74,7 +81,11 @@ describe( 'updateSettings', () => {
       default_profile_id: coding,
     } )
 
-    expect( settings ).toEqual( { default_model: 'claude-opus-5-5', default_profile_id: coding } )
+    expect( settings ).toEqual( {
+      default_model: 'claude-opus-5-5',
+      default_profile_id: coding,
+      feed_check_interval_minutes: 60,
+    } )
   } )
 
   it( 'rejects an unknown model and saves nothing', async () => {

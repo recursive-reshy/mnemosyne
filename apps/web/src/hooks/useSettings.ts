@@ -34,7 +34,7 @@ export function useSettings(): SettingsState {
 
   return {
     settings: data?.settings ?? null,
-    lockedInstructions: data?.locked_instructions ?? null,
+    lockedInstructions: data?.locked_instructions.video ?? null,
     isLoading: isPending,
     error: error === null ? null : error.message,
     updateSettings: update,

@@ -28,7 +28,7 @@ type State = ReturnType< typeof useSettings >
 
 const state = ( overrides: Partial< State > = {} ): State => ( {
   settings: settingsFixture().settings,
-  lockedInstructions: settingsFixture().locked_instructions,
+  lockedInstructions: settingsFixture().locked_instructions.video,
   isLoading: false,
   error: null,
   updateSettings: mutationStub(),
@@ -47,7 +47,7 @@ describe( 'SettingsPage', () => {
     expect( screen.getByRole( 'heading', { level: 3, name: 'Summarizer' } ) ).toBeInTheDocument()
     expect( screen.getByText( 'defaults' ) ).toBeInTheDocument()
     expect( screen.getByText( 'profiles' ) ).toBeInTheDocument()
-    expect( screen.getByText( `locked: ${ settingsFixture().locked_instructions }` ) )
+    expect( screen.getByText( `locked: ${ settingsFixture().locked_instructions.video }` ) )
       .toBeInTheDocument()
   } )
 

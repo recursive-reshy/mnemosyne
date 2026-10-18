@@ -18,11 +18,15 @@ const validJob = {
   summary_model: null,
   prompt_profile_id: null,
   summary_usage: null,
+  source_type: 'video',
+  feed_id: null,
+  feed_name: null,
 }
 
 describe( 'JobStatus', () => {
   it.each( [
     'queued',
+    'fetching',
     'downloading',
     'converting',
     'transcribing',
@@ -62,6 +66,29 @@ describe( 'Job', () => {
 
   it( 'rejects an unknown status', () => {
     expect( Job.safeParse( { ...validJob, status: 'paused' } ).success ).toBe( false )
+  } )
+
+  it( 'accepts an article job from a feed', () => {
+    const fromFeed = {
+      ...validJob,
+      source_type: 'article',
+      feed_id: '3f2b8c1e-6d1a-4b8e-9a53-0c1d2e3f4a5c',
+      feed_name: 'A blog',
+    }
+
+    expect( Job.safeParse( fromFeed ).success ).toBe( true )
+  } )
+
+  it.each( [ 'source_type', 'feed_id', 'feed_name' ] )( 'rejects a missing %s', ( field ) => {
+    const without: Record< string, unknown > = { ...validJob }
+    delete without[ field ]
+
+    expect( Job.safeParse( without ).success ).toBe( false )
+  } )
+
+  it( 'rejects an unknown source_type and a feed_id that is not a uuid', () => {
+    expect( Job.safeParse( { ...validJob, source_type: 'email' } ).success ).toBe( false )
+    expect( Job.safeParse( { ...validJob, feed_id: 'x' } ).success ).toBe( false )
   } )
 
   it( 'rejects a non-URL url', () => {

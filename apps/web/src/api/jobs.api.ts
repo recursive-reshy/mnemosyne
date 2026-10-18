@@ -2,7 +2,7 @@
 import {
   CreateJobResponse,
   GetJobResponse,
-  GetTranscriptResponse,
+  GetSourceResponse,
   ListJobsResponse,
   SaveJobResponse,
   UpdateDraftResponse,
@@ -16,6 +16,7 @@ import type {
   UpdateDraftBody,
 } from '@mnemosyne/shared'
 // App
+import { ApiError } from './apiError'
 import { request, send } from './request'
 
 const jobPath = ( id: string ): string => `/api/jobs/${ encodeURIComponent( id ) }`
@@ -55,8 +56,13 @@ export const listJobs = async (): Promise< Job[] > => {
 }
 
 export const getTranscript = async ( id: string ): Promise< Transcript > => {
-  const { transcript } = await request( `${ jobPath( id ) }/transcript`, GetTranscriptResponse )
-  return transcript
+  const { source } = await request( `${ jobPath( id ) }/transcript`, GetSourceResponse )
+
+  if( source.kind !== 'video' ) {
+    throw new ApiError( 'This job has no transcript', null )
+  }
+
+  return { meta: source.meta, segments: source.segments }
 }
 
 export const updateDraft = async ( id: string, draft: UpdateDraftBody ): Promise< Job > => {

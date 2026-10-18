@@ -26,6 +26,7 @@ const STAGES = [
 
 const STATUS_MESSAGES = {
   queued: 'Waiting in the queue…',
+  fetching: 'Fetching the article…',
   downloading: 'Downloading audio…',
   converting: 'Converting audio…',
   transcribing: 'Transcribing…',

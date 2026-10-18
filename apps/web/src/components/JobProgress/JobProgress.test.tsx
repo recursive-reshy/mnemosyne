@@ -52,6 +52,7 @@ describe( 'JobProgress', () => {
   } )
 
   it.each( [
+    [ 'fetching', 'Fetching the article…' ],
     [ 'summary_failed', 'Summary failed' ],
     [ 'saved', 'Saved' ],
   ] as const )( 'shows a message for the %s state', ( status, message ) => {

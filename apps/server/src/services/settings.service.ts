@@ -1,5 +1,9 @@
 // Shared
-import { Settings, UpdateSettingsBody } from '@mnemosyne/shared'
+import {
+  FeedCheckInterval,
+  Settings,
+  UpdateSettingsBody,
+} from '@mnemosyne/shared'
 // Repositories
 import { getSetting, setSetting } from '../repositories/settings.repository.js'
 // Summarizer
@@ -9,12 +13,16 @@ import { LOCKED_INSTRUCTIONS } from '../summarizer/prompts.js'
 import { assertKnownModel } from './models.service.js'
 import { assertActiveProfile, resolvePrompt } from './prompts.service.js'
 
+const DEFAULT_FEED_INTERVAL = 60
+
 export const getSettings = (): Settings => {
   const model = getSetting( 'default_model' )
+  const interval = FeedCheckInterval.safeParse( getSetting( 'feed_check_interval_minutes' ) )
 
   return {
     default_model: typeof model === 'string' ? model : SHIPPED_DEFAULT_MODEL,
     default_profile_id: resolvePrompt( null ).profile.id,
+    feed_check_interval_minutes: interval.success ? interval.data : DEFAULT_FEED_INTERVAL,
   }
 }
 

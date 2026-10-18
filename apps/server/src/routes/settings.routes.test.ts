@@ -44,8 +44,9 @@ describe( 'GET /api/settings', () => {
       settings: {
         default_model: 'claude-sonnet-5-5',
         default_profile_id: profileId( 'Business ideas' ),
+        feed_check_interval_minutes: 60,
       },
-      locked_instructions: LOCKED_INSTRUCTIONS,
+      locked_instructions: { video: LOCKED_INSTRUCTIONS, article: LOCKED_INSTRUCTIONS },
     } )
   } )
 } )

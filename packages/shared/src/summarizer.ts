@@ -13,24 +13,39 @@ export const ListModelsResponse = z.object( {
 } )
 export type ListModelsResponse = z.infer< typeof ListModelsResponse >
 
+export const FeedCheckInterval = z.union( [
+  z.literal( 15 ),
+  z.literal( 30 ),
+  z.literal( 60 ),
+  z.literal( 180 ),
+  z.literal( 360 ),
+  z.literal( 1440 ),
+] )
+export type FeedCheckInterval = z.infer< typeof FeedCheckInterval >
+
 export const Settings = z.object( {
   default_model: z.string().min( 1 ),
   default_profile_id: z.uuid(),
+  feed_check_interval_minutes: FeedCheckInterval,
 } )
 export type Settings = z.infer< typeof Settings >
 
 export const GetSettingsResponse = z.object( {
   settings: Settings,
-  locked_instructions: z.string(),
+  locked_instructions: z.object( {
+    video: z.string(),
+    article: z.string(),
+  } ),
 } )
 export type GetSettingsResponse = z.infer< typeof GetSettingsResponse >
 
 export const UpdateSettingsBody = z.object( {
   default_model: z.string().min( 1 ).optional(),
   default_profile_id: z.uuid().optional(),
+  feed_check_interval_minutes: FeedCheckInterval.optional(),
 } ).refine(
-  ( body ) => body.default_model !== undefined || body.default_profile_id !== undefined,
-  { message: 'Provide default_model or default_profile_id' },
+  ( body ) => Object.values( body ).some( ( value ) => value !== undefined ),
+  { message: 'Provide default_model, default_profile_id or feed_check_interval_minutes' },
 )
 export type UpdateSettingsBody = z.infer< typeof UpdateSettingsBody >
 

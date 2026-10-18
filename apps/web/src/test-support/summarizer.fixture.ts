@@ -75,8 +75,12 @@ export const settingsFixture = (
     settings: {
       default_model: 'claude-sonnet-5-5',
       default_profile_id: BUSINESS_ID,
+      feed_check_interval_minutes: 60,
       ...overrides,
     },
-    locked_instructions: 'You summarize the transcript of a video.',
+    locked_instructions: {
+      video: 'You summarize the transcript of a video.',
+      article: 'You summarize an article.',
+    },
   }
 }

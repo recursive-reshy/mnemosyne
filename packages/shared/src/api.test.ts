@@ -7,10 +7,11 @@ import {
   DownloadFormat,
   FolderNode,
   GetJobResponse,
-  GetTranscriptResponse,
+  GetSourceResponse,
   ListFoldersResponse,
   ListJobsResponse,
   SaveJobResponse,
+  SubmitPastedTextBody,
   UpdateDraftBody,
   UpdateDraftResponse,
 } from './api.js'
@@ -54,6 +55,89 @@ describe( 'CreateJobBody', () => {
   } )
 } )
 
+describe( 'CreateJobBody with articles', () => {
+  const article = 'https://example.com/post'
+  const text = 'x'.repeat( 200 )
+
+  it( 'accepts an explicit source_type', () => {
+    expect( CreateJobBody.safeParse( { url: article, source_type: 'article' } ).success )
+      .toBe( true )
+    expect( CreateJobBody.safeParse( { url: article, source_type: 'video' } ).success )
+      .toBe( true )
+  } )
+
+  it( 'rejects an unknown source_type', () => {
+    expect( CreateJobBody.safeParse( { url: article, source_type: 'email' } ).success )
+      .toBe( false )
+  } )
+
+  it( 'accepts text and a title for an article', () => {
+    expect( CreateJobBody.safeParse( { url: article, text, title: 'T' } ).success ).toBe( true )
+  } )
+
+  it( 'accepts text for a video-looking URL when source_type is article', () => {
+    const url = 'https://www.youtube.com/watch?v=abc'
+
+    expect( CreateJobBody.safeParse( { url, source_type: 'article', text } ).success )
+      .toBe( true )
+  } )
+
+  it( 'rejects text or a title with a detected video', () => {
+    const url = 'https://www.youtube.com/watch?v=abc'
+
+    expect( CreateJobBody.safeParse( { url, text } ).success ).toBe( false )
+    expect( CreateJobBody.safeParse( { url, title: 'T' } ).success ).toBe( false )
+  } )
+
+  it( 'rejects text or a title with an explicit video', () => {
+    expect( CreateJobBody.safeParse( { url: article, source_type: 'video', text } ).success )
+      .toBe( false )
+    expect( CreateJobBody.safeParse( { url: article, source_type: 'video', title: 'T' } ).success )
+      .toBe( false )
+  } )
+
+  it( 'trims the text and applies the length limits after trimming', () => {
+    const padded = CreateJobBody.parse( { url: article, text: `  ${ text }  ` } )
+
+    expect( padded.text ).toBe( text )
+    expect( CreateJobBody.safeParse( { url: article, text: 'x'.repeat( 199 ) } ).success )
+      .toBe( false )
+    expect( CreateJobBody.safeParse( { url: article, text: 'x'.repeat( 300_001 ) } ).success )
+      .toBe( false )
+    expect( CreateJobBody.safeParse( { url: article, text: 'x'.repeat( 300_000 ) } ).success )
+      .toBe( true )
+  } )
+
+  it( 'trims the title and limits it to 1 to 300 characters', () => {
+    expect( CreateJobBody.parse( { url: article, text, title: '  T  ' } ).title ).toBe( 'T' )
+    expect( CreateJobBody.safeParse( { url: article, text, title: '   ' } ).success )
+      .toBe( false )
+    expect( CreateJobBody.safeParse( { url: article, text, title: 'x'.repeat( 301 ) } ).success )
+      .toBe( false )
+  } )
+} )
+
+describe( 'SubmitPastedTextBody', () => {
+  const text = 'x'.repeat( 200 )
+
+  it( 'accepts text alone and text with a title', () => {
+    expect( SubmitPastedTextBody.safeParse( { text } ).success ).toBe( true )
+    expect( SubmitPastedTextBody.safeParse( { text, title: 'T' } ).success ).toBe( true )
+  } )
+
+  it( 'applies the same text and title rules', () => {
+    expect( SubmitPastedTextBody.safeParse( { text: 'short' } ).success ).toBe( false )
+    expect( SubmitPastedTextBody.safeParse( { text: 'x'.repeat( 300_001 ) } ).success )
+      .toBe( false )
+    expect( SubmitPastedTextBody.safeParse( { text, title: '' } ).success ).toBe( false )
+    expect( SubmitPastedTextBody.parse( { text: `  ${ text } ` } ).text ).toBe( text )
+  } )
+
+  it( 'rejects a missing text', () => {
+    expect( SubmitPastedTextBody.safeParse( {} ).success ).toBe( false )
+  } )
+} )
+
 describe( 'CreateJobResponse', () => {
   it( 'accepts a UUID job_id', () => {
     expect( CreateJobResponse.safeParse( { job_id: jobId } ).success ).toBe( true )
@@ -80,6 +164,9 @@ describe( 'GetJobResponse', () => {
     summary_model: null,
     prompt_profile_id: null,
     summary_usage: null,
+    source_type: 'video',
+    feed_id: null,
+    feed_name: null,
   }
 
   it( 'accepts a job', () => {
@@ -115,6 +202,9 @@ const jobFields = {
   summary_model: null,
   prompt_profile_id: null,
   summary_usage: null,
+  source_type: 'video',
+  feed_id: null,
+  feed_name: null,
 }
 
 const transcript = {
@@ -148,15 +238,43 @@ describe( 'ListJobsResponse', () => {
   } )
 } )
 
-describe( 'GetTranscriptResponse', () => {
-  it( 'accepts a transcript', () => {
-    expect( GetTranscriptResponse.safeParse( { transcript } ).success ).toBe( true )
+describe( 'GetSourceResponse', () => {
+  it( 'accepts a video source', () => {
+    expect( GetSourceResponse.safeParse( { source: { kind: 'video', ...transcript } } ).success )
+      .toBe( true )
   } )
 
-  it( 'rejects a transcript without segments', () => {
+  it( 'accepts an article source', () => {
+    const source = {
+      kind: 'article',
+      meta: {
+        title: 'A post',
+        source: 'https://example.com/post',
+        author: null,
+        site: null,
+        published: null,
+        fetched_at: '2026-10-18T10:00:00.000Z',
+        origin: 'pasted',
+      },
+      markdown: 'Text',
+    }
+
+    expect( GetSourceResponse.safeParse( { source } ).success ).toBe( true )
+  } )
+
+  it( 'rejects a source without a kind', () => {
+    expect( GetSourceResponse.safeParse( { source: transcript } ).success ).toBe( false )
+  } )
+
+  it( 'rejects a video without segments', () => {
     const { meta } = transcript
 
-    expect( GetTranscriptResponse.safeParse( { transcript: { meta } } ).success ).toBe( false )
+    expect( GetSourceResponse.safeParse( { source: { kind: 'video', meta } } ).success )
+      .toBe( false )
+  } )
+
+  it( 'no longer accepts the 0.4.0 transcript key', () => {
+    expect( GetSourceResponse.safeParse( { transcript } ).success ).toBe( false )
   } )
 } )
 

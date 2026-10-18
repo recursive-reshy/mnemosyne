@@ -1,10 +1,13 @@
 // Packages
 import { z } from 'zod'
+// Source
+import { SourceType } from './source.js'
 // Summarizer
 import { SummaryUsage } from './summarizer.js'
 
 export const JobStatus = z.enum( [
   'queued',
+  'fetching',
   'downloading',
   'converting',
   'transcribing',
@@ -31,5 +34,8 @@ export const Job = z.object( {
   summary_model: z.string().nullable(),
   prompt_profile_id: z.uuid().nullable(),
   summary_usage: SummaryUsage.nullable(),
+  source_type: SourceType,
+  feed_id: z.uuid().nullable(),
+  feed_name: z.string().nullable(),
 } )
 export type Job = z.infer< typeof Job >

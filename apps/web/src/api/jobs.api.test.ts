@@ -183,10 +183,34 @@ describe( 'listJobs', () => {
 
 describe( 'getTranscript', () => {
   it( 'requests the transcript with the id encoded and returns it', async () => {
-    fetchMock.mockResolvedValue( jsonResponse( { transcript }, 200 ) )
+    fetchMock.mockResolvedValue(
+      jsonResponse( { source: { kind: 'video', ...transcript } }, 200 ),
+    )
 
     await expect( getTranscript( 'a/b' ) ).resolves.toEqual( transcript )
     expect( fetchMock.mock.calls[ 0 ]?.[ 0 ] ).toBe( '/api/jobs/a%2Fb/transcript' )
+  } )
+
+  it( 'rejects an article source, which has no transcript', async () => {
+    const article = {
+      kind: 'article',
+      meta: {
+        title: 'A post',
+        source: 'https://example.com/post',
+        author: null,
+        site: null,
+        published: null,
+        fetched_at: '2026-10-18T10:00:00.000Z',
+        origin: 'fetched',
+      },
+      markdown: 'Text',
+    }
+
+    fetchMock.mockResolvedValue( jsonResponse( { source: article }, 200 ) )
+
+    const error = await rejection( getTranscript( jobId ) )
+
+    expect( error.message ).toBe( 'This job has no transcript' )
   } )
 
   it( 'uses the server message when the transcript is not ready', async () => {
@@ -199,7 +223,7 @@ describe( 'getTranscript', () => {
   } )
 
   it( 'rejects a malformed transcript', async () => {
-    fetchMock.mockResolvedValue( jsonResponse( { transcript: { meta: {} } }, 200 ) )
+    fetchMock.mockResolvedValue( jsonResponse( { source: { kind: 'video', meta: {} } }, 200 ) )
 
     const error = await rejection( getTranscript( jobId ) )
 

@@ -5,7 +5,12 @@ import { Job, Transcript } from '@mnemosyne/shared'
 // Repositories
 import { getDatabase } from './database.js'
 
-export const StoredJob = Job.omit( { summary_usage: true } ).extend( {
+export const StoredJob = Job.omit( {
+  summary_usage: true,
+  source_type: true,
+  feed_id: true,
+  feed_name: true,
+} ).extend( {
   transcript: Transcript.nullable(),
 } )
 export type StoredJob = z.infer< typeof StoredJob >

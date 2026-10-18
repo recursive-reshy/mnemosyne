@@ -134,6 +134,9 @@ describe( 'queueJob', () => {
       summary_model: null,
       prompt_profile_id: null,
       summary_usage: null,
+      source_type: 'video',
+      feed_id: null,
+      feed_name: null,
     } )
   } )
 
