@@ -39,6 +39,12 @@ For development you also need Node 24, pnpm (the version in `packageManager` in 
 brew install yt-dlp ffmpeg
 ```
 
+The web browser tests (`pnpm --filter web test:browser`) run in real Chromium and WebKit. Install them once:
+
+```sh
+pnpm --filter web exec playwright install chromium webkit
+```
+
 ## Setup
 
 1. Run whisper-server as a login agent. `ops/com.naresh.whisper-server.plist` hard-codes `/Users/naresh/...` paths for the models and the log file; edit them to match your home folder first. Then:
