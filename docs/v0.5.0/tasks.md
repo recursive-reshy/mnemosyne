@@ -74,7 +74,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 7.4 | Review screen: `TranscriptPane` → `SourcePane` with the article view; `PropertiesPanel` article fields; `DownloadLinks` Markdown only for articles; video/article icon in the job list (TRD §8.4) | 0030 | ✅ |
 
 ## Checkpoint E: Phase 8 (server feeds)
-**Plan:** ⬜ [`plans/checkpoint-e.md`](plans/checkpoint-e.md)
+**Plan:** ✅ [`plans/checkpoint-e.md`](plans/checkpoint-e.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
