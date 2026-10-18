@@ -9,7 +9,7 @@ import {
   Transcript,
   UpdateDraftBody,
   applyLockedProperties,
-  formatClock,
+  lockedPropertiesFor,
   parseFolderPath,
   parseNote,
   serializeNote,
@@ -136,9 +136,9 @@ const toPublicJob = ( job: StoredJob ): Job => {
     summary_model: job.summary_model,
     prompt_profile_id: job.prompt_profile_id,
     summary_usage: toSummaryUsage( job.id ),
-    source_type: 'video',
-    feed_id: null,
-    feed_name: null,
+    source_type: job.source_type,
+    feed_id: job.feed_id,
+    feed_name: job.feed_name,
   }
 }
 
@@ -270,14 +270,14 @@ export const completeSummary = (
     throw conflict( job.status, 'ready_for_review' )
   }
 
-  const { meta } = toTranscript( id, getSource( id ) )
+  const document = getSource( id )
 
   return moveTo( job, 'ready_for_review', {
     note_markdown: formatNote( {
-      title: job.title ?? meta.title,
+      title: job.title ?? document.meta.title,
       tags: suggestedTags,
       body: summaryMarkdown,
-      meta,
+      document,
       created: new Date().toISOString().slice( 0, 10 ),
     } ),
     error: null,
@@ -424,7 +424,6 @@ export const updateDraft = ( id: string, body: UpdateDraftBody ): Job => {
   const changes: Partial< StoredJob > = { expires_at: expiryFromNow() }
 
   if( body.note_markdown !== undefined ) {
-    const { meta } = toTranscript( id, job.source_document )
     let created = today()
 
     try {
@@ -432,12 +431,10 @@ export const updateDraft = ( id: string, body: UpdateDraftBody ): Job => {
         created = parseNote( job.note_markdown ).properties.created
       }
 
-      const note = applyLockedProperties( parseNote( body.note_markdown ), {
-        source: meta.source,
-        channel: meta.channel,
-        duration: formatClock( meta.duration_seconds ),
-        created,
-      } )
+      const note = applyLockedProperties(
+        parseNote( body.note_markdown ),
+        lockedPropertiesFor( job.source_document, created ),
+      )
 
       changes.note_markdown = serializeNote( note )
       changes.title = note.properties.title
@@ -480,13 +477,10 @@ export const saveJob = async ( id: string ): Promise< string > => {
     throw new ConflictError( 'The job has no draft to save' )
   }
 
-  const { meta } = toTranscript( id, job.source_document )
-  const note = applyLockedProperties( parseNote( job.note_markdown ), {
-    source: meta.source,
-    channel: meta.channel,
-    duration: formatClock( meta.duration_seconds ),
-    created: today(),
-  } )
+  const note = applyLockedProperties(
+    parseNote( job.note_markdown ),
+    lockedPropertiesFor( job.source_document, today() ),
+  )
 
   const savedPath = await writeNote(
     config.vaultPath,

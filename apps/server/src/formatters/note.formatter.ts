@@ -1,8 +1,8 @@
 // Shared
 import {
-  TranscriptMeta,
+  SourceDocument,
   applyLockedProperties,
-  formatClock,
+  lockedPropertiesFor,
   serializeNote,
 } from '@mnemosyne/shared'
 
@@ -10,17 +10,12 @@ interface NoteInput {
   title: string
   tags: string[]
   body: string
-  meta: TranscriptMeta
+  document: SourceDocument
   created: string
 }
 
-export const formatNote = ( { title, tags, body, meta, created }: NoteInput ): string => {
-  const locked = {
-    source: meta.source,
-    channel: meta.channel,
-    duration: formatClock( meta.duration_seconds ),
-    created,
-  }
+export const formatNote = ( { title, tags, body, document, created }: NoteInput ): string => {
+  const locked = lockedPropertiesFor( document, created )
 
   return serializeNote( applyLockedProperties(
     { properties: { title, ...locked, tags }, body: `${ body.trim() }\n` },

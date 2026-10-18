@@ -8,11 +8,22 @@ import {
   afterEach,
 } from 'vitest'
 // Shared
-import { JobStatus, Transcript } from '@mnemosyne/shared'
+import {
+  JobStatus,
+  SourceDocument,
+  Transcript,
+  parseNote,
+} from '@mnemosyne/shared'
 // Errors
 import { ConflictError, NotFoundError, ValidationError } from '../errors.js'
 // Repositories
-import { clearJobs, findJobById, updateJob } from '../repositories/jobStore.repository.js'
+import {
+  clearJobs,
+  findJobById,
+  insertJob,
+  updateJob,
+} from '../repositories/jobStore.repository.js'
+import { insertFeed } from '../repositories/feeds.repository.js'
 // Services
 import {
   completeSummary,
@@ -442,7 +453,7 @@ describe( 'completeSummary', () => {
       title: transcript.meta.title,
       tags: [ 'rust' ],
       body: '## Summary\nText',
-      meta: transcript.meta,
+      document: { kind: 'video', ...transcript },
       created: '2026-10-14',
     } ) )
     expect( job.target_folder ).toBeNull()
@@ -1213,5 +1224,145 @@ describe( 'regenerateSummary', () => {
     await expect( regenerateSummary( id, { profile_id: crypto.randomUUID() } ) )
       .rejects.toThrow( ValidationError )
     expect( findJob( id ).status ).toBe( 'ready_for_review' )
+  } )
+} )
+
+describe( 'article jobs', () => {
+  const article: SourceDocument = {
+    kind: 'article',
+    meta: {
+      title: 'A post',
+      source: 'https://example.com/post',
+      author: 'Ada',
+      site: 'Example',
+      published: '2026-10-01',
+      fetched_at: '2026-10-18T10:00:00.000Z',
+      origin: 'fetched',
+    },
+    markdown: 'Some text.',
+  }
+
+  const feedId = crypto.randomUUID()
+
+  const insertArticle = ( status: 'summarizing' | 'ready_for_review' ): string => {
+    const id = crypto.randomUUID()
+    const now = startTime.toISOString()
+
+    insertFeed( {
+      id: feedId,
+      url: 'https://example.com',
+      feed_url: 'https://example.com/feed.xml',
+      name: 'A blog',
+      profile_id: null,
+      enabled: true,
+      auto_summarize: false,
+      etag: null,
+      last_modified: null,
+      last_checked_at: null,
+      last_error: null,
+      last_skipped_count: 0,
+      created_at: now,
+      deleted_at: null,
+    } )
+    insertJob( {
+      id,
+      url: article.meta.source,
+      status,
+      error: null,
+      created_at: now,
+      updated_at: now,
+      title: 'A post',
+      note_markdown: null,
+      target_folder: null,
+      expires_at: null,
+      saved_path: null,
+      summary_model: null,
+      prompt_profile_id: null,
+      source_document: article,
+      source_type: 'article',
+      feed_id: feedId,
+      feed_name: null,
+    } )
+
+    return id
+  }
+
+  const insertReviewed = (): string => {
+    const id = insertArticle( 'summarizing' )
+    completeSummary( id, '## Summary\n\nText.', [ 'writing' ] )
+
+    return id
+  }
+
+  it( 'exposes source_type, feed_id and feed_name on the public job', () => {
+    const id = insertArticle( 'summarizing' )
+
+    expect( findJob( id ) ).toMatchObject( {
+      source_type: 'article',
+      feed_id: feedId,
+      feed_name: 'A blog',
+    } )
+    expect( listJobs()[ 0 ] ).toMatchObject( { source_type: 'article', feed_name: 'A blog' } )
+  } )
+
+  it( 'writes the article locked properties when the summary completes', () => {
+    const id = insertReviewed()
+    const { properties } = parseNote( findJobById( id )?.note_markdown ?? '' )
+
+    expect( properties ).toEqual( {
+      title: 'A post',
+      source: 'https://example.com/post',
+      author: 'Ada',
+      site: 'Example',
+      published: '2026-10-01',
+      created: '2026-10-14',
+      tags: [ 'mnemosyne', 'writing' ],
+    } )
+  } )
+
+  it( 'keeps the article keys and drops typed video keys on a draft update', () => {
+    const id = insertReviewed()
+
+    updateDraft( id, { note_markdown: [
+      '---',
+      'title: "Mine"',
+      'source: "x"',
+      'channel: "typed"',
+      'duration: "typed"',
+      'author: "typed"',
+      'created: 2020-01-01',
+      'tags: [rust]',
+      '---',
+      '',
+      'Edited.',
+      '',
+    ].join( '\n' ) } )
+
+    expect( parseNote( findJobById( id )?.note_markdown ?? '' ).properties ).toEqual( {
+      title: 'Mine',
+      source: 'https://example.com/post',
+      author: 'Ada',
+      site: 'Example',
+      published: '2026-10-01',
+      created: '2026-10-14',
+      tags: [ 'mnemosyne', 'rust' ],
+    } )
+  } )
+
+  it( 'saves the note with the article locked properties and today as created', async () => {
+    const id = insertReviewed()
+
+    await saveJob( id )
+
+    const [ , , , markdown ] = writeNoteMock.mock.calls[ 0 ] ?? []
+
+    expect( parseNote( markdown ?? '' ).properties ).toMatchObject( {
+      source: 'https://example.com/post',
+      author: 'Ada',
+      site: 'Example',
+      created: '2026-10-14',
+    } )
+    expect( markdown ).not.toContain( 'duration' )
+    expect( markdown ).not.toContain( 'channel' )
   } )
 } )

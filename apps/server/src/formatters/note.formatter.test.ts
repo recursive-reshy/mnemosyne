@@ -1,7 +1,7 @@
 // Packages
 import { describe, it, expect } from 'vitest'
 // Shared
-import { TranscriptMeta } from '@mnemosyne/shared'
+import { SourceDocument, TranscriptMeta } from '@mnemosyne/shared'
 // Formatters
 import { formatNote } from './note.formatter.js'
 
@@ -14,12 +14,14 @@ const meta: TranscriptMeta = {
   model: 'large-v3-turbo',
 }
 
+const video: SourceDocument = { kind: 'video', meta, segments: [] }
+
 const note = ( overrides: Partial< Parameters< typeof formatNote >[ 0 ] > = {} ): string => {
   return formatNote( {
     title: 'How Transformers Work',
     tags: [ 'machine-learning', 'transformers' ],
     body: '## Summary\n\nText.',
-    meta,
+    document: video,
     created: '2026-10-15',
     ...overrides,
   } )
@@ -76,8 +78,59 @@ describe( 'formatNote', () => {
   } )
 
   it( 'renders short durations as minutes and seconds', () => {
-    const result = note( { meta: { ...meta, duration_seconds: 754 } } )
+    const result = note( {
+      document: { kind: 'video', meta: { ...meta, duration_seconds: 754 }, segments: [] },
+    } )
 
     expect( result ).toContain( 'duration: "12:34"' )
+  } )
+
+  describe( 'for an article', () => {
+    const article: SourceDocument = {
+      kind: 'article',
+      meta: {
+        title: 'Original post',
+        source: 'https://example.com/post',
+        author: 'Ada',
+        site: 'Example',
+        published: '2026-10-01',
+        fetched_at: '2026-10-18T10:00:00.000Z',
+        origin: 'fetched',
+      },
+      markdown: 'Text',
+    }
+
+    it( 'writes author, site and published instead of channel and duration', () => {
+      expect( note( { document: article } ) ).toBe( [
+        '---',
+        'title: "How Transformers Work"',
+        'source: "https://example.com/post"',
+        'author: "Ada"',
+        'site: "Example"',
+        'published: "2026-10-01"',
+        'created: 2026-10-15',
+        'tags: [mnemosyne, machine-learning, transformers]',
+        '---',
+        '',
+        '## Summary',
+        '',
+        'Text.',
+        '',
+      ].join( '\n' ) )
+    } )
+
+    it( 'leaves out the fields the article does not have', () => {
+      const bare: SourceDocument = {
+        ...article,
+        meta: { ...article.meta, author: null, site: null, published: null },
+      }
+
+      const result = note( { document: bare } )
+
+      expect( result ).not.toContain( 'author' )
+      expect( result ).not.toContain( 'site' )
+      expect( result ).not.toContain( 'published' )
+      expect( result ).not.toContain( 'channel' )
+    } )
   } )
 } )
