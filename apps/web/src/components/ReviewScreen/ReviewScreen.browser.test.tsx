@@ -205,7 +205,7 @@ describe( 'ReviewScreen caret sync in a real browser', () => {
     expectVisible( 'transcript-820' )
   } )
 
-  it.fails( 'marks the paragraph that starts at a cited second in rich text mode', async () => {
+  it( 'marks the paragraph that starts at a cited second in rich text mode', async () => {
     render()
 
     await userEvent.click( await richItem( 'Later point' ) )
@@ -214,7 +214,7 @@ describe( 'ReviewScreen caret sync in a real browser', () => {
     expectVisible( 'transcript-800' )
   } )
 
-  it.fails( 'marks the paragraph that starts at a cited second in source mode', async () => {
+  it( 'marks the paragraph that starts at a cited second in source mode', async () => {
     render()
     await showSource()
 
@@ -223,7 +223,7 @@ describe( 'ReviewScreen caret sync in a real browser', () => {
     await expect.poll( marked ).toEqual( [ 'transcript-800' ] )
   } )
 
-  it.fails( 'ignores the duration in the front-matter in source mode', async () => {
+  it( 'ignores the duration in the front-matter in source mode', async () => {
     render()
     await showSource()
 

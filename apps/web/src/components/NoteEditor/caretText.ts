@@ -15,11 +15,27 @@ export const richBlockText = ( root: Element, selection: Selection | null ): str
   return element?.closest( RICH_BLOCKS )?.textContent ?? null
 }
 
-// The line the cursor is on in source mode, or null when the source editor has no focus.
+// The line the cursor is on in source mode, or null when the source editor has no focus or the
+// cursor is in the front-matter (its duration reads as a timestamp, and it cites nothing).
 export const sourceLineText = ( root: Element ): string | null => {
   if( root.querySelector( '.cm-editor.cm-focused' ) === null ) {
     return null
   }
 
-  return root.querySelector( '.cm-activeLine' )?.textContent ?? null
+  const active = root.querySelector( '.cm-activeLine' )
+  const lines = [ ...root.querySelectorAll( '.cm-line' ) ]
+
+  if( active === null ) {
+    return null
+  }
+
+  if( lines[ 0 ]?.textContent === '---' ) {
+    const closing = lines.findIndex( ( line, index ) => index > 0 && line.textContent === '---' )
+
+    if( closing === -1 || lines.indexOf( active ) <= closing ) {
+      return null
+    }
+  }
+
+  return active.textContent
 }

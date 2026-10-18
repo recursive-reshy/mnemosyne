@@ -103,6 +103,23 @@ describe( 'TranscriptPane', () => {
       expect( screen.getByRole( 'region', { name: 'Transcript' } ).scrollTop ).toBe( 0 )
     } )
 
+    it( 'marks a paragraph that starts a fraction after the whole second cited', () => {
+      stubOffsets()
+      const fractional: Transcript = {
+        ...transcript,
+        segments: [
+          { start: 0.4, end: 4, text: 'Welcome to the talk.' },
+          { start: 135.4, end: 140, text: 'Last, borrowing.' },
+        ],
+      }
+
+      render( <TranscriptPane transcript={ fractional } error={ null } focusSecond={ 135 } /> )
+
+      expect( document.getElementById( 'transcript-135' ) )
+        .toHaveAttribute( 'aria-current', 'true' )
+      expect( document.getElementById( 'transcript-0' ) ).not.toHaveAttribute( 'aria-current' )
+    } )
+
     it( 'does nothing without a second', () => {
       stubOffsets()
       render( <TranscriptPane transcript={ transcript } error={ null } focusSecond={ null } /> )

@@ -2,12 +2,12 @@
 
 React UI for Mnemosyne: submit a video URL, follow the job, download the transcript. Screens only: all data and rules live in the server. The root `CLAUDE.md` covers the workflow, precedence, cross-app rules, git and secrets; this file does not repeat them. The server's style rules in `apps/server/CLAUDE.md` apply here too unless this file says otherwise.
 
-The relevant ADRs are 0004, 0006, 0008, 0009, 0011, 0013, 0015, 0019, 0020, 0021, 0022, 0023, 0024, 0025, 0027, 0028 and 0029. Read the ones a task lists.
+The relevant ADRs are 0004, 0006, 0008, 0009, 0011, 0013, 0015, 0019, 0020, 0021, 0022, 0023, 0024, 0025, 0027, 0028, 0029, 0033 and 0034. Read the ones a task lists.
 
 ## Stack
 
 - Vite, React, TypeScript `strict`, ESM.
-- Vitest, React Testing Library, user-event, jest-dom, jsdom.
+- Vitest, React Testing Library, user-event, jest-dom, jsdom. Vitest browser mode with Playwright (Chromium and WebKit) for behaviour that needs a real DOM (ADR 0033).
 - TanStack Query for server state and React Router for `/`, `/jobs/:id` and `/settings` (ADR 0013).
 - Material UI (`@mui/material`, Emotion, `@mui/icons-material`, `@mui/x-tree-view`) is the only UI library, themed from `src/theme.ts` (ADR 0024). `@mdxeditor/editor` is the note editor (ADR 0019; round-trip rules in ADRs 0023 and 0026; see "Note editor" below).
 - Shared contracts come from `@mnemosyne/shared`.
@@ -17,7 +17,8 @@ Don't add a dependency without it being approved first. Ask instead.
 ## Commands
 
 - `pnpm dev`: Vite dev server on port 5173. It proxies `/api` to `http://localhost:3100` (the server must be running).
-- `pnpm test`: Vitest.
+- `pnpm test`: Vitest, the jsdom `unit` project only.
+- `pnpm test:browser`: the `browser` project, `*.browser.test.tsx` in headless Chromium and WebKit. Install them once with `pnpm exec playwright install chromium webkit`. Part of every web task's gate, with `test`, `lint` and `typecheck`.
 - `pnpm lint`: ESLint check only. Never `--fix`.
 - `pnpm typecheck`: `tsc -b`.
 - `pnpm build`: `tsc -b && vite build`, output in `dist/`.
@@ -68,6 +69,7 @@ src/
 - Mock at the boundary: component tests pass props; hook tests mock the `api/` module and render through `renderHookWithClient` (component tests that use queries or the router use `renderWithClient`, which also takes a `route` and returns `location()`), both from `test-support/renderWithClient.tsx` with a fresh client; `api/` tests stub `fetch` with `vi.stubGlobal`. No test touches the network or a real server.
 - Render components that use MUI themed features, queries or the router with `renderWithClient` (it wraps the same theme as `main.tsx`). For a narrow window or a dark OS, call `mockMatchMedia` from `test-support/matchMedia.ts` (the setup file installs a wide, light default).
 - MUI quirks to know: `Alert` puts `role="alert"` on its root and the text in an inner element, so query by role and check `textContent`; a disabled MUI `Button` has `pointer-events: none`, so where a test clicks a disabled button, give it `pointerEvents: 'auto'` in `sx`; a tree item's name comes from its descendants unless it has an `aria-label`.
+- **Browser tests** (`*.browser.test.tsx`, ADR 0033) are only for behaviour that depends on a real DOM: selection, focus, scrolling, layout. Everything else stays in jsdom. They import `userEvent` from `vitest/browser` (real input events), mock the `api/` modules and hooks like the jsdom tests, run in both browsers, and are typechecked by `tsconfig.browser.json` (the `vitest/browser` matcher types clash with jest-dom's, so `tsconfig.app.json` excludes them). Never use real sleeps; wait with `expect.poll` or `vi.waitFor`. Failure screenshots go to `.vitest/` (git-ignored).
 - After a UI slice, run the dev server with the server behind it and look at the page in a browser (screenshot), then say what you saw. Passing unit tests don't prove a page looks right.
 
 ## Style

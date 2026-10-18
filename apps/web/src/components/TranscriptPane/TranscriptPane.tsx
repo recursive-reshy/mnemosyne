@@ -48,7 +48,8 @@ export function TranscriptPane(
       return null
     }
 
-    const started = paragraphs.filter( ( { start } ) => start <= focusSecond )
+    // The note cites whole seconds, while paragraphs start on a fraction of one.
+    const started = paragraphs.filter( ( { start } ) => Math.floor( start ) <= focusSecond )
 
     return started.at( -1 )?.start ?? null
   }, [ paragraphs, focusSecond ] )
