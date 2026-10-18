@@ -47,7 +47,7 @@ import { estimateCostUsd } from '../summarizer/pricing.js'
 import { assertKnownModel } from './models.service.js'
 import { assertActiveProfile } from './prompts.service.js'
 
-export type StepStatus = 'downloading' | 'converting' | 'transcribing'
+export type StepStatus = 'fetching' | 'downloading' | 'converting' | 'transcribing'
 
 const nextStep = {
   queued: 'downloading',
