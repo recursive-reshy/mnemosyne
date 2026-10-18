@@ -2,7 +2,7 @@
 
 Express API for Mnemosyne. It owns the SQLite job store, the worker that runs jobs one at a time (transcribe, then summarize), the sweeper that deletes expired jobs, the clients for yt-dlp, ffmpeg, whisper-server, Claude and the Obsidian vault, and the formatters that render transcripts, summaries and notes. The root `CLAUDE.md` covers the workflow, precedence, cross-app rules, git and secrets; this file does not repeat them.
 
-The relevant ADRs are 0003–0009, 0012, 0014, 0015, 0020–0022, 0023 and 0027–0029 in `docs/decisions/`. Read the ones a task lists before changing behaviour they describe. If a task conflicts with an ADR, stop and report it; don't pick one.
+The relevant ADRs are 0003–0009, 0012, 0014, 0015, 0020–0022, 0023 and 0027–0031 in `docs/decisions/`. Read the ones a task lists before changing behaviour they describe. If a task conflicts with an ADR, stop and report it; don't pick one.
 
 ## Stack
 
@@ -57,8 +57,8 @@ src/
   controllers/       <name>.controller.ts: HTTP only (parse the request with Zod, call a service, send the response)
   services/          <name>.service.ts: business rules and job state changes (jobs: drafts, save, summary runs and regenerate; vault: folder listing; settings, prompts: defaults and prompt profiles; models: the cached model list)
   repositories/      <name>.repository.ts: the SQLite database (jobs, feeds, feed items, settings, prompts, summary runs), and nothing else; database.ts holds the connection and the migrations
-  clients/           ytDlp, ffmpeg, whisperServer, claude, anthropicModels, vault: one external tool each (`<name>.client.ts`); the vault client resolves every folder inside the vault (`resolveFolder`), lists the folder tree and writes notes
-  sources/           adapters that turn a job into a `SourceDocument` (ADR 0030): `adapter.ts` is the interface, `video.adapter.ts` downloads, converts and transcribes, `index.ts` has `adapterFor( sourceType )`; they use clients and report steps through the context, never touch repositories
+  clients/           ytDlp, ffmpeg, whisperServer, claude, anthropicModels, vault, http: one external tool each (`<name>.client.ts`); the vault client resolves every folder inside the vault (`resolveFolder`), lists the folder tree and writes notes
+  sources/           adapters that turn a job into a `SourceDocument` (ADR 0030): `adapter.ts` is the interface, `video.adapter.ts` downloads, converts and transcribes, `article.adapter.ts` fetches and extracts a page (`extractArticle.ts` runs Readability on linkedom, `htmlToMarkdown.ts` uses turndown, ADR 0031), `text.ts` builds a document from pasted text, `index.ts` has `adapterFor( sourceType )`; they use clients and report steps through the context, never touch repositories
   worker/            worker.ts, runJob.ts, summarizeJob.ts, sweeper.ts: runs the next runnable job; deletes expired jobs
   summarizer/        pure constants and functions for the summarizer: locked prompt, seeded profiles, prices
   formatters/        markdown, srt, txt, summary, note: pure data → string; summary.cleanup.ts filters the model's output
@@ -74,7 +74,7 @@ The order is routes → controllers → services → repositories, and every req
 - **Repositories** hold and query the SQLite database (jobs, feeds, feed items, settings, prompts, summary runs), and nothing else. The database is SQLite (better-sqlite3, ADR 0012) behind synchronous free functions; `database.ts` owns the connection and the migrations (`openDatabase` / `closeDatabase` are called from `server.ts` and `shutdown.ts`, `getDatabase` from the other repositories), and tests open `':memory:'` through the Vitest setup file `test-support/database.setup.ts`.
 - **Clients** wrap one external tool each: run the command or make the HTTP call, parse the output with Zod, return typed data, and throw on failure. They hold no job logic.
 - **The sweeper** calls one service function on a timer and deletes expired jobs; it never touches repositories.
-- **The worker** calls services and clients, never repositories. It processes one job at a time and moves it through `queued → downloading → converting → transcribing → summarizing → ready_for_review | summary_failed` (or `failed`) via services. A job found already `summarizing` runs only the summarize step. Regenerating a summary is the one other way into `summarizing`: `ready_for_review → summarizing` (ADR 0029). Each summary attempt records a row in `summary_runs`, through the jobs service.
+- **The worker** calls services and clients, never repositories. It processes one job at a time and moves it through `queued → downloading → converting → transcribing → summarizing → ready_for_review | summary_failed` for a video, `queued → fetching → summarizing → …` for an article (or `failed`) via services. A job found already `summarizing` runs only the summarize step. Regenerating a summary is the one other way into `summarizing`: `ready_for_review → summarizing` (ADR 0029). Each summary attempt records a row in `summary_runs`, through the jobs service.
 - **Formatters** are pure functions with no I/O. Only services call them.
 - Nothing imports `routes/` or `controllers/` except `app.ts`.
 - The worker deletes a job's audio files when the job finishes, whether it succeeded or failed.

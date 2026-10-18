@@ -15,7 +15,7 @@ import { webRoutes } from './routes/web.routes.js'
 
 export const app: Express = express()
 
-app.use( '/api', express.json() )
+app.use( '/api', express.json( { limit: '2mb' } ) )
 app.use( '/api', healthRoutes )
 app.use( '/api', jobsRoutes )
 app.use( '/api', vaultRoutes )

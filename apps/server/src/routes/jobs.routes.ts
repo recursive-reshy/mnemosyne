@@ -11,6 +11,7 @@ import {
   regenerateJobSummary,
   retryJobSummary,
   saveReviewedJob,
+  submitJobText,
   updateJobDraft,
 } from '../controllers/jobs.controller.js'
 
@@ -20,6 +21,7 @@ jobsRoutes.post( '/jobs', createJob )
 jobsRoutes.get( '/jobs', listActiveJobs )
 jobsRoutes.get( '/jobs/:id', getJob )
 jobsRoutes.get( '/jobs/:id/source', getSource )
+jobsRoutes.post( '/jobs/:id/text', submitJobText )
 jobsRoutes.patch( '/jobs/:id/draft', updateJobDraft )
 jobsRoutes.post( '/jobs/:id/save', saveReviewedJob )
 jobsRoutes.post( '/jobs/:id/retry-summary', retryJobSummary )

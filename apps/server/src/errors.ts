@@ -30,6 +30,13 @@ const sendError = ( res: Response, status: number, body: ErrorResponse ): void =
   res.status( status ).json( body )
 }
 
+const isTooLarge = ( error: unknown ): boolean => {
+  return typeof error === 'object'
+    && error !== null
+    && 'type' in error
+    && error.type === 'entity.too.large'
+}
+
 const isJsonParseFailure = ( error: unknown ): boolean => {
   return typeof error === 'object'
     && error !== null
@@ -58,6 +65,8 @@ export const errorMiddleware = (
     sendError( res, 404, { error: error.message } )
   } else if( error instanceof ConflictError ) {
     sendError( res, 409, { error: error.message } )
+  } else if( isTooLarge( error ) ) {
+    sendError( res, 413, { error: 'Request body is too large' } )
   } else if( isJsonParseFailure( error ) ) {
     sendError( res, 400, { error: 'Invalid JSON' } )
   } else if( error instanceof ZodError ) {

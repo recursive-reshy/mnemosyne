@@ -79,6 +79,38 @@ describe( 'PATCH /api/settings', () => {
     expect( GetSettingsResponse.parse( response.body ).settings.default_profile_id ).toBe( coding )
   } )
 
+  it( 'saves the feed check interval', async () => {
+    const response = await request( app )
+      .patch( '/api/settings' )
+      .send( { feed_check_interval_minutes: 180 } )
+
+    expect( response.status ).toBe( 200 )
+    expect( GetSettingsResponse.parse( response.body ).settings.feed_check_interval_minutes )
+      .toBe( 180 )
+    expect( GetSettingsResponse.parse(
+      ( await request( app ).get( '/api/settings' ) ).body,
+    ).settings.feed_check_interval_minutes ).toBe( 180 )
+  } )
+
+  it( 'saves the interval together with another setting', async () => {
+    const response = await request( app )
+      .patch( '/api/settings' )
+      .send( { default_model: 'claude-opus-5-5', feed_check_interval_minutes: 15 } )
+
+    expect( GetSettingsResponse.parse( response.body ).settings ).toMatchObject( {
+      default_model: 'claude-opus-5-5',
+      feed_check_interval_minutes: 15,
+    } )
+  } )
+
+  it( 'returns 400 for an interval that is not on the list', async () => {
+    const response = await request( app )
+      .patch( '/api/settings' )
+      .send( { feed_check_interval_minutes: 10 } )
+
+    expect( response.status ).toBe( 400 )
+  } )
+
   it.each( [
     [ 'an empty body', {} ],
     [ 'an empty model', { default_model: '' } ],

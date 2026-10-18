@@ -10,6 +10,7 @@ import {
   ListJobsResponse,
   RegenerateSummaryBody,
   SaveJobResponse,
+  SubmitPastedTextBody,
   UpdateDraftBody,
   UpdateDraftResponse,
 } from '@mnemosyne/shared'
@@ -24,6 +25,7 @@ import {
   renderTranscript,
   retrySummary,
   saveJob,
+  submitPastedText,
   updateDraft,
 } from '../services/jobs.service.js'
 
@@ -37,6 +39,15 @@ export const createJob = async (
     .status( 202 )
     .location( `/api/jobs/${ job.id }` )
     .json( { job_id: job.id } )
+}
+
+export const submitJobText = (
+  { params, body }: Request,
+  res: Response< GetJobResponse >,
+): void => {
+  const job = submitPastedText( String( params.id ), SubmitPastedTextBody.parse( body ) )
+
+  res.status( 200 ).json( { job } )
 }
 
 export const listActiveJobs = ( _req: Request, res: Response< ListJobsResponse > ): void => {

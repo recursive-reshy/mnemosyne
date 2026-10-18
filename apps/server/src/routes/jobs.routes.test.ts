@@ -12,6 +12,7 @@ import {
 import request from 'supertest'
 // Shared
 import {
+  GetJobResponse,
   GetSourceResponse,
   Job,
   JobStatus,
@@ -24,7 +25,7 @@ import { config } from '../config.js'
 // Clients
 import { listSummaryModels } from '../clients/anthropicModels.client.js'
 // Repositories
-import { clearJobs, updateJob } from '../repositories/jobStore.repository.js'
+import { clearJobs, findJobById, updateJob } from '../repositories/jobStore.repository.js'
 // Services
 import {
   completeSummary,
@@ -712,4 +713,206 @@ describe( 'PATCH /api/jobs/:id/draft', () => {
       expect( response.status ).toBe( 409 )
     },
   )
+} )
+
+describe( 'POST /api/jobs for articles', () => {
+  const articleUrl = 'https://example.com/post'
+  const text = `# A pasted post\n\n${ 'Pasted words go here. '.repeat( 15 ) }`
+
+  const jobOf = async ( id: string ): Promise< Job > => {
+    const response = await request( app ).get( `/api/jobs/${ id }` )
+
+    return GetJobResponse.parse( response.body ).job
+  }
+
+  it( 'queues an article URL as an article job', async () => {
+    const response = await request( app ).post( '/api/jobs' ).send( { url: articleUrl } )
+
+    expect( response.status ).toBe( 202 )
+    expect( await jobOf( ( response.body as { job_id: string } ).job_id ) )
+      .toMatchObject( { source_type: 'article', status: 'queued' } )
+  } )
+
+  it( 'lets source_type override the detected type', async () => {
+    const response = await request( app )
+      .post( '/api/jobs' )
+      .send( { url: youtubeUrl, source_type: 'article' } )
+
+    expect( await jobOf( ( response.body as { job_id: string } ).job_id ) )
+      .toMatchObject( { source_type: 'article' } )
+  } )
+
+  it( 'stores pasted text and a title and goes straight to summarizing', async () => {
+    const response = await request( app )
+      .post( '/api/jobs' )
+      .send( { url: articleUrl, text, title: 'My title' } )
+
+    expect( response.status ).toBe( 202 )
+    expect( await jobOf( ( response.body as { job_id: string } ).job_id ) )
+      .toMatchObject( { source_type: 'article', status: 'summarizing', title: 'My title' } )
+  } )
+
+  it.each( [
+    [ 'text for a detected video', { url: youtubeUrl, text: 'x'.repeat( 300 ) } ],
+    [ 'a title for a detected video', { url: youtubeUrl, title: 'T' } ],
+    [
+      'text for an explicit video',
+      { url: articleUrl, source_type: 'video', text: 'x'.repeat( 300 ) },
+    ],
+    [ 'text under 200 characters', { url: articleUrl, text: 'x'.repeat( 199 ) } ],
+    [ 'text over 300,000 characters', { url: articleUrl, text: 'x'.repeat( 300_001 ) } ],
+    [ 'an unknown source_type', { url: articleUrl, source_type: 'email' } ],
+    [ 'a blank title', { url: articleUrl, text: 'x'.repeat( 300 ), title: '  ' } ],
+  ] )( 'returns 400 for %s', async ( _name, body ) => {
+    const response = await request( app ).post( '/api/jobs' ).send( body )
+
+    expect( response.status ).toBe( 400 )
+  } )
+} )
+
+describe( 'a request body over the limit', () => {
+  it( 'returns 413 instead of a server error', async () => {
+    const response = await request( app )
+      .post( '/api/jobs' )
+      .send( { url: 'https://example.com/post', text: 'x'.repeat( 2_500_000 ) } )
+
+    expect( response.status ).toBe( 413 )
+    expect( response.body ).toEqual( { error: 'Request body is too large' } )
+  } )
+
+  it( 'accepts the longest allowed pasted text, even in multi-byte characters', async () => {
+    const response = await request( app )
+      .post( '/api/jobs' )
+      .send( { url: 'https://example.com/post', text: '日'.repeat( 300_000 ) } )
+
+    expect( response.status ).toBe( 202 )
+  } )
+} )
+
+describe( 'POST /api/jobs/:id/text', () => {
+  const articleUrl = 'https://example.com/post'
+  const text = `# A pasted post\n\n${ 'Pasted words go here. '.repeat( 15 ) }`
+
+  const failedArticle = async (): Promise< string > => {
+    const { id } = await queueJob( { url: articleUrl } )
+    markStatus( id, 'fetching' )
+    failJob( id, 'The page needs a login or is paywalled' )
+
+    return id
+  }
+
+  it( 'continues a failed article job with the pasted text', async () => {
+    const id = await failedArticle()
+
+    const response = await request( app ).post( `/api/jobs/${ id }/text` ).send( { text } )
+
+    expect( response.status ).toBe( 200 )
+    expect( GetJobResponse.parse( response.body ).job ).toMatchObject( {
+      id,
+      status: 'summarizing',
+      error: null,
+      title: 'A pasted post',
+    } )
+    expect( findJobById( id )?.source_document ).toMatchObject( {
+      kind: 'article',
+      meta: { origin: 'pasted', source: articleUrl },
+    } )
+  } )
+
+  it( 'accepts a title', async () => {
+    const id = await failedArticle()
+
+    const response = await request( app )
+      .post( `/api/jobs/${ id }/text` )
+      .send( { text, title: 'Mine' } )
+
+    expect( GetJobResponse.parse( response.body ).job.title ).toBe( 'Mine' )
+  } )
+
+  it.each( [
+    [ 'no body', {} ],
+    [ 'text that is too short', { text: 'short' } ],
+    [ 'a blank title', { text: 'x'.repeat( 300 ), title: ' ' } ],
+  ] )( 'returns 400 for %s', async ( _name, body ) => {
+    const id = await failedArticle()
+
+    const response = await request( app ).post( `/api/jobs/${ id }/text` ).send( body )
+
+    expect( response.status ).toBe( 400 )
+  } )
+
+  it( 'returns 404 for an unknown job', async () => {
+    const response = await request( app )
+      .post( `/api/jobs/${ crypto.randomUUID() }/text` )
+      .send( { text } )
+
+    expect( response.status ).toBe( 404 )
+  } )
+
+  it( 'returns 409 for a failed video job', async () => {
+    const id = await seedJobAt( 'failed' )
+
+    const response = await request( app ).post( `/api/jobs/${ id }/text` ).send( { text } )
+
+    expect( response.status ).toBe( 409 )
+  } )
+
+  it( 'returns 409 for an article job that has not failed', async () => {
+    const { id } = await queueJob( { url: articleUrl } )
+
+    const response = await request( app ).post( `/api/jobs/${ id }/text` ).send( { text } )
+
+    expect( response.status ).toBe( 409 )
+  } )
+} )
+
+describe( 'GET /api/jobs/:id/download for articles', () => {
+  const articleUrl = 'https://example.com/post'
+
+  const reviewedArticle = async (): Promise< string > => {
+    const { id } = await queueJob( { url: articleUrl } )
+    markStatus( id, 'fetching' )
+    completeAcquisition( id, {
+      kind: 'article',
+      meta: {
+        title: 'A post',
+        source: articleUrl,
+        author: null,
+        site: null,
+        published: null,
+        fetched_at: '2026-10-18T10:00:00.000Z',
+        origin: 'fetched',
+      },
+      markdown: 'Some text.',
+    } )
+    completeSummary( id, '## Summary', [] )
+
+    return id
+  }
+
+  it( 'downloads Markdown', async () => {
+    const id = await reviewedArticle()
+
+    const response = await request( app ).get( `/api/jobs/${ id }/download?format=md` )
+
+    expect( response.status ).toBe( 200 )
+    expect( response.text ).toBe( `# A post\n\n${ articleUrl }\n\nSome text.` )
+  } )
+
+  it.each( [ 'srt', 'txt' ] )( 'returns 409 for %s', async ( format ) => {
+    const id = await reviewedArticle()
+
+    const response = await request( app ).get( `/api/jobs/${ id }/download?format=${ format }` )
+
+    expect( response.status ).toBe( 409 )
+    expect( response.body ).toEqual( { error: 'Only Markdown is available for articles' } )
+  } )
+
+  it( 'serves the source as an article document', async () => {
+    const id = await reviewedArticle()
+
+    const response = await request( app ).get( `/api/jobs/${ id }/source` )
+
+    expect( GetSourceResponse.parse( response.body ).source ).toMatchObject( { kind: 'article' } )
+  } )
 } )

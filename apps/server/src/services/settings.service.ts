@@ -49,5 +49,9 @@ export const updateSettings = async ( body: UpdateSettingsBody ): Promise< Setti
     setSetting( 'default_profile_id', body.default_profile_id )
   }
 
+  if( body.feed_check_interval_minutes !== undefined ) {
+    setSetting( 'feed_check_interval_minutes', body.feed_check_interval_minutes )
+  }
+
   return getSettings()
 }
