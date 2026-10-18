@@ -49,7 +49,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 5.3 | Fix the cause; remove `it.fails`; existing jsdom caret tests still pass; write the next-numbered ADR with the cause and fix; `apps/web/CLAUDE.md` gate includes `test:browser` (TRD §8.7 steps 3–4) | 0033, 0034 | ✅ |
 
 ## Checkpoint C: Phase 6 (server articles)
-**Plan:** ⬜ [`plans/checkpoint-c.md`](plans/checkpoint-c.md)
+**Plan:** ✅ [`plans/checkpoint-c.md`](plans/checkpoint-c.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
