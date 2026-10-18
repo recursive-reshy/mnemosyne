@@ -4,10 +4,12 @@ import { describe, it, expect } from 'vitest'
 import {
   NoteParseError,
   applyLockedProperties,
+  lockedPropertiesFor,
   parseNote,
   serializeNote,
 } from './note.js'
 import type { ParsedNote } from './note.js'
+import type { SourceDocument } from './source.js'
 
 const fixture = [
   '---',
@@ -153,5 +155,163 @@ describe( 'applyLockedProperties', () => {
     expect( result.properties.title ).toBe( 'Mine' )
     expect( result.body ).toBe( 'Body\n' )
     expect( note.properties.source ).toBe( 'edited' )
+  } )
+} )
+
+const articleFixture = [
+  '---',
+  'title: "A post"',
+  'source: "https://example.com/post"',
+  'author: "Ada"',
+  'site: "Example"',
+  'published: "2026-10-01"',
+  'created: 2026-10-18',
+  'tags: [mnemosyne, writing]',
+  '---',
+  '',
+  'Body',
+  '',
+].join( '\n' )
+
+describe( 'article notes', () => {
+  it( 'parses and writes the article keys in order, byte for byte', () => {
+    const parsed = parseNote( articleFixture )
+
+    expect( parsed.properties.author ).toBe( 'Ada' )
+    expect( parsed.properties.channel ).toBeUndefined()
+    expect( serializeNote( parsed ) ).toBe( articleFixture )
+  } )
+
+  it( 'leaves out keys that are undefined', () => {
+    const minimal = [
+      '---',
+      'title: "A post"',
+      'source: "https://example.com/post"',
+      'created: 2026-10-18',
+      'tags: [mnemosyne]',
+      '---',
+      '',
+      'Body',
+      '',
+    ].join( '\n' )
+
+    expect( serializeNote( parseNote( minimal ) ) ).toBe( minimal )
+  } )
+
+  it( 'writes every key in the agreed order', () => {
+    const output = serializeNote( {
+      properties: {
+        tags: [ 'mnemosyne' ],
+        created: '2026-10-18',
+        published: '2026-10-01',
+        site: 'S',
+        author: 'A',
+        duration: '1:00',
+        channel: 'C',
+        source: 'https://example.com',
+        title: 'T',
+      },
+      body: 'B\n',
+    } )
+
+    const keys = output.split( '\n' ).slice( 1, 10 ).map( ( line ) => line.split( ':' )[ 0 ] )
+
+    expect( keys ).toEqual( [
+      'title', 'source', 'channel', 'duration', 'author', 'site', 'published', 'created', 'tags',
+    ] )
+  } )
+} )
+
+describe( 'lockedPropertiesFor', () => {
+  const video: SourceDocument = {
+    kind: 'video',
+    meta: {
+      title: 'A talk',
+      source: 'https://www.youtube.com/watch?v=abc',
+      channel: 'Some Channel',
+      duration_seconds: 6130,
+      transcribed_at: '2026-10-14T10:00:00.000Z',
+      model: 'large-v3',
+    },
+    segments: [],
+  }
+
+  const article: SourceDocument = {
+    kind: 'article',
+    meta: {
+      title: 'A post',
+      source: 'https://example.com/post',
+      author: 'Ada',
+      site: 'Example',
+      published: '2026-10-01',
+      fetched_at: '2026-10-18T10:00:00.000Z',
+      origin: 'fetched',
+    },
+    markdown: 'Text',
+  }
+
+  it( 'gives a video its source, channel, duration and created', () => {
+    expect( lockedPropertiesFor( video, '2026-10-18' ) ).toEqual( {
+      source: 'https://www.youtube.com/watch?v=abc',
+      channel: 'Some Channel',
+      duration: '1:42:10',
+      created: '2026-10-18',
+    } )
+  } )
+
+  it( 'gives an article its source, created and the known author, site and published', () => {
+    expect( lockedPropertiesFor( article, '2026-10-18' ) ).toEqual( {
+      source: 'https://example.com/post',
+      author: 'Ada',
+      site: 'Example',
+      published: '2026-10-01',
+      created: '2026-10-18',
+    } )
+  } )
+
+  it( 'leaves out the article fields that are null', () => {
+    const bare: SourceDocument = {
+      ...article,
+      meta: { ...article.meta, author: null, site: null, published: null },
+    }
+
+    expect( lockedPropertiesFor( bare, '2026-10-18' ) ).toEqual( {
+      source: 'https://example.com/post',
+      created: '2026-10-18',
+    } )
+  } )
+} )
+
+describe( 'applyLockedProperties with article documents', () => {
+  const note: ParsedNote = {
+    properties: {
+      title: 'Mine',
+      source: 'edited',
+      channel: 'typed',
+      duration: 'typed',
+      author: 'typed',
+      site: 'typed',
+      published: 'typed',
+      created: 'edited',
+      tags: [ 'x' ],
+    },
+    body: 'Body\n',
+  }
+
+  it( 'removes locked keys the document does not supply', () => {
+    const { properties } = applyLockedProperties( note, {
+      source: 'https://example.com/post',
+      author: 'Ada',
+      created: '2026-10-18',
+    } )
+
+    expect( properties ).toEqual( {
+      title: 'Mine',
+      source: 'https://example.com/post',
+      author: 'Ada',
+      created: '2026-10-18',
+      tags: [ 'mnemosyne', 'x' ],
+    } )
+    expect( 'duration' in properties ).toBe( false )
   } )
 } )

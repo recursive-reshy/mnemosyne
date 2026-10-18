@@ -7,14 +7,21 @@ import {
   parse,
 } from 'yaml'
 import { z } from 'zod'
+// Clock
+import { formatClock } from './clock.js'
+// Source
+import type { SourceDocument } from './source.js'
 // Tags
 import { normalizeTag } from './tags.js'
 
 export const NoteProperties = z.object( {
   title: z.string(),
   source: z.string(),
-  channel: z.string(),
-  duration: z.string(),
+  channel: z.string().optional(),
+  duration: z.string().optional(),
+  author: z.string().optional(),
+  site: z.string().optional(),
+  published: z.string().optional(),
   created: z.string(),
   tags: z.array( z.string() ),
 } )
@@ -72,14 +79,26 @@ export const parseNote = ( markdown: string ): ParsedNote => {
 const singleLine = ( value: string ): string => value.replace( /\r?\n|\r/g, ' ' )
 
 export const serializeNote = ( { properties, body }: ParsedNote ): string => {
-  const document = new Document( {
+  const { channel, duration, author, site, published } = properties
+  const optional = ( value: string | undefined ): string | undefined => {
+    return value === undefined ? undefined : singleLine( value )
+  }
+
+  const data: Record< string, unknown > = {
     title: singleLine( properties.title ),
     source: singleLine( properties.source ),
-    channel: singleLine( properties.channel ),
-    duration: singleLine( properties.duration ),
+    channel: optional( channel ),
+    duration: optional( duration ),
+    author: optional( author ),
+    site: optional( site ),
+    published: optional( published ),
     created: properties.created,
     tags: properties.tags,
-  } )
+  }
+
+  const document = new Document( Object.fromEntries(
+    Object.entries( data ).filter( ( [ , value ] ) => value !== undefined ),
+  ) )
 
   if( isMap( document.contents ) ) {
     for( const pair of document.contents.items ) {
@@ -100,7 +119,40 @@ export const serializeNote = ( { properties, body }: ParsedNote ): string => {
   return `${ OPENING }${ frontmatter }---\n\n${ body }`
 }
 
-export type LockedProperties = Pick< NoteProperties, 'source' | 'channel' | 'duration' | 'created' >
+const LOCKED_KEYS: readonly string[] = [
+  'source',
+  'channel',
+  'duration',
+  'author',
+  'site',
+  'published',
+  'created',
+]
+
+export type LockedProperties =
+  Pick< NoteProperties, 'source' | 'created' >
+  & Pick< Partial< NoteProperties >, 'channel' | 'duration' | 'author' | 'site' | 'published' >
+
+export const lockedPropertiesFor = (
+  document: SourceDocument,
+  created: string,
+): LockedProperties => {
+  if( document.kind === 'video' ) {
+    const { source, channel, duration_seconds } = document.meta
+
+    return { source, channel, duration: formatClock( duration_seconds ), created }
+  }
+
+  const { source, author, site, published } = document.meta
+
+  return {
+    source,
+    ...author === null ? {} : { author },
+    ...site === null ? {} : { site },
+    ...published === null ? {} : { published },
+    created,
+  }
+}
 
 const FIXED_TAG = 'mnemosyne'
 
@@ -112,8 +164,18 @@ export const applyLockedProperties = (
     .map( normalizeTag )
     .filter( ( tag ) => tag !== '' && tag !== FIXED_TAG )
 
+  const kept = Object.fromEntries(
+    Object.entries( properties ).filter(
+      ( [ key ] ) => !LOCKED_KEYS.includes( key ),
+    ),
+  ) as Pick< NoteProperties, 'title' >
+
   return {
-    properties: { ...properties, ...locked, tags: [ ...new Set( [ FIXED_TAG, ...tags ] ) ] },
+    properties: {
+      ...kept,
+      ...locked,
+      tags: [ ...new Set( [ FIXED_TAG, ...tags ] ) ],
+    },
     body,
   }
 }
