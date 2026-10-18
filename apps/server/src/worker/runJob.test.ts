@@ -92,7 +92,8 @@ describe( 'runJob', () => {
     await runJob( id )
 
     expect( findJob( id ) ).toMatchObject( { status: 'summarizing', title: 'A video' } )
-    expect( findJobById( id )?.transcript ).toEqual( {
+    expect( findJobById( id )?.source_document ).toEqual( {
+      kind: 'video',
       meta: { ...meta, transcribed_at: NOW, model: 'test-model' },
       segments,
     } )

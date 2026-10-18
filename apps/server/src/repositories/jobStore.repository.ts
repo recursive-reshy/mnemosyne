@@ -1,17 +1,12 @@
 // Packages
 import { z } from 'zod'
 // Shared
-import { Job, Transcript } from '@mnemosyne/shared'
+import { Job, SourceDocument } from '@mnemosyne/shared'
 // Repositories
 import { getDatabase } from './database.js'
 
-export const StoredJob = Job.omit( {
-  summary_usage: true,
-  source_type: true,
-  feed_id: true,
-  feed_name: true,
-} ).extend( {
-  transcript: Transcript.nullable(),
+export const StoredJob = Job.omit( { summary_usage: true } ).extend( {
+  source_document: SourceDocument.nullable(),
 } )
 export type StoredJob = z.infer< typeof StoredJob >
 
@@ -26,18 +21,24 @@ const JobRow = z.object( {
   target_folder: z.string().nullable(),
   summary_model: z.string().nullable(),
   prompt_profile_id: z.string().nullable(),
+  source_type: z.string(),
+  feed_id: z.string().nullable(),
+  feed_name: z.string().nullable(),
   saved_path: z.string().nullable(),
   expires_at: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
 } )
 
+const SELECT_JOB = `SELECT jobs.*, feeds.name AS feed_name
+  FROM jobs LEFT JOIN feeds ON feeds.id = jobs.feed_id`
+
 const toStoredJob = ( raw: unknown ): StoredJob => {
   const row = JobRow.parse( raw )
 
   return StoredJob.parse( {
     ...row,
-    transcript: row.source_document === null
+    source_document: row.source_document === null
       ? null
       : JSON.parse( row.source_document ) as unknown,
   } )
@@ -50,13 +51,13 @@ const toRow = ( job: StoredJob ): Record< string, string | null > => {
     status: job.status,
     error: job.error,
     title: job.title,
-    source_document: job.transcript === null
-      ? null
-      : JSON.stringify( { kind: 'video', ...job.transcript } ),
+    source_document: job.source_document === null ? null : JSON.stringify( job.source_document ),
     note_markdown: job.note_markdown,
     target_folder: job.target_folder,
     summary_model: job.summary_model,
     prompt_profile_id: job.prompt_profile_id,
+    source_type: job.source_type,
+    feed_id: job.feed_id,
     saved_path: job.saved_path,
     expires_at: job.expires_at,
     created_at: job.created_at,
@@ -73,15 +74,17 @@ export const insertJob = ( job: StoredJob ): void => {
 
   db.prepare( `INSERT INTO jobs (
       id, url, status, error, title, source_document, note_markdown, target_folder,
-      summary_model, prompt_profile_id, saved_path, expires_at, created_at, updated_at
+      summary_model, prompt_profile_id, source_type, feed_id, saved_path, expires_at,
+      created_at, updated_at
     ) VALUES (
       @id, @url, @status, @error, @title, @source_document, @note_markdown, @target_folder,
-      @summary_model, @prompt_profile_id, @saved_path, @expires_at, @created_at, @updated_at
+      @summary_model, @prompt_profile_id, @source_type, @feed_id, @saved_path, @expires_at,
+      @created_at, @updated_at
     )` ).run( toRow( job ) )
 }
 
 export const findJobById = ( id: string ): StoredJob | undefined => {
-  const row = getDatabase().prepare( 'SELECT * FROM jobs WHERE id = ?' ).get( id )
+  const row = getDatabase().prepare( `${ SELECT_JOB } WHERE jobs.id = ?` ).get( id )
 
   return row === undefined ? undefined : toStoredJob( row )
 }
@@ -102,7 +105,8 @@ export const updateJob = (
       url = @url, status = @status, error = @error, title = @title,
       source_document = @source_document, note_markdown = @note_markdown,
       target_folder = @target_folder, summary_model = @summary_model,
-      prompt_profile_id = @prompt_profile_id, saved_path = @saved_path,
+      prompt_profile_id = @prompt_profile_id, source_type = @source_type,
+      feed_id = @feed_id, saved_path = @saved_path,
       expires_at = @expires_at, created_at = @created_at, updated_at = @updated_at
     WHERE id = @id` ).run( toRow( updated ) )
 
@@ -111,8 +115,8 @@ export const updateJob = (
 
 export const findNextRunnableJob = (): StoredJob | undefined => {
   const row = getDatabase()
-    .prepare( `SELECT * FROM jobs WHERE status IN ( 'queued', 'summarizing' )
-      ORDER BY rowid LIMIT 1` )
+    .prepare( `${ SELECT_JOB } WHERE jobs.status IN ( 'queued', 'summarizing' )
+      ORDER BY jobs.rowid LIMIT 1` )
     .get()
 
   return row === undefined ? undefined : toStoredJob( row )
@@ -133,9 +137,9 @@ export const markInterruptedJobs = ( message: string, now: string ): number => {
 
 export const listActiveJobs = (): StoredJob[] => {
   return getDatabase()
-    .prepare( `SELECT * FROM jobs
-      WHERE status NOT IN ( 'failed', 'saved' )
-      ORDER BY created_at DESC, rowid DESC` )
+    .prepare( `${ SELECT_JOB }
+      WHERE jobs.status NOT IN ( 'failed', 'saved' )
+      ORDER BY jobs.created_at DESC, jobs.rowid DESC` )
     .all()
     .map( toStoredJob )
 }
@@ -148,9 +152,9 @@ export const deleteJob = ( id: string ): boolean => {
 
 export const findExpiredJobs = ( now: string ): StoredJob[] => {
   return getDatabase()
-    .prepare( `SELECT * FROM jobs
-      WHERE status IN ( 'ready_for_review', 'summary_failed' )
-        AND expires_at IS NOT NULL AND expires_at <= ?` )
+    .prepare( `${ SELECT_JOB }
+      WHERE jobs.status IN ( 'ready_for_review', 'summary_failed' )
+        AND jobs.expires_at IS NOT NULL AND jobs.expires_at <= ?` )
     .all( now )
     .map( toStoredJob )
 }

@@ -118,7 +118,8 @@ describe( 'pipeline (real yt-dlp, ffmpeg and whisper-server)', () => {
     expect( txt.status ).toBe( 200 )
     expect( txt.text.trim() ).not.toBe( '' )
 
-    const transcript = findJobById( jobId )?.transcript
+    const document = findJobById( jobId )?.source_document
+    const transcript = document?.kind === 'video' ? document : undefined
     expect( transcript?.meta.title ).toBeTruthy()
     expect( transcript?.meta.duration_seconds ).toBeGreaterThan( 0 )
     expect( transcript?.segments.length ).toBeGreaterThan( 0 )

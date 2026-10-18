@@ -5,6 +5,7 @@ import {
   JobStatus,
   SummaryUsage,
   NoteParseError,
+  SourceDocument,
   Transcript,
   UpdateDraftBody,
   applyLockedProperties,
@@ -141,6 +142,14 @@ const toPublicJob = ( job: StoredJob ): Job => {
   }
 }
 
+const toTranscript = ( job: StoredJob, document: SourceDocument ): Transcript => {
+  if( document.kind !== 'video' ) {
+    throw new Error( `Job ${ job.id } is an article, not a video` )
+  }
+
+  return { meta: document.meta, segments: document.segments }
+}
+
 const requireJob = ( id: string ): StoredJob => {
   const job = findJobById( id )
 
@@ -199,7 +208,10 @@ export const queueJob = async ( url: string, options: SummaryChoices = {} ): Pro
     saved_path: null,
     summary_model: options.model ?? null,
     prompt_profile_id: options.profile_id ?? null,
-    transcript: null,
+    source_document: null,
+    source_type: 'video',
+    feed_id: null,
+    feed_name: null,
   }
 
   insertJob( job )
@@ -241,7 +253,10 @@ export const completeTranscription = ( id: string, transcript: Transcript ): Job
     throw conflict( job.status, 'summarizing' )
   }
 
-  return moveTo( job, 'summarizing', { transcript, title: transcript.meta.title } )
+  return moveTo( job, 'summarizing', {
+    source_document: { kind: 'video', ...transcript },
+    title: transcript.meta.title,
+  } )
 }
 
 export const completeSummary = (
@@ -358,11 +373,11 @@ export const deleteExpiredJobs = (): number => {
 export const getTranscript = ( id: string ): Transcript => {
   const job = requireJob( id )
 
-  if( job.transcript === null ) {
+  if( job.source_document === null ) {
     throw new Error( `Job ${ id } has no transcript` )
   }
 
-  return job.transcript
+  return toTranscript( job, job.source_document )
 }
 
 export const failJob = ( id: string, message: string ): Job => {
@@ -386,11 +401,11 @@ export const findTranscript = ( id: string ): Transcript => {
     throw new ConflictError( 'Transcript not ready' )
   }
 
-  if( job.transcript === null ) {
+  if( job.source_document === null ) {
     throw new Error( `Job ${ id } is ${ job.status } but has no transcript` )
   }
 
-  return job.transcript
+  return toTranscript( job, job.source_document )
 }
 
 const today = (): string => new Date().toISOString().slice( 0, 10 )
@@ -402,14 +417,14 @@ export const updateDraft = ( id: string, body: UpdateDraftBody ): Job => {
     throw conflict( job.status, 'ready_for_review' )
   }
 
-  if( job.transcript === null ) {
+  if( job.source_document === null ) {
     throw new Error( `Job ${ id } is ${ job.status } but has no transcript` )
   }
 
   const changes: Partial< StoredJob > = { expires_at: expiryFromNow() }
 
   if( body.note_markdown !== undefined ) {
-    const { meta } = job.transcript
+    const { meta } = toTranscript( job, job.source_document )
     let created = today()
 
     try {
@@ -457,7 +472,7 @@ export const saveJob = async ( id: string ): Promise< string > => {
     throw conflict( job.status, 'saved' )
   }
 
-  if( job.transcript === null ) {
+  if( job.source_document === null ) {
     throw new Error( `Job ${ id } is ${ job.status } but has no transcript` )
   }
 
@@ -465,7 +480,7 @@ export const saveJob = async ( id: string ): Promise< string > => {
     throw new ConflictError( 'The job has no draft to save' )
   }
 
-  const { meta } = job.transcript
+  const { meta } = toTranscript( job, job.source_document )
   const note = applyLockedProperties( parseNote( job.note_markdown ), {
     source: meta.source,
     channel: meta.channel,
@@ -483,7 +498,7 @@ export const saveJob = async ( id: string ): Promise< string > => {
   moveTo( job, 'saved', {
     saved_path: savedPath,
     title: note.properties.title,
-    transcript: null,
+    source_document: null,
     expires_at: null,
   } )
 

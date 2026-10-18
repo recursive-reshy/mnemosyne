@@ -11,8 +11,10 @@ import {
   beforeEach,
   afterEach,
 } from 'vitest'
+// Test support
+import { transcriptFixture } from '../test-support/transcript.fixture.js'
 // Repositories
-import { closeDatabase, openDatabase } from './database.js'
+import { closeDatabase, getDatabase, openDatabase } from './database.js'
 import {
   StoredJob,
   clearJobs,
@@ -41,7 +43,10 @@ const buildJob = ( overrides: Partial< StoredJob > = {} ): StoredJob => {
     saved_path: null,
     summary_model: null,
     prompt_profile_id: null,
-    transcript: null,
+    source_document: null,
+    source_type: 'video',
+    feed_id: null,
+    feed_name: null,
     ...overrides,
   }
 }
@@ -174,12 +179,121 @@ describe( 'no shared references', () => {
       },
       segments: [ { start: 0, end: 1, text: 'hi' } ],
     }
-    const job = buildJob( { transcript } )
+    const job = buildJob( { source_document: { kind: 'video', ...transcript } } )
     insertJob( job )
 
     transcript.segments[ 0 ].text = 'changed'
 
-    expect( findJobById( job.id )?.transcript?.segments[ 0 ]?.text ).toBe( 'hi' )
+    expect( findJobById( job.id )?.source_document ).toMatchObject( {
+      segments: [ { text: 'hi' } ],
+    } )
+  } )
+} )
+
+describe( 'source type, feed and source document', () => {
+  const article = {
+    kind: 'article',
+    meta: {
+      title: 'A post',
+      source: 'https://example.com/post',
+      author: null,
+      site: 'Example',
+      published: '2026-10-01',
+      fetched_at: '2026-10-18T10:00:00.000Z',
+      origin: 'fetched',
+    },
+    markdown: 'Some text.',
+  } as const
+
+  const addFeed = ( id: string, name: string, deletedAt: string | null = null ): void => {
+    getDatabase().prepare( `INSERT INTO feeds ( id, url, feed_url, name, created_at, deleted_at )
+      VALUES ( ?, 'https://a.example', ?, ?, '2026-10-18T10:00:00.000Z', ? )` )
+      .run( id, `https://a.example/${ id }`, name, deletedAt )
+  }
+
+  it( 'round-trips an article document, its source type and its feed id', () => {
+    const feedId = crypto.randomUUID()
+    addFeed( feedId, 'A blog' )
+    const job = buildJob( {
+      source_type: 'article',
+      feed_id: feedId,
+      feed_name: 'A blog',
+      source_document: article,
+    } )
+
+    insertJob( job )
+
+    expect( findJobById( job.id ) ).toEqual( job )
+  } )
+
+  it( 'defaults to a video job with no feed', () => {
+    const job = buildJob()
+
+    insertJob( job )
+
+    expect( findJobById( job.id ) ).toMatchObject( {
+      source_type: 'video',
+      feed_id: null,
+      feed_name: null,
+    } )
+  } )
+
+  it( 'stores a video document with its kind', () => {
+    const job = buildJob( { source_document: { kind: 'video', ...transcriptFixture } } )
+    insertJob( job )
+
+    const { source_document: stored } = getDatabase()
+      .prepare( 'SELECT source_document FROM jobs WHERE id = ?' )
+      .get( job.id ) as { source_document: string }
+
+    expect( JSON.parse( stored ) ).toMatchObject( { kind: 'video' } )
+  } )
+
+  it( 'rejects a stored document with no kind', () => {
+    const job = buildJob()
+    insertJob( job )
+    getDatabase().prepare( 'UPDATE jobs SET source_document = ? WHERE id = ?' )
+      .run( JSON.stringify( transcriptFixture ), job.id )
+
+    expect( () => findJobById( job.id ) ).toThrow()
+  } )
+
+  it( 'gives every read the feed name from the feeds table', () => {
+    const feedId = crypto.randomUUID()
+    addFeed( feedId, 'A blog' )
+    const job = buildJob( { source_type: 'article', feed_id: feedId, feed_name: 'A blog' } )
+    insertJob( job )
+
+    expect( findJobById( job.id )?.feed_name ).toBe( 'A blog' )
+    expect( listActiveJobs()[ 0 ]?.feed_name ).toBe( 'A blog' )
+    expect( findNextRunnableJob()?.feed_name ).toBe( 'A blog' )
+  } )
+
+  it( 'keeps the name of a deleted feed', () => {
+    const feedId = crypto.randomUUID()
+    addFeed( feedId, 'Gone', '2026-10-18T12:00:00.000Z' )
+    insertJob( buildJob( { feed_id: feedId, feed_name: 'Gone' } ) )
+
+    expect( listActiveJobs()[ 0 ]?.feed_name ).toBe( 'Gone' )
+  } )
+
+  it( 'has no feed name when the feed row is missing', () => {
+    const job = buildJob( { feed_id: crypto.randomUUID() } )
+    insertJob( job )
+
+    expect( findJobById( job.id )?.feed_name ).toBeNull()
+  } )
+
+  it( 'does not write feed_name: it follows the feed', () => {
+    const feedId = crypto.randomUUID()
+    addFeed( feedId, 'Old' )
+    const job = buildJob( { feed_id: feedId } )
+    insertJob( job )
+
+    getDatabase().prepare( 'UPDATE feeds SET name = ? WHERE id = ?' ).run( 'New', feedId )
+    updateJob( job.id, { title: 'T', feed_name: 'Stale' } )
+
+    expect( findJobById( job.id )?.feed_name ).toBe( 'New' )
   } )
 } )
 
@@ -271,7 +385,7 @@ describe( 'storage', () => {
       note_markdown: '---\ntitle: "A talk"\n---\n\nText\n',
       target_folder: 'Learning/AI',
       saved_path: 'Mnemosyne/A talk.md',
-      transcript,
+      source_document: { kind: 'video', ...transcript },
     } )
 
     insertJob( job )
@@ -279,14 +393,14 @@ describe( 'storage', () => {
     expect( findJobById( job.id ) ).toEqual( job )
   } )
 
-  it( 'stores a null transcript when an update sets it to null', () => {
-    const job = buildJob( { transcript } )
+  it( 'stores a null source document when an update sets it to null', () => {
+    const job = buildJob( { source_document: { kind: 'video', ...transcript } } )
     insertJob( job )
 
-    const updated = updateJob( job.id, { transcript: null } )
+    const updated = updateJob( job.id, { source_document: null } )
 
-    expect( updated?.transcript ).toBeNull()
-    expect( findJobById( job.id )?.transcript ).toBeNull()
+    expect( updated?.source_document ).toBeNull()
+    expect( findJobById( job.id )?.source_document ).toBeNull()
   } )
 
   it( 'throws when a stored transcript no longer matches the schema', () => {

@@ -82,7 +82,10 @@ describe( 'insertSummaryRun and listRunsForJob', () => {
       saved_path: null,
       summary_model: null,
       prompt_profile_id: null,
-      transcript: null,
+      source_document: null,
+      source_type: 'video',
+      feed_id: null,
+      feed_name: null,
     } )
     insertSummaryRun( run( { job_id: id } ) )
 

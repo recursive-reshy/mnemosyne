@@ -79,7 +79,7 @@ const seedJobAt = async ( status: JobStatus ): Promise< string > => {
   }
 
   if( status === 'saved' ) {
-    updateJob( id, { status: 'saved', transcript: null } )
+    updateJob( id, { status: 'saved', source_document: null } )
   }
 
   return id

@@ -291,7 +291,7 @@ describe( 'renderTranscript', () => {
 
   it( 'throws ConflictError once the job is saved', async () => {
     const id = await queueReviewJob( 'ready_for_review' )
-    updateJob( id, { status: 'saved', transcript: null } )
+    updateJob( id, { status: 'saved', source_document: null } )
 
     expect( () => renderTranscript( id, 'md' ) ).toThrow(
       new ConflictError( 'Transcript not ready' ),
@@ -404,7 +404,7 @@ describe( 'completeTranscription', () => {
     expect( job.status ).toBe( 'summarizing' )
     expect( job.title ).toBe( 'A talk' )
     expect( job ).not.toHaveProperty( 'transcript' )
-    expect( findJobById( id )?.transcript ).toEqual( transcript )
+    expect( findJobById( id )?.source_document ).toEqual( { kind: 'video', ...transcript } )
   } )
 
   it.each( [ 'queued', 'downloading', 'converting', 'failed' ] as const )(
@@ -475,7 +475,7 @@ describe( 'failSummary', () => {
       error: 'Rate limited',
       expires_at: new Date( startTime.getTime() + 24 * 3_600_000 ).toISOString(),
     } )
-    expect( findJobById( id )?.transcript ).toEqual( transcript )
+    expect( findJobById( id )?.source_document ).toEqual( { kind: 'video', ...transcript } )
   } )
 
   it( 'throws ConflictError from a non-summarizing status', async () => {
@@ -652,7 +652,7 @@ describe( 'saveJob', () => {
       title: 'Edited title',
       expires_at: null,
     } )
-    expect( findJobById( id )?.transcript ).toBeNull()
+    expect( findJobById( id )?.source_document ).toBeNull()
     expect( findJobById( id )?.note_markdown ).toBe( note )
   } )
 
@@ -688,7 +688,7 @@ describe( 'saveJob', () => {
     await expect( saveJob( id ) ).rejects.toThrow( 'EACCES' )
 
     expect( findJob( id ).status ).toBe( 'ready_for_review' )
-    expect( findJobById( id )?.transcript ).toEqual( transcript )
+    expect( findJobById( id )?.source_document ).toEqual( { kind: 'video', ...transcript } )
   } )
 
   it.each( [ 'queued', 'transcribing', 'summary_failed', 'failed' ] as const )(
@@ -721,7 +721,7 @@ describe( 'retrySummary', () => {
     const job = retrySummary( id )
 
     expect( job ).toMatchObject( { status: 'summarizing', error: null, expires_at: null } )
-    expect( findJobById( id )?.transcript ).toEqual( transcript )
+    expect( findJobById( id )?.source_document ).toEqual( { kind: 'video', ...transcript } )
   } )
 
   it( 'makes the job runnable again', async () => {
@@ -1141,7 +1141,7 @@ describe( 'regenerateSummary', () => {
       target_folder: 'Learning',
       note_markdown: before?.note_markdown,
     } )
-    expect( findJobById( id )?.transcript ).not.toBeNull()
+    expect( findJobById( id )?.source_document ).not.toBeNull()
   } )
 
   it( 'stores the new model and profile when given', async () => {
