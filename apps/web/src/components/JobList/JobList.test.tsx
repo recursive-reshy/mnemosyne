@@ -17,6 +17,23 @@ describe( 'JobList', () => {
     expect( screen.queryByRole( 'list', { name: 'Jobs' } ) ).not.toBeInTheDocument()
   } )
 
+  it( 'shows a video or article icon with an accessible name on each row', () => {
+    renderWithClient(
+      <JobList
+        now={ now }
+        jobs={ [
+          jobFixture( { title: 'A talk' } ),
+          jobFixture( { id: other, title: 'A post', source_type: 'article' } ),
+        ] }
+      />,
+    )
+
+    const items = within( screen.getByRole( 'list', { name: 'Jobs' } ) ).getAllByRole( 'listitem' )
+
+    expect( within( items[ 0 ] ).getByRole( 'img', { name: 'Video' } ) ).toBeInTheDocument()
+    expect( within( items[ 1 ] ).getByRole( 'img', { name: 'Article' } ) ).toBeInTheDocument()
+  } )
+
   it( 'lists each job with its title, status and a link to the job', () => {
     renderWithClient(
       <JobList

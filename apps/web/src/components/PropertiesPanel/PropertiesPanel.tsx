@@ -53,8 +53,11 @@ export function PropertiesPanel( { note, onChange }: PropertiesPanelProps ): Rea
     [ 'Source', properties.source ],
     [ 'Channel', properties.channel ],
     [ 'Duration', properties.duration ],
+    [ 'Author', properties.author ],
+    [ 'Site', properties.site ],
+    [ 'Published', properties.published ],
     [ 'Created', 'on save' ],
-  ]
+  ].filter( ( row ): row is [ string, string ] => row[ 1 ] !== undefined )
 
   const update = ( changes: Partial< ParsedNote[ 'properties' ] > ): void => {
     onChange( serializeNote( { ...parsed, properties: { ...properties, ...changes } } ) )

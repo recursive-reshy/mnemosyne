@@ -1,6 +1,8 @@
 // React
 import type { ReactElement } from 'react'
 // Packages
+import ArticleIcon from '@mui/icons-material/Article'
+import OndemandVideoIcon from '@mui/icons-material/OndemandVideo'
 import Link from '@mui/material/Link'
 import List from '@mui/material/List'
 import ListItem from '@mui/material/ListItem'
@@ -55,6 +57,9 @@ export function JobList( { jobs, now }: JobListProps ): ReactElement | null {
     <List aria-label="Jobs" disablePadding sx={ LIST_SX }>
       { jobs.map( ( job ) => (
         <ListItem key={ job.id } sx={ ITEM_SX }>
+          { job.source_type === 'article'
+            ? <ArticleIcon fontSize="small" titleAccess="Article" color="action" />
+            : <OndemandVideoIcon fontSize="small" titleAccess="Video" color="action" /> }
           <Link component={ RouterLink } to={ `/jobs/${ job.id }` } sx={ LINK_SX }>
             { job.title ?? job.url }
           </Link>

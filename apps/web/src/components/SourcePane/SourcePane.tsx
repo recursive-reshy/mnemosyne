@@ -3,12 +3,12 @@ import { useEffect, useMemo, useRef } from 'react'
 import type { ReactElement } from 'react'
 // Packages
 import Alert from '@mui/material/Alert'
+import Link from '@mui/material/Link'
 import Paper from '@mui/material/Paper'
 import Typography from '@mui/material/Typography'
 // Shared
 import { formatClock, groupParagraphs } from '@mnemosyne/shared'
-import type { Transcript } from '@mnemosyne/shared'
-// App
+import type { SourceDocument, SourceType } from '@mnemosyne/shared'
 
 const PANE_SX = {
   position: 'relative',
@@ -29,19 +29,29 @@ const PARAGRAPH_SX = {
 
 const STAMP_SX = { fontVariantNumeric: 'tabular-nums' } as const
 
-interface TranscriptPaneProps {
-  transcript: Transcript | null
+const ARTICLE_TEXT_SX = {
+  whiteSpace: 'pre-wrap',
+  overflowWrap: 'anywhere',
+  fontFamily: 'inherit',
+  m: 0,
+} as const
+
+const NAMES = { video: 'Transcript', article: 'Article' } as const
+
+interface SourcePaneProps {
+  source: SourceDocument | null
+  sourceType: SourceType
   error: string | null
   focusSecond: number | null
 }
 
-export function TranscriptPane(
-  { transcript, error, focusSecond }: TranscriptPaneProps,
+export function SourcePane(
+  { source, sourceType, error, focusSecond }: SourcePaneProps,
 ): ReactElement {
   const paneRef = useRef< HTMLDivElement >( null )
   const paragraphs = useMemo( () => {
-    return transcript === null ? [] : groupParagraphs( transcript.segments )
-  }, [ transcript ] )
+    return source?.kind === 'video' ? groupParagraphs( source.segments ) : []
+  }, [ source ] )
 
   const activeStart = useMemo( () => {
     if( focusSecond === null ) {
@@ -71,12 +81,28 @@ export function TranscriptPane(
       ref={ paneRef }
       component="section"
       variant="outlined"
-      aria-label="Transcript"
+      aria-label={ NAMES[ sourceType ] }
       sx={ PANE_SX }
     >
       { error !== null && <Alert severity="error">{ error }</Alert> }
-      { error === null && transcript === null && (
-        <Typography role="status">Loading transcript…</Typography>
+      { error === null && source === null && (
+        <Typography role="status">{ `Loading ${ NAMES[ sourceType ].toLowerCase() }…` }</Typography>
+      ) }
+      { source?.kind === 'article' && (
+        <>
+          <Typography variant="h6" component="h3" sx={ { overflowWrap: 'anywhere' } }>
+            { source.meta.title }
+          </Typography>
+          <Link
+            href={ source.meta.source }
+            target="_blank"
+            rel="noopener noreferrer"
+            sx={ { display: 'block', mb: 2, overflowWrap: 'anywhere' } }
+          >
+            { source.meta.source }
+          </Link>
+          <Typography component="pre" sx={ ARTICLE_TEXT_SX }>{ source.markdown }</Typography>
+        </>
       ) }
       { paragraphs.map( ( { start, text } ) => (
         <Typography

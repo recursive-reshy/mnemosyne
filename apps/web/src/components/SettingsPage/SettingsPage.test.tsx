@@ -19,7 +19,9 @@ vi.mock( '#src/hooks/useSettings' )
 vi.mock( '../SummarizerDefaults', () => ( { SummarizerDefaults: () => <p>defaults</p> } ) )
 vi.mock( '../PromptProfiles', () => ( { PromptProfiles: () => <p>profiles</p> } ) )
 vi.mock( '../LockedInstructions', () => ( {
-  LockedInstructions: ( { text }: { text: string } ) => <p>{ `locked: ${ text }` }</p>,
+  LockedInstructions: ( { title, text }: { title?: string, text: string } ) => (
+    <p>{ `${ title ?? 'locked' }: ${ text }` }</p>
+  ),
 } ) )
 
 const mockedSettings = vi.mocked( useSettings )
@@ -28,7 +30,7 @@ type State = ReturnType< typeof useSettings >
 
 const state = ( overrides: Partial< State > = {} ): State => ( {
   settings: settingsFixture().settings,
-  lockedInstructions: settingsFixture().locked_instructions.video,
+  lockedInstructions: settingsFixture().locked_instructions,
   isLoading: false,
   error: null,
   updateSettings: mutationStub(),
@@ -47,7 +49,11 @@ describe( 'SettingsPage', () => {
     expect( screen.getByRole( 'heading', { level: 3, name: 'Summarizer' } ) ).toBeInTheDocument()
     expect( screen.getByText( 'defaults' ) ).toBeInTheDocument()
     expect( screen.getByText( 'profiles' ) ).toBeInTheDocument()
-    expect( screen.getByText( `locked: ${ settingsFixture().locked_instructions.video }` ) )
+    const locked = settingsFixture().locked_instructions
+    const sends = 'Instructions the app always sends'
+
+    expect( screen.getByText( `${ sends } for videos: ${ locked.video }` ) ).toBeInTheDocument()
+    expect( screen.getByText( `${ sends } for articles: ${ locked.article }` ) )
       .toBeInTheDocument()
   } )
 

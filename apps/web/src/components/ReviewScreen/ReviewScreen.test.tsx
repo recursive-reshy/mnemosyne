@@ -741,3 +741,71 @@ describe( 'ReviewScreen regenerate', () => {
     expect( mockedRegenerate ).not.toHaveBeenCalled()
   } )
 } )
+
+describe( 'ReviewScreen for an article', () => {
+  const articleSource = {
+    kind: 'article' as const,
+    meta: {
+      title: 'A post about habits',
+      source: 'https://example.com/habits',
+      author: 'Ada',
+      site: 'Example',
+      published: '2026-10-01',
+      fetched_at: '2026-10-18T10:00:00.000Z',
+      origin: 'fetched' as const,
+    },
+    markdown: 'Small things compound over time.',
+  }
+
+  const articleNote = serializeNote( {
+    properties: {
+      title: 'A post about habits',
+      source: 'https://example.com/habits',
+      author: 'Ada',
+      site: 'Example',
+      published: '2026-10-01',
+      created: '2026-10-18',
+      tags: [ 'mnemosyne' ],
+    },
+    body: '## Summary\nText with a time 10:30 in it.\n',
+  } )
+
+  const articleJob = {
+    ...reviewJob,
+    source_type: 'article' as const,
+    title: 'A post about habits',
+    note_markdown: articleNote,
+  }
+
+  beforeEach( () => {
+    mockedUseSource.mockReturnValue( { source: articleSource, error: null } )
+  } )
+
+  it( 'shows the article next to the note, not a transcript', () => {
+    renderWithClient( <ReviewScreen job={ articleJob } { ...handlers() } /> )
+
+    expect( mockedUseSource ).toHaveBeenCalledWith( articleJob.id )
+    expect( screen.getByRole( 'region', { name: 'Article' } ) )
+      .toHaveTextContent( 'Small things compound over time.' )
+    expect( screen.queryByRole( 'region', { name: 'Transcript' } ) ).not.toBeInTheDocument()
+  } )
+
+  it( 'shows the article properties and Markdown-only downloads', () => {
+    renderWithClient( <ReviewScreen job={ articleJob } { ...handlers() } /> )
+
+    expect( screen.getByText( 'Author' ) ).toBeInTheDocument()
+    expect( screen.queryByText( 'Channel' ) ).not.toBeInTheDocument()
+    expect( screen.getByRole( 'region', { name: 'Download article' } ) ).toBeInTheDocument()
+    expect( screen.queryByRole( 'link', { name: 'Subtitles (.srt)' } ) ).not.toBeInTheDocument()
+  } )
+
+  it( 'does not scroll or mark anything when the caret is on a line with a time in it', () => {
+    renderWithClient( <ReviewScreen job={ articleJob } { ...handlers() } /> )
+    const editor = screen.getByRole< HTMLTextAreaElement >( 'textbox', { name: 'Summary' } )
+
+    editor.setSelectionRange( articleNote.indexOf( 'time' ), articleNote.indexOf( 'time' ) )
+    fireEvent.select( editor )
+
+    expect( document.querySelector( '[aria-current]' ) ).toBeNull()
+  } )
+} )

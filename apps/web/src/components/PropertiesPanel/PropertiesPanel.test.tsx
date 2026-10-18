@@ -97,3 +97,58 @@ describe( 'PropertiesPanel', () => {
     expect( screen.getByRole( 'textbox', { name: 'Title' } ) ).toHaveValue( 'How Rust Works 2' )
   } )
 } )
+
+describe( 'PropertiesPanel for an article', () => {
+  const articleNote = ( overrides: Record< string, string | undefined > = {} ): string => {
+    return serializeNote( {
+      properties: {
+        title: 'A post',
+        source: 'https://example.com/post',
+        author: 'Ada',
+        site: 'Example',
+        published: '2026-10-01',
+        created: '2026-10-18',
+        tags: [ 'mnemosyne' ],
+        ...overrides,
+      },
+      body: 'Body\n',
+    } )
+  }
+
+  it( 'shows Source, Author, Site, Published and Created, not Channel or Duration', () => {
+    render( <PropertiesPanel note={ articleNote() } onChange={ vi.fn() } /> )
+
+    expect( screen.getByText( 'Author' ) ).toBeInTheDocument()
+    expect( screen.getByText( 'Ada' ) ).toBeInTheDocument()
+    expect( screen.getByText( 'Site' ) ).toBeInTheDocument()
+    expect( screen.getByText( 'Example' ) ).toBeInTheDocument()
+    expect( screen.getByText( 'Published' ) ).toBeInTheDocument()
+    expect( screen.getByText( '2026-10-01' ) ).toBeInTheDocument()
+    expect( screen.getByText( 'https://example.com/post' ) ).toBeInTheDocument()
+    expect( screen.queryByText( 'Channel' ) ).not.toBeInTheDocument()
+    expect( screen.queryByText( 'Duration' ) ).not.toBeInTheDocument()
+  } )
+
+  it( 'leaves out the properties the article does not have', () => {
+    const note = articleNote( { author: undefined, site: undefined, published: undefined } )
+
+    render( <PropertiesPanel note={ note } onChange={ vi.fn() } /> )
+
+    expect( screen.queryByText( 'Author' ) ).not.toBeInTheDocument()
+    expect( screen.queryByText( 'Site' ) ).not.toBeInTheDocument()
+    expect( screen.queryByText( 'Published' ) ).not.toBeInTheDocument()
+    expect( screen.getByText( 'Source' ) ).toBeInTheDocument()
+  } )
+
+  it( 'keeps the article properties when the title is edited', async () => {
+    const onChange = vi.fn()
+    render( <PropertiesPanel note={ articleNote() } onChange={ onChange } /> )
+
+    await userEvent.setup().type( screen.getByRole( 'textbox', { name: 'Title' } ), '!' )
+
+    const { properties } = parseNote( onChange.mock.calls[ 0 ]?.[ 0 ] as string )
+
+    expect( properties ).toMatchObject( { title: 'A post!', author: 'Ada', site: 'Example' } )
+    expect( properties.channel ).toBeUndefined()
+  } )
+} )

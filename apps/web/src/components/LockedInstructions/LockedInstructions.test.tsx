@@ -9,6 +9,15 @@ import { LockedInstructions } from './LockedInstructions'
 
 const text = 'You summarize the transcript of a video.\n\nYour output has four parts:'
 
+describe( 'LockedInstructions with a title', () => {
+  it( 'uses the title given for the accordion', () => {
+    renderWithClient( <LockedInstructions title="Instructions for articles" text={ text } /> )
+
+    expect( screen.getByRole( 'button', { name: 'Instructions for articles' } ) )
+      .toHaveAttribute( 'aria-expanded', 'false' )
+  } )
+} )
+
 describe( 'LockedInstructions', () => {
   it( 'is a collapsed accordion with a clear title', () => {
     renderWithClient( <LockedInstructions text={ text } /> )

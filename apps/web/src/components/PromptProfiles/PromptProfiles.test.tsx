@@ -85,7 +85,7 @@ const choose = async ( user: User, name: string ): Promise< void > => {
 beforeEach( () => {
   mockedSettings.mockReturnValue( {
     settings: settingsFixture().settings,
-    lockedInstructions: 'locked',
+    lockedInstructions: { video: 'locked', article: 'locked' },
     isLoading: false,
     error: null,
     updateSettings: mutationStub(),

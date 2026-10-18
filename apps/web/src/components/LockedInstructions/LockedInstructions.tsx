@@ -16,13 +16,16 @@ const TEXT_SX = {
 
 interface LockedInstructionsProps {
   text: string
+  title?: string
 }
 
-export function LockedInstructions( { text }: LockedInstructionsProps ): ReactElement {
+export function LockedInstructions(
+  { text, title = 'Instructions the app always sends' }: LockedInstructionsProps,
+): ReactElement {
   return (
     <Accordion variant="outlined" disableGutters>
       <AccordionSummary expandIcon={ <ExpandMoreIcon /> }>
-        <Typography>Instructions the app always sends</Typography>
+        <Typography>{ title }</Typography>
       </AccordionSummary>
       <AccordionDetails>
         <Typography variant="body2" color="text.secondary" sx={ { mb: 1 } }>

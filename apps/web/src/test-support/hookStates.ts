@@ -16,7 +16,7 @@ type ProfilesState = ReturnType< typeof usePromptProfiles >
 // Loaded, error-free return values for the Settings hooks, for component tests that mock them.
 export const settingsState = ( overrides: Partial< SettingsState > = {} ): SettingsState => ( {
   settings: settingsFixture().settings,
-  lockedInstructions: settingsFixture().locked_instructions.video,
+  lockedInstructions: settingsFixture().locked_instructions,
   isLoading: false,
   error: null,
   updateSettings: mutationStub(),

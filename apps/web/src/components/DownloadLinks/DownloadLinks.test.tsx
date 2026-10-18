@@ -41,3 +41,21 @@ describe( 'DownloadLinks', () => {
       .toHaveAttribute( 'href', '/api/jobs/a%2Fb/download?format=md' )
   } )
 } )
+
+describe( 'DownloadLinks for an article', () => {
+  it( 'offers Markdown only, in a region named for the article', () => {
+    render( <DownloadLinks jobId={ jobId } sourceType="article" /> )
+
+    const region = screen.getByRole( 'region', { name: 'Download article' } )
+    const links = within( region ).getAllByRole( 'link' )
+
+    expect( links.map( ( link ) => link.textContent ) ).toEqual( [ 'Markdown (.md)' ] )
+    expect( links[ 0 ] ).toHaveAttribute( 'href', `/api/jobs/${ jobId }/download?format=md` )
+  } )
+
+  it( 'still offers all three formats for a video', () => {
+    render( <DownloadLinks jobId={ jobId } sourceType="video" /> )
+
+    expect( screen.getAllByRole( 'link' ) ).toHaveLength( 3 )
+  } )
+} )

@@ -23,7 +23,18 @@ export function SettingsPage(): ReactElement {
         <>
           <SummarizerDefaults />
           <PromptProfiles />
-          { lockedInstructions !== null && <LockedInstructions text={ lockedInstructions } /> }
+          { lockedInstructions !== null && (
+            <>
+              <LockedInstructions
+                title="Instructions the app always sends for videos"
+                text={ lockedInstructions.video }
+              />
+              <LockedInstructions
+                title="Instructions the app always sends for articles"
+                text={ lockedInstructions.article }
+              />
+            </>
+          ) }
         </>
       ) }
     </Stack>

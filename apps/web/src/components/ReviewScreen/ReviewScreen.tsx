@@ -24,7 +24,7 @@ import { PropertiesPanel } from '../PropertiesPanel'
 import { RegenerateDialog } from '../RegenerateDialog'
 import { ReviewActions } from '../ReviewActions'
 import { SummaryInfo } from '../SummaryInfo'
-import { TranscriptPane } from '../TranscriptPane'
+import { SourcePane } from '../SourcePane'
 import {
   COLUMNS_SX,
   STATUS_LABELS,
@@ -114,8 +114,9 @@ export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps )
             onCaretText={ handleCaretLine }
           />
         ) }
-        <TranscriptPane
-          transcript={ source?.kind === 'video' ? source : null }
+        <SourcePane
+          source={ source }
+          sourceType={ job.source_type }
           error={ transcriptError }
           focusSecond={ focusSecond }
         />
@@ -127,7 +128,7 @@ export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps )
         <Typography role="status">{ STATUS_LABELS[ autosave.status ] }</Typography>
       ) }
       { job.summary_usage !== null && <SummaryInfo usage={ job.summary_usage } /> }
-      <DownloadLinks jobId={ job.id } />
+      <DownloadLinks jobId={ job.id } sourceType={ job.source_type } />
       { save.isError && autosave.status !== 'error' && (
         <Alert severity="error">{ save.error.message }</Alert>
       ) }
