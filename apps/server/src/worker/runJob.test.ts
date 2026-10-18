@@ -20,6 +20,8 @@ import {
 } from '../services/jobs.service.js'
 // Repositories
 import { clearJobs, findJobById } from '../repositories/jobStore.repository.js'
+// Sources
+import { fetchArticle } from '../sources/extractArticle.js'
 // Clients
 import { downloadAudio } from '../clients/ytDlp.client.js'
 import { convertToWav } from '../clients/ffmpeg.client.js'
@@ -34,6 +36,7 @@ vi.mock( '../clients/ytDlp.client.js' )
 vi.mock( '../clients/ffmpeg.client.js' )
 vi.mock( '../clients/whisperServer.client.js' )
 vi.mock( './summarizeJob.js' )
+vi.mock( '../sources/extractArticle.js' )
 vi.mock( 'node:fs/promises' )
 vi.mock( '../config.js', () => ( {
   config: { workDir: '/work', whisperUrl: 'http://whisper:8178', whisperModel: 'test-model' },
@@ -59,7 +62,7 @@ const rmMock = vi.mocked( rm )
 const summarizeJobMock = vi.mocked( summarizeJob )
 
 const queue = async (): Promise< string > => {
-  return ( await queueJob( 'https://www.youtube.com/watch?v=abc' ) ).id
+  return ( await queueJob( { url: 'https://www.youtube.com/watch?v=abc' } ) ).id
 }
 
 const expectClientsNotCalled = (): void => {
@@ -294,5 +297,67 @@ describe( 'runJob', () => {
 
     expectClientsNotCalled()
     expect( rmMock ).not.toHaveBeenCalled()
+  } )
+} )
+
+describe( 'runJob for articles', () => {
+  const articleUrl = 'https://example.com/post'
+  const fetchMock = vi.mocked( fetchArticle )
+  const article = {
+    kind: 'article' as const,
+    meta: {
+      title: 'A post',
+      source: articleUrl,
+      author: null,
+      site: 'Example',
+      published: null,
+      fetched_at: NOW,
+      origin: 'fetched' as const,
+    },
+    markdown: 'Some text.',
+  }
+
+  beforeEach( () => {
+    fetchMock.mockReset()
+    fetchMock.mockResolvedValue( article )
+  } )
+
+  it( 'fetches through fetching, stores the article and summarizes', async () => {
+    const { id } = await queueJob( { url: articleUrl } )
+    const seen: string[] = []
+    fetchMock.mockImplementation( () => {
+      seen.push( findJob( id ).status )
+
+      return Promise.resolve( article )
+    } )
+
+    await runJob( id )
+
+    expect( seen ).toEqual( [ 'fetching' ] )
+    expect( findJob( id ) ).toMatchObject( { status: 'summarizing', title: 'A post' } )
+    expect( findJobById( id )?.source_document ).toEqual( article )
+    expect( summarizeJobMock ).toHaveBeenCalledExactlyOnceWith( id )
+    expectClientsNotCalled()
+    expect( rmMock ).not.toHaveBeenCalled()
+  } )
+
+  it( 'fails the job with the fetch error and does not summarize', async () => {
+    const { id } = await queueJob( { url: articleUrl } )
+    fetchMock.mockRejectedValue( new Error( 'Not an article page' ) )
+
+    await runJob( id )
+
+    expect( findJob( id ) ).toMatchObject( { status: 'failed', error: 'Not an article page' } )
+    expect( summarizeJobMock ).not.toHaveBeenCalled()
+  } )
+
+  it( 'goes straight to summarizing for a pasted-text job without fetching', async () => {
+    const text = 'Pasted words. '.repeat( 30 )
+    const { id } = await queueJob( { url: articleUrl, text } )
+
+    await runJob( id )
+
+    expect( fetchMock ).not.toHaveBeenCalled()
+    expect( summarizeJobMock ).toHaveBeenCalledExactlyOnceWith( id )
   } )
 } )

@@ -56,7 +56,7 @@ const transcript: Transcript = {
 }
 
 const queueSummarizing = async (): Promise< string > => {
-  const { id } = await queueJob( transcript.meta.source )
+  const { id } = await queueJob( { url: transcript.meta.source } )
   markStatus( id, 'downloading' )
   markStatus( id, 'converting' )
   markStatus( id, 'transcribing' )

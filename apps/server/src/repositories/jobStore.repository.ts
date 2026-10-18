@@ -129,7 +129,7 @@ export const clearJobs = (): void => {
 export const markInterruptedJobs = ( message: string, now: string ): number => {
   const { changes } = getDatabase()
     .prepare( `UPDATE jobs SET status = 'failed', error = ?, updated_at = ?
-      WHERE status IN ( 'downloading', 'converting', 'transcribing' )` )
+      WHERE status IN ( 'fetching', 'downloading', 'converting', 'transcribing' )` )
     .run( message, now )
 
   return changes

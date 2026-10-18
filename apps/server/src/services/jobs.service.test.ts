@@ -45,6 +45,7 @@ import {
   renderTranscript,
   retrySummary,
   saveJob,
+  submitPastedText,
   updateDraft,
 } from './jobs.service.js'
 // Models
@@ -90,7 +91,7 @@ const transcript: Transcript = {
 }
 
 const queueJobAt = async ( status: JobStatus ): Promise< string > => {
-  const { id } = await queueJob( url )
+  const { id } = await queueJob( { url } )
   const path: JobStatus[] = [ 'downloading', 'converting', 'transcribing' ]
 
   for( const step of path ) {
@@ -128,7 +129,7 @@ afterEach( () => {
 
 describe( 'queueJob', () => {
   it( 'returns a queued public job', async () => {
-    const job = await queueJob( url )
+    const job = await queueJob( { url } )
 
     expect( job ).toEqual( {
       id: expect.stringMatching( /^[0-9a-f-]{36}$/ ) as string,
@@ -152,17 +153,17 @@ describe( 'queueJob', () => {
   } )
 
   it( 'does not expose a transcript property', async () => {
-    expect( await queueJob( url ) ).not.toHaveProperty( 'transcript' )
+    expect( await queueJob( { url } ) ).not.toHaveProperty( 'transcript' )
   } )
 
   it( 'produces a different id on each call', async () => {
-    expect( ( await queueJob( url ) ).id ).not.toBe( ( await queueJob( url ) ).id )
+    expect( ( await queueJob( { url } ) ).id ).not.toBe( ( await queueJob( { url } ) ).id )
   } )
 } )
 
 describe( 'findJob', () => {
   it( 'returns the public job', async () => {
-    const { id } = await queueJob( url )
+    const { id } = await queueJob( { url } )
 
     const job = findJob( id )
 
@@ -171,7 +172,7 @@ describe( 'findJob', () => {
   } )
 
   it( 'returns the stored fields of a job', async () => {
-    const { id } = await queueJob( url )
+    const { id } = await queueJob( { url } )
     updateJob( id, {
       title: 'A talk',
       expires_at: laterTime.toISOString(),
@@ -192,7 +193,7 @@ describe( 'findJob', () => {
 
 describe( 'markStatus', () => {
   it( 'walks queued to transcribing', async () => {
-    const { id } = await queueJob( url )
+    const { id } = await queueJob( { url } )
 
     expect( markStatus( id, 'downloading' ).status ).toBe( 'downloading' )
     expect( markStatus( id, 'converting' ).status ).toBe( 'converting' )
@@ -200,7 +201,7 @@ describe( 'markStatus', () => {
   } )
 
   it( 'updates updated_at and keeps created_at', async () => {
-    const { id } = await queueJob( url )
+    const { id } = await queueJob( { url } )
     vi.setSystemTime( laterTime )
 
     const job = markStatus( id, 'downloading' )
@@ -210,7 +211,7 @@ describe( 'markStatus', () => {
   } )
 
   it( 'throws ConflictError when skipping a step', async () => {
-    const { id } = await queueJob( url )
+    const { id } = await queueJob( { url } )
 
     expect( () => markStatus( id, 'converting' ) ).toThrow( ConflictError )
     expect( () => markStatus( id, 'converting' ) ).toThrow(
@@ -259,7 +260,7 @@ describe( 'renderTranscript', () => {
   const queueReviewJob = async (
     outcome: 'ready_for_review' | 'summary_failed',
   ): Promise< string > => {
-    const { id } = await queueJob( url )
+    const { id } = await queueJob( { url } )
 
     markStatus( id, 'downloading' )
     markStatus( id, 'converting' )
@@ -344,23 +345,23 @@ describe( 'findNextRunnableJob', () => {
   } )
 
   it( 'returns the oldest queued job', async () => {
-    const first = await queueJob( 'https://example.com/a' )
-    await queueJob( 'https://example.com/b' )
+    const first = await queueJob( { url: 'https://www.youtube.com/watch?v=a' } )
+    await queueJob( { url: 'https://www.youtube.com/watch?v=b' } )
 
     expect( findNextRunnableJob() ).toEqual( first )
   } )
 
   it( 'skips jobs that are no longer queued', async () => {
-    const first = await queueJob( 'https://example.com/a' )
-    const second = await queueJob( 'https://example.com/b' )
+    const first = await queueJob( { url: 'https://www.youtube.com/watch?v=a' } )
+    const second = await queueJob( { url: 'https://www.youtube.com/watch?v=b' } )
     markStatus( first.id, 'downloading' )
 
     expect( findNextRunnableJob() ).toEqual( second )
   } )
 
   it( 'returns undefined when every job has moved on', async () => {
-    const first = await queueJob( 'https://example.com/a' )
-    const second = await queueJob( 'https://example.com/b' )
+    const first = await queueJob( { url: 'https://www.youtube.com/watch?v=a' } )
+    const second = await queueJob( { url: 'https://www.youtube.com/watch?v=b' } )
     markStatus( first.id, 'downloading' )
     markStatus( second.id, 'downloading' )
 
@@ -368,7 +369,7 @@ describe( 'findNextRunnableJob', () => {
   } )
 
   it( 'returns a job without a transcript field', async () => {
-    await queueJob( 'https://example.com/a' )
+    await queueJob( { url: 'https://www.youtube.com/watch?v=a' } )
 
     expect( findNextRunnableJob() ).not.toHaveProperty( 'transcript' )
   } )
@@ -541,7 +542,7 @@ describe( 'getSource', () => {
   } )
 
   it( 'throws when the job has no transcript', async () => {
-    const { id } = await queueJob( url )
+    const { id } = await queueJob( { url } )
 
     expect( () => getSource( id ) ).toThrow( 'has no transcript' )
   } )
@@ -549,9 +550,9 @@ describe( 'getSource', () => {
 
 describe( 'listJobs', () => {
   it( 'returns public jobs, newest first', async () => {
-    const first = await queueJob( url )
+    const first = await queueJob( { url } )
     vi.setSystemTime( laterTime )
-    const second = await queueJob( url )
+    const second = await queueJob( { url } )
 
     const jobs = listJobs()
 
@@ -1089,7 +1090,7 @@ describe( 'queueJob options', () => {
   it( 'stores the model and profile when given', async () => {
     const profileId = codingId()
 
-    const job = await queueJob( url, { model: 'claude-opus-5-5', profile_id: profileId } )
+    const job = await queueJob( { url: url, model: 'claude-opus-5-5', profile_id: profileId } )
 
     expect( assertKnownModelMock ).toHaveBeenCalledWith( 'claude-opus-5-5' )
     expect( job )
@@ -1103,20 +1104,20 @@ describe( 'queueJob options', () => {
   it( 'stores null for both when no options are given', async () => {
     const none = { summary_model: null, prompt_profile_id: null }
 
-    expect( await queueJob( url ) ).toMatchObject( none )
-    expect( await queueJob( url, {} ) ).toMatchObject( none )
+    expect( await queueJob( { url } ) ).toMatchObject( none )
+    expect( await queueJob( { url } ) ).toMatchObject( none )
     expect( assertKnownModelMock ).not.toHaveBeenCalled()
   } )
 
   it( 'rejects an unknown model and queues nothing', async () => {
     assertKnownModelMock.mockRejectedValue( new ValidationError( 'Unknown model: nope' ) )
 
-    await expect( queueJob( url, { model: 'nope' } ) ).rejects.toThrow( 'Unknown model: nope' )
+    await expect( queueJob( { url: url, model: 'nope' } ) ).rejects.toThrow( 'Unknown model: nope' )
     expect( listJobs() ).toEqual( [] )
   } )
 
   it( 'rejects an unknown profile', async () => {
-    await expect( queueJob( url, { profile_id: crypto.randomUUID() } ) )
+    await expect( queueJob( { url: url, profile_id: crypto.randomUUID() } ) )
       .rejects.toThrow( ValidationError )
     expect( listJobs() ).toEqual( [] )
   } )
@@ -1125,7 +1126,8 @@ describe( 'queueJob options', () => {
     const profileId = codingId()
     deleteProfile( profileId )
 
-    await expect( queueJob( url, { profile_id: profileId } ) ).rejects.toThrow( ValidationError )
+    await expect( queueJob( { url, profile_id: profileId } ) )
+      .rejects.toThrow( ValidationError )
   } )
 } )
 
@@ -1170,7 +1172,7 @@ describe( 'regenerateSummary', () => {
 
   it( 'keeps the earlier choices when none are given', async () => {
     const profileId = codingId()
-    const { id } = await queueJob( url, { model: 'claude-opus-5-5', profile_id: profileId } )
+    const { id } = await queueJob( { url: url, model: 'claude-opus-5-5', profile_id: profileId } )
     markStatus( id, 'downloading' )
     markStatus( id, 'converting' )
     markStatus( id, 'transcribing' )
@@ -1364,5 +1366,236 @@ describe( 'article jobs', () => {
     } )
     expect( markdown ).not.toContain( 'duration' )
     expect( markdown ).not.toContain( 'channel' )
+  } )
+} )
+
+describe( 'queueJob with source types', () => {
+  const articleUrl = 'https://example.com/post'
+  const pasted = `# Pasted title\n\n${ 'Some pasted words. '.repeat( 20 ) }`
+
+  it( 'detects a video URL and queues it', async () => {
+    expect( await queueJob( { url } ) ).toMatchObject( { source_type: 'video', status: 'queued' } )
+  } )
+
+  it( 'detects an article URL and queues it', async () => {
+    expect( await queueJob( { url: articleUrl } ) )
+      .toMatchObject( { source_type: 'article', status: 'queued' } )
+  } )
+
+  it( 'lets the body override the detected type', async () => {
+    expect( ( await queueJob( { url, source_type: 'article' } ) ).source_type ).toBe( 'article' )
+    expect( ( await queueJob( { url: articleUrl, source_type: 'video' } ) ).source_type )
+      .toBe( 'video' )
+  } )
+
+  it( 'stores pasted text as an article document and goes straight to summarizing', async () => {
+    const job = await queueJob( { url: articleUrl, text: pasted } )
+
+    expect( job ).toMatchObject( {
+      source_type: 'article',
+      status: 'summarizing',
+      title: 'Pasted title',
+    } )
+    expect( findJobById( job.id )?.source_document ).toMatchObject( {
+      kind: 'article',
+      meta: {
+        title: 'Pasted title',
+        source: articleUrl,
+        origin: 'pasted',
+        fetched_at: startTime.toISOString(),
+      },
+      markdown: pasted.trim(),
+    } )
+  } )
+
+  it( 'prefers the given title for pasted text', async () => {
+    const job = await queueJob( { url: articleUrl, text: pasted, title: 'My title' } )
+
+    expect( job.title ).toBe( 'My title' )
+  } )
+
+  it( 'refuses pasted text for a video', async () => {
+    await expect( queueJob( { url, text: pasted } ) ).rejects.toThrow( ValidationError )
+  } )
+
+  it( 'validates the model and profile for pasted text too', async () => {
+    assertKnownModelMock.mockRejectedValueOnce( new ValidationError( 'Unknown model: nope' ) )
+
+    await expect( queueJob( { url: articleUrl, text: pasted, model: 'nope' } ) )
+      .rejects.toThrow( ValidationError )
+  } )
+
+  it( 'stores a feed id that the caller passes', async () => {
+    const feedId = crypto.randomUUID()
+
+    expect( ( await queueJob( { url: articleUrl }, { feed_id: feedId } ) ).feed_id ).toBe( feedId )
+  } )
+} )
+
+describe( 'step rules per source type', () => {
+  const articleUrl = 'https://example.com/post'
+  const article: SourceDocument = {
+    kind: 'article',
+    meta: {
+      title: 'A post',
+      source: articleUrl,
+      author: null,
+      site: 'Example',
+      published: null,
+      fetched_at: '2026-10-18T10:00:00.000Z',
+      origin: 'fetched',
+    },
+    markdown: 'Some text.',
+  }
+
+  it( 'moves an article job queued to fetching and nowhere else', async () => {
+    const { id } = await queueJob( { url: articleUrl } )
+
+    expect( () => markStatus( id, 'downloading' ) ).toThrow( ConflictError )
+    expect( markStatus( id, 'fetching' ).status ).toBe( 'fetching' )
+    expect( () => markStatus( id, 'converting' ) ).toThrow( ConflictError )
+  } )
+
+  it( 'refuses fetching for a video job', async () => {
+    const { id } = await queueJob( { url } )
+
+    expect( () => markStatus( id, 'fetching' ) ).toThrow( ConflictError )
+  } )
+
+  it( 'completes an article from fetching and goes to summarizing', async () => {
+    const { id } = await queueJob( { url: articleUrl } )
+    markStatus( id, 'fetching' )
+
+    const job = completeAcquisition( id, article )
+
+    expect( job ).toMatchObject( { status: 'summarizing', title: 'A post' } )
+    expect( findJobById( id )?.source_document ).toEqual( article )
+  } )
+
+  it( 'refuses an article document for a job that is not fetching', async () => {
+    const { id } = await queueJob( { url: articleUrl } )
+
+    expect( () => completeAcquisition( id, article ) ).toThrow( ConflictError )
+  } )
+
+  it( 'refuses a video document for an article job and an article for a video job', async () => {
+    const articleJob = await queueJob( { url: articleUrl } )
+    markStatus( articleJob.id, 'fetching' )
+    const videoJob = await queueJobAt( 'transcribing' )
+
+    expect( () => completeAcquisition( articleJob.id, { kind: 'video', ...transcript } ) )
+      .toThrow( ConflictError )
+    expect( () => completeAcquisition( videoJob, article ) ).toThrow( ConflictError )
+  } )
+
+  it( 'fails an article job that was fetching when the server stopped', async () => {
+    const { id } = await queueJob( { url: articleUrl } )
+    markStatus( id, 'fetching' )
+
+    expect( recoverInterruptedJobs() ).toBe( 1 )
+    expect( findJob( id ) ).toMatchObject( { status: 'failed', error: 'Interrupted by restart' } )
+  } )
+} )
+
+describe( 'submitPastedText', () => {
+  const articleUrl = 'https://example.com/post'
+  const text = `A heading-less article. ${ 'More words here. '.repeat( 20 ) }`
+
+  const failedArticle = async (
+    options: { model?: string, profile_id?: string } = {},
+  ): Promise< string > => {
+    const { id } = await queueJob( { url: articleUrl, ...options } )
+    markStatus( id, 'fetching' )
+    failJob( id, 'The page needs a login or is paywalled' )
+
+    return id
+  }
+
+  it( 'builds a pasted document, clears the error and goes to summarizing', async () => {
+    const id = await failedArticle()
+
+    const job = submitPastedText( id, { text } )
+
+    expect( job ).toMatchObject( {
+      status: 'summarizing',
+      error: null,
+      title: text.slice( 0, 120 ).trim(),
+    } )
+    expect( findJobById( id )?.source_document ).toMatchObject( {
+      kind: 'article',
+      meta: { source: articleUrl, origin: 'pasted' },
+      markdown: text.trim(),
+    } )
+  } )
+
+  it( 'uses the given title', async () => {
+    const id = await failedArticle()
+
+    expect( submitPastedText( id, { text, title: 'Mine' } ).title ).toBe( 'Mine' )
+  } )
+
+  it( 'keeps the model and the profile of the job', async () => {
+    const profileId = listProfiles()[ 0 ]?.id ?? ''
+    const id = await failedArticle( { model: 'claude-opus-5-5', profile_id: profileId } )
+
+    expect( submitPastedText( id, { text } ) )
+      .toMatchObject( { summary_model: 'claude-opus-5-5', prompt_profile_id: profileId } )
+  } )
+
+  it( 'refuses a video job, even a failed one', async () => {
+    const id = await queueJobAt( 'failed' )
+
+    expect( () => submitPastedText( id, { text } ) ).toThrow( ConflictError )
+  } )
+
+  it( 'refuses an article job that has not failed', async () => {
+    const queued = await queueJob( { url: articleUrl } )
+
+    expect( () => submitPastedText( queued.id, { text } ) ).toThrow( ConflictError )
+  } )
+
+  it( 'throws NotFoundError for an unknown job', () => {
+    expect( () => submitPastedText( crypto.randomUUID(), { text } ) ).toThrow( NotFoundError )
+  } )
+} )
+
+describe( 'renderTranscript for articles', () => {
+  const articleUrl = 'https://example.com/post'
+
+  const reviewedArticle = async (): Promise< string > => {
+    const { id } = await queueJob( { url: articleUrl } )
+    markStatus( id, 'fetching' )
+    completeAcquisition( id, {
+      kind: 'article',
+      meta: {
+        title: 'A post',
+        source: articleUrl,
+        author: null,
+        site: null,
+        published: null,
+        fetched_at: '2026-10-18T10:00:00.000Z',
+        origin: 'fetched',
+      },
+      markdown: 'Some text.',
+    } )
+    completeSummary( id, '## Summary', [] )
+
+    return id
+  }
+
+  it( 'renders Markdown as the title, the source URL and the text', async () => {
+    const id = await reviewedArticle()
+
+    expect( renderTranscript( id, 'md' ) ).toMatchObject( {
+      contentType: 'text/markdown; charset=utf-8',
+      body: `# A post\n\n${ articleUrl }\n\nSome text.`,
+    } )
+  } )
+
+  it.each( [ 'srt', 'txt' ] as const )( 'refuses %s', async ( format ) => {
+    const id = await reviewedArticle()
+
+    expect( () => renderTranscript( id, format ) )
+      .toThrow( new ConflictError( 'Only Markdown is available for articles' ) )
   } )
 } )

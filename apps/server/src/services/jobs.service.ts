@@ -1,14 +1,18 @@
 // Shared
 import {
+  CreateJobBody,
   DownloadFormat,
   Job,
   JobStatus,
   SummaryUsage,
   NoteParseError,
   SourceDocument,
+  SourceType,
+  SubmitPastedTextBody,
   Transcript,
   UpdateDraftBody,
   applyLockedProperties,
+  detectSourceType,
   lockedPropertiesFor,
   parseFolderPath,
   parseNote,
@@ -41,6 +45,8 @@ import {
 } from '../repositories/jobStore.repository.js'
 import { findProfileById, findVersionById } from '../repositories/promptProfiles.repository.js'
 import { insertSummaryRun, listRunsForJob } from '../repositories/summaryRuns.repository.js'
+// Sources
+import { articleFromText } from '../sources/text.js'
 // Summarizer
 import { estimateCostUsd } from '../summarizer/pricing.js'
 // Services
@@ -49,11 +55,14 @@ import { assertActiveProfile } from './prompts.service.js'
 
 export type StepStatus = 'fetching' | 'downloading' | 'converting' | 'transcribing'
 
-const nextStep = {
-  queued: 'downloading',
-  downloading: 'converting',
-  converting: 'transcribing',
-} as const
+const nextStep: Record< SourceType, Partial< Record< JobStatus, StepStatus > > > = {
+  video: {
+    queued: 'downloading',
+    downloading: 'converting',
+    converting: 'transcribing',
+  },
+  article: { queued: 'fetching' },
+}
 
 const transcriptFormats = {
   md: { contentType: 'text/markdown; charset=utf-8', formatter: formatMarkdown },
@@ -190,27 +199,40 @@ const validateChoices = async ( { model, profile_id }: SummaryChoices ): Promise
   }
 }
 
-export const queueJob = async ( url: string, options: SummaryChoices = {} ): Promise< Job > => {
-  await validateChoices( options )
+export const queueJob = async (
+  body: CreateJobBody,
+  extra: { feed_id?: string } = {},
+): Promise< Job > => {
+  const { url, text, title } = body
+  const sourceType = body.source_type ?? detectSourceType( url )
 
+  await validateChoices( body )
+
+  if( text !== undefined && sourceType !== 'article' ) {
+    throw new ValidationError( 'Pasted text is only for articles' )
+  }
+
+  const document = text === undefined
+    ? null
+    : articleFromText( { url, text, title, origin: 'pasted' } )
   const now = new Date().toISOString()
   const job: StoredJob = {
     id: crypto.randomUUID(),
     url,
-    status: 'queued',
+    status: document === null ? 'queued' : 'summarizing',
     error: null,
     created_at: now,
     updated_at: now,
-    title: null,
+    title: document?.meta.title ?? null,
     note_markdown: null,
     target_folder: null,
     expires_at: null,
     saved_path: null,
-    summary_model: options.model ?? null,
-    prompt_profile_id: options.profile_id ?? null,
-    source_document: null,
-    source_type: 'video',
-    feed_id: null,
+    summary_model: body.model ?? null,
+    prompt_profile_id: body.profile_id ?? null,
+    source_document: document,
+    source_type: sourceType,
+    feed_id: extra.feed_id ?? null,
     feed_name: null,
   }
 
@@ -235,9 +257,7 @@ export const findNextRunnableJob = (): Job | undefined => {
 
 export const markStatus = ( id: string, status: StepStatus ): Job => {
   const job = requireJob( id )
-  const allowed = job.status in nextStep
-    ? nextStep[ job.status as keyof typeof nextStep ]
-    : undefined
+  const allowed = nextStep[ job.source_type ][ job.status ]
 
   if( allowed !== status ) {
     throw conflict( job.status, status )
@@ -249,7 +269,9 @@ export const markStatus = ( id: string, status: StepStatus ): Job => {
 export const completeAcquisition = ( id: string, document: SourceDocument ): Job => {
   const job = requireJob( id )
 
-  if( job.status !== 'transcribing' ) {
+  const expected = document.kind === 'video' ? 'transcribing' : 'fetching'
+
+  if( job.status !== expected || job.source_type !== document.kind ) {
     throw conflict( job.status, 'summarizing' )
   }
 
@@ -380,6 +402,25 @@ export const getSource = ( id: string ): SourceDocument => {
   return job.source_document
 }
 
+export const submitPastedText = (
+  id: string,
+  { text, title }: SubmitPastedTextBody,
+): Job => {
+  const job = requireJob( id )
+
+  if( job.source_type !== 'article' || job.status !== 'failed' ) {
+    throw new ConflictError( 'Pasted text can only continue a failed article job' )
+  }
+
+  const document = articleFromText( { url: job.url, text, title, origin: 'pasted' } )
+
+  return moveTo( job, 'summarizing', {
+    source_document: document,
+    title: document.meta.title,
+    error: null,
+  } )
+}
+
 export const failJob = ( id: string, message: string ): Job => {
   const job = requireJob( id )
 
@@ -500,7 +541,21 @@ export const saveJob = async ( id: string ): Promise< string > => {
 }
 
 export const renderTranscript = ( id: string, format: DownloadFormat ): RenderedTranscript => {
-  const transcript = toTranscript( id, findSource( id ) )
+  const document = findSource( id )
+
+  if( document.kind === 'article' ) {
+    if( format !== 'md' ) {
+      throw new ConflictError( 'Only Markdown is available for articles' )
+    }
+
+    return {
+      filename: transcriptFilename( document.meta.title, format ),
+      contentType: transcriptFormats.md.contentType,
+      body: `# ${ document.meta.title }\n\n${ document.meta.source }\n\n${ document.markdown }`,
+    }
+  }
+
+  const transcript = toTranscript( id, document )
   const { contentType, formatter } = transcriptFormats[ format ]
 
   return {

@@ -49,7 +49,7 @@ vi.mock( '../clients/anthropicModels.client.js' )
 const youtubeUrl = 'https://www.youtube.com/watch?v=abc'
 
 const seedJobAt = async ( status: JobStatus ): Promise< string > => {
-  const { id } = await queueJob( youtubeUrl )
+  const { id } = await queueJob( { url: youtubeUrl } )
   const steps = [ 'downloading', 'converting', 'transcribing' ] as const
 
   if( status === 'queued' ) {
@@ -168,8 +168,8 @@ describe( 'GET /api/jobs', () => {
   } )
 
   it( 'lists active jobs newest first, without transcripts', async () => {
-    const first = await queueJob( youtubeUrl )
-    const second = await queueJob( 'https://www.youtube.com/watch?v=def' )
+    const first = await queueJob( { url: youtubeUrl } )
+    const second = await queueJob( { url: 'https://www.youtube.com/watch?v=def' } )
     markStatus( second.id, 'downloading' )
 
     const response = await request( app ).get( '/api/jobs' )
@@ -181,7 +181,7 @@ describe( 'GET /api/jobs', () => {
   } )
 
   it( 'leaves out failed jobs', async () => {
-    const { id } = await queueJob( youtubeUrl )
+    const { id } = await queueJob( { url: youtubeUrl } )
     failJob( id, 'boom' )
 
     const response = await request( app ).get( '/api/jobs' )
@@ -220,7 +220,7 @@ describe( 'GET /api/jobs/:id', () => {
 
 describe( 'GET /api/jobs/:id/download', () => {
   const seedReviewJob = async ( title?: string ): Promise< string > => {
-    const { id } = await queueJob( youtubeUrl )
+    const { id } = await queueJob( { url: youtubeUrl } )
 
     markStatus( id, 'downloading' )
     markStatus( id, 'converting' )
@@ -284,7 +284,7 @@ describe( 'GET /api/jobs/:id/download', () => {
   } )
 
   it( 'returns 409 for a queued job', async () => {
-    const { id } = await queueJob( youtubeUrl )
+    const { id } = await queueJob( { url: youtubeUrl } )
 
     const response = await request( app ).get( `/api/jobs/${ id }/download` )
 

@@ -44,7 +44,7 @@ const useRealisticRunJob = (): void => {
 }
 
 const queue = async (): Promise< string > => {
-  return ( await queueJob( 'https://example.com/video' ) ).id
+  return ( await queueJob( { url: 'https://www.youtube.com/watch?v=abc' } ) ).id
 }
 
 beforeEach( () => {

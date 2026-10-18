@@ -31,9 +31,7 @@ export const createJob = async (
   { body }: Request,
   res: Response< CreateJobResponse >,
 ): Promise< void > => {
-  const { url, model, profile_id } = CreateJobBody.parse( body )
-
-  const job = await queueJob( url, { model, profile_id } )
+  const job = await queueJob( CreateJobBody.parse( body ) )
 
   res
     .status( 202 )
