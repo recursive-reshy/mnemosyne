@@ -39,7 +39,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 4.2 | `lockedPropertiesFor` used by `completeSummary`, `updateDraft` and `saveJob`; `toPublicJob` adds `source_type`, `feed_id`, `feed_name`. Video behaviour unchanged | 0030 | ✅ |
 
 ## Checkpoint B: Phase 5 (caret sync)
-**Plan:** ⬜ [`plans/checkpoint-b.md`](plans/checkpoint-b.md)
+**Plan:** ✅ [`plans/checkpoint-b.md`](plans/checkpoint-b.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
