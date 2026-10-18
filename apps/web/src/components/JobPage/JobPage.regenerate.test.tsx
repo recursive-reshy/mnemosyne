@@ -24,7 +24,7 @@ import { useFolders } from '#src/hooks/useFolders'
 import { useModels } from '#src/hooks/useModels'
 import { usePromptProfiles } from '#src/hooks/usePromptProfiles'
 import { useSettings } from '#src/hooks/useSettings'
-import { useTranscript } from '#src/hooks/useTranscript'
+import { useSource } from '#src/hooks/useSource'
 import { modelsState, profilesState, settingsState } from '#src/test-support/hookStates'
 import { jobFixture } from '#src/test-support/job.fixture'
 import { renderWithClient } from '#src/test-support/renderWithClient'
@@ -32,7 +32,7 @@ import { JobPage } from './JobPage'
 
 // The real useJob runs here, so the page follows the cache the way it does in the app.
 vi.mock( '#src/api/jobs.api' )
-vi.mock( '#src/hooks/useTranscript' )
+vi.mock( '#src/hooks/useSource' )
 vi.mock( '#src/hooks/useFolders' )
 vi.mock( '#src/hooks/useModels' )
 vi.mock( '#src/hooks/useSettings' )
@@ -84,7 +84,7 @@ beforeEach( () => {
   vi.mocked( updateDraft ).mockReset()
   vi.mocked( regenerateSummary ).mockReset()
   vi.mocked( regenerateSummary ).mockResolvedValue( summarizing )
-  vi.mocked( useTranscript ).mockReturnValue( { transcript: null, error: null } )
+  vi.mocked( useSource ).mockReturnValue( { source: null, error: null } )
   vi.mocked( useFolders ).mockReturnValue(
     { defaultFolder: 'Mnemosyne', folders: [], error: null },
   )

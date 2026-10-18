@@ -19,14 +19,14 @@ import { ApiError } from '#src/api/apiError'
 import { createJob, saveJob } from '#src/api/jobs.api'
 import { useJob } from '#src/hooks/useJob'
 import { useFolders } from '#src/hooks/useFolders'
-import { useTranscript } from '#src/hooks/useTranscript'
+import { useSource } from '#src/hooks/useSource'
 import type { JobState } from '#src/hooks/useJob'
 import { jobFixture } from '#src/test-support/job.fixture'
 import { renderWithClient } from '#src/test-support/renderWithClient'
 import { JobPage } from './JobPage'
 
 vi.mock( '#src/hooks/useJob' )
-vi.mock( '#src/hooks/useTranscript' )
+vi.mock( '#src/hooks/useSource' )
 vi.mock( '#src/hooks/useFolders' )
 vi.mock( '#src/api/jobs.api', async ( importOriginal ) => ( {
   ...await importOriginal< typeof import( '#src/api/jobs.api' ) >(),
@@ -37,7 +37,7 @@ vi.mock( '#src/api/jobs.api', async ( importOriginal ) => ( {
 const mockedUseJob = vi.mocked( useJob )
 const mockedCreateJob = vi.mocked( createJob )
 const mockedSaveJob = vi.mocked( saveJob )
-const mockedUseTranscript = vi.mocked( useTranscript )
+const mockedUseTranscript = vi.mocked( useSource )
 vi.mocked( useFolders ).mockReturnValue(
   { defaultFolder: 'Mnemosyne', folders: [], error: null },
 )
@@ -68,7 +68,7 @@ beforeEach( () => {
   mockedUseJob.mockReset()
   mockedCreateJob.mockReset()
   mockedUseTranscript.mockReset()
-  mockedUseTranscript.mockReturnValue( { transcript: null, error: null } )
+  mockedUseTranscript.mockReturnValue( { source: null, error: null } )
   showJob( null )
 } )
 

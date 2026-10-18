@@ -3,7 +3,7 @@ import {
   completeSummary,
   failSummary,
   findJob,
-  getTranscript,
+  getSource,
   recordSummaryRun,
 } from '../services/jobs.service.js'
 import { resolvePrompt } from '../services/prompts.service.js'
@@ -18,7 +18,13 @@ import { formatSummary } from '../formatters/summary.formatter.js'
 export const summarizeJob = async ( jobId: string ): Promise< void > => {
   try {
     const job = findJob( jobId )
-    const transcript = getTranscript( jobId )
+    const source = getSource( jobId )
+
+    if( source.kind !== 'video' ) {
+      throw new Error( 'Article summaries are not supported yet' )
+    }
+
+    const transcript = { meta: source.meta, segments: source.segments }
     const { version } = resolvePrompt( job.prompt_profile_id )
     const model = job.summary_model ?? getSettings().default_model
     const promptVersionId = version.id

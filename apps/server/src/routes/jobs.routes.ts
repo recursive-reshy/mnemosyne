@@ -6,7 +6,7 @@ import {
   discardReviewedJob,
   downloadTranscript,
   getJob,
-  getTranscript,
+  getSource,
   listActiveJobs,
   regenerateJobSummary,
   retryJobSummary,
@@ -19,7 +19,7 @@ export const jobsRoutes: Router = Router()
 jobsRoutes.post( '/jobs', createJob )
 jobsRoutes.get( '/jobs', listActiveJobs )
 jobsRoutes.get( '/jobs/:id', getJob )
-jobsRoutes.get( '/jobs/:id/transcript', getTranscript )
+jobsRoutes.get( '/jobs/:id/source', getSource )
 jobsRoutes.patch( '/jobs/:id/draft', updateJobDraft )
 jobsRoutes.post( '/jobs/:id/save', saveReviewedJob )
 jobsRoutes.post( '/jobs/:id/retry-summary', retryJobSummary )

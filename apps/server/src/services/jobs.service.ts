@@ -47,7 +47,7 @@ import { estimateCostUsd } from '../summarizer/pricing.js'
 import { assertKnownModel } from './models.service.js'
 import { assertActiveProfile } from './prompts.service.js'
 
-type StepStatus = 'downloading' | 'converting' | 'transcribing'
+export type StepStatus = 'downloading' | 'converting' | 'transcribing'
 
 const nextStep = {
   queued: 'downloading',
@@ -142,9 +142,9 @@ const toPublicJob = ( job: StoredJob ): Job => {
   }
 }
 
-const toTranscript = ( job: StoredJob, document: SourceDocument ): Transcript => {
+const toTranscript = ( id: string, document: SourceDocument ): Transcript => {
   if( document.kind !== 'video' ) {
-    throw new Error( `Job ${ job.id } is an article, not a video` )
+    throw new Error( `Job ${ id } is an article, not a video` )
   }
 
   return { meta: document.meta, segments: document.segments }
@@ -246,7 +246,7 @@ export const markStatus = ( id: string, status: StepStatus ): Job => {
   return moveTo( job, status, {} )
 }
 
-export const completeTranscription = ( id: string, transcript: Transcript ): Job => {
+export const completeAcquisition = ( id: string, document: SourceDocument ): Job => {
   const job = requireJob( id )
 
   if( job.status !== 'transcribing' ) {
@@ -254,8 +254,8 @@ export const completeTranscription = ( id: string, transcript: Transcript ): Job
   }
 
   return moveTo( job, 'summarizing', {
-    source_document: { kind: 'video', ...transcript },
-    title: transcript.meta.title,
+    source_document: document,
+    title: document.meta.title,
   } )
 }
 
@@ -270,7 +270,7 @@ export const completeSummary = (
     throw conflict( job.status, 'ready_for_review' )
   }
 
-  const { meta } = getTranscript( id )
+  const { meta } = toTranscript( id, getSource( id ) )
 
   return moveTo( job, 'ready_for_review', {
     note_markdown: formatNote( {
@@ -370,14 +370,14 @@ export const deleteExpiredJobs = (): number => {
   return expired.length
 }
 
-export const getTranscript = ( id: string ): Transcript => {
+export const getSource = ( id: string ): SourceDocument => {
   const job = requireJob( id )
 
   if( job.source_document === null ) {
     throw new Error( `Job ${ id } has no transcript` )
   }
 
-  return toTranscript( job, job.source_document )
+  return job.source_document
 }
 
 export const failJob = ( id: string, message: string ): Job => {
@@ -394,7 +394,7 @@ export const recoverInterruptedJobs = (): number => {
   return markInterruptedJobs( 'Interrupted by restart', new Date().toISOString() )
 }
 
-export const findTranscript = ( id: string ): Transcript => {
+export const findSource = ( id: string ): SourceDocument => {
   const job = requireJob( id )
 
   if( !downloadableStatuses.includes( job.status ) ) {
@@ -405,7 +405,7 @@ export const findTranscript = ( id: string ): Transcript => {
     throw new Error( `Job ${ id } is ${ job.status } but has no transcript` )
   }
 
-  return toTranscript( job, job.source_document )
+  return job.source_document
 }
 
 const today = (): string => new Date().toISOString().slice( 0, 10 )
@@ -424,7 +424,7 @@ export const updateDraft = ( id: string, body: UpdateDraftBody ): Job => {
   const changes: Partial< StoredJob > = { expires_at: expiryFromNow() }
 
   if( body.note_markdown !== undefined ) {
-    const { meta } = toTranscript( job, job.source_document )
+    const { meta } = toTranscript( id, job.source_document )
     let created = today()
 
     try {
@@ -480,7 +480,7 @@ export const saveJob = async ( id: string ): Promise< string > => {
     throw new ConflictError( 'The job has no draft to save' )
   }
 
-  const { meta } = toTranscript( job, job.source_document )
+  const { meta } = toTranscript( id, job.source_document )
   const note = applyLockedProperties( parseNote( job.note_markdown ), {
     source: meta.source,
     channel: meta.channel,
@@ -506,7 +506,7 @@ export const saveJob = async ( id: string ): Promise< string > => {
 }
 
 export const renderTranscript = ( id: string, format: DownloadFormat ): RenderedTranscript => {
-  const transcript = findTranscript( id )
+  const transcript = toTranscript( id, findSource( id ) )
   const { contentType, formatter } = transcriptFormats[ format ]
 
   return {

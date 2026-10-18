@@ -28,7 +28,7 @@ import { clearJobs, updateJob } from '../repositories/jobStore.repository.js'
 // Services
 import {
   completeSummary,
-  completeTranscription,
+  completeAcquisition,
   failJob,
   failSummary,
   markStatus,
@@ -70,7 +70,7 @@ const seedJobAt = async ( status: JobStatus ): Promise< string > => {
     return id
   }
 
-  completeTranscription( id, transcriptFixture )
+  completeAcquisition( id, { kind: 'video', ...transcriptFixture } )
 
   if( status === 'ready_for_review' || status === 'saved' ) {
     completeSummary( id, '## Summary', [] )
@@ -225,7 +225,8 @@ describe( 'GET /api/jobs/:id/download', () => {
     markStatus( id, 'downloading' )
     markStatus( id, 'converting' )
     markStatus( id, 'transcribing' )
-    completeTranscription( id, {
+    completeAcquisition( id, {
+      kind: 'video',
       ...transcriptFixture,
       meta: { ...transcriptFixture.meta, title: title ?? transcriptFixture.meta.title },
     } )
@@ -302,13 +303,21 @@ describe( 'GET /api/jobs/:id/download', () => {
   } )
 } )
 
-describe( 'GET /api/jobs/:id/transcript', () => {
+describe( 'GET /api/jobs/:id/source', () => {
+  it( 'no longer answers on the old /transcript path', async () => {
+    const id = await seedJobAt( 'ready_for_review' )
+
+    const response = await request( app ).get( `/api/jobs/${ id }/transcript` )
+
+    expect( response.status ).toBe( 404 )
+  } )
+
   it.each( [ 'ready_for_review', 'summary_failed' ] as const )(
     'returns the source when the job is %s',
     async ( status ) => {
       const id = await seedJobAt( status )
 
-      const response = await request( app ).get( `/api/jobs/${ id }/transcript` )
+      const response = await request( app ).get( `/api/jobs/${ id }/source` )
 
       expect( response.status ).toBe( 200 )
       expect( GetSourceResponse.parse( response.body ) ).toEqual( {
@@ -322,7 +331,7 @@ describe( 'GET /api/jobs/:id/transcript', () => {
     async ( status ) => {
       const id = await seedJobAt( status )
 
-      const response = await request( app ).get( `/api/jobs/${ id }/transcript` )
+      const response = await request( app ).get( `/api/jobs/${ id }/source` )
 
       expect( response.status ).toBe( 409 )
       expect( response.body ).toEqual( { error: 'Transcript not ready' } )
@@ -330,7 +339,7 @@ describe( 'GET /api/jobs/:id/transcript', () => {
   )
 
   it( 'returns 404 for an unknown job', async () => {
-    const response = await request( app ).get( `/api/jobs/${ crypto.randomUUID() }/transcript` )
+    const response = await request( app ).get( `/api/jobs/${ crypto.randomUUID() }/source` )
 
     expect( response.status ).toBe( 404 )
   } )

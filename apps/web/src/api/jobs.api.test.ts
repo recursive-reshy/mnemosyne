@@ -17,7 +17,7 @@ import {
   discardJob,
   downloadUrl,
   getJob,
-  getTranscript,
+  getSource,
   listJobs,
   regenerateSummary,
   retrySummary,
@@ -181,17 +181,16 @@ describe( 'listJobs', () => {
   } )
 } )
 
-describe( 'getTranscript', () => {
-  it( 'requests the transcript with the id encoded and returns it', async () => {
-    fetchMock.mockResolvedValue(
-      jsonResponse( { source: { kind: 'video', ...transcript } }, 200 ),
-    )
+describe( 'getSource', () => {
+  it( 'requests the source with the id encoded and returns it', async () => {
+    const source = { kind: 'video', ...transcript }
+    fetchMock.mockResolvedValue( jsonResponse( { source }, 200 ) )
 
-    await expect( getTranscript( 'a/b' ) ).resolves.toEqual( transcript )
-    expect( fetchMock.mock.calls[ 0 ]?.[ 0 ] ).toBe( '/api/jobs/a%2Fb/transcript' )
+    await expect( getSource( 'a/b' ) ).resolves.toEqual( source )
+    expect( fetchMock.mock.calls[ 0 ]?.[ 0 ] ).toBe( '/api/jobs/a%2Fb/source' )
   } )
 
-  it( 'rejects an article source, which has no transcript', async () => {
+  it( 'returns an article source', async () => {
     const article = {
       kind: 'article',
       meta: {
@@ -208,24 +207,22 @@ describe( 'getTranscript', () => {
 
     fetchMock.mockResolvedValue( jsonResponse( { source: article }, 200 ) )
 
-    const error = await rejection( getTranscript( jobId ) )
-
-    expect( error.message ).toBe( 'This job has no transcript' )
+    await expect( getSource( jobId ) ).resolves.toEqual( article )
   } )
 
   it( 'uses the server message when the transcript is not ready', async () => {
     fetchMock.mockResolvedValue( jsonResponse( { error: 'Transcript not ready' }, 409 ) )
 
-    const error = await rejection( getTranscript( jobId ) )
+    const error = await rejection( getSource( jobId ) )
 
     expect( error.message ).toBe( 'Transcript not ready' )
     expect( error.status ).toBe( 409 )
   } )
 
-  it( 'rejects a malformed transcript', async () => {
+  it( 'rejects a malformed source', async () => {
     fetchMock.mockResolvedValue( jsonResponse( { source: { kind: 'video', meta: {} } }, 200 ) )
 
-    const error = await rejection( getTranscript( jobId ) )
+    const error = await rejection( getSource( jobId ) )
 
     expect( error.message ).toBe( 'Unexpected response from the server' )
   } )

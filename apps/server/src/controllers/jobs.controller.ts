@@ -17,7 +17,7 @@ import {
 import {
   discardJob,
   findJob,
-  findTranscript,
+  findSource,
   listJobs,
   queueJob,
   regenerateSummary,
@@ -51,13 +51,13 @@ export const getJob = ( { params }: Request, res: Response< GetJobResponse > ): 
   res.status( 200 ).json( { job } )
 }
 
-export const getTranscript = (
+export const getSource = (
   { params }: Request,
   res: Response< GetSourceResponse >,
 ): void => {
-  const transcript = findTranscript( String( params.id ) )
+  const source = findSource( String( params.id ) )
 
-  res.status( 200 ).json( { source: { kind: 'video', ...transcript } } )
+  res.status( 200 ).json( { source } )
 }
 
 export const updateJobDraft = (

@@ -15,7 +15,7 @@ import { useAutosaveDraft } from '#src/hooks/useAutosaveDraft'
 import { useRegenerateSummary } from '#src/hooks/useRegenerateSummary'
 import { useRetrySummary } from '#src/hooks/useRetrySummary'
 import { useSaveJob } from '#src/hooks/useSaveJob'
-import { useTranscript } from '#src/hooks/useTranscript'
+import { useSource } from '#src/hooks/useSource'
 import { DownloadLinks } from '../DownloadLinks'
 import { NoteDestination } from '../NoteDestination'
 import { NoteEditor } from '../NoteEditor'
@@ -43,7 +43,7 @@ export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps )
   const autosave = useAutosaveDraft( job )
   const title = noteTitle( autosave.note )
   const [ mode, setMode ] = useState< NoteEditorMode >( 'rich-text' )
-  const { transcript, error: transcriptError } = useTranscript( job.id )
+  const { source, error: transcriptError } = useSource( job.id )
   const [ focusSecond, setFocusSecond ] = useState< number | null >( null )
   const save = useSaveJob( job.id, autosave.flush )
   const discard = useDiscardJob( job.id )
@@ -115,7 +115,7 @@ export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps )
           />
         ) }
         <TranscriptPane
-          transcript={ transcript }
+          transcript={ source?.kind === 'video' ? source : null }
           error={ transcriptError }
           focusSecond={ focusSecond }
         />

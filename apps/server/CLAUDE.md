@@ -58,6 +58,7 @@ src/
   services/          <name>.service.ts: business rules and job state changes (jobs: drafts, save, summary runs and regenerate; vault: folder listing; settings, prompts: defaults and prompt profiles; models: the cached model list)
   repositories/      <name>.repository.ts: the SQLite database (jobs, feeds, feed items, settings, prompts, summary runs), and nothing else; database.ts holds the connection and the migrations
   clients/           ytDlp, ffmpeg, whisperServer, claude, anthropicModels, vault: one external tool each (`<name>.client.ts`); the vault client resolves every folder inside the vault (`resolveFolder`), lists the folder tree and writes notes
+  sources/           adapters that turn a job into a `SourceDocument` (ADR 0030): `adapter.ts` is the interface, `video.adapter.ts` downloads, converts and transcribes, `index.ts` has `adapterFor( sourceType )`; they use clients and report steps through the context, never touch repositories
   worker/            worker.ts, runJob.ts, summarizeJob.ts, sweeper.ts: runs the next runnable job; deletes expired jobs
   summarizer/        pure constants and functions for the summarizer: locked prompt, seeded profiles, prices
   formatters/        markdown, srt, txt, summary, note: pure data → string; summary.cleanup.ts filters the model's output

@@ -1,7 +1,7 @@
 export const jobKeys = {
   all: [ 'jobs' ] as const,
   detail: ( id: string ) => [ 'jobs', id ] as const,
-  transcript: ( id: string ) => [ 'jobs', id, 'transcript' ] as const,
+  source: ( id: string ) => [ 'jobs', id, 'source' ] as const,
 }
 
 export const vaultKeys = {

@@ -24,13 +24,13 @@ import { useFolders } from '#src/hooks/useFolders'
 import { useModels } from '#src/hooks/useModels'
 import { usePromptProfiles } from '#src/hooks/usePromptProfiles'
 import { useSettings } from '#src/hooks/useSettings'
-import { useTranscript } from '#src/hooks/useTranscript'
+import { useSource } from '#src/hooks/useSource'
 import { modelsState, profilesState, settingsState } from '#src/test-support/hookStates'
 import { jobFixture } from '#src/test-support/job.fixture'
 import { renderWithClient } from '#src/test-support/renderWithClient'
 import { ReviewScreen } from './ReviewScreen'
 
-vi.mock( '#src/hooks/useTranscript' )
+vi.mock( '#src/hooks/useSource' )
 vi.mock( '#src/hooks/useFolders' )
 vi.mock( '#src/hooks/useModels' )
 vi.mock( '#src/hooks/useSettings' )
@@ -75,7 +75,7 @@ const mockedUpdateDraft = vi.mocked( updateDraft )
 const mockedDiscardJob = vi.mocked( discardJob )
 const mockedRetrySummary = vi.mocked( retrySummary )
 
-const mockedUseTranscript = vi.mocked( useTranscript )
+const mockedUseSource = vi.mocked( useSource )
 const mockedUseFolders = vi.mocked( useFolders )
 
 const folderTree = [
@@ -104,8 +104,8 @@ beforeEach( () => {
   mockedUseFolders.mockReturnValue(
     { defaultFolder: 'Mnemosyne', folders: folderTree, error: null },
   )
-  mockedUseTranscript.mockReset()
-  mockedUseTranscript.mockReturnValue( { transcript, error: null } )
+  mockedUseSource.mockReset()
+  mockedUseSource.mockReturnValue( { source: { kind: 'video', ...transcript }, error: null } )
   mockedSaveJob.mockReset()
   mockedUpdateDraft.mockReset()
   mockedUpdateDraft.mockImplementation( ( _id, body ) => Promise.resolve( {
@@ -209,7 +209,7 @@ describe( 'ReviewScreen summary and transcript', () => {
   it( 'shows the transcript next to the summary', () => {
     renderWithClient( <ReviewScreen job={ reviewJob } { ...handlers() } /> )
 
-    expect( mockedUseTranscript ).toHaveBeenCalledWith( reviewJob.id )
+    expect( mockedUseSource ).toHaveBeenCalledWith( reviewJob.id )
     expect( screen.getByRole( 'region', { name: 'Transcript' } ) )
       .toHaveTextContent( '[00:00] Welcome to the talk.' )
   } )
@@ -579,8 +579,9 @@ describe( 'ReviewScreen caret sync', () => {
   }
 
   it( 'marks the transcript paragraph for the timestamp on the caret line', () => {
-    mockedUseTranscript.mockReturnValue( {
-      transcript: {
+    mockedUseSource.mockReturnValue( {
+      source: {
+        kind: 'video',
         ...transcript,
         segments: [
           { start: 0, end: 4, text: 'Welcome to the talk.' },
@@ -597,8 +598,9 @@ describe( 'ReviewScreen caret sync', () => {
   } )
 
   it( 'keeps the marker when the caret moves to a line without a timestamp', () => {
-    mockedUseTranscript.mockReturnValue( {
-      transcript: {
+    mockedUseSource.mockReturnValue( {
+      source: {
+        kind: 'video',
         ...transcript,
         segments: [ { start: 135, end: 140, text: 'Last, borrowing.' } ],
       },

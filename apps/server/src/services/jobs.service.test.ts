@@ -16,15 +16,15 @@ import { clearJobs, findJobById, updateJob } from '../repositories/jobStore.repo
 // Services
 import {
   completeSummary,
-  completeTranscription,
+  completeAcquisition,
   deleteExpiredJobs,
   discardJob,
   failJob,
   failSummary,
   findJob,
-  findTranscript,
+  findSource,
   findNextRunnableJob,
-  getTranscript,
+  getSource,
   listJobs,
   markStatus,
   queueJob,
@@ -88,7 +88,7 @@ const queueJobAt = async ( status: JobStatus ): Promise< string > => {
     if( step === status ) break
   }
   if( status === 'ready_for_review' || status === 'summary_failed' ) {
-    completeTranscription( id, transcript )
+    completeAcquisition( id, { kind: 'video', ...transcript } )
 
     if( status === 'ready_for_review' ) {
       completeSummary( id, '## Summary', [] )
@@ -253,7 +253,7 @@ describe( 'renderTranscript', () => {
     markStatus( id, 'downloading' )
     markStatus( id, 'converting' )
     markStatus( id, 'transcribing' )
-    completeTranscription( id, transcriptFixture )
+    completeAcquisition( id, { kind: 'video', ...transcriptFixture } )
 
     if( outcome === 'ready_for_review' ) {
       completeSummary( id, '## Summary', [] )
@@ -390,16 +390,16 @@ describe( 'recoverInterruptedJobs', () => {
 
 const queueSummarizing = async (): Promise< string > => {
   const id = await queueJobAt( 'transcribing' )
-  completeTranscription( id, transcript )
+  completeAcquisition( id, { kind: 'video', ...transcript } )
 
   return id
 }
 
-describe( 'completeTranscription', () => {
+describe( 'completeAcquisition', () => {
   it( 'moves a transcribing job to summarizing and stores transcript and title', async () => {
     const id = await queueJobAt( 'transcribing' )
 
-    const job = completeTranscription( id, transcript )
+    const job = completeAcquisition( id, { kind: 'video', ...transcript } )
 
     expect( job.status ).toBe( 'summarizing' )
     expect( job.title ).toBe( 'A talk' )
@@ -413,7 +413,8 @@ describe( 'completeTranscription', () => {
       const id = await queueJobAt( status )
       const before = findJobById( id )
 
-      expect( () => completeTranscription( id, transcript ) ).toThrow( ConflictError )
+      expect( () => completeAcquisition( id, { kind: 'video', ...transcript } ) )
+        .toThrow( ConflictError )
       expect( findJobById( id ) ).toEqual( before )
     },
   )
@@ -517,21 +518,21 @@ describe( 'failJob after the summary steps', () => {
   } )
 } )
 
-describe( 'getTranscript', () => {
+describe( 'getSource', () => {
   it( 'returns the stored transcript', async () => {
     const id = await queueSummarizing()
 
-    expect( getTranscript( id ) ).toEqual( transcript )
+    expect( getSource( id ) ).toEqual( { kind: 'video', ...transcript } )
   } )
 
   it( 'throws NotFoundError for an unknown job', () => {
-    expect( () => getTranscript( 'missing' ) ).toThrow( NotFoundError )
+    expect( () => getSource( 'missing' ) ).toThrow( NotFoundError )
   } )
 
   it( 'throws when the job has no transcript', async () => {
     const { id } = await queueJob( url )
 
-    expect( () => getTranscript( id ) ).toThrow( 'has no transcript' )
+    expect( () => getSource( id ) ).toThrow( 'has no transcript' )
   } )
 } )
 
@@ -556,24 +557,24 @@ describe( 'listJobs', () => {
   } )
 } )
 
-describe( 'findTranscript', () => {
+describe( 'findSource', () => {
   it.each( [ 'ready_for_review', 'summary_failed' ] as const )(
     'returns the transcript when the job is %s',
     async ( status ) => {
       const id = await queueJobAt( status )
 
-      expect( findTranscript( id ) ).toEqual( transcript )
+      expect( findSource( id ) ).toEqual( { kind: 'video', ...transcript } )
     },
   )
 
   it( 'throws ConflictError while summarizing', async () => {
     const id = await queueSummarizing()
 
-    expect( () => findTranscript( id ) ).toThrow( new ConflictError( 'Transcript not ready' ) )
+    expect( () => findSource( id ) ).toThrow( new ConflictError( 'Transcript not ready' ) )
   } )
 
   it( 'throws NotFoundError for an unknown id', () => {
-    expect( () => findTranscript( 'missing' ) ).toThrow( NotFoundError )
+    expect( () => findSource( 'missing' ) ).toThrow( NotFoundError )
   } )
 } )
 
@@ -1162,7 +1163,7 @@ describe( 'regenerateSummary', () => {
     markStatus( id, 'downloading' )
     markStatus( id, 'converting' )
     markStatus( id, 'transcribing' )
-    completeTranscription( id, transcript )
+    completeAcquisition( id, { kind: 'video', ...transcript } )
     completeSummary( id, '## Summary', [] )
 
     const job = await regenerateSummary( id, {} )
@@ -1187,7 +1188,7 @@ describe( 'regenerateSummary', () => {
 
   it( 'refuses a job that is already summarizing', async () => {
     const id = await queueJobAt( 'transcribing' )
-    completeTranscription( id, transcript )
+    completeAcquisition( id, { kind: 'video', ...transcript } )
 
     await expect( regenerateSummary( id, {} ) ).rejects.toThrow( ConflictError )
     expect( findJob( id ).status ).toBe( 'summarizing' )

@@ -13,7 +13,7 @@ import { Segment } from '@mnemosyne/shared'
 import { ConflictError, NotFoundError } from '../errors.js'
 // Services
 import {
-  completeTranscription,
+  completeAcquisition,
   findJob,
   markStatus,
   queueJob,
@@ -261,7 +261,8 @@ describe( 'runJob', () => {
       markStatus( id, 'downloading' )
       markStatus( id, 'converting' )
       markStatus( id, 'transcribing' )
-      completeTranscription( id, {
+      completeAcquisition( id, {
+        kind: 'video',
         meta: { ...meta, transcribed_at: NOW, model: 'test-model' },
         segments,
       } )

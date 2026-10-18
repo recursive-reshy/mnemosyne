@@ -10,7 +10,7 @@ import {
 import { Transcript, parseNote } from '@mnemosyne/shared'
 // Services
 import {
-  completeTranscription,
+  completeAcquisition,
   findJob,
   markStatus,
   queueJob,
@@ -19,7 +19,7 @@ import {
   updateDraft,
 } from '../services/jobs.service.js'
 // Repositories
-import { clearJobs, updateJob } from '../repositories/jobStore.repository.js'
+import { clearJobs, insertJob, updateJob } from '../repositories/jobStore.repository.js'
 import { setSetting } from '../repositories/settings.repository.js'
 // Prompts
 import { listProfiles, saveVersion } from '../services/prompts.service.js'
@@ -60,7 +60,7 @@ const queueSummarizing = async (): Promise< string > => {
   markStatus( id, 'downloading' )
   markStatus( id, 'converting' )
   markStatus( id, 'transcribing' )
-  completeTranscription( id, transcript )
+  completeAcquisition( id, { kind: 'video', ...transcript } )
 
   return id
 }
@@ -259,6 +259,49 @@ describe( 'summarizeJob', () => {
     expect( job.summary_usage ).toMatchObject( {
       run_count: 2,
       last_run: { model: 'claude-opus-5-5' },
+    } )
+  } )
+
+  it( 'fails the summary for an article until articles are supported', async () => {
+    const id = crypto.randomUUID()
+    insertJob( {
+      id,
+      url: 'https://example.com/post',
+      status: 'summarizing',
+      error: null,
+      created_at: '2026-10-18T10:00:00.000Z',
+      updated_at: '2026-10-18T10:00:00.000Z',
+      title: 'A post',
+      note_markdown: null,
+      target_folder: null,
+      expires_at: null,
+      saved_path: null,
+      summary_model: null,
+      prompt_profile_id: null,
+      source_type: 'article',
+      feed_id: null,
+      feed_name: null,
+      source_document: {
+        kind: 'article',
+        meta: {
+          title: 'A post',
+          source: 'https://example.com/post',
+          author: null,
+          site: null,
+          published: null,
+          fetched_at: '2026-10-18T10:00:00.000Z',
+          origin: 'pasted',
+        },
+        markdown: 'Some text.',
+      },
+    } )
+
+    await summarizeJob( id )
+
+    expect( summarizeMock ).not.toHaveBeenCalled()
+    expect( findJob( id ) ).toMatchObject( {
+      status: 'summary_failed',
+      error: 'Article summaries are not supported yet',
     } )
   } )
 } )

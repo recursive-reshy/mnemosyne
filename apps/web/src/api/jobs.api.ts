@@ -12,11 +12,10 @@ import type {
   DownloadFormat,
   Job,
   RegenerateSummaryBody,
-  Transcript,
+  SourceDocument,
   UpdateDraftBody,
 } from '@mnemosyne/shared'
 // App
-import { ApiError } from './apiError'
 import { request, send } from './request'
 
 const jobPath = ( id: string ): string => `/api/jobs/${ encodeURIComponent( id ) }`
@@ -55,14 +54,10 @@ export const listJobs = async (): Promise< Job[] > => {
   return jobs
 }
 
-export const getTranscript = async ( id: string ): Promise< Transcript > => {
-  const { source } = await request( `${ jobPath( id ) }/transcript`, GetSourceResponse )
+export const getSource = async ( id: string ): Promise< SourceDocument > => {
+  const { source } = await request( `${ jobPath( id ) }/source`, GetSourceResponse )
 
-  if( source.kind !== 'video' ) {
-    throw new ApiError( 'This job has no transcript', null )
-  }
-
-  return { meta: source.meta, segments: source.segments }
+  return source
 }
 
 export const updateDraft = async ( id: string, draft: UpdateDraftBody ): Promise< Job > => {
