@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<title>How Rust Ownership Works | Example Blog</title>
+<meta property="og:site_name" content="Example Blog">
+<meta name="author" content="Ada Lovelace">
+<meta property="article:published_time" content="2026-10-01T08:30:00+00:00">
+</head><body>
+<header><nav><a href="/">Home</a> <a href="/about">About</a> <a href="/archive">Archive</a></nav></header>
+<main><article>
+<h1>How Rust Ownership Works</h1>
+<p class="byline">By Ada Lovelace</p>
+<h2>The core idea</h2>
+<p>Ownership is the idea at the centre of Rust. Every value has a single owner, and when the owner goes out of scope the value is dropped. This rule removes whole classes of memory bugs without a garbage collector, and it is the reason Rust programs can be both fast and safe.</p>
+<p>Borrowing relaxes ownership in a controlled way. You can hand out any number of shared references to a value, or exactly one mutable reference, but never both at once. The compiler checks this at build time, so data races are rejected before the program ever runs.</p>
+<p>Lifetimes are the part newcomers find hardest. They are names for how long a reference stays valid, and most of the time the compiler infers them for you. When it cannot, you write them out, and that is a useful prompt to think about who really owns the data.</p>
+<p>In practice, the habit that helps most is to prefer owned values in structs and to borrow in function arguments. That keeps signatures simple and pushes the awkward cases to the edges of the program, where they are easier to reason about and to test.</p>
+<h2>A small example</h2>
+<ul><li>Move a value into a function</li><li>Borrow it instead</li></ul>
+<pre><code>fn main() { let s = String::from("hi"); takes( &amp;s ); }</code></pre>
+<figure><img src="/img/diagram.png" alt="diagram"><figcaption>Ownership moves</figcaption></figure>
+</article></main>
+<aside><h3>Subscribe</h3><p>Join the newsletter for more posts.</p><form><input name="email"><button>Sign up</button></form></aside>
+<footer><p>Copyright Example Blog. All rights reserved. Privacy policy.</p></footer>
+</body></html>

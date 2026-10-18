@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<title>Links Everywhere</title>
+</head><body>
+<nav><a href="/">Home</a></nav>
+<article><h1>Links Everywhere</h1>
+<p>Ownership is the idea at the centre of Rust. Every value has a single owner, and when the owner goes out of scope the value is dropped. This rule removes whole classes of memory bugs without a garbage collector, and it is the reason Rust programs can be both fast and safe.</p>
+<p>Borrowing relaxes ownership in a controlled way. You can hand out any number of shared references to a value, or exactly one mutable reference, but never both at once. The compiler checks this at build time, so data races are rejected before the program ever runs.</p>
+<p>Lifetimes are the part newcomers find hardest. They are names for how long a reference stays valid, and most of the time the compiler infers them for you. When it cannot, you write them out, and that is a useful prompt to think about who really owns the data.</p>
+<p>In practice, the habit that helps most is to prefer owned values in structs and to borrow in function arguments. That keeps signatures simple and pushes the awkward cases to the edges of the program, where they are easier to reason about and to test.</p>
+<p>Read the <a href="/docs/guide">guide</a>, the <a href="../notes/one">first note</a>, the
+<a href="two.html">second note</a> and the <a href="https://other.example/page">outside page</a>.</p>
+</article>
+<footer>Copyright</footer></body></html>

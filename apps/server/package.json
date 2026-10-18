@@ -25,8 +25,10 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",
     "@mnemosyne/shared": "workspace:*",
+    "@mozilla/readability": "0.6.0",
     "better-sqlite3": "^13.0.3",
     "express": "^5.3.0",
+    "linkedom": "0.18.13",
     "turndown": "7.2.4",
     "zod": "^4.6.7"
   },
