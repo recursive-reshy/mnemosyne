@@ -13,7 +13,7 @@ import {
   vi,
 } from 'vitest'
 // Shared
-import { parseNote } from '@mnemosyne/shared'
+import { SourceDocument, parseNote } from '@mnemosyne/shared'
 // Test support
 import { transcriptFixture } from '../test-support/transcript.fixture.js'
 // Summarizer
@@ -64,7 +64,7 @@ describe( 'openDatabase and closeDatabase', () => {
       'status',
       'error',
       'title',
-      'transcript',
+      'source_document',
       'saved_path',
       'expires_at',
       'created_at',
@@ -73,6 +73,8 @@ describe( 'openDatabase and closeDatabase', () => {
       'target_folder',
       'summary_model',
       'prompt_profile_id',
+      'source_type',
+      'feed_id',
     ] )
   } )
 
@@ -385,7 +387,7 @@ describe( 'migration 4', () => {
 
     runMigrations( database, migrations.slice( 0, 3 ) )
     setup( database )
-    runMigrations( database, migrations )
+    runMigrations( database, migrations.slice( 0, 4 ) )
 
     return database
   }
@@ -400,7 +402,6 @@ describe( 'migration 4', () => {
     const database = upgrade( () => undefined )
 
     expect( database.pragma( 'user_version', { simple: true } ) ).toBe( 4 )
-    expect( migrations ).toHaveLength( 4 )
     expect( tableNames( database ) ).toEqual( expect.arrayContaining( [
       'jobs',
       'prompt_profiles',
@@ -413,7 +414,7 @@ describe( 'migration 4', () => {
   it( 'runs from an empty database to the same result', () => {
     const database = new Database( ':memory:' )
 
-    runMigrations( database, migrations )
+    runMigrations( database, migrations.slice( 0, 4 ) )
 
     expect( database.pragma( 'user_version', { simple: true } ) ).toBe( 4 )
     expect( database.prepare( 'SELECT COUNT(*) AS count FROM prompt_profiles' ).get() )
@@ -533,5 +534,247 @@ describe( 'migration 4', () => {
     expect( () => runMigrations( database, migrations ) ).toThrow()
     expect( database.pragma( 'user_version', { simple: true } ) ).toBe( 3 )
     expect( tableNames( database ) ).not.toContain( 'prompt_profiles' )
+  } )
+} )
+
+describe( 'migration 5', () => {
+  const upgrade = ( setup: ( database: Database.Database ) => void ): Database.Database => {
+    const database = new Database( ':memory:' )
+
+    runMigrations( database, migrations.slice( 0, 4 ) )
+    setup( database )
+    runMigrations( database, migrations )
+
+    return database
+  }
+
+  const insertV4 = ( database: Database.Database ): void => {
+    const insert = database.prepare( `INSERT INTO jobs (
+        id, url, status, title, transcript, note_markdown, target_folder, saved_path,
+        expires_at, summary_model, prompt_profile_id, created_at, updated_at
+      ) VALUES ( ?, 'https://www.youtube.com/watch?v=abc', ?, 'Video title', ?, ?, 'Learning',
+        ?, ?, 'claude-sonnet-5-5', NULL, '2026-10-14T10:00:00.000Z', '2026-10-14T10:00:00.000Z' )` )
+
+    insert.run(
+      'review',
+      'ready_for_review',
+      JSON.stringify( transcriptFixture ),
+      '---\ntitle: "T"\n---\n\nBody\n',
+      null,
+      '2026-10-15T10:00:00.000Z',
+    )
+    insert.run( 'saved', 'saved', null, null, 'Learning/T.md', null )
+  }
+
+  const names = ( database: Database.Database, type: string ): string[] => {
+    return ( database
+      .prepare( 'SELECT name FROM sqlite_master WHERE type = ? ORDER BY name' )
+      .all( type ) as { name: string }[] ).map( ( { name } ) => name )
+  }
+
+  const columnNames = ( database: Database.Database, table: string ): string[] => {
+    return ( database.pragma( `table_info(${ table })` ) as { name: string }[] )
+      .map( ( { name } ) => name )
+  }
+
+  it( 'records user_version 5', () => {
+    const database = upgrade( () => undefined )
+
+    expect( migrations ).toHaveLength( 5 )
+    expect( database.pragma( 'user_version', { simple: true } ) ).toBe( 5 )
+  } )
+
+  it( 'runs from an empty database to the same result', () => {
+    const database = new Database( ':memory:' )
+
+    runMigrations( database, migrations )
+
+    expect( database.pragma( 'user_version', { simple: true } ) ).toBe( 5 )
+    expect( names( database, 'table' ) )
+      .toEqual( expect.arrayContaining( [ 'feeds', 'feed_items' ] ) )
+    expect( columnNames( database, 'jobs' ) ).toContain( 'source_document' )
+  } )
+
+  it( 'renames transcript to source_document and adds source_type and feed_id', () => {
+    const database = upgrade( () => undefined )
+    const columns = columnNames( database, 'jobs' )
+
+    expect( columns ).toContain( 'source_document' )
+    expect( columns ).toContain( 'source_type' )
+    expect( columns ).toContain( 'feed_id' )
+    expect( columns ).not.toContain( 'transcript' )
+  } )
+
+  it( 'tags the stored transcript of a job in review as a video document', () => {
+    const database = upgrade( insertV4 )
+    const { source_document: stored } = database
+      .prepare( 'SELECT source_document FROM jobs WHERE id = \'review\'' )
+      .get() as { source_document: string }
+
+    const document = SourceDocument.parse( JSON.parse( stored ) )
+
+    expect( document ).toEqual( { kind: 'video', ...transcriptFixture } )
+  } )
+
+  it( 'leaves every other column of the jobs untouched and defaults the new ones', () => {
+    const database = upgrade( insertV4 )
+
+    expect( database.prepare( 'SELECT * FROM jobs ORDER BY id' ).all() ).toEqual( [
+      {
+        id: 'review',
+        url: 'https://www.youtube.com/watch?v=abc',
+        status: 'ready_for_review',
+        error: null,
+        title: 'Video title',
+        source_document: expect.any( String ) as string,
+        note_markdown: '---\ntitle: "T"\n---\n\nBody\n',
+        target_folder: 'Learning',
+        saved_path: null,
+        expires_at: '2026-10-15T10:00:00.000Z',
+        summary_model: 'claude-sonnet-5-5',
+        prompt_profile_id: null,
+        created_at: '2026-10-14T10:00:00.000Z',
+        updated_at: '2026-10-14T10:00:00.000Z',
+        source_type: 'video',
+        feed_id: null,
+      },
+      {
+        id: 'saved',
+        url: 'https://www.youtube.com/watch?v=abc',
+        status: 'saved',
+        error: null,
+        title: 'Video title',
+        source_document: null,
+        note_markdown: null,
+        target_folder: 'Learning',
+        saved_path: 'Learning/T.md',
+        expires_at: null,
+        summary_model: 'claude-sonnet-5-5',
+        prompt_profile_id: null,
+        created_at: '2026-10-14T10:00:00.000Z',
+        updated_at: '2026-10-14T10:00:00.000Z',
+        source_type: 'video',
+        feed_id: null,
+      },
+    ] )
+  } )
+
+  it( 'creates the feeds and feed_items tables with the TRD columns', () => {
+    const database = upgrade( () => undefined )
+
+    expect( columnNames( database, 'feeds' ) ).toEqual( [
+      'id',
+      'url',
+      'feed_url',
+      'name',
+      'profile_id',
+      'enabled',
+      'auto_summarize',
+      'etag',
+      'last_modified',
+      'last_checked_at',
+      'last_error',
+      'last_skipped_count',
+      'created_at',
+      'deleted_at',
+    ] )
+    expect( columnNames( database, 'feed_items' ) ).toEqual( [
+      'id',
+      'feed_id',
+      'item_key',
+      'title',
+      'link',
+      'published_at',
+      'author',
+      'content_markdown',
+      'status',
+      'job_id',
+      'added_at',
+    ] )
+    expect( names( database, 'index' ) ).toEqual( expect.arrayContaining( [
+      'feeds_active_url',
+      'feed_items_inbox',
+    ] ) )
+  } )
+
+  describe( 'feed constraints', () => {
+    const addFeed = (
+      database: Database.Database,
+      id: string,
+      feedUrl: string,
+      deletedAt: string | null = null,
+    ): void => {
+      database.prepare( `INSERT INTO feeds ( id, url, feed_url, name, created_at, deleted_at )
+        VALUES ( ?, 'https://a.example', ?, 'A', '2026-10-18T10:00:00.000Z', ? )` )
+        .run( id, feedUrl, deletedAt )
+    }
+
+    it( 'defaults enabled to on, auto_summarize to off and skipped to zero', () => {
+      const database = upgrade( () => undefined )
+
+      addFeed( database, 'f1', 'https://a.example/feed' )
+
+      expect( database.prepare( `SELECT enabled, auto_summarize, last_skipped_count
+        FROM feeds` ).get() ).toEqual( { enabled: 1, auto_summarize: 0, last_skipped_count: 0 } )
+    } )
+
+    it( 'allows one active feed per feed_url, and reuse after a soft delete', () => {
+      const database = upgrade( () => undefined )
+
+      addFeed( database, 'f1', 'https://a.example/feed' )
+
+      expect( () => addFeed( database, 'f2', 'https://a.example/feed' ) ).toThrow()
+
+      database.prepare( 'UPDATE feeds SET deleted_at = ? WHERE id = \'f1\'' ).run( 'now' )
+
+      expect( () => addFeed( database, 'f2', 'https://a.example/feed' ) ).not.toThrow()
+    } )
+
+    it( 'allows the same feed_url twice when one is already deleted', () => {
+      const database = upgrade( () => undefined )
+
+      addFeed( database, 'f1', 'https://a.example/feed', 'then' )
+
+      expect( () => addFeed( database, 'f2', 'https://a.example/feed', 'then' ) ).not.toThrow()
+    } )
+
+    it( 'rejects the same item_key twice in one feed, not across feeds', () => {
+      const database = upgrade( () => undefined )
+
+      addFeed( database, 'f1', 'https://a.example/one' )
+      addFeed( database, 'f2', 'https://a.example/two' )
+
+      const insert = database.prepare( `INSERT INTO feed_items
+        ( id, feed_id, item_key, title, link, status, added_at )
+        VALUES ( ?, ?, 'key', 'T', 'https://a.example/p', 'inbox', 'now' )` )
+
+      insert.run( 'i1', 'f1' )
+
+      expect( () => insert.run( 'i2', 'f1' ) ).toThrow()
+      expect( () => insert.run( 'i3', 'f2' ) ).not.toThrow()
+    } )
+
+    it( 'rejects a feed item for a feed that does not exist', () => {
+      const database = upgrade( () => undefined )
+
+      database.pragma( 'foreign_keys = ON' )
+
+      expect( () => database.prepare( `INSERT INTO feed_items
+        ( id, feed_id, item_key, title, link, status, added_at )
+        VALUES ( 'i1', 'nope', 'key', 'T', 'https://a.example/p', 'inbox', 'now' )` ).run() )
+        .toThrow()
+    } )
+  } )
+
+  it( 'rolls back completely when a later step fails', () => {
+    const database = new Database( ':memory:' )
+
+    runMigrations( database, migrations.slice( 0, 4 ) )
+    database.exec( 'CREATE TABLE feeds ( blocker TEXT )' )
+
+    expect( () => runMigrations( database, migrations ) ).toThrow()
+    expect( database.pragma( 'user_version', { simple: true } ) ).toBe( 4 )
+    expect( columnNames( database, 'jobs' ) ).toContain( 'transcript' )
+    expect( columnNames( database, 'jobs' ) ).not.toContain( 'source_type' )
   } )
 } )

@@ -298,7 +298,7 @@ describe( 'storage', () => {
       const job = buildJob()
       insertJob( job )
       const raw = new Database( path )
-      raw.prepare( 'UPDATE jobs SET transcript = ? WHERE id = ?' ).run( '{"nope":1}', job.id )
+      raw.prepare( 'UPDATE jobs SET source_document = ? WHERE id = ?' ).run( '{"nope":1}', job.id )
       raw.close()
 
       expect( () => findJobById( job.id ) ).toThrow()

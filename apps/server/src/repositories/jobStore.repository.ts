@@ -21,7 +21,7 @@ const JobRow = z.object( {
   status: z.string(),
   error: z.string().nullable(),
   title: z.string().nullable(),
-  transcript: z.string().nullable(),
+  source_document: z.string().nullable(),
   note_markdown: z.string().nullable(),
   target_folder: z.string().nullable(),
   summary_model: z.string().nullable(),
@@ -37,7 +37,9 @@ const toStoredJob = ( raw: unknown ): StoredJob => {
 
   return StoredJob.parse( {
     ...row,
-    transcript: row.transcript === null ? null : JSON.parse( row.transcript ) as unknown,
+    transcript: row.source_document === null
+      ? null
+      : JSON.parse( row.source_document ) as unknown,
   } )
 }
 
@@ -48,7 +50,9 @@ const toRow = ( job: StoredJob ): Record< string, string | null > => {
     status: job.status,
     error: job.error,
     title: job.title,
-    transcript: job.transcript === null ? null : JSON.stringify( job.transcript ),
+    source_document: job.transcript === null
+      ? null
+      : JSON.stringify( { kind: 'video', ...job.transcript } ),
     note_markdown: job.note_markdown,
     target_folder: job.target_folder,
     summary_model: job.summary_model,
@@ -68,10 +72,10 @@ export const insertJob = ( job: StoredJob ): void => {
   }
 
   db.prepare( `INSERT INTO jobs (
-      id, url, status, error, title, transcript, note_markdown, target_folder,
+      id, url, status, error, title, source_document, note_markdown, target_folder,
       summary_model, prompt_profile_id, saved_path, expires_at, created_at, updated_at
     ) VALUES (
-      @id, @url, @status, @error, @title, @transcript, @note_markdown, @target_folder,
+      @id, @url, @status, @error, @title, @source_document, @note_markdown, @target_folder,
       @summary_model, @prompt_profile_id, @saved_path, @expires_at, @created_at, @updated_at
     )` ).run( toRow( job ) )
 }
@@ -96,7 +100,7 @@ export const updateJob = (
 
   getDatabase().prepare( `UPDATE jobs SET
       url = @url, status = @status, error = @error, title = @title,
-      transcript = @transcript, note_markdown = @note_markdown,
+      source_document = @source_document, note_markdown = @note_markdown,
       target_folder = @target_folder, summary_model = @summary_model,
       prompt_profile_id = @prompt_profile_id, saved_path = @saved_path,
       expires_at = @expires_at, created_at = @created_at, updated_at = @updated_at

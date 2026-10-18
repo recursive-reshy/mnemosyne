@@ -117,6 +117,48 @@ const addSummarizerTables = ( db: Database.Database ): void => {
     .run( 'default_profile_id', JSON.stringify( businessId ) )
 }
 
+const addSourcesAndFeeds = ( db: Database.Database ): void => {
+  db.exec( `ALTER TABLE jobs RENAME COLUMN transcript TO source_document;
+  UPDATE jobs SET source_document = json_set( source_document, '$.kind', 'video' )
+    WHERE source_document IS NOT NULL;
+  ALTER TABLE jobs ADD COLUMN source_type TEXT NOT NULL DEFAULT 'video';
+  ALTER TABLE jobs ADD COLUMN feed_id TEXT;
+
+  CREATE TABLE feeds (
+    id TEXT PRIMARY KEY,
+    url TEXT NOT NULL,
+    feed_url TEXT NOT NULL,
+    name TEXT NOT NULL,
+    profile_id TEXT,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    auto_summarize INTEGER NOT NULL DEFAULT 0,
+    etag TEXT,
+    last_modified TEXT,
+    last_checked_at TEXT,
+    last_error TEXT,
+    last_skipped_count INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    deleted_at TEXT
+  );
+  CREATE UNIQUE INDEX feeds_active_url ON feeds ( feed_url ) WHERE deleted_at IS NULL;
+
+  CREATE TABLE feed_items (
+    id TEXT PRIMARY KEY,
+    feed_id TEXT NOT NULL REFERENCES feeds ( id ),
+    item_key TEXT NOT NULL,
+    title TEXT NOT NULL,
+    link TEXT NOT NULL,
+    published_at TEXT,
+    author TEXT,
+    content_markdown TEXT,
+    status TEXT NOT NULL,
+    job_id TEXT,
+    added_at TEXT NOT NULL,
+    UNIQUE ( feed_id, item_key )
+  );
+  CREATE INDEX feed_items_inbox ON feed_items ( status, added_at );` )
+}
+
 export type Migration = string | ( ( db: Database.Database ) => void )
 
 export const migrations: Migration[] = [
@@ -138,6 +180,7 @@ export const migrations: Migration[] = [
   `ALTER TABLE jobs DROP COLUMN summary_markdown;
   ALTER TABLE jobs DROP COLUMN suggested_tags;`,
   addSummarizerTables,
+  addSourcesAndFeeds,
 ]
 
 let database: Database.Database | undefined
