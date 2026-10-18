@@ -18,6 +18,7 @@ import {
   downloadUrl,
   getJob,
   getSource,
+  submitPastedText,
   listJobs,
   regenerateSummary,
   retrySummary,
@@ -53,7 +54,7 @@ describe( 'createJob', () => {
   it( 'posts the url as JSON', async () => {
     fetchMock.mockResolvedValue( jsonResponse( { job_id: jobId }, 202 ) )
 
-    await createJob( url )
+    await createJob( { url } )
 
     expect( fetchMock ).toHaveBeenCalledWith( '/api/jobs', {
       method: 'POST',
@@ -62,11 +63,20 @@ describe( 'createJob', () => {
     } )
   } )
 
+  it( 'sends the source type, pasted text and title when the body has them', async () => {
+    fetchMock.mockImplementation( () => Promise.resolve( jsonResponse( { job_id: jobId }, 202 ) ) )
+    const body = { url, source_type: 'article' as const, text: 'x'.repeat( 300 ), title: 'T' }
+
+    await createJob( body )
+
+    expect( fetchMock.mock.calls[ 0 ]?.[ 1 ] ).toMatchObject( { body: JSON.stringify( body ) } )
+  } )
+
   it( 'adds the model and profile only when they are given', async () => {
     fetchMock.mockImplementation( () => Promise.resolve( jsonResponse( { job_id: jobId }, 202 ) ) )
 
-    await createJob( url, { model: 'claude-opus-5-5', profile_id: jobId } )
-    await createJob( url, { model: undefined, profile_id: undefined } )
+    await createJob( { url, model: 'claude-opus-5-5', profile_id: jobId } )
+    await createJob( { url } )
 
     expect( fetchMock.mock.calls[ 0 ]?.[ 1 ] ).toMatchObject( {
       body: JSON.stringify( { url, model: 'claude-opus-5-5', profile_id: jobId } ),
@@ -77,13 +87,13 @@ describe( 'createJob', () => {
   it( 'returns the job id', async () => {
     fetchMock.mockResolvedValue( jsonResponse( { job_id: jobId }, 202 ) )
 
-    await expect( createJob( url ) ).resolves.toBe( jobId )
+    await expect( createJob( { url } ) ).resolves.toBe( jobId )
   } )
 
   it( 'uses the server error message on a non-2xx response', async () => {
     fetchMock.mockResolvedValue( jsonResponse( { error: 'Invalid request', issues: [] }, 400 ) )
 
-    const error = await rejection( createJob( url ) )
+    const error = await rejection( createJob( { url } ) )
 
     expect( error.message ).toBe( 'Invalid request' )
     expect( error.status ).toBe( 400 )
@@ -92,7 +102,7 @@ describe( 'createJob', () => {
   it( 'falls back to the status when the error body is not parseable', async () => {
     fetchMock.mockResolvedValue( new Response( 'boom', { status: 500 } ) )
 
-    const error = await rejection( createJob( url ) )
+    const error = await rejection( createJob( { url } ) )
 
     expect( error.message ).toBe( 'Request failed with status 500' )
     expect( error.status ).toBe( 500 )
@@ -101,7 +111,7 @@ describe( 'createJob', () => {
   it( 'reports an unreachable server', async () => {
     fetchMock.mockRejectedValue( new TypeError( 'Failed to fetch' ) )
 
-    const error = await rejection( createJob( url ) )
+    const error = await rejection( createJob( { url } ) )
 
     expect( error.message ).toBe( 'Could not reach the server' )
     expect( error.status ).toBeNull()
@@ -110,7 +120,7 @@ describe( 'createJob', () => {
   it( 'rejects a 2xx response without a job id', async () => {
     fetchMock.mockResolvedValue( jsonResponse( {}, 202 ) )
 
-    const error = await rejection( createJob( url ) )
+    const error = await rejection( createJob( { url } ) )
 
     expect( error.message ).toBe( 'Unexpected response from the server' )
     expect( error.status ).toBe( 202 )
@@ -382,5 +392,45 @@ describe( 'regenerateSummary', () => {
 
     await expect( regenerateSummary( jobId, {} ) )
       .rejects.toThrow( 'Cannot move job from queued to summarizing' )
+  } )
+} )
+
+describe( 'submitPastedText', () => {
+  const text = 'x'.repeat( 300 )
+
+  it( 'posts the text and title to the job and returns the job', async () => {
+    const summarizing = jobFixture( { status: 'summarizing' } )
+    fetchMock.mockResolvedValue( jsonResponse( { job: summarizing }, 200 ) )
+
+    const job = await submitPastedText( 'a/b', { text, title: 'T' } )
+
+    expect( job ).toEqual( summarizing )
+    expect( fetchMock.mock.calls[ 0 ]?.[ 0 ] ).toBe( '/api/jobs/a%2Fb/text' )
+    expect( fetchMock.mock.calls[ 0 ]?.[ 1 ] ).toMatchObject( {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify( { text, title: 'T' } ),
+    } )
+  } )
+
+  it.each( [
+    [ 400, 'Invalid request' ],
+    [ 404, 'Job not found' ],
+    [ 409, 'Pasted text can only continue a failed article job' ],
+  ] )( 'uses the server message and status for a %s', async ( status, message ) => {
+    fetchMock.mockResolvedValue( jsonResponse( { error: message }, status ) )
+
+    const error = await rejection( submitPastedText( jobId, { text } ) )
+
+    expect( error.message ).toBe( message )
+    expect( error.status ).toBe( status )
+  } )
+
+  it( 'rejects a malformed response', async () => {
+    fetchMock.mockResolvedValue( jsonResponse( { job: { id: 1 } }, 200 ) )
+
+    const error = await rejection( submitPastedText( jobId, { text } ) )
+
+    expect( error.message ).toBe( 'Unexpected response from the server' )
   } )
 } )

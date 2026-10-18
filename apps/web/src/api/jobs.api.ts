@@ -13,6 +13,7 @@ import type {
   Job,
   RegenerateSummaryBody,
   SourceDocument,
+  SubmitPastedTextBody,
   UpdateDraftBody,
 } from '@mnemosyne/shared'
 // App
@@ -20,28 +21,27 @@ import { request, send } from './request'
 
 const jobPath = ( id: string ): string => `/api/jobs/${ encodeURIComponent( id ) }`
 
-type SummaryOptions = Pick< CreateJobBody, 'model' | 'profile_id' >
-
-export const createJob = async (
-  url: string,
-  options: SummaryOptions = {},
-): Promise< string > => {
-  const body: CreateJobBody = { url }
-
-  if( options.model !== undefined ) {
-    body.model = options.model
-  }
-
-  if( options.profile_id !== undefined ) {
-    body.profile_id = options.profile_id
-  }
-
+export const createJob = async ( body: CreateJobBody ): Promise< string > => {
   const { job_id } = await request( '/api/jobs', CreateJobResponse, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify( body ),
   } )
+
   return job_id
+}
+
+export const submitPastedText = async (
+  id: string,
+  body: SubmitPastedTextBody,
+): Promise< Job > => {
+  const { job } = await request( `${ jobPath( id ) }/text`, GetJobResponse, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify( body ),
+  } )
+
+  return job
 }
 
 export const getJob = async ( id: string ): Promise< Job > => {

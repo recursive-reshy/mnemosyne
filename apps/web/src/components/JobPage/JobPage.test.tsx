@@ -248,7 +248,7 @@ describe( 'JobPage', () => {
 
     await user.click( screen.getByRole( 'button', { name: 'Try again' } ) )
 
-    expect( mockedCreateJob ).toHaveBeenCalledWith( jobFixture().url )
+    expect( mockedCreateJob ).toHaveBeenCalledWith( { url: jobFixture().url } )
     expect( location().pathname ).toBe( `/jobs/${ newJobId }` )
   } )
 

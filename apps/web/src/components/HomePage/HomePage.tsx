@@ -65,9 +65,7 @@ export function HomePage(): ReactElement {
 
     try {
       const options = summaryChoices( settings, profileChoice, modelChoice )
-      const jobId = Object.keys( options ).length === 0
-        ? await createJob( url )
-        : await createJob( url, options )
+      const jobId = await createJob( { url, ...options } )
 
       void navigate( `/jobs/${ jobId }` )
     } catch( caught ) {

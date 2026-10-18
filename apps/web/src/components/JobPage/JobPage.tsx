@@ -38,7 +38,7 @@ export function JobPage(): ReactElement {
     setSubmitError( null )
 
     try {
-      const newJobId = await createJob( url )
+      const newJobId = await createJob( { url } )
 
       void navigate( `/jobs/${ newJobId }` )
     } catch( caught ) {

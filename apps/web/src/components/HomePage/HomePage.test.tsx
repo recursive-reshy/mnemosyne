@@ -92,7 +92,7 @@ describe( 'HomePage', () => {
     await user.type( screen.getByRole( 'textbox', { name: 'Video URL' } ), validUrl )
     await user.click( screen.getByRole( 'button', { name: 'Transcribe' } ) )
 
-    expect( mockedCreateJob ).toHaveBeenCalledWith( validUrl )
+    expect( mockedCreateJob ).toHaveBeenCalledWith( { url: validUrl } )
     expect( screen.getByRole( 'button', { name: 'Starting…' } ) ).toBeDisabled()
 
     await act( async () => {
@@ -157,7 +157,7 @@ describe( 'HomePage, summary options', () => {
 
     await submit( user )
 
-    expect( mockedCreateJob ).toHaveBeenCalledExactlyOnceWith( validUrl )
+    expect( mockedCreateJob ).toHaveBeenCalledExactlyOnceWith( { url: validUrl } )
   } )
 
   it( 'sends only the model when only the model was changed', async () => {
@@ -169,7 +169,7 @@ describe( 'HomePage, summary options', () => {
     await submit( user )
 
     expect( mockedCreateJob )
-      .toHaveBeenCalledExactlyOnceWith( validUrl, { model: 'claude-opus-5-5' } )
+      .toHaveBeenCalledExactlyOnceWith( { url: validUrl, model: 'claude-opus-5-5' } )
   } )
 
   it( 'sends the profile and the model when both were changed', async () => {
@@ -182,7 +182,8 @@ describe( 'HomePage, summary options', () => {
     await user.click( screen.getByRole( 'option', { name: 'Claude Opus 5.5' } ) )
     await submit( user )
 
-    expect( mockedCreateJob ).toHaveBeenCalledExactlyOnceWith( validUrl, {
+    expect( mockedCreateJob ).toHaveBeenCalledExactlyOnceWith( {
+      url: validUrl,
       model: 'claude-opus-5-5',
       profile_id: CODING_ID,
     } )
@@ -198,7 +199,7 @@ describe( 'HomePage, summary options', () => {
     await user.click( screen.getByRole( 'option', { name: 'Claude Sonnet 5.5' } ) )
     await submit( user )
 
-    expect( mockedCreateJob ).toHaveBeenCalledExactlyOnceWith( validUrl )
+    expect( mockedCreateJob ).toHaveBeenCalledExactlyOnceWith( { url: validUrl } )
   } )
 
   it( 'still submits, with no options, while the settings are loading', async () => {
@@ -217,6 +218,6 @@ describe( 'HomePage, summary options', () => {
 
     await submit( user )
 
-    expect( mockedCreateJob ).toHaveBeenCalledExactlyOnceWith( validUrl )
+    expect( mockedCreateJob ).toHaveBeenCalledExactlyOnceWith( { url: validUrl } )
   } )
 } )
