@@ -1,6 +1,6 @@
 # 0033. Browser-mode tests with Vitest and Playwright for real-DOM behaviour
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-18
 
 ## Context

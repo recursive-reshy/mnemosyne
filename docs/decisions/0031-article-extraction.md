@@ -1,6 +1,6 @@
 # 0031. Article extraction: Readability on linkedom, turndown to Markdown, fetch limits
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-18
 
 ## Context

@@ -1,6 +1,6 @@
 # 0014. Summaries with the Claude API, called from the server
 
-- Status: Accepted (amended by 0027, 0028)
+- Status: Accepted (amended by 0027, 0028, 0030)
 - Date: 2026-10-15
 
 ## Context

@@ -1,6 +1,6 @@
 # 0030. Source adapters and intakes: one `SourceDocument` for every source
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-18
 
 ## Context

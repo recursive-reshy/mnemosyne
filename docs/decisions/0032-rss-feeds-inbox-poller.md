@@ -1,6 +1,6 @@
 # 0032. RSS feeds with feedsmith, an inbox before summarizing, and a separate poller
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-18
 
 ## Context

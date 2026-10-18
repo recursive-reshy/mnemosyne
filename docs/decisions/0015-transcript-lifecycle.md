@@ -1,6 +1,6 @@
 # 0015. Transcript lifecycle: reviewed, then deleted
 
-- Status: Accepted
+- Status: Accepted (amended by 0030)
 - Date: 2026-10-15
 
 ## Context

@@ -30,8 +30,8 @@ Each significant decision is recorded as a short ADR (Architecture Decision Reco
 | [0011](decisions/0011-web-stack.md) | Web app: Vite, React, plain CSS, hand-written polling | Partly superseded by 0013, 0024 |
 | [0012](decisions/0012-sqlite-job-store.md) | SQLite job store with better-sqlite3 | Accepted |
 | [0013](decisions/0013-tanstack-query-react-router.md) | TanStack Query and React Router | Accepted |
-| [0014](decisions/0014-claude-summarizer.md) | Summaries with the Claude API, called from the server | Accepted (amended by 0027, 0028) |
-| [0015](decisions/0015-transcript-lifecycle.md) | Transcript lifecycle: reviewed, then deleted | Accepted |
+| [0014](decisions/0014-claude-summarizer.md) | Summaries with the Claude API, called from the server | Accepted (amended by 0027, 0028, 0030) |
+| [0015](decisions/0015-transcript-lifecycle.md) | Transcript lifecycle: reviewed, then deleted | Accepted (amended by 0030) |
 | [0016](decisions/0016-local-drafts.md) | Review edits drafted in localStorage | Superseded by 0020 |
 | [0017](decisions/0017-commit-docs-and-claude-md.md) | Commit docs/ and the CLAUDE.md files | Accepted |
 | [0018](decisions/0018-spec-driven-workflow.md) | Spec-driven workflow with checkpoints | Accepted |
@@ -46,10 +46,10 @@ Each significant decision is recorded as a short ADR (Architecture Decision Reco
 | [0027](decisions/0027-editable-summarizer-prompts.md) | Editable summarizer prompts: profiles of versioned guidance on a locked contract | Accepted |
 | [0028](decisions/0028-summary-model-from-models-api.md) | Summary model chosen in the app, listed from the Models API | Accepted |
 | [0029](decisions/0029-summary-runs-and-regeneration.md) | Summary runs: provenance and cost in the database, and regenerating a summary | Accepted |
-| [0030](decisions/0030-source-adapters-and-intakes.md) | Source adapters and intakes: one `SourceDocument` for every source | Proposed |
-| [0031](decisions/0031-article-extraction.md) | Article extraction: Readability on linkedom, turndown to Markdown, fetch limits | Proposed |
-| [0032](decisions/0032-rss-feeds-inbox-poller.md) | RSS feeds with feedsmith, an inbox before summarizing, and a separate poller | Proposed |
-| [0033](decisions/0033-browser-mode-tests.md) | Browser-mode tests with Vitest and Playwright for real-DOM behaviour | Proposed |
+| [0030](decisions/0030-source-adapters-and-intakes.md) | Source adapters and intakes: one `SourceDocument` for every source | Accepted |
+| [0031](decisions/0031-article-extraction.md) | Article extraction: Readability on linkedom, turndown to Markdown, fetch limits | Accepted |
+| [0032](decisions/0032-rss-feeds-inbox-poller.md) | RSS feeds with feedsmith, an inbox before summarizing, and a separate poller | Accepted |
+| [0033](decisions/0033-browser-mode-tests.md) | Browser-mode tests with Vitest and Playwright for real-DOM behaviour | Accepted |
 
 ## Template for new ADRs
 
