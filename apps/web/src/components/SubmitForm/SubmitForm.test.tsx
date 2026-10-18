@@ -17,7 +17,7 @@ import {
 import { SubmitForm } from './SubmitForm'
 
 const validUrl = 'https://www.youtube.com/watch?v=cFoaK1OQRhw'
-const validationMessage = 'Enter a video URL starting with http:// or https://'
+const validationMessage = 'Enter a URL starting with http:// or https://'
 
 const setup = ( props: { isSubmitting?: boolean, error?: string | null } = {} ) => {
   const onSubmit = vi.fn()
@@ -31,48 +31,48 @@ describe( 'SubmitForm', () => {
   it( 'renders a named form, a labelled input and a button', () => {
     setup()
 
-    expect( screen.getByRole( 'form', { name: 'Transcribe a video' } ) ).toBeInTheDocument()
-    expect( screen.getByRole( 'textbox', { name: 'Video URL' } ) ).toBeInTheDocument()
+    expect( screen.getByRole( 'form', { name: 'Add a video or article' } ) ).toBeInTheDocument()
+    expect( screen.getByRole( 'textbox', { name: 'URL' } ) ).toBeInTheDocument()
     expect( screen.getByRole( 'button', { name: 'Transcribe' } ) ).toBeInTheDocument()
   } )
 
   it( 'submits a valid URL', async () => {
     const { onSubmit, user } = setup()
 
-    await user.type( screen.getByRole( 'textbox', { name: 'Video URL' } ), validUrl )
+    await user.type( screen.getByRole( 'textbox', { name: 'URL' } ), validUrl )
     await user.click( screen.getByRole( 'button', { name: 'Transcribe' } ) )
 
     expect( onSubmit ).toHaveBeenCalledTimes( 1 )
-    expect( onSubmit ).toHaveBeenCalledWith( validUrl )
+    expect( onSubmit ).toHaveBeenCalledWith( { url: validUrl } )
   } )
 
   it( 'trims surrounding spaces', async () => {
     const { onSubmit, user } = setup()
 
-    await user.type( screen.getByRole( 'textbox', { name: 'Video URL' } ), `  ${ validUrl }  ` )
+    await user.type( screen.getByRole( 'textbox', { name: 'URL' } ), `  ${ validUrl }  ` )
     await user.click( screen.getByRole( 'button', { name: 'Transcribe' } ) )
 
-    expect( onSubmit ).toHaveBeenCalledWith( validUrl )
+    expect( onSubmit ).toHaveBeenCalledWith( { url: validUrl } )
   } )
 
   it( 'submits on Enter', async () => {
     const { onSubmit, user } = setup()
 
-    await user.type( screen.getByRole( 'textbox', { name: 'Video URL' } ), `${ validUrl }{Enter}` )
+    await user.type( screen.getByRole( 'textbox', { name: 'URL' } ), `${ validUrl }{Enter}` )
 
-    expect( onSubmit ).toHaveBeenCalledWith( validUrl )
+    expect( onSubmit ).toHaveBeenCalledWith( { url: validUrl } )
   } )
 
   it.each( [ '', 'ftp://example.com', 'not a url' ] )(
     'rejects %j with a message',
     async ( value ) => {
       const { onSubmit, user } = setup()
-      const input = screen.getByRole( 'textbox', { name: 'Video URL' } )
+      const input = screen.getByRole( 'textbox', { name: 'URL' } )
 
       if( value ) {
         await user.type( input, value )
       }
-      await user.click( screen.getByRole( 'button', { name: 'Transcribe' } ) )
+      await user.click( screen.getByRole( 'button', { name: /^(Transcribe|Summarize)$/ } ) )
 
       expect( screen.getByRole( 'alert' ) ).toHaveTextContent( validationMessage )
       expect( input ).toHaveAttribute( 'aria-invalid', 'true' )
@@ -83,7 +83,7 @@ describe( 'SubmitForm', () => {
 
   it( 'clears the validation message when the user types', async () => {
     const { user } = setup()
-    const input = screen.getByRole( 'textbox', { name: 'Video URL' } )
+    const input = screen.getByRole( 'textbox', { name: 'URL' } )
 
     await user.click( screen.getByRole( 'button', { name: 'Transcribe' } ) )
     expect( screen.getByRole( 'alert' ) ).toBeInTheDocument()
@@ -101,7 +101,7 @@ describe( 'SubmitForm', () => {
     await user.click( button )
 
     expect( button ).toBeDisabled()
-    expect( screen.getByRole( 'textbox', { name: 'Video URL' } ) ).toBeDisabled()
+    expect( screen.getByRole( 'textbox', { name: 'URL' } ) ).toBeDisabled()
     expect( onSubmit ).not.toHaveBeenCalled()
   } )
 
@@ -109,14 +109,14 @@ describe( 'SubmitForm', () => {
     setup( { error: 'Could not reach the server' } )
 
     expect( screen.getByRole( 'alert' ) ).toHaveTextContent( 'Could not reach the server' )
-    expect( screen.getByRole( 'textbox', { name: 'Video URL' } ) )
+    expect( screen.getByRole( 'textbox', { name: 'URL' } ) )
       .toHaveAccessibleDescription( 'Could not reach the server' )
   } )
 
   it( 'does not mark the input invalid for a server error', () => {
     setup( { error: 'Could not reach the server' } )
 
-    expect( screen.getByRole( 'textbox', { name: 'Video URL' } ) )
+    expect( screen.getByRole( 'textbox', { name: 'URL' } ) )
       .not.toHaveAttribute( 'aria-invalid', 'true' )
   } )
 } )
@@ -150,7 +150,7 @@ describe( 'SubmitForm, summary options', () => {
       />,
     )
 
-    const url = screen.getByRole( 'textbox', { name: 'Video URL' } )
+    const url = screen.getByRole( 'textbox', { name: 'URL' } )
     const profile = screen.getByRole( 'combobox', { name: 'Prompt profile' } )
     const button = screen.getByRole( 'button', { name: 'Transcribe' } )
 
@@ -171,9 +171,214 @@ describe( 'SubmitForm, summary options', () => {
       />,
     )
 
-    await user.type( screen.getByRole( 'textbox', { name: 'Video URL' } ), validUrl )
+    await user.type( screen.getByRole( 'textbox', { name: 'URL' } ), validUrl )
     await user.click( screen.getByRole( 'button', { name: 'Transcribe' } ) )
 
-    expect( onSubmit ).toHaveBeenCalledExactlyOnceWith( validUrl )
+    expect( onSubmit ).toHaveBeenCalledExactlyOnceWith( { url: validUrl } )
+  } )
+} )
+
+const articleUrl = 'https://example.com/posts/ownership'
+const pasted = 'Pasted words go here. '.repeat( 15 )
+
+const typeUrl = async ( user: ReturnType< typeof userEvent.setup >, url: string ) => {
+  await user.type( screen.getByRole( 'textbox', { name: 'URL' } ), url )
+}
+
+describe( 'SubmitForm, source type', () => {
+  it( 'hides the switch while the field is empty', () => {
+    setup()
+
+    expect( screen.queryByRole( 'group', { name: 'Source type' } ) ).not.toBeInTheDocument()
+  } )
+
+  it( 'shows the detected type under the field: Video for YouTube', async () => {
+    const { user } = setup()
+
+    await typeUrl( user, validUrl )
+
+    expect( screen.getByRole( 'button', { name: 'Video' } ) )
+      .toHaveAttribute( 'aria-pressed', 'true' )
+    expect( screen.getByRole( 'button', { name: 'Article' } ) )
+      .toHaveAttribute( 'aria-pressed', 'false' )
+    expect( screen.getByRole( 'button', { name: 'Transcribe' } ) ).toBeInTheDocument()
+  } )
+
+  it( 'shows Article for another site, with the Summarize button', async () => {
+    const { user } = setup()
+
+    await typeUrl( user, articleUrl )
+
+    expect( screen.getByRole( 'button', { name: 'Article' } ) )
+      .toHaveAttribute( 'aria-pressed', 'true' )
+    expect( screen.getByRole( 'button', { name: 'Summarize' } ) ).toBeInTheDocument()
+  } )
+
+  it( 'follows the URL until the user picks a type', async () => {
+    const { user } = setup()
+    const input = screen.getByRole( 'textbox', { name: 'URL' } )
+
+    await user.type( input, validUrl )
+    await user.clear( input )
+    await user.type( input, articleUrl )
+
+    expect( screen.getByRole( 'button', { name: 'Article' } ) )
+      .toHaveAttribute( 'aria-pressed', 'true' )
+  } )
+
+  it( 'lets the user override the type, and keeps it while the URL is edited', async () => {
+    const { user } = setup()
+    const input = screen.getByRole( 'textbox', { name: 'URL' } )
+
+    await typeUrl( user, validUrl )
+    await user.click( screen.getByRole( 'button', { name: 'Article' } ) )
+    await user.type( input, '&t=5' )
+
+    expect( screen.getByRole( 'button', { name: 'Article' } ) )
+      .toHaveAttribute( 'aria-pressed', 'true' )
+    expect( screen.getByRole( 'button', { name: 'Summarize' } ) ).toBeInTheDocument()
+  } )
+
+  it( 'forgets the override when the field is cleared', async () => {
+    const { user } = setup()
+    const input = screen.getByRole( 'textbox', { name: 'URL' } )
+
+    await typeUrl( user, validUrl )
+    await user.click( screen.getByRole( 'button', { name: 'Article' } ) )
+    await user.clear( input )
+    await user.type( input, validUrl )
+
+    expect( screen.getByRole( 'button', { name: 'Video' } ) )
+      .toHaveAttribute( 'aria-pressed', 'true' )
+  } )
+
+  it( 'sends source_type only when it differs from the detected type', async () => {
+    const { onSubmit, user } = setup()
+
+    await typeUrl( user, validUrl )
+    await user.click( screen.getByRole( 'button', { name: 'Article' } ) )
+    await user.click( screen.getByRole( 'button', { name: 'Summarize' } ) )
+
+    expect( onSubmit ).toHaveBeenLastCalledWith( { url: validUrl, source_type: 'article' } )
+
+    await user.click( screen.getByRole( 'button', { name: 'Video' } ) )
+    await user.click( screen.getByRole( 'button', { name: 'Transcribe' } ) )
+
+    expect( onSubmit ).toHaveBeenLastCalledWith( { url: validUrl } )
+  } )
+
+  it( 'sends an article override for a site that looks like a video', async () => {
+    const { onSubmit, user } = setup()
+
+    await typeUrl( user, articleUrl )
+    await user.click( screen.getByRole( 'button', { name: 'Video' } ) )
+    await user.click( screen.getByRole( 'button', { name: 'Transcribe' } ) )
+
+    expect( onSubmit ).toHaveBeenCalledWith( { url: articleUrl, source_type: 'video' } )
+  } )
+} )
+
+describe( 'SubmitForm, pasted text', () => {
+  const openPaste = async ( user: ReturnType< typeof userEvent.setup > ) => {
+    await typeUrl( user, articleUrl )
+    await user.click( screen.getByRole( 'button', { name: 'Paste text instead' } ) )
+  }
+
+  it( 'offers Paste text instead only for an article', async () => {
+    const { user } = setup()
+
+    expect( screen.queryByRole( 'button', { name: 'Paste text instead' } ) ).not.toBeInTheDocument()
+
+    await typeUrl( user, validUrl )
+
+    expect( screen.queryByRole( 'button', { name: 'Paste text instead' } ) ).not.toBeInTheDocument()
+
+    await user.click( screen.getByRole( 'button', { name: 'Article' } ) )
+
+    expect( screen.getByRole( 'button', { name: 'Paste text instead' } ) ).toBeInTheDocument()
+  } )
+
+  it( 'reveals the title and article text fields', async () => {
+    const { user } = setup()
+
+    await openPaste( user )
+
+    expect( screen.getByRole( 'textbox', { name: 'Title' } ) ).toBeInTheDocument()
+    expect( screen.getByRole( 'textbox', { name: 'Article text' } ) ).toBeInTheDocument()
+  } )
+
+  it( 'submits the URL with the trimmed text and title', async () => {
+    const { onSubmit, user } = setup()
+
+    await openPaste( user )
+    await user.type( screen.getByRole( 'textbox', { name: 'Title' } ), '  My title  ' )
+    await user.click( screen.getByRole( 'textbox', { name: 'Article text' } ) )
+    await user.paste( `  ${ pasted }  ` )
+    await user.click( screen.getByRole( 'button', { name: 'Summarize' } ) )
+
+    expect( onSubmit ).toHaveBeenCalledExactlyOnceWith( {
+      url: articleUrl,
+      text: pasted.trim(),
+      title: 'My title',
+    } )
+  } )
+
+  it( 'leaves the title out when it is blank', async () => {
+    const { onSubmit, user } = setup()
+
+    await openPaste( user )
+    await user.click( screen.getByRole( 'textbox', { name: 'Article text' } ) )
+    await user.paste( pasted )
+    await user.click( screen.getByRole( 'button', { name: 'Summarize' } ) )
+
+    expect( onSubmit ).toHaveBeenCalledExactlyOnceWith( { url: articleUrl, text: pasted.trim() } )
+  } )
+
+  it( 'refuses text that is too short, saying why', async () => {
+    const { onSubmit, user } = setup()
+
+    await openPaste( user )
+    await user.click( screen.getByRole( 'textbox', { name: 'Article text' } ) )
+    await user.paste( 'too short' )
+    await user.click( screen.getByRole( 'button', { name: 'Summarize' } ) )
+
+    expect( screen.getByRole( 'alert' ) ).toHaveTextContent( 'at least 200 characters' )
+    expect( onSubmit ).not.toHaveBeenCalled()
+  } )
+
+  it( 'clears the text when the section is collapsed', async () => {
+    const { user } = setup()
+
+    await openPaste( user )
+    await user.click( screen.getByRole( 'textbox', { name: 'Article text' } ) )
+    await user.paste( pasted )
+    await user.click( screen.getByRole( 'button', { name: 'Don’t paste text' } ) )
+    await user.click( screen.getByRole( 'button', { name: 'Paste text instead' } ) )
+
+    expect( screen.getByRole( 'textbox', { name: 'Article text' } ) ).toHaveValue( '' )
+  } )
+
+  it( 'closes and clears the section when the type is switched to Video', async () => {
+    const { onSubmit, user } = setup()
+
+    await openPaste( user )
+    await user.click( screen.getByRole( 'textbox', { name: 'Article text' } ) )
+    await user.paste( pasted )
+    await user.click( screen.getByRole( 'button', { name: 'Video' } ) )
+
+    expect( screen.queryByRole( 'textbox', { name: 'Article text' } ) ).not.toBeInTheDocument()
+
+    await user.click( screen.getByRole( 'button', { name: 'Transcribe' } ) )
+
+    expect( onSubmit ).toHaveBeenCalledWith( { url: articleUrl, source_type: 'video' } )
+  } )
+
+  it( 'closes the section when the field is cleared', async () => {
+    const { user } = setup()
+
+    await openPaste( user )
+    await user.clear( screen.getByRole( 'textbox', { name: 'URL' } ) )
+
+    expect( screen.queryByRole( 'textbox', { name: 'Article text' } ) ).not.toBeInTheDocument()
   } )
 } )

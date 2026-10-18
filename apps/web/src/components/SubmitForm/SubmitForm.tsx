@@ -7,19 +7,24 @@ import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import TextField from '@mui/material/TextField'
 // Shared
-import { CreateJobBody } from '@mnemosyne/shared'
+import { CreateJobBody, detectSourceType } from '@mnemosyne/shared'
+import type { SourceType } from '@mnemosyne/shared'
 // App
+import { SourceTypeSwitch } from '../SourceTypeSwitch'
+import { PasteSection } from './PasteSection'
 import { SummaryOptions } from '../SummaryOptions'
 import type { SummaryOptionsProps } from '../SummaryOptions'
 
 const TEXT = {
-  formName: 'Transcribe a video',
-  inputLabel: 'Video URL',
-  placeholder: 'https://www.youtube.com/watch?v=…',
-  submit: 'Transcribe',
+  formName: 'Add a video or article',
+  inputLabel: 'URL',
+  placeholder: 'https://…',
   submitting: 'Starting…',
-  invalidUrl: 'Enter a video URL starting with http:// or https://',
+  invalidUrl: 'Enter a URL starting with http:// or https://',
+  invalidText: 'Paste at least 200 characters (and at most 300,000), or remove the pasted text',
 } as const
+
+const SUBMIT_LABELS = { video: 'Transcribe', article: 'Summarize' } as const
 
 // As in 0.3.0: a disabled button still takes the pointer and shows not-allowed.
 const SUBMIT_SX = {
@@ -30,7 +35,7 @@ const SUBMIT_SX = {
 interface SubmitFormProps {
   isSubmitting: boolean
   error: string | null
-  onSubmit: ( url: string ) => void
+  onSubmit: ( body: CreateJobBody ) => void
   options?: SummaryOptionsProps
 }
 
@@ -38,26 +43,65 @@ export function SubmitForm(
   { isSubmitting, error, onSubmit, options }: SubmitFormProps,
 ): ReactElement {
   const [ url, setUrl ] = useState( '' )
+  const [ choice, setChoice ] = useState< SourceType | null >( null )
+  const [ isPasting, setIsPasting ] = useState( false )
+  const [ text, setText ] = useState( '' )
+  const [ title, setTitle ] = useState( '' )
   const [ validationMessage, setValidationMessage ] = useState< string | null >( null )
   const messageId = useId()
   const message = validationMessage ?? error
+  const trimmedUrl = url.trim()
+  const detected = trimmedUrl === '' ? null : detectSourceType( trimmedUrl )
+  const type = choice ?? detected ?? 'video'
 
-  const handleChange = ( event: ChangeEvent< HTMLInputElement > ): void => {
+  const closePaste = (): void => {
+    setIsPasting( false )
+    setText( '' )
+    setTitle( '' )
+  }
+
+  const handleUrlChange = ( event: ChangeEvent< HTMLInputElement > ): void => {
     setUrl( event.target.value )
     setValidationMessage( null )
+
+    if( event.target.value.trim() === '' ) {
+      setChoice( null )
+      closePaste()
+    }
+  }
+
+  const handleTypeChange = ( next: SourceType ): void => {
+    setChoice( next )
+
+    if( next === 'video' ) {
+      closePaste()
+    }
   }
 
   const handleSubmit = ( event: SyntheticEvent< HTMLFormElement > ): void => {
     event.preventDefault()
 
-    const trimmedUrl = url.trim()
+    const body: CreateJobBody = { url: trimmedUrl }
 
-    if( !CreateJobBody.safeParse( { url: trimmedUrl } ).success ) {
-      setValidationMessage( TEXT.invalidUrl )
+    if( choice !== null && choice !== detected ) {
+      body.source_type = choice
+    }
+
+    if( isPasting ) {
+      body.text = text
+      body.title = title.trim() === '' ? undefined : title
+    }
+
+    const parsed = CreateJobBody.safeParse( body )
+
+    if( !parsed.success ) {
+      const isUrl = parsed.error.issues.some( ( { path } ) => path[ 0 ] === 'url' )
+
+      setValidationMessage( isUrl || !isPasting ? TEXT.invalidUrl : TEXT.invalidText )
       return
     }
 
-    onSubmit( trimmedUrl )
+    onSubmit( parsed.data )
   }
 
   return (
@@ -77,20 +121,30 @@ export function SubmitForm(
         fullWidth
         disabled={ isSubmitting }
         error={ validationMessage !== null }
-        onChange={ handleChange }
+        onChange={ handleUrlChange }
         slotProps={ {
           htmlInput: { 'aria-describedby': message ? messageId : undefined },
           inputLabel: { shrink: true },
         } }
       />
+      { detected !== null && (
+        <SourceTypeSwitch value={ type } onChange={ handleTypeChange } disabled={ isSubmitting } />
+      ) }
+      { detected !== null && type === 'article' && (
+        <PasteSection
+          isOpen={ isPasting }
+          disabled={ isSubmitting }
+          text={ text }
+          title={ title }
+          onOpen={ () => setIsPasting( true ) }
+          onClose={ closePaste }
+          onTextChange={ setText }
+          onTitleChange={ setTitle }
+        />
+      ) }
       { options !== undefined && <SummaryOptions { ...options } /> }
-      <Button
-        type="submit"
-        variant="contained"
-        disabled={ isSubmitting }
-        sx={ SUBMIT_SX }
-      >
-        { isSubmitting ? TEXT.submitting : TEXT.submit }
+      <Button type="submit" variant="contained" disabled={ isSubmitting } sx={ SUBMIT_SX }>
+        { isSubmitting ? TEXT.submitting : SUBMIT_LABELS[ type ] }
       </Button>
       { message && <Alert severity="error" id={ messageId }>{ message }</Alert> }
     </Box>

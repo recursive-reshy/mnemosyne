@@ -6,7 +6,7 @@ import Alert from '@mui/material/Alert'
 import Stack from '@mui/material/Stack'
 import { useLocation, useNavigate } from 'react-router'
 // Shared
-import type { Settings } from '@mnemosyne/shared'
+import type { CreateJobBody, Settings } from '@mnemosyne/shared'
 // App
 import { createJob } from '#src/api/jobs.api'
 import { useJobs } from '#src/hooks/useJobs'
@@ -59,13 +59,13 @@ export function HomePage(): ReactElement {
   const [ isSubmitting, setIsSubmitting ] = useState( false )
   const [ submitError, setSubmitError ] = useState< string | null >( null )
 
-  const handleSubmit = async ( url: string ): Promise< void > => {
+  const handleSubmit = async ( body: CreateJobBody ): Promise< void > => {
     setIsSubmitting( true )
     setSubmitError( null )
 
     try {
       const options = summaryChoices( settings, profileChoice, modelChoice )
-      const jobId = await createJob( { url, ...options } )
+      const jobId = await createJob( { ...body, ...options } )
 
       void navigate( `/jobs/${ jobId }` )
     } catch( caught ) {
@@ -83,7 +83,7 @@ export function HomePage(): ReactElement {
       <SubmitForm
         isSubmitting={ isSubmitting }
         error={ submitError }
-        onSubmit={ ( url ) => void handleSubmit( url ) }
+        onSubmit={ ( body ) => void handleSubmit( body ) }
         options={ {
           profiles,
           models,

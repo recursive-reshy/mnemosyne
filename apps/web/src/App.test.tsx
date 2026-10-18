@@ -32,7 +32,7 @@ describe( 'App', () => {
     renderWithClient( <App /> )
 
     expect( screen.getByRole( 'heading', { level: 1, name: 'Mnemosyne' } ) ).toBeInTheDocument()
-    expect( screen.getByRole( 'form', { name: 'Transcribe a video' } ) ).toBeInTheDocument()
+    expect( screen.getByRole( 'form', { name: 'Add a video or article' } ) ).toBeInTheDocument()
   } )
 
   it( 'shows the job on /jobs/:id', () => {
@@ -41,20 +41,22 @@ describe( 'App', () => {
 
     expect( screen.getByRole( 'heading', { level: 1, name: 'Mnemosyne' } ) ).toBeInTheDocument()
     expect( screen.getByRole( 'status' ) ).toHaveTextContent( 'Downloading audio…' )
-    expect( screen.queryByRole( 'form', { name: 'Transcribe a video' } ) ).not.toBeInTheDocument()
+    expect( screen.queryByRole( 'form', { name: 'Add a video or article' } ) )
+      .not.toBeInTheDocument()
   } )
 
   it( 'shows the settings page on /settings', () => {
     renderWithClient( <App />, { route: '/settings' } )
 
     expect( screen.getByRole( 'heading', { level: 2, name: 'Settings' } ) ).toBeInTheDocument()
-    expect( screen.queryByRole( 'form', { name: 'Transcribe a video' } ) ).not.toBeInTheDocument()
+    expect( screen.queryByRole( 'form', { name: 'Add a video or article' } ) )
+      .not.toBeInTheDocument()
   } )
 
   it( 'sends an unknown path to the home route', () => {
     const { location } = renderWithClient( <App />, { route: '/nowhere' } )
 
     expect( location().pathname ).toBe( '/' )
-    expect( screen.getByRole( 'form', { name: 'Transcribe a video' } ) ).toBeInTheDocument()
+    expect( screen.getByRole( 'form', { name: 'Add a video or article' } ) ).toBeInTheDocument()
   } )
 } )

@@ -78,7 +78,8 @@ describe( 'JobPage', () => {
     renderPage()
 
     expect( lastUseJobArgument() ).toBe( jobId )
-    expect( screen.queryByRole( 'form', { name: 'Transcribe a video' } ) ).not.toBeInTheDocument()
+    expect( screen.queryByRole( 'form', { name: 'Add a video or article' } ) )
+      .not.toBeInTheDocument()
   } )
 
   it( 'redirects an invalid job id to the home page', () => {

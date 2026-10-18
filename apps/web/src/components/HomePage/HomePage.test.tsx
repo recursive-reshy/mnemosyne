@@ -46,7 +46,7 @@ describe( 'HomePage', () => {
   it( 'shows the submit form', () => {
     renderWithClient( <HomePage /> )
 
-    expect( screen.getByRole( 'form', { name: 'Transcribe a video' } ) ).toBeInTheDocument()
+    expect( screen.getByRole( 'form', { name: 'Add a video or article' } ) ).toBeInTheDocument()
   } )
 
   it( 'lists the jobs under the form', () => {
@@ -89,7 +89,7 @@ describe( 'HomePage', () => {
     const { location } = renderWithClient( <HomePage /> )
     const user = userEvent.setup()
 
-    await user.type( screen.getByRole( 'textbox', { name: 'Video URL' } ), validUrl )
+    await user.type( screen.getByRole( 'textbox', { name: 'URL' } ), validUrl )
     await user.click( screen.getByRole( 'button', { name: 'Transcribe' } ) )
 
     expect( mockedCreateJob ).toHaveBeenCalledWith( { url: validUrl } )
@@ -108,7 +108,7 @@ describe( 'HomePage', () => {
     const { location } = renderWithClient( <HomePage /> )
     const user = userEvent.setup()
 
-    await user.type( screen.getByRole( 'textbox', { name: 'Video URL' } ), validUrl )
+    await user.type( screen.getByRole( 'textbox', { name: 'URL' } ), validUrl )
     await user.click( screen.getByRole( 'button', { name: 'Transcribe' } ) )
 
     expect( await screen.findByRole( 'alert' ) ).toHaveTextContent( 'Could not reach the server' )
@@ -119,7 +119,7 @@ describe( 'HomePage', () => {
 
 describe( 'HomePage, summary options', () => {
   const submit = async ( user: ReturnType< typeof userEvent.setup > ): Promise< void > => {
-    await user.type( screen.getByRole( 'textbox', { name: 'Video URL' } ), validUrl )
+    await user.type( screen.getByRole( 'textbox', { name: 'URL' } ), validUrl )
     await user.click( screen.getByRole( 'button', { name: 'Transcribe' } ) )
   }
 
@@ -219,5 +219,58 @@ describe( 'HomePage, summary options', () => {
     await submit( user )
 
     expect( mockedCreateJob ).toHaveBeenCalledExactlyOnceWith( { url: validUrl } )
+  } )
+} )
+
+describe( 'HomePage, articles', () => {
+  const articleUrl = 'https://example.com/posts/ownership'
+  const pasted = 'Pasted words go here. '.repeat( 15 )
+
+  beforeEach( () => {
+    mockedCreateJob.mockResolvedValue( newJobId )
+  } )
+
+  it( 'submits an article URL without a source_type and goes to the job', async () => {
+    const user = userEvent.setup()
+    const { location } = renderWithClient( <HomePage /> )
+
+    await user.type( screen.getByRole( 'textbox', { name: 'URL' } ), articleUrl )
+    await user.click( screen.getByRole( 'button', { name: 'Summarize' } ) )
+
+    expect( mockedCreateJob ).toHaveBeenCalledExactlyOnceWith( { url: articleUrl } )
+    await vi.waitFor( () => expect( location().pathname ).toBe( `/jobs/${ newJobId }` ) )
+  } )
+
+  it( 'sends the type override and pasted text together with a changed model', async () => {
+    const user = userEvent.setup()
+    renderWithClient( <HomePage /> )
+
+    await user.type( screen.getByRole( 'textbox', { name: 'URL' } ), validUrl )
+    await user.click( screen.getByRole( 'button', { name: 'Article' } ) )
+    await user.click( screen.getByRole( 'button', { name: 'Paste text instead' } ) )
+    await user.click( screen.getByRole( 'textbox', { name: 'Article text' } ) )
+    await user.paste( pasted )
+    await user.click( screen.getByRole( 'combobox', { name: 'Model' } ) )
+    await user.click( screen.getByRole( 'option', { name: 'Claude Opus 5.5' } ) )
+    await user.click( screen.getByRole( 'button', { name: 'Summarize' } ) )
+
+    expect( mockedCreateJob ).toHaveBeenCalledExactlyOnceWith( {
+      url: validUrl,
+      source_type: 'article',
+      text: pasted.trim(),
+      model: 'claude-opus-5-5',
+    } )
+  } )
+
+  it( 'shows a server error from an article submission', async () => {
+    const user = userEvent.setup()
+    mockedCreateJob.mockRejectedValue( new ApiError( 'Pasted text is only for articles', 400 ) )
+    renderWithClient( <HomePage /> )
+
+    await user.type( screen.getByRole( 'textbox', { name: 'URL' } ), articleUrl )
+    await user.click( screen.getByRole( 'button', { name: 'Summarize' } ) )
+
+    expect( await screen.findByRole( 'alert' ) )
+      .toHaveTextContent( 'Pasted text is only for articles' )
   } )
 } )
