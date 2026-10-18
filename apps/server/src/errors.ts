@@ -26,6 +26,13 @@ export class ConflictError extends Error {
   }
 }
 
+export class BadGatewayError extends Error {
+  constructor( message: string ) {
+    super( message )
+    this.name = 'BadGatewayError'
+  }
+}
+
 const sendError = ( res: Response, status: number, body: ErrorResponse ): void => {
   res.status( status ).json( body )
 }
@@ -65,6 +72,8 @@ export const errorMiddleware = (
     sendError( res, 404, { error: error.message } )
   } else if( error instanceof ConflictError ) {
     sendError( res, 409, { error: error.message } )
+  } else if( error instanceof BadGatewayError ) {
+    sendError( res, 502, { error: error.message } )
   } else if( isTooLarge( error ) ) {
     sendError( res, 413, { error: 'Request body is too large' } )
   } else if( isJsonParseFailure( error ) ) {

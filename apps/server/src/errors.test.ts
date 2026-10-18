@@ -16,6 +16,7 @@ import express, {
 import { z } from 'zod'
 // Errors
 import {
+  BadGatewayError,
   ConflictError,
   NotFoundError,
   ValidationError,
@@ -35,6 +36,9 @@ const buildApp = (): Express => {
   testApp.get( '/conflict', () => {
     throw new ConflictError( 'Job not done' )
   } )
+  testApp.get( '/bad-gateway', () => {
+    throw new BadGatewayError( "Couldn't reach the site" )
+  } )
   testApp.get( '/zod', () => {
     z.object( { url: z.string() } ).parse( { url: 42 } )
   } )
@@ -53,6 +57,15 @@ const buildApp = (): Express => {
 
 afterEach( () => {
   vi.restoreAllMocks()
+} )
+
+describe( 'errorMiddleware, bad gateway', () => {
+  it( 'maps BadGatewayError to 502 with its message', async () => {
+    const response = await request( buildApp() ).get( '/bad-gateway' )
+
+    expect( response.status ).toBe( 502 )
+    expect( response.body ).toEqual( { error: "Couldn't reach the site" } )
+  } )
 } )
 
 describe( 'errorMiddleware', () => {

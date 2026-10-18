@@ -6,7 +6,14 @@ import type {
   UpdateFeedBody,
 } from '@mnemosyne/shared'
 // Errors
-import { ConflictError, NotFoundError } from '../errors.js'
+import { BadGatewayError, ConflictError, NotFoundError } from '../errors.js'
+// Clients
+import {
+  HttpStatusError,
+  RedirectError,
+  TooLargeError,
+  UnreachableError,
+} from '../clients/http.client.js'
 // Repositories
 import { inTransaction } from '../repositories/database.js'
 import {
@@ -40,6 +47,20 @@ import { assertActiveProfile } from './prompts.service.js'
 import { getSettings } from './settings.service.js'
 
 const MAX_NEW_ITEMS_PER_CHECK = 10
+
+// A site that can't be read is the site's problem, not a bad request.
+const discover = async ( url: string ): ReturnType< typeof discoverFeed > => {
+  try {
+    return await discoverFeed( url )
+  } catch( error ) {
+    if( error instanceof UnreachableError || error instanceof HttpStatusError
+      || error instanceof TooLargeError || error instanceof RedirectError ) {
+      throw new BadGatewayError( error.message )
+    }
+
+    throw error
+  }
+}
 
 const toPublicFeed = ( feed: StoredFeed ): Feed => {
   return {
@@ -121,7 +142,7 @@ const queueAutomatically = async ( feed: StoredFeed, items: StoredFeedItem[] ): 
 }
 
 export const previewFeed = async ( url: string ): Promise< PreviewFeedResponse > => {
-  const found = await discoverFeed( url )
+  const found = await discover( url )
   const items = found.items.map( toFeedItem )
   const latest = items[ newestIndex( items ) ]
 
@@ -141,7 +162,7 @@ export const createFeed = async ( body: CreateFeedBody ): Promise< Feed > => {
     assertActiveProfile( body.profile_id )
   }
 
-  const found = await discoverFeed( body.url )
+  const found = await discover( body.url )
 
   if( findActiveFeedByFeedUrl( found.feedUrl ) !== undefined ) {
     throw new ConflictError( 'This feed was already added' )

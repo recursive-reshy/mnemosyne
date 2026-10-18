@@ -11,6 +11,7 @@ import {
 } from 'vitest'
 // Errors
 import {
+  BadGatewayError,
   ConflictError,
   NotFoundError,
   ValidationError,
@@ -171,6 +172,7 @@ describe( 'previewFeed', () => {
   it( 'passes on an unreachable site', async () => {
     serve( { [ feedUrl ]: { error: new UnreachableError() } } )
 
+    await expect( previewFeed( feedUrl ) ).rejects.toThrow( BadGatewayError )
     await expect( previewFeed( feedUrl ) ).rejects.toThrow( "Couldn't reach the site" )
   } )
 } )
@@ -272,7 +274,7 @@ describe( 'createFeed', () => {
   it( 'stores nothing when the address has no feed or is unreachable', async () => {
     serve( { [ feedUrl ]: { error: new UnreachableError() } } )
 
-    await expect( createFeed( { url: feedUrl } ) ).rejects.toThrow( UnreachableError )
+    await expect( createFeed( { url: feedUrl } ) ).rejects.toThrow( BadGatewayError )
     expect( listStoredFeeds() ).toEqual( [] )
   } )
 } )
