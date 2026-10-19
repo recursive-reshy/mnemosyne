@@ -7,6 +7,7 @@ import Typography from '@mui/material/Typography'
 // App
 import { useSettings } from '#src/hooks/useSettings'
 import { FeedSettings } from '../FeedSettings'
+import { GmailSettings } from '../GmailSettings'
 import { LockedInstructions } from '../LockedInstructions'
 import { PromptProfiles } from '../PromptProfiles'
 import { SummarizerDefaults } from '../SummarizerDefaults'
@@ -25,6 +26,7 @@ export function SettingsPage(): ReactElement {
           <SummarizerDefaults />
           <PromptProfiles />
           <FeedSettings />
+          <GmailSettings />
           { lockedInstructions !== null && (
             <>
               <LockedInstructions

@@ -19,6 +19,7 @@ vi.mock( '#src/hooks/useSettings' )
 vi.mock( '../SummarizerDefaults', () => ( { SummarizerDefaults: () => <p>defaults</p> } ) )
 vi.mock( '../PromptProfiles', () => ( { PromptProfiles: () => <p>profiles</p> } ) )
 vi.mock( '../FeedSettings', () => ( { FeedSettings: () => <p>feeds</p> } ) )
+vi.mock( '../GmailSettings', () => ( { GmailSettings: () => <p>gmail</p> } ) )
 vi.mock( '../LockedInstructions', () => ( {
   LockedInstructions: ( { title, text }: { title?: string, text: string } ) => (
     <p>{ `${ title ?? 'locked' }: ${ text }` }</p>
@@ -51,6 +52,7 @@ describe( 'SettingsPage', () => {
     expect( screen.getByText( 'defaults' ) ).toBeInTheDocument()
     expect( screen.getByText( 'profiles' ) ).toBeInTheDocument()
     expect( screen.getByText( 'feeds' ) ).toBeInTheDocument()
+    expect( screen.getByText( 'gmail' ) ).toBeInTheDocument()
     const locked = settingsFixture().locked_instructions
     const sends = 'Instructions the app always sends'
 
@@ -67,6 +69,7 @@ describe( 'SettingsPage', () => {
 
     expect( screen.getByRole( 'status' ) ).toHaveTextContent( 'Loading settings…' )
     expect( screen.queryByText( 'defaults' ) ).not.toBeInTheDocument()
+    expect( screen.queryByText( 'gmail' ) ).not.toBeInTheDocument()
   } )
 
   it( 'shows an error when the settings cannot be loaded', () => {
