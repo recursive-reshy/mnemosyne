@@ -36,7 +36,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 3.2 | Repositories: `gmailAccount`, `gmailSources`, `gmailMessages`, `postings`, `extractionRuns`; `jobStore` Gmail source column and name join; `apps/server/CLAUDE.md` repositories line (TRD §3.2) | 0035, 0037, 0038 | ✅ |
 
 ## Checkpoint B: Phases 4–5 (Gmail connection, server and web)
-**Plan:** ⬜ [`plans/checkpoint-b.md`](plans/checkpoint-b.md)
+**Plan:** ✅ [`plans/checkpoint-b.md`](plans/checkpoint-b.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
