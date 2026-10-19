@@ -12,7 +12,7 @@ RUN corepack enable && corepack prepare pnpm@11.24.0 --activate
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/server/package.json apps/server/tsconfig.json apps/server/tsconfig.build.json apps/server/
 COPY packages/shared/package.json packages/shared/tsconfig.json packages/shared/tsconfig.build.json packages/shared/
-COPY apps/web/package.json apps/web/tsconfig.json apps/web/tsconfig.app.json apps/web/tsconfig.node.json apps/web/vite.config.ts apps/web/index.html apps/web/
+COPY apps/web/package.json apps/web/tsconfig.json apps/web/tsconfig.app.json apps/web/tsconfig.browser.json apps/web/tsconfig.node.json apps/web/vite.config.ts apps/web/index.html apps/web/
 RUN pnpm install --frozen-lockfile
 
 COPY apps/server/src apps/server/src
