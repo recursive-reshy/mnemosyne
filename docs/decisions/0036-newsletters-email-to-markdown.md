@@ -1,6 +1,6 @@
 # 0036. Newsletters: email to Markdown with Readability first and unwrapped layout tables as fallback
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-19
 
 ## Context

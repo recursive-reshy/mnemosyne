@@ -1,6 +1,6 @@
 # 0037. Job postings: Claude extraction into fixed columns plus JSON, deduplicated by platform job ID
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-19
 
 ## Context

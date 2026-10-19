@@ -1,6 +1,6 @@
 # 0035. Gmail intake: `@googleapis/gmail`, server-side OAuth, an encrypted refresh token, and a date-window sync
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-19
 
 ## Context

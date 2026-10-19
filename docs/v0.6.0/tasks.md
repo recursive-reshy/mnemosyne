@@ -25,7 +25,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
 | **Phase 1** | **Kick-off** | | |
-| 1.1 | Set ADRs 0035–0038 to Accepted (Status lines and the `docs/README.md` index, listed as Proposed); mark 0032 as amended by 0038 in the index and its file | 0035–0038 | ⬜ |
+| 1.1 | Set ADRs 0035–0038 to Accepted (Status lines and the `docs/README.md` index, listed as Proposed); mark 0032 as amended by 0038 in the index and its file | 0035–0038 | ✅ |
 | **Phase 2** | **Shared contracts** | | |
 | 2.1 | `gmail.ts` (account, labels, match, sources, preview, create/update bodies with their refinements), with tests (TRD §2.1) | 0035 | ⬜ |
 | 2.2 | `inbox.ts` (`InboxItemRef`, `InboxItem`, list/summarize/dismiss); remove the `FeedItem` contracts from `feeds.ts` and repoint their web imports to compile against the new types (behaviour unchanged until 8.5) (TRD §2.2) | 0038 | ⬜ |
@@ -118,3 +118,5 @@ Needs the real fixtures from TRD §9.2, saved by Naresh with `fixture:gmail`. Ch
 ---
 
 ## Log
+
+- 1.1: ADRs 0035–0038 set to Accepted in their files and the index; 0032 marked amended by 0038 in its file and the index. Docs only.

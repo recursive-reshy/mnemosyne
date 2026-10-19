@@ -49,13 +49,13 @@ Each significant decision is recorded as a short ADR (Architecture Decision Reco
 | [0029](decisions/0029-summary-runs-and-regeneration.md) | Summary runs: provenance and cost in the database, and regenerating a summary | Accepted |
 | [0030](decisions/0030-source-adapters-and-intakes.md) | Source adapters and intakes: one `SourceDocument` for every source | Accepted |
 | [0031](decisions/0031-article-extraction.md) | Article extraction: Readability on linkedom, turndown to Markdown, fetch limits | Accepted |
-| [0032](decisions/0032-rss-feeds-inbox-poller.md) | RSS feeds with feedsmith, an inbox before summarizing, and a separate poller | Accepted |
+| [0032](decisions/0032-rss-feeds-inbox-poller.md) | RSS feeds with feedsmith, an inbox before summarizing, and a separate poller | Accepted (amended by 0038) |
 | [0033](decisions/0033-browser-mode-tests.md) | Browser-mode tests with Vitest and Playwright for real-DOM behaviour | Accepted |
 | [0034](decisions/0034-caret-sync-paragraph-and-front-matter.md) | Caret sync: match paragraphs by whole second, and ignore the front-matter | Accepted |
-| [0035](decisions/0035-gmail-intake.md) | Gmail intake: `@googleapis/gmail`, server-side OAuth, an encrypted refresh token, and a date-window sync | Proposed |
-| [0036](decisions/0036-newsletters-email-to-markdown.md) | Newsletters: email to Markdown with Readability first and unwrapped layout tables as fallback | Proposed |
-| [0037](decisions/0037-job-postings-dataset.md) | Job postings: Claude extraction into fixed columns plus JSON, deduplicated by platform job ID | Proposed |
-| [0038](decisions/0038-unified-inbox.md) | One inbox for feed items and newsletter emails | Proposed |
+| [0035](decisions/0035-gmail-intake.md) | Gmail intake: `@googleapis/gmail`, server-side OAuth, an encrypted refresh token, and a date-window sync | Accepted |
+| [0036](decisions/0036-newsletters-email-to-markdown.md) | Newsletters: email to Markdown with Readability first and unwrapped layout tables as fallback | Accepted |
+| [0037](decisions/0037-job-postings-dataset.md) | Job postings: Claude extraction into fixed columns plus JSON, deduplicated by platform job ID | Accepted |
+| [0038](decisions/0038-unified-inbox.md) | One inbox for feed items and newsletter emails | Accepted |
 
 ## Template for new ADRs
 

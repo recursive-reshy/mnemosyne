@@ -1,6 +1,6 @@
 # 0038. One inbox for feed items and newsletter emails
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-19
 
 ## Context
