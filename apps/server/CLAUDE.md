@@ -34,6 +34,7 @@ Parsed once with Zod in `config.ts`; nothing else reads `process.env`. `.env.exa
 - `WHISPER_URL` is `http://host.docker.internal:8178` in Docker. `DATA_DIR` is `/data` (a named volume) and `VAULT_PATH` is `/vault` (bind-mounted from `VAULT_HOST_PATH`) in Docker.
 - `ANTHROPIC_API_KEY` and `VAULT_PATH` are required; the vault must exist and be writable at startup, or the server exits with a message. The key lives in `.env` only.
 - `DEFAULT_NOTE_FOLDER` is validated at startup with the shared folder rules and created if missing.
+- Gmail (ADR 0035) is optional: `config.gmail` is `null` unless `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `TOKEN_ENCRYPTION_KEY` (32 bytes, base64) are all set. A key that is set but isn't 32 bytes stops startup. `GOOGLE_REDIRECT_URI` defaults to the callback on `PORT`.
 - `WEB_DIR`: empty in development (Vite serves the web app). When set, Express serves it, with an `index.html` fallback for paths without an extension.
 
 ## Folder structure

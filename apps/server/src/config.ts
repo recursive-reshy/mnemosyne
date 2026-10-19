@@ -24,6 +24,17 @@ const noteFolderSchema = z
   .refine( isFolderPath, 'must be a folder path inside the vault, like Notes/Videos' )
   .default( 'Mnemosyne' )
 
+const KEY_MESSAGE = 'TOKEN_ENCRYPTION_KEY must be 32 bytes in base64 (openssl rand -base64 32)'
+
+const isKey = ( value: string ): boolean => {
+  return /^[A-Za-z0-9+/]+={0,2}$/.test( value ) && Buffer.from( value, 'base64' ).length === 32
+}
+
+const encryptionKeySchema = z
+  .string()
+  .refine( isKey, KEY_MESSAGE )
+  .transform( ( value ) => Buffer.from( value, 'base64' ) )
+
 const EnvSchema = z
   .object( {
     PORT: z.preprocess( emptyAsUnset, portSchema ),
@@ -38,6 +49,10 @@ const EnvSchema = z
     SUMMARY_TIMEOUT_MS: z.preprocess( emptyAsUnset, summaryTimeoutSchema ),
     REVIEW_TTL_HOURS: z.preprocess( emptyAsUnset, reviewTtlSchema ),
     CLEANUP_INTERVAL_MINUTES: z.preprocess( emptyAsUnset, cleanupIntervalSchema ),
+    GOOGLE_CLIENT_ID: z.preprocess( emptyAsUnset, z.string().min( 1 ).optional() ),
+    GOOGLE_CLIENT_SECRET: z.preprocess( emptyAsUnset, z.string().min( 1 ).optional() ),
+    GOOGLE_REDIRECT_URI: z.preprocess( emptyAsUnset, z.url().optional() ),
+    TOKEN_ENCRYPTION_KEY: z.preprocess( emptyAsUnset, encryptionKeySchema.optional() ),
   } )
   .transform( ( env ) => ( {
     port: env.PORT,
@@ -52,6 +67,17 @@ const EnvSchema = z
     summaryTimeoutMs: env.SUMMARY_TIMEOUT_MS,
     reviewTtlHours: env.REVIEW_TTL_HOURS,
     cleanupIntervalMinutes: env.CLEANUP_INTERVAL_MINUTES,
+    gmail: env.GOOGLE_CLIENT_ID !== undefined
+      && env.GOOGLE_CLIENT_SECRET !== undefined
+      && env.TOKEN_ENCRYPTION_KEY !== undefined
+      ? {
+        clientId: env.GOOGLE_CLIENT_ID,
+        clientSecret: env.GOOGLE_CLIENT_SECRET,
+        redirectUri: env.GOOGLE_REDIRECT_URI
+          ?? `http://localhost:${ env.PORT }/api/gmail/oauth/callback`,
+        encryptionKey: env.TOKEN_ENCRYPTION_KEY,
+      }
+      : null,
   } ) )
 
 export type Config = z.infer< typeof EnvSchema >

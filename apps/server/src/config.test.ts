@@ -23,6 +23,7 @@ describe( 'loadConfig', () => {
       summaryTimeoutMs: 300_000,
       reviewTtlHours: 24,
       cleanupIntervalMinutes: 15,
+      gmail: null,
     } )
   } )
 
@@ -55,6 +56,7 @@ describe( 'loadConfig', () => {
       summaryTimeoutMs: 60_000,
       reviewTtlHours: 48,
       cleanupIntervalMinutes: 5,
+      gmail: null,
     } )
   } )
 
@@ -136,6 +138,78 @@ describe( 'loadConfig', () => {
     expect( () => loadConfig( { ...base, CLEANUP_INTERVAL_MINUTES: value } ) ).toThrow(
       /CLEANUP_INTERVAL_MINUTES/,
     )
+  } )
+
+  describe( 'gmail', () => {
+    const key = Buffer.alloc( 32, 7 ).toString( 'base64' )
+    const google = {
+      GOOGLE_CLIENT_ID: 'id.apps.googleusercontent.com',
+      GOOGLE_CLIENT_SECRET: 'secret',
+      TOKEN_ENCRYPTION_KEY: key,
+    }
+
+    it( 'is null when nothing is set', () => {
+      expect( loadConfig( base ).gmail ).toBeNull()
+    } )
+
+    it.each( [
+      [ 'only the client ID', { GOOGLE_CLIENT_ID: 'id' } ],
+      [ 'no encryption key', { GOOGLE_CLIENT_ID: 'id', GOOGLE_CLIENT_SECRET: 's' } ],
+      [ 'no client secret', { GOOGLE_CLIENT_ID: 'id', TOKEN_ENCRYPTION_KEY: key } ],
+      [ 'no client ID', { GOOGLE_CLIENT_SECRET: 's', TOKEN_ENCRYPTION_KEY: key } ],
+    ] )( 'is null with %s', ( _name, env ) => {
+      expect( loadConfig( { ...base, ...env } ).gmail ).toBeNull()
+    } )
+
+    it( 'is set when the ID, secret and key are present, with the default redirect URI', () => {
+      const { gmail } = loadConfig( { ...base, ...google, PORT: '4000' } )
+
+      expect( gmail ).toEqual( {
+        clientId: google.GOOGLE_CLIENT_ID,
+        clientSecret: 'secret',
+        redirectUri: 'http://localhost:4000/api/gmail/oauth/callback',
+        encryptionKey: Buffer.alloc( 32, 7 ),
+      } )
+      expect( gmail?.encryptionKey ).toHaveLength( 32 )
+    } )
+
+    it( 'uses GOOGLE_REDIRECT_URI when set', () => {
+      const { gmail } = loadConfig( {
+        ...base,
+        ...google,
+        GOOGLE_REDIRECT_URI: 'http://localhost:5000/cb',
+      } )
+
+      expect( gmail?.redirectUri ).toBe( 'http://localhost:5000/cb' )
+    } )
+
+    it( 'treats empty strings as unset', () => {
+      const { gmail } = loadConfig( {
+        ...base,
+        GOOGLE_CLIENT_ID: '',
+        GOOGLE_CLIENT_SECRET: '',
+        GOOGLE_REDIRECT_URI: '',
+        TOKEN_ENCRYPTION_KEY: '',
+      } )
+
+      expect( gmail ).toBeNull()
+    } )
+
+    it.each( [
+      [ '31 bytes', Buffer.alloc( 31, 1 ).toString( 'base64' ) ],
+      [ '33 bytes', Buffer.alloc( 33, 1 ).toString( 'base64' ) ],
+      [ 'not base64', 'not base64 at all!' ],
+    ] )( 'throws for a TOKEN_ENCRYPTION_KEY of %s', ( _name, value ) => {
+      expect( () => loadConfig( { ...base, TOKEN_ENCRYPTION_KEY: value } ) ).toThrow(
+        'TOKEN_ENCRYPTION_KEY must be 32 bytes in base64 (openssl rand -base64 32)',
+      )
+    } )
+
+    it( 'throws naming GOOGLE_REDIRECT_URI for an invalid URL', () => {
+      expect( () => loadConfig( { ...base, GOOGLE_REDIRECT_URI: 'nope' } ) ).toThrow(
+        /GOOGLE_REDIRECT_URI/,
+      )
+    } )
   } )
 
   it( 'ignores unrelated variables', () => {
