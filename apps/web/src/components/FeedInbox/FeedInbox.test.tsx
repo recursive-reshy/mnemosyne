@@ -30,6 +30,8 @@ vi.mock( '#src/hooks/useModels' )
 vi.mock( '#src/hooks/usePromptProfiles' )
 
 const SECOND_ID = '5b6c7d8e-9f0a-4b1c-8d2e-3f4a5b6c7d8e'
+
+const ref = ( id: string ): { kind: 'feed', id: string } => ( { kind: 'feed', id } )
 const items = [
   feedItemFixture(),
   feedItemFixture( {
@@ -123,7 +125,10 @@ describe( 'FeedInbox', () => {
     await user.click( screen.getByRole( 'checkbox', { name: 'Select all' } ) )
     await user.click( screen.getByRole( 'button', { name: 'Dismiss selected' } ) )
 
-    expect( dismiss ).toHaveBeenCalledWith( [ ITEM_ID, SECOND_ID ], expect.any( Object ) )
+    expect( dismiss ).toHaveBeenCalledWith(
+      [ ref( ITEM_ID ), ref( SECOND_ID ) ],
+      expect.any( Object ),
+    )
   } )
 
   it( 'dismisses one item from its own button', async () => {
@@ -131,7 +136,7 @@ describe( 'FeedInbox', () => {
 
     await user.click( screen.getByRole( 'button', { name: 'Dismiss A video' } ) )
 
-    expect( dismiss ).toHaveBeenCalledWith( [ SECOND_ID ], expect.any( Object ) )
+    expect( dismiss ).toHaveBeenCalledWith( [ ref( SECOND_ID ) ], expect.any( Object ) )
   } )
 
   it( 'drops items that left the inbox from the selection', async () => {
@@ -167,7 +172,7 @@ describe( 'FeedInbox', () => {
     await user.click( screen.getByRole( 'button', { name: 'Summarize' } ) )
 
     expect( summarize ).toHaveBeenCalledWith(
-      { ids: [ ITEM_ID, SECOND_ID ] },
+      { items: [ ref( ITEM_ID ), ref( SECOND_ID ) ] },
       expect.any( Object ),
     )
   } )
@@ -179,7 +184,10 @@ describe( 'FeedInbox', () => {
     expect( screen.getByText( '1 item will become a job.' ) ).toBeInTheDocument()
     await user.click( screen.getByRole( 'button', { name: 'Summarize' } ) )
 
-    expect( summarize ).toHaveBeenCalledWith( { ids: [ SECOND_ID ] }, expect.any( Object ) )
+    expect( summarize ).toHaveBeenCalledWith(
+      { items: [ ref( SECOND_ID ) ] },
+      expect.any( Object ),
+    )
   } )
 
   it( 'closes the dialog on cancel without summarizing', async () => {

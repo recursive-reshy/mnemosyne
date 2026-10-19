@@ -1,5 +1,7 @@
 // Shared
-import type { Feed, FeedItem } from '@mnemosyne/shared'
+import type { Feed } from '@mnemosyne/shared'
+// App
+import type { FeedInboxItem } from '../api/feedItems.api'
 
 export const FEED_ID = '7d1f2a3b-4c5d-4e6f-8a9b-0c1d2e3f4a5b'
 export const ITEM_ID = '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d'
@@ -22,8 +24,9 @@ export const feedFixture = ( overrides: Partial< Feed > = {} ): Feed => {
   }
 }
 
-export const feedItemFixture = ( overrides: Partial< FeedItem > = {} ): FeedItem => {
+export const feedItemFixture = ( overrides: Partial< FeedInboxItem > = {} ): FeedInboxItem => {
   return {
+    kind: 'feed',
     id: ITEM_ID,
     feed_id: FEED_ID,
     feed_name: 'Example Blog',

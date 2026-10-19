@@ -20,6 +20,7 @@ import { useSummarizeFeedItems } from './useSummarizeFeedItems'
 vi.mock( '../api/feedItems.api' )
 
 const mockedSummarize = vi.mocked( summarizeFeedItems )
+const ref = { kind: 'feed' as const, id: ITEM_ID }
 
 beforeEach( () => {
   mockedSummarize.mockReset()
@@ -30,7 +31,7 @@ describe( 'useSummarizeFeedItems', () => {
     mockedSummarize.mockResolvedValue( [ jobFixture() ] )
     const { result, queryClient } = renderHookWithClient( () => useSummarizeFeedItems() )
     const invalidate = vi.spyOn( queryClient, 'invalidateQueries' )
-    const body = { ids: [ ITEM_ID ], profile_id: '3f2b8c1e-5d4a-4e6f-9a7b-1c2d3e4f5a6b' }
+    const body = { items: [ ref ], profile_id: '3f2b8c1e-5d4a-4e6f-9a7b-1c2d3e4f5a6b' }
 
     act( () => result.current.mutate( body ) )
 
@@ -46,7 +47,7 @@ describe( 'useSummarizeFeedItems', () => {
     const { result, queryClient } = renderHookWithClient( () => useSummarizeFeedItems() )
     const invalidate = vi.spyOn( queryClient, 'invalidateQueries' )
 
-    act( () => result.current.mutate( { ids: [ ITEM_ID ] } ) )
+    act( () => result.current.mutate( { items: [ ref ] } ) )
 
     await vi.waitFor( () => expect( result.current.isError ).toBe( true ) )
     expect( result.current.error?.message ).toBe( 'Not in the inbox: abc' )

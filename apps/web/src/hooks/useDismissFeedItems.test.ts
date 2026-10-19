@@ -19,6 +19,7 @@ import { useDismissFeedItems } from './useDismissFeedItems'
 vi.mock( '../api/feedItems.api' )
 
 const mockedDismiss = vi.mocked( dismissFeedItems )
+const ref = { kind: 'feed' as const, id: ITEM_ID }
 
 beforeEach( () => {
   mockedDismiss.mockReset()
@@ -30,10 +31,10 @@ describe( 'useDismissFeedItems', () => {
     const { result, queryClient } = renderHookWithClient( () => useDismissFeedItems() )
     const invalidate = vi.spyOn( queryClient, 'invalidateQueries' )
 
-    act( () => result.current.mutate( [ ITEM_ID ] ) )
+    act( () => result.current.mutate( [ ref ] ) )
 
     await vi.waitFor( () => expect( result.current.isSuccess ).toBe( true ) )
-    expect( mockedDismiss ).toHaveBeenCalledWith( [ ITEM_ID ] )
+    expect( mockedDismiss ).toHaveBeenCalledWith( [ ref ] )
     expect( invalidate ).toHaveBeenCalledWith( { queryKey: feedKeys.inbox } )
     expect( invalidate ).toHaveBeenCalledWith( { queryKey: feedKeys.all } )
   } )
@@ -42,7 +43,7 @@ describe( 'useDismissFeedItems', () => {
     mockedDismiss.mockRejectedValue( new ApiError( 'Could not reach the server', null ) )
     const { result } = renderHookWithClient( () => useDismissFeedItems() )
 
-    act( () => result.current.mutate( [ ITEM_ID ] ) )
+    act( () => result.current.mutate( [ ref ] ) )
 
     await vi.waitFor( () => expect( result.current.isError ).toBe( true ) )
     expect( result.current.error?.message ).toBe( 'Could not reach the server' )

@@ -28,7 +28,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 1.1 | Set ADRs 0035–0038 to Accepted (Status lines and the `docs/README.md` index, listed as Proposed); mark 0032 as amended by 0038 in the index and its file | 0035–0038 | ✅ |
 | **Phase 2** | **Shared contracts** | | |
 | 2.1 | `gmail.ts` (account, labels, match, sources, preview, create/update bodies with their refinements), with tests (TRD §2.1) | 0035 | ✅ |
-| 2.2 | `inbox.ts` (`InboxItemRef`, `InboxItem`, list/summarize/dismiss); remove the `FeedItem` contracts from `feeds.ts` and repoint their web imports to compile against the new types (behaviour unchanged until 8.5) (TRD §2.2) | 0038 | ⬜ |
+| 2.2 | `inbox.ts` (`InboxItemRef`, `InboxItem`, list/summarize/dismiss); remove the `FeedItem` contracts from `feeds.ts` and repoint their web imports to compile against the new types (behaviour unchanged until 8.5) (TRD §2.2) | 0038, 0039 | ✅ |
 | 2.3 | `postings.ts` (`PostingDetails`, `Posting`, list query/response, `AlertEmail`, sightings), with tests (TRD §2.3) | 0037 | ⬜ |
 | 2.4 | `ArticleMeta.origin` gains `email`; `Job` gains `gmail_source_id` / `gmail_source_name` (server returns null until 3.2); `Settings` gains `extraction_model` (TRD §2.4) | 0035, 0037 | ⬜ |
 | **Phase 3** | **Server data** | | |
@@ -121,3 +121,4 @@ Needs the real fixtures from TRD §9.2, saved by Naresh with `fixture:gmail`. Ch
 
 - 1.1: ADRs 0035–0038 set to Accepted in their files and the index; 0032 marked amended by 0038 in its file and the index. Docs only.
 - 2.1: `gmail.ts` added to shared with 26 tests; no existing tests changed. Shared test, lint and typecheck pass.
+- 2.2: `inbox.ts` added to shared (32 tests); the `FeedItem` contracts moved to `apps/server/src/services/feedItems.schemas.ts` (ADR 0039, which corrects TRD §2.2: the server also used them). Tests moved: the four `FeedItem*` describe blocks from shared `feeds.test.ts` to `feedItems.schemas.test.ts`. Changed: `feeds.routes.test.ts` imports, and the web `feedItems.api`, `useSummarizeFeedItems`, `useDismissFeedItems` and `FeedInbox` tests for the ref shape (`kind: 'feed'`), `feed.fixture.ts` adds `kind`. Shared, server and web test, lint and typecheck pass.

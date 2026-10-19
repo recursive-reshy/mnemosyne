@@ -2,7 +2,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { UseMutationResult } from '@tanstack/react-query'
 // Shared
-import type { Job, SummarizeFeedItemsBody } from '@mnemosyne/shared'
+import type { Job, SummarizeInboxBody } from '@mnemosyne/shared'
 // App
 import { summarizeFeedItems } from '../api/feedItems.api'
 import { feedKeys, jobKeys } from './queryKeys'
@@ -10,12 +10,12 @@ import { feedKeys, jobKeys } from './queryKeys'
 export function useSummarizeFeedItems(): UseMutationResult<
   Job[],
   Error,
-  SummarizeFeedItemsBody
+  SummarizeInboxBody
 > {
   const queryClient = useQueryClient()
 
   return useMutation( {
-    mutationFn: ( body: SummarizeFeedItemsBody ) => summarizeFeedItems( body ),
+    mutationFn: ( body: SummarizeInboxBody ) => summarizeFeedItems( body ),
     onSuccess: async () => {
       await Promise.all( [
         queryClient.invalidateQueries( { queryKey: jobKeys.all, exact: true } ),

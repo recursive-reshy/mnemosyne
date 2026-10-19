@@ -16,8 +16,9 @@ import ListItem from '@mui/material/ListItem'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 // Shared
-import type { FeedItem } from '@mnemosyne/shared'
+import type { InboxItemRef } from '@mnemosyne/shared'
 // App
+import type { FeedInboxItem } from '#src/api/feedItems.api'
 import { formatDate } from '#src/formatDate'
 import { useDismissFeedItems } from '#src/hooks/useDismissFeedItems'
 import { useFeedInbox } from '#src/hooks/useFeedInbox'
@@ -39,7 +40,11 @@ const LIST_SX = { display: 'flex', flexDirection: 'column', gap: 1 } as const
 
 const LINK_SX = { flex: '1 1 12rem', overflowWrap: 'anywhere' } as const
 
-const itemDate = ( { published_at, added_at }: FeedItem ): string => {
+const toRefs = ( ids: string[] ): InboxItemRef[] => {
+  return ids.map( ( id ): InboxItemRef => ( { kind: 'feed', id } ) )
+}
+
+const itemDate = ( { published_at, added_at }: FeedInboxItem ): string => {
   return formatDate( published_at ?? added_at )
 }
 
@@ -65,7 +70,7 @@ export function FeedInbox(): ReactElement | null {
   }
 
   const handleDismiss = ( ids: string[] ): void => {
-    dismiss.mutate( ids, { onSuccess: () => setSelected( [] ) } )
+    dismiss.mutate( toRefs( ids ), { onSuccess: () => setSelected( [] ) } )
   }
 
   const handleCloseDialog = (): void => {
@@ -145,7 +150,7 @@ export function FeedInbox(): ReactElement | null {
           isSubmitting={ summarize.isPending }
           error={ summarize.error?.message ?? null }
           onSubmit={ ( choices ) => {
-            summarize.mutate( { ids: summarizeIds, ...choices }, {
+            summarize.mutate( { items: toRefs( summarizeIds ), ...choices }, {
               onSuccess: () => {
                 setSelected( [] )
                 handleCloseDialog()

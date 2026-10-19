@@ -13,13 +13,13 @@ import MenuItem from '@mui/material/MenuItem'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 // Shared
-import type { SummarizeFeedItemsBody } from '@mnemosyne/shared'
+import type { SummarizeInboxBody } from '@mnemosyne/shared'
 // App
 import { useModels } from '#src/hooks/useModels'
 import { usePromptProfiles } from '#src/hooks/usePromptProfiles'
 import { useSettings } from '#src/hooks/useSettings'
 
-type Choices = Omit< SummarizeFeedItemsBody, 'ids' >
+type Choices = Omit< SummarizeInboxBody, 'items' >
 
 interface SummarizeItemsDialogProps {
   count: number

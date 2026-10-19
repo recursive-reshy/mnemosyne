@@ -1,11 +1,6 @@
 // Shared
 import { detectSourceType } from '@mnemosyne/shared'
-import type {
-  FeedItem,
-  Job,
-  SummarizeFeedItemsBody,
-  SummarizeFeedItemsResponse,
-} from '@mnemosyne/shared'
+import type { Job } from '@mnemosyne/shared'
 // Errors
 import { ConflictError, ValidationError } from '../errors.js'
 // Repositories
@@ -20,6 +15,11 @@ import type { StoredFeed } from '../repositories/feeds.repository.js'
 // Sources
 import { articleFromText } from '../sources/text.js'
 // Services
+import type {
+  FeedItem,
+  SummarizeFeedItemsBody,
+  SummarizeFeedItemsResponse,
+} from './feedItems.schemas.js'
 import { queueJob } from './jobs.service.js'
 import { assertKnownModel } from './models.service.js'
 import { assertActiveProfile } from './prompts.service.js'

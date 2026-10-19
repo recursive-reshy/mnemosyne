@@ -5,17 +5,19 @@ import { z } from 'zod'
 // Shared
 import {
   CreateFeedBody,
-  DismissFeedItemsBody,
   FeedResponse,
-  ListFeedItemsResponse,
   ListFeedsResponse,
   PreviewFeedBody,
   PreviewFeedResponse,
-  SummarizeFeedItemsBody,
-  SummarizeFeedItemsResponse,
   UpdateFeedBody,
 } from '@mnemosyne/shared'
 // Services
+import {
+  DismissFeedItemsBody,
+  ListFeedItemsResponse,
+  SummarizeFeedItemsBody,
+  SummarizeFeedItemsResponse,
+} from '../services/feedItems.schemas.js'
 import {
   dismissItems,
   listInbox,

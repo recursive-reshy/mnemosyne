@@ -1,15 +1,15 @@
 // Packages
 import { useQuery } from '@tanstack/react-query'
 // Shared
-import type { FeedItem } from '@mnemosyne/shared'
 // App
 import { listFeedItems } from '../api/feedItems.api'
+import type { FeedInboxItem } from '../api/feedItems.api'
 import { feedKeys } from './queryKeys'
 
 export const INBOX_POLL_MS = 60_000
 
 export interface FeedInboxState {
-  items: FeedItem[]
+  items: FeedInboxItem[]
   isLoading: boolean
   error: string | null
 }

@@ -13,6 +13,7 @@ import { jobFixture } from '../test-support/job.fixture'
 import { dismissFeedItems, listFeedItems, summarizeFeedItems } from './feedItems.api'
 
 const fetchMock = vi.fn()
+const ref = { kind: 'feed' as const, id: ITEM_ID }
 
 const json = ( body: unknown, status = 200 ): Response => {
   return new Response( JSON.stringify( body ), { status } )
@@ -37,7 +38,9 @@ afterEach( () => {
 
 describe( 'listFeedItems', () => {
   it( 'gets the inbox', async () => {
-    fetchMock.mockResolvedValue( json( { items: [ feedItemFixture() ] } ) )
+    const wire: Record< string, unknown > = { ...feedItemFixture() }
+    delete wire.kind
+    fetchMock.mockResolvedValue( json( { items: [ wire ] } ) )
 
     await expect( listFeedItems() ).resolves.toEqual( [ feedItemFixture() ] )
     expect( fetchMock ).toHaveBeenCalledWith( '/api/feed-items', undefined )
@@ -54,16 +57,19 @@ describe( 'summarizeFeedItems', () => {
   it( 'posts the ids and choices and returns the jobs', async () => {
     const jobs = [ jobFixture() ]
     fetchMock.mockResolvedValue( json( { jobs } ) )
-    const body = { ids: [ ITEM_ID ], model: 'claude-sonnet-5-5' }
+    const body = { items: [ { kind: 'feed' as const, id: ITEM_ID } ], model: 'claude-sonnet-5-5' }
 
     await expect( summarizeFeedItems( body ) ).resolves.toEqual( jobs )
-    expect( fetchMock ).toHaveBeenCalledWith( '/api/feed-items/summarize', jsonInit( body ) )
+    expect( fetchMock ).toHaveBeenCalledWith(
+      '/api/feed-items/summarize',
+      jsonInit( { ids: [ ITEM_ID ], model: 'claude-sonnet-5-5' } ),
+    )
   } )
 
   it( 'throws the server\'s message on a conflict', async () => {
     fetchMock.mockResolvedValue( json( { error: 'Not in the inbox: abc' }, 409 ) )
 
-    await expect( summarizeFeedItems( { ids: [ ITEM_ID ] } ) ).rejects.toThrow(
+    await expect( summarizeFeedItems( { items: [ ref ] } ) ).rejects.toThrow(
       'Not in the inbox: abc',
     )
   } )
@@ -73,7 +79,7 @@ describe( 'dismissFeedItems', () => {
   it( 'posts the ids', async () => {
     fetchMock.mockResolvedValue( new Response( null, { status: 204 } ) )
 
-    await expect( dismissFeedItems( [ ITEM_ID ] ) ).resolves.toBeUndefined()
+    await expect( dismissFeedItems( [ ref ] ) ).resolves.toBeUndefined()
     expect( fetchMock ).toHaveBeenCalledWith(
       '/api/feed-items/dismiss',
       jsonInit( { ids: [ ITEM_ID ] } ),

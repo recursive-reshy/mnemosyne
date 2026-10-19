@@ -12,10 +12,8 @@ import request from 'supertest'
 // Shared
 import {
   FeedResponse,
-  ListFeedItemsResponse,
   ListFeedsResponse,
   PreviewFeedResponse,
-  SummarizeFeedItemsResponse,
 } from '@mnemosyne/shared'
 // App
 import { app } from '../app.js'
@@ -27,6 +25,7 @@ import { clearJobs } from '../repositories/jobStore.repository.js'
 import { findFeedById } from '../repositories/feeds.repository.js'
 import { getDatabase } from '../repositories/database.js'
 // Services
+import { ListFeedItemsResponse, SummarizeFeedItemsResponse } from '../services/feedItems.schemas.js'
 import { clearModelCache } from '../services/models.service.js'
 import { listProfiles } from '../services/prompts.service.js'
 
