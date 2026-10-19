@@ -20,7 +20,8 @@
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "fixture:gmail": "tsx --conditions=development --env-file-if-exists=.env scripts/save-gmail-fixture.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",

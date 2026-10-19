@@ -45,7 +45,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 4.2 | `gmail/tokenCipher.ts` (AES-256-GCM, `v1:` format, `TokenDecryptError`) (TRD §4.2) | 0035 | ✅ |
 | 4.3 | Add `@googleapis/gmail`; `gmail/auth.ts`: consent URL and state store, `completeConsent`, `getGmailClient`, `withGmail` and the reconnect rule, `disconnect`, no secrets in logs (TRD §4.3) | 0035 | ✅ |
 | 4.4 | Gmail account routes: account, connect, callback redirects, disconnect, labels (TRD §4.4) | 0035 | ✅ |
-| 4.5 | `scripts/save-gmail-fixture.ts` and the `fixture:gmail` script, with the scrubbing tested on a hand-made message (TRD §9.2) | 0035 | ⬜ |
+| 4.5 | `scripts/save-gmail-fixture.ts` and the `fixture:gmail` script, with the scrubbing tested on a hand-made message (TRD §9.2) | 0035 | ✅ |
 | **Phase 5** | **Web connection** | | |
 | 5.1 | `api/gmail.api.ts`, `gmailKeys`, `useGmailAccount`, `useGmailLabels` (TRD §10.1) | 0035 | ⬜ |
 | 5.2 | `GmailSettings` account card for all four states, the `?gmail=` snackbar, Disconnect confirm; placed in `SettingsPage` (TRD §10.2) | 0035 | ⬜ |
@@ -130,3 +130,4 @@ Needs the real fixtures from TRD §9.2, saved by Naresh with `fixture:gmail`. Ch
 - 4.2: `gmail/tokenCipher.ts` (`encryptToken`, `decryptToken`, `TokenDecryptError`) with 12 tests; no existing tests changed. Server test, lint and typecheck pass.
 - 4.3: `@googleapis/gmail` 22.0.2 added; `gmail/auth.ts` with 30 tests. `google-auth-library` is not a direct dependency: `OAuth2` comes from the package's `auth` export. Beyond the TRD: `getGmailClient` throws `GmailAuthError` while the account is `reconnect_needed`, so calls fail fast until a reconnect. No existing tests changed. Server test, lint, typecheck and build pass.
 - 4.4: Gmail account routes (`gmail.routes`, `gmail.controller`, `gmail.service`) with 24 tests at the `gmail/auth.ts` boundary; labels are listed through `withGmail` in the service until 6.1 moves them into `gmail.client.ts`. A missing `state` redirects with `reason=state`, a missing `code` with `failed`. `apps/server/CLAUDE.md` folder structure updated. No existing tests changed. Server test, lint, typecheck and build pass.
+- 4.5: `gmail/scrubMessage.ts` (`scrubMessage`, `findOwnerName`) with 13 tests, `scripts/save-gmail-fixture.ts` and the `fixture:gmail` script (`pnpm --filter @mnemosyne/server fixture:gmail <messageId> <name> [display name]`). Gmail has no display-name API, so the name comes from the owner's address in the To/Cc headers unless given as a third argument. `scripts` added to the server `tsconfig.json` include (not the build one). The script itself is untested (needs a real account); I only ran it with bad arguments. No existing tests changed. Server test, lint, typecheck and build pass.
