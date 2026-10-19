@@ -36,8 +36,11 @@ const SELECT_JOB = `SELECT jobs.*, feeds.name AS feed_name
 const toStoredJob = ( raw: unknown ): StoredJob => {
   const row = JobRow.parse( raw )
 
+  // Read from the gmail_sources join in task 3.2.
   return StoredJob.parse( {
     ...row,
+    gmail_source_id: null,
+    gmail_source_name: null,
     source_document: row.source_document === null
       ? null
       : JSON.parse( row.source_document ) as unknown,

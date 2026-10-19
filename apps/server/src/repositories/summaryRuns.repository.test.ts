@@ -86,6 +86,8 @@ describe( 'insertSummaryRun and listRunsForJob', () => {
       source_type: 'video',
       feed_id: null,
       feed_name: null,
+      gmail_source_id: null,
+      gmail_source_name: null,
     } )
     insertSummaryRun( run( { job_id: id } ) )
 

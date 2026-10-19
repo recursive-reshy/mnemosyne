@@ -43,6 +43,7 @@ describe( 'GET /api/settings', () => {
     expect( GetSettingsResponse.parse( response.body ) ).toEqual( {
       settings: {
         default_model: 'claude-sonnet-5-5',
+        extraction_model: 'claude-sonnet-5-5',
         default_profile_id: profileId( 'Business ideas' ),
         feed_check_interval_minutes: 60,
       },

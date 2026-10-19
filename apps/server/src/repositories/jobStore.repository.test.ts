@@ -47,6 +47,8 @@ const buildJob = ( overrides: Partial< StoredJob > = {} ): StoredJob => {
     source_type: 'video',
     feed_id: null,
     feed_name: null,
+    gmail_source_id: null,
+    gmail_source_name: null,
     ...overrides,
   }
 }
@@ -235,6 +237,8 @@ describe( 'source type, feed and source document', () => {
       source_type: 'video',
       feed_id: null,
       feed_name: null,
+      gmail_source_id: null,
+      gmail_source_name: null,
     } )
   } )
 

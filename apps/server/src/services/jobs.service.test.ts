@@ -149,6 +149,8 @@ describe( 'queueJob', () => {
       source_type: 'video',
       feed_id: null,
       feed_name: null,
+      gmail_source_id: null,
+      gmail_source_name: null,
     } )
   } )
 
@@ -1284,6 +1286,8 @@ describe( 'article jobs', () => {
       source_type: 'article',
       feed_id: feedId,
       feed_name: null,
+      gmail_source_id: null,
+      gmail_source_name: null,
     } )
 
     return id

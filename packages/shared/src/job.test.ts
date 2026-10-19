@@ -21,6 +21,8 @@ const validJob = {
   source_type: 'video',
   feed_id: null,
   feed_name: null,
+  gmail_source_id: null,
+  gmail_source_name: null,
 }
 
 describe( 'JobStatus', () => {
@@ -79,7 +81,24 @@ describe( 'Job', () => {
     expect( Job.safeParse( fromFeed ).success ).toBe( true )
   } )
 
-  it.each( [ 'source_type', 'feed_id', 'feed_name' ] )( 'rejects a missing %s', ( field ) => {
+  it( 'accepts an article job from a Gmail source', () => {
+    const fromGmail = {
+      ...validJob,
+      source_type: 'article',
+      gmail_source_id: '3f2b8c1e-6d1a-4b8e-9a53-0c1d2e3f4a5d',
+      gmail_source_name: 'Lenny',
+    }
+
+    expect( Job.safeParse( fromGmail ).success ).toBe( true )
+  } )
+
+  it.each( [
+    'source_type',
+    'feed_id',
+    'feed_name',
+    'gmail_source_id',
+    'gmail_source_name',
+  ] )( 'rejects a missing %s', ( field ) => {
     const without: Record< string, unknown > = { ...validJob }
     delete without[ field ]
 
@@ -89,6 +108,7 @@ describe( 'Job', () => {
   it( 'rejects an unknown source_type and a feed_id that is not a uuid', () => {
     expect( Job.safeParse( { ...validJob, source_type: 'email' } ).success ).toBe( false )
     expect( Job.safeParse( { ...validJob, feed_id: 'x' } ).success ).toBe( false )
+    expect( Job.safeParse( { ...validJob, gmail_source_id: 'x' } ).success ).toBe( false )
   } )
 
   it( 'rejects a non-URL url', () => {

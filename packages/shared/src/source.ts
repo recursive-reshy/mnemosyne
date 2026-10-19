@@ -20,7 +20,7 @@ export const ArticleMeta = z.object( {
   site: z.string().nullable(),
   published: z.string().regex( /^\d{4}-\d{2}-\d{2}$/ ).nullable(),
   fetched_at: z.iso.datetime(),
-  origin: z.enum( [ 'fetched', 'pasted', 'feed' ] ),
+  origin: z.enum( [ 'fetched', 'pasted', 'feed', 'email' ] ),
 } )
 export type ArticleMeta = z.infer< typeof ArticleMeta >
 

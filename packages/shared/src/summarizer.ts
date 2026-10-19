@@ -25,6 +25,7 @@ export type FeedCheckInterval = z.infer< typeof FeedCheckInterval >
 
 export const Settings = z.object( {
   default_model: z.string().min( 1 ),
+  extraction_model: z.string().min( 1 ),
   default_profile_id: z.uuid(),
   feed_check_interval_minutes: FeedCheckInterval,
 } )
@@ -41,11 +42,17 @@ export type GetSettingsResponse = z.infer< typeof GetSettingsResponse >
 
 export const UpdateSettingsBody = z.object( {
   default_model: z.string().min( 1 ).optional(),
+  extraction_model: z.string().min( 1 ).optional(),
   default_profile_id: z.uuid().optional(),
   feed_check_interval_minutes: FeedCheckInterval.optional(),
 } ).refine(
   ( body ) => Object.values( body ).some( ( value ) => value !== undefined ),
-  { message: 'Provide default_model, default_profile_id or feed_check_interval_minutes' },
+  {
+    message: [
+      'Provide default_model, extraction_model,',
+      'default_profile_id or feed_check_interval_minutes',
+    ].join( ' ' ),
+  },
 )
 export type UpdateSettingsBody = z.infer< typeof UpdateSettingsBody >
 

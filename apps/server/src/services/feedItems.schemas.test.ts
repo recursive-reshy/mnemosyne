@@ -41,6 +41,8 @@ const job = {
   source_type: 'article',
   feed_id: otherId,
   feed_name: 'A blog',
+  gmail_source_id: null,
+  gmail_source_name: null,
 }
 
 describe( 'FeedItem', () => {

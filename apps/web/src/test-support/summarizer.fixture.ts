@@ -74,6 +74,7 @@ export const settingsFixture = (
   return {
     settings: {
       default_model: 'claude-sonnet-5-5',
+      extraction_model: 'claude-haiku-5-5',
       default_profile_id: BUSINESS_ID,
       feed_check_interval_minutes: 60,
       ...overrides,

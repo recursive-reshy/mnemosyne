@@ -18,10 +18,14 @@ const DEFAULT_FEED_INTERVAL = 60
 
 export const getSettings = (): Settings => {
   const model = getSetting( 'default_model' )
+  const extractionModel = getSetting( 'extraction_model' )
   const interval = FeedCheckInterval.safeParse( getSetting( 'feed_check_interval_minutes' ) )
 
   return {
     default_model: typeof model === 'string' ? model : SHIPPED_DEFAULT_MODEL,
+    extraction_model: typeof extractionModel === 'string'
+      ? extractionModel
+      : SHIPPED_DEFAULT_MODEL,
     default_profile_id: resolvePrompt( null ).profile.id,
     feed_check_interval_minutes: interval.success ? interval.data : DEFAULT_FEED_INTERVAL,
   }
@@ -37,12 +41,20 @@ export const updateSettings = async ( body: UpdateSettingsBody ): Promise< Setti
     await assertKnownModel( body.default_model )
   }
 
+  if( body.extraction_model !== undefined ) {
+    await assertKnownModel( body.extraction_model )
+  }
+
   if( body.default_profile_id !== undefined ) {
     assertActiveProfile( body.default_profile_id )
   }
 
   if( body.default_model !== undefined ) {
     setSetting( 'default_model', body.default_model )
+  }
+
+  if( body.extraction_model !== undefined ) {
+    setSetting( 'extraction_model', body.extraction_model )
   }
 
   if( body.default_profile_id !== undefined ) {

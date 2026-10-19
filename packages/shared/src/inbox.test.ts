@@ -56,6 +56,8 @@ const job = {
   source_type: 'article',
   feed_id: null,
   feed_name: null,
+  gmail_source_id: null,
+  gmail_source_name: null,
 }
 
 const refs = ( count: number ): { kind: 'feed', id: string }[] => {

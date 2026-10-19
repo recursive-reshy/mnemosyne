@@ -37,5 +37,7 @@ export const Job = z.object( {
   source_type: SourceType,
   feed_id: z.uuid().nullable(),
   feed_name: z.string().nullable(),
+  gmail_source_id: z.uuid().nullable(),
+  gmail_source_name: z.string().nullable(),
 } )
 export type Job = z.infer< typeof Job >

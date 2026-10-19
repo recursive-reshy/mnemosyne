@@ -51,6 +51,8 @@ const context = ( markStatus = vi.fn() ): Parameters< typeof articleAdapter.acqu
       source_type: 'article',
       feed_id: null,
       feed_name: null,
+      gmail_source_id: null,
+      gmail_source_name: null,
     } ),
     workDir: '/work/job',
     markStatus,

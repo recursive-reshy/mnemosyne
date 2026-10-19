@@ -74,12 +74,21 @@ describe( 'ModelOption and ListModelsResponse', () => {
 describe( 'Settings', () => {
   const settings = {
     default_model: 'm',
+    extraction_model: 'h',
     default_profile_id: profileId,
     feed_check_interval_minutes: 60,
   }
 
   it( 'accepts a model, a profile id and a feed interval', () => {
     expect( Settings.safeParse( settings ).success ).toBe( true )
+  } )
+
+  it( 'needs a non-empty extraction model', () => {
+    const without: Record< string, unknown > = { ...settings }
+    delete without.extraction_model
+
+    expect( Settings.safeParse( without ).success ).toBe( false )
+    expect( Settings.safeParse( { ...settings, extraction_model: '' } ).success ).toBe( false )
   } )
 
   it( 'rejects a profile id that is not a uuid', () => {
@@ -122,6 +131,11 @@ describe( 'UpdateSettingsBody', () => {
     expect( UpdateSettingsBody.safeParse( { default_profile_id: profileId } ).success ).toBe( true )
   } )
 
+  it( 'accepts an extraction model alone', () => {
+    expect( UpdateSettingsBody.safeParse( { extraction_model: 'h' } ).success ).toBe( true )
+    expect( UpdateSettingsBody.safeParse( { extraction_model: '' } ).success ).toBe( false )
+  } )
+
   it( 'accepts a feed interval alone', () => {
     expect( UpdateSettingsBody.safeParse( { feed_check_interval_minutes: 180 } ).success )
       .toBe( true )
@@ -132,8 +146,11 @@ describe( 'UpdateSettingsBody', () => {
       .toBe( false )
   } )
 
-  it( 'rejects an empty body', () => {
-    expect( UpdateSettingsBody.safeParse( {} ).success ).toBe( false )
+  it( 'rejects an empty body, naming every key it accepts', () => {
+    const result = UpdateSettingsBody.safeParse( {} )
+
+    expect( result.success ).toBe( false )
+    expect( result.error?.issues[ 0 ]?.message ).toContain( 'extraction_model' )
   } )
 
   it( 'rejects an empty model', () => {

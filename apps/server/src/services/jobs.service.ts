@@ -150,6 +150,8 @@ const toPublicJob = ( job: StoredJob ): Job => {
     source_type: job.source_type,
     feed_id: job.feed_id,
     feed_name: job.feed_name,
+    gmail_source_id: job.gmail_source_id,
+    gmail_source_name: job.gmail_source_name,
   }
 }
 
@@ -236,6 +238,8 @@ export const queueJob = async (
     source_type: sourceType,
     feed_id: extra.feed_id ?? null,
     feed_name: extra.feed_id === undefined ? null : findFeedById( extra.feed_id )?.name ?? null,
+    gmail_source_id: null,
+    gmail_source_name: null,
   }
 
   insertJob( job )

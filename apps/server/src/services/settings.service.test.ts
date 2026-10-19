@@ -38,9 +38,16 @@ describe( 'getSettings', () => {
   it( 'defaults to the shipped model and the Business ideas profile', () => {
     expect( getSettings() ).toEqual( {
       default_model: 'claude-sonnet-5-5',
+      extraction_model: 'claude-sonnet-5-5',
       default_profile_id: byName( 'Business ideas' ),
       feed_check_interval_minutes: 60,
     } )
+  } )
+
+  it( 'reads the extraction model from the stored setting when there is one', () => {
+    setSetting( 'extraction_model', 'claude-haiku-5-5' )
+
+    expect( getSettings().extraction_model ).toBe( 'claude-haiku-5-5' )
   } )
 
   it( 'reads the feed check interval from the stored setting when there is one', () => {
@@ -68,6 +75,23 @@ describe( 'updateSettings', () => {
     expect( getSettings().default_model ).toBe( 'claude-opus-5-5' )
   } )
 
+  it( 'saves a known extraction model', async () => {
+    const settings = await updateSettings( { extraction_model: 'claude-haiku-5-5' } )
+
+    expect( assertMock ).toHaveBeenCalledWith( 'claude-haiku-5-5' )
+    expect( settings.extraction_model ).toBe( 'claude-haiku-5-5' )
+    expect( getSetting( 'extraction_model' ) ).toBe( 'claude-haiku-5-5' )
+    expect( settings.default_model ).toBe( 'claude-sonnet-5-5' )
+  } )
+
+  it( 'rejects an unknown extraction model and saves nothing', async () => {
+    assertMock.mockRejectedValue( new ValidationError( 'Unknown model: nope' ) )
+
+    await expect( updateSettings( { extraction_model: 'nope' } ) )
+      .rejects.toThrow( 'Unknown model: nope' )
+    expect( getSetting( 'extraction_model' ) ).toBeUndefined()
+  } )
+
   it( 'saves an active profile', async () => {
     const coding = byName( 'Coding' )
 
@@ -86,6 +110,7 @@ describe( 'updateSettings', () => {
 
     expect( settings ).toEqual( {
       default_model: 'claude-opus-5-5',
+      extraction_model: 'claude-sonnet-5-5',
       default_profile_id: coding,
       feed_check_interval_minutes: 60,
     } )

@@ -59,12 +59,12 @@ describe( 'ArticleMeta', () => {
     } ).success ).toBe( true )
   } )
 
-  it.each( [ 'fetched', 'pasted', 'feed' ] )( 'accepts origin %s', ( origin ) => {
+  it.each( [ 'fetched', 'pasted', 'feed', 'email' ] )( 'accepts origin %s', ( origin ) => {
     expect( ArticleMeta.safeParse( { ...articleMeta, origin } ).success ).toBe( true )
   } )
 
   it( 'rejects an unknown origin', () => {
-    expect( ArticleMeta.safeParse( { ...articleMeta, origin: 'email' } ).success ).toBe( false )
+    expect( ArticleMeta.safeParse( { ...articleMeta, origin: 'rss' } ).success ).toBe( false )
   } )
 
   it( 'rejects an empty title', () => {

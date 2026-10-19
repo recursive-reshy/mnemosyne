@@ -305,6 +305,8 @@ describe( 'summarizeJob', () => {
         source_type: 'article',
         feed_id: null,
         feed_name: null,
+        gmail_source_id: null,
+        gmail_source_name: null,
         source_document: articleDocument,
       } )
 

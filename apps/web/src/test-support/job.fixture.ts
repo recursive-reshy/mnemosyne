@@ -20,6 +20,8 @@ export const jobFixture = ( overrides: Partial< Job > = {} ): Job => {
     source_type: 'video',
     feed_id: null,
     feed_name: null,
+    gmail_source_id: null,
+    gmail_source_name: null,
     ...overrides,
   }
 }

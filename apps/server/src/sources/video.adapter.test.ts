@@ -68,6 +68,8 @@ const context = (
       source_type: 'video',
       feed_id: null,
       feed_name: null,
+      gmail_source_id: null,
+      gmail_source_name: null,
     } ),
     workDir: '/work/job',
     markStatus,
