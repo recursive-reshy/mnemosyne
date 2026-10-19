@@ -159,6 +159,92 @@ const addSourcesAndFeeds = ( db: Database.Database ): void => {
   CREATE INDEX feed_items_inbox ON feed_items ( status, added_at );` )
 }
 
+const addGmailAndPostings = ( db: Database.Database ): void => {
+  db.exec( `CREATE TABLE gmail_account (
+    id INTEGER PRIMARY KEY CHECK ( id = 1 ),
+    email TEXT NOT NULL,
+    refresh_token_enc TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    status TEXT NOT NULL,
+    error TEXT,
+    connected_at TEXT NOT NULL
+  );
+
+  CREATE TABLE gmail_sources (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    match_kind TEXT NOT NULL,
+    label_ids TEXT,
+    query TEXT,
+    destination TEXT NOT NULL,
+    profile_id TEXT,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    auto_summarize INTEGER NOT NULL DEFAULT 0,
+    sync_from TEXT NOT NULL,
+    last_checked_at TEXT,
+    last_error TEXT,
+    last_skipped_count INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    deleted_at TEXT
+  );
+
+  CREATE TABLE gmail_messages (
+    id TEXT PRIMARY KEY,
+    source_id TEXT NOT NULL REFERENCES gmail_sources ( id ),
+    message_id TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    sender TEXT NOT NULL,
+    sender_address TEXT NOT NULL,
+    received_at TEXT NOT NULL,
+    body_html TEXT,
+    body_text TEXT,
+    status TEXT NOT NULL,
+    backfilled INTEGER NOT NULL DEFAULT 0,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    error TEXT,
+    job_id TEXT,
+    added_at TEXT NOT NULL,
+    UNIQUE ( source_id, message_id )
+  );
+  CREATE INDEX gmail_messages_status ON gmail_messages ( status, added_at );
+
+  CREATE TABLE job_postings (
+    id TEXT PRIMARY KEY,
+    platform TEXT NOT NULL,
+    platform_job_id TEXT,
+    dedupe_key TEXT NOT NULL UNIQUE,
+    title TEXT NOT NULL,
+    url TEXT NOT NULL,
+    posted_at TEXT,
+    first_seen_at TEXT NOT NULL,
+    last_seen_at TEXT NOT NULL,
+    details TEXT NOT NULL
+  );
+  CREATE INDEX job_postings_seen ON job_postings ( first_seen_at );
+
+  CREATE TABLE posting_sightings (
+    posting_id TEXT NOT NULL REFERENCES job_postings ( id ),
+    gmail_message_row TEXT NOT NULL REFERENCES gmail_messages ( id ),
+    seen_at TEXT NOT NULL,
+    PRIMARY KEY ( posting_id, gmail_message_row )
+  );
+
+  CREATE TABLE extraction_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    gmail_message_row TEXT NOT NULL,
+    model TEXT NOT NULL,
+    input_tokens INTEGER,
+    output_tokens INTEGER,
+    cost_usd REAL,
+    outcome TEXT NOT NULL,
+    postings_count INTEGER NOT NULL DEFAULT 0,
+    error TEXT,
+    created_at TEXT NOT NULL
+  );
+
+  ALTER TABLE jobs ADD COLUMN gmail_source_id TEXT;` )
+}
+
 export type Migration = string | ( ( db: Database.Database ) => void )
 
 export const migrations: Migration[] = [
@@ -181,6 +267,7 @@ export const migrations: Migration[] = [
   ALTER TABLE jobs DROP COLUMN suggested_tags;`,
   addSummarizerTables,
   addSourcesAndFeeds,
+  addGmailAndPostings,
 ]
 
 let database: Database.Database | undefined

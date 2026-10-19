@@ -76,6 +76,7 @@ describe( 'openDatabase and closeDatabase', () => {
       'prompt_profile_id',
       'source_type',
       'feed_id',
+      'gmail_source_id',
     ] )
   } )
 
@@ -544,7 +545,7 @@ describe( 'migration 5', () => {
 
     runMigrations( database, migrations.slice( 0, 4 ) )
     setup( database )
-    runMigrations( database, migrations )
+    runMigrations( database, migrations.slice( 0, 5 ) )
 
     return database
   }
@@ -581,14 +582,13 @@ describe( 'migration 5', () => {
   it( 'records user_version 5', () => {
     const database = upgrade( () => undefined )
 
-    expect( migrations ).toHaveLength( 5 )
     expect( database.pragma( 'user_version', { simple: true } ) ).toBe( 5 )
   } )
 
   it( 'runs from an empty database to the same result', () => {
     const database = new Database( ':memory:' )
 
-    runMigrations( database, migrations )
+    runMigrations( database, migrations.slice( 0, 5 ) )
 
     expect( database.pragma( 'user_version', { simple: true } ) ).toBe( 5 )
     expect( names( database, 'table' ) )
@@ -773,10 +773,311 @@ describe( 'migration 5', () => {
     runMigrations( database, migrations.slice( 0, 4 ) )
     database.exec( 'CREATE TABLE feeds ( blocker TEXT )' )
 
-    expect( () => runMigrations( database, migrations ) ).toThrow()
+    expect( () => runMigrations( database, migrations.slice( 0, 5 ) ) ).toThrow()
     expect( database.pragma( 'user_version', { simple: true } ) ).toBe( 4 )
     expect( columnNames( database, 'jobs' ) ).toContain( 'transcript' )
     expect( columnNames( database, 'jobs' ) ).not.toContain( 'source_type' )
+  } )
+} )
+
+describe( 'migration 6', () => {
+  const tables = [
+    'gmail_account',
+    'gmail_sources',
+    'gmail_messages',
+    'job_postings',
+    'posting_sightings',
+    'extraction_runs',
+  ]
+
+  const upgrade = ( setup: ( database: Database.Database ) => void ): Database.Database => {
+    const database = new Database( ':memory:' )
+
+    runMigrations( database, migrations.slice( 0, 5 ) )
+    setup( database )
+    runMigrations( database, migrations )
+
+    return database
+  }
+
+  const names = ( database: Database.Database, type: string ): string[] => {
+    return ( database
+      .prepare( 'SELECT name FROM sqlite_master WHERE type = ? ORDER BY name' )
+      .all( type ) as { name: string }[] ).map( ( { name } ) => name )
+  }
+
+  const columnNames = ( database: Database.Database, table: string ): string[] => {
+    return ( database.pragma( `table_info(${ table })` ) as { name: string }[] )
+      .map( ( { name } ) => name )
+  }
+
+  const insertSource = ( database: Database.Database, id = 's1' ): void => {
+    database.prepare( `INSERT INTO gmail_sources (
+        id, name, match_kind, label_ids, destination, sync_from, created_at
+      ) VALUES ( ?, 'Alerts', 'labels', '["L1"]', 'jobs', 'now', 'now' )` ).run( id )
+  }
+
+  const insertMessage = (
+    database: Database.Database,
+    id: string,
+    messageId: string,
+    sourceId = 's1',
+  ): void => {
+    database.prepare( `INSERT INTO gmail_messages (
+        id, source_id, message_id, subject, sender, sender_address, received_at, status, added_at
+      ) VALUES ( ?, ?, ?, 'Subject', 'Sender', 'sender@example.com', 'now', 'pending', 'now' )` )
+      .run( id, sourceId, messageId )
+  }
+
+  const insertPosting = ( database: Database.Database, id: string, key: string ): void => {
+    database.prepare( `INSERT INTO job_postings (
+        id, platform, dedupe_key, title, url, first_seen_at, last_seen_at, details
+      ) VALUES ( ?, 'upwork', ?, 'Title', 'https://example.com/j', 'now', 'now', '{}' )` )
+      .run( id, key )
+  }
+
+  const insertV5 = ( database: Database.Database ): void => {
+    database.prepare( `INSERT INTO feeds ( id, url, feed_url, name, created_at )
+      VALUES ( 'f1', 'https://blog.example.com', 'https://blog.example.com/feed.xml',
+        'A blog', '2026-10-01T10:00:00.000Z' )` ).run()
+    database.prepare( `INSERT INTO feed_items (
+        id, feed_id, item_key, title, link, status, added_at
+      ) VALUES ( 'i1', 'f1', 'key', 'A post', 'https://blog.example.com/p', 'inbox',
+        '2026-10-18T09:00:00.000Z' )` ).run()
+    database.prepare( `INSERT INTO jobs (
+        id, url, status, title, source_document, note_markdown, target_folder, expires_at,
+        summary_model, source_type, feed_id, created_at, updated_at
+      ) VALUES ( 'review', 'https://blog.example.com/p', 'ready_for_review', 'A post', ?,
+        '---\ntitle: "T"\n---\n\nBody\n', 'Learning', '2026-10-19T10:00:00.000Z',
+        'claude-sonnet-5-5', 'article', 'f1', '2026-10-18T10:00:00.000Z',
+        '2026-10-18T10:00:00.000Z' )` ).run( JSON.stringify( transcriptFixture ) )
+  }
+
+  const snapshot = ( database: Database.Database ): unknown => ( {
+    feeds: database.prepare( 'SELECT * FROM feeds' ).all(),
+    feedItems: database.prepare( 'SELECT * FROM feed_items' ).all(),
+    jobs: database.prepare( 'SELECT * FROM jobs' ).all(),
+  } )
+
+  it( 'adds migration 6 and records user_version 6', () => {
+    const database = upgrade( () => undefined )
+
+    expect( migrations ).toHaveLength( 6 )
+    expect( database.pragma( 'user_version', { simple: true } ) ).toBe( 6 )
+  } )
+
+  it( 'runs from an empty database and creates every table, column and index', () => {
+    const database = new Database( ':memory:' )
+
+    runMigrations( database, migrations )
+
+    expect( database.pragma( 'user_version', { simple: true } ) ).toBe( 6 )
+    expect( names( database, 'table' ) ).toEqual( expect.arrayContaining( tables ) )
+    expect( columnNames( database, 'jobs' ) ).toContain( 'gmail_source_id' )
+    expect( names( database, 'index' ) ).toEqual( expect.arrayContaining( [
+      'gmail_messages_status',
+      'job_postings_seen',
+    ] ) )
+  } )
+
+  it( 'leaves a feed, an inbox item and a job in review untouched', () => {
+    let before: unknown
+    const database = upgrade( ( v5 ) => {
+      insertV5( v5 )
+      before = snapshot( v5 )
+    } )
+
+    const after = snapshot( database ) as { jobs: Record< string, unknown >[] }
+    const jobs = after.jobs.map( ( { gmail_source_id, ...job } ) => {
+      expect( gmail_source_id ).toBeNull()
+
+      return job
+    } )
+
+    expect( { ...after, jobs } ).toEqual( before )
+  } )
+
+  it( 'lists the columns of each new table as the TRD defines them', () => {
+    const database = upgrade( () => undefined )
+
+    expect( columnNames( database, 'gmail_account' ) ).toEqual( [
+      'id',
+      'email',
+      'refresh_token_enc',
+      'scope',
+      'status',
+      'error',
+      'connected_at',
+    ] )
+    expect( columnNames( database, 'gmail_sources' ) ).toEqual( [
+      'id',
+      'name',
+      'match_kind',
+      'label_ids',
+      'query',
+      'destination',
+      'profile_id',
+      'enabled',
+      'auto_summarize',
+      'sync_from',
+      'last_checked_at',
+      'last_error',
+      'last_skipped_count',
+      'created_at',
+      'deleted_at',
+    ] )
+    expect( columnNames( database, 'gmail_messages' ) ).toEqual( [
+      'id',
+      'source_id',
+      'message_id',
+      'subject',
+      'sender',
+      'sender_address',
+      'received_at',
+      'body_html',
+      'body_text',
+      'status',
+      'backfilled',
+      'attempts',
+      'error',
+      'job_id',
+      'added_at',
+    ] )
+    expect( columnNames( database, 'job_postings' ) ).toEqual( [
+      'id',
+      'platform',
+      'platform_job_id',
+      'dedupe_key',
+      'title',
+      'url',
+      'posted_at',
+      'first_seen_at',
+      'last_seen_at',
+      'details',
+    ] )
+    expect( columnNames( database, 'posting_sightings' ) )
+      .toEqual( [ 'posting_id', 'gmail_message_row', 'seen_at' ] )
+    expect( columnNames( database, 'extraction_runs' ) ).toEqual( [
+      'id',
+      'gmail_message_row',
+      'model',
+      'input_tokens',
+      'output_tokens',
+      'cost_usd',
+      'outcome',
+      'postings_count',
+      'error',
+      'created_at',
+    ] )
+  } )
+
+  it( 'keeps gmail_account to one row with id 1', () => {
+    const database = upgrade( () => undefined )
+    const insert = ( id: number ): void => {
+      database.prepare( `INSERT INTO gmail_account (
+          id, email, refresh_token_enc, scope, status, connected_at
+        ) VALUES ( ?, 'a@example.com', 'v1:x', 'scope', 'connected', 'now' )` ).run( id )
+    }
+
+    expect( () => insert( 2 ) ).toThrow()
+    insert( 1 )
+    expect( () => insert( 1 ) ).toThrow()
+  } )
+
+  it( 'defaults enabled to 1 and the counters to 0 on a source and a message', () => {
+    const database = upgrade( () => undefined )
+
+    insertSource( database )
+    insertMessage( database, 'm1', 'g1' )
+
+    expect( database.prepare(
+      'SELECT enabled, auto_summarize, last_skipped_count FROM gmail_sources',
+    ).get() ).toEqual( { enabled: 1, auto_summarize: 0, last_skipped_count: 0 } )
+    expect( database.prepare( 'SELECT backfilled, attempts FROM gmail_messages' ).get() )
+      .toEqual( { backfilled: 0, attempts: 0 } )
+  } )
+
+  it( 'allows one row per source and Gmail message id only', () => {
+    const database = upgrade( () => undefined )
+
+    insertSource( database, 's1' )
+    insertSource( database, 's2' )
+    insertMessage( database, 'm1', 'g1', 's1' )
+
+    expect( () => insertMessage( database, 'm2', 'g1', 's1' ) ).toThrow()
+    expect( () => insertMessage( database, 'm3', 'g1', 's2' ) ).not.toThrow()
+  } )
+
+  it( 'enforces the source foreign key on a message when foreign keys are on', () => {
+    const database = upgrade( () => undefined )
+
+    database.pragma( 'foreign_keys = ON' )
+
+    expect( () => insertMessage( database, 'm1', 'g1', 'missing' ) ).toThrow()
+  } )
+
+  it( 'keeps dedupe_key unique across postings', () => {
+    const database = upgrade( () => undefined )
+
+    insertPosting( database, 'p1', 'upwork:~01abc' )
+
+    expect( () => insertPosting( database, 'p2', 'upwork:~01abc' ) ).toThrow()
+    expect( () => insertPosting( database, 'p3', 'upwork:~01def' ) ).not.toThrow()
+  } )
+
+  it( 'records a posting once per email', () => {
+    const database = upgrade( () => undefined )
+    const sight = (): void => {
+      database.prepare( `INSERT INTO posting_sightings ( posting_id, gmail_message_row, seen_at )
+        VALUES ( 'p1', 'm1', 'now' )` ).run()
+    }
+
+    insertSource( database )
+    insertMessage( database, 'm1', 'g1' )
+    insertPosting( database, 'p1', 'upwork:~01abc' )
+    sight()
+
+    expect( sight ).toThrow()
+  } )
+
+  it( 'numbers extraction runs automatically and allows missing usage', () => {
+    const database = upgrade( () => undefined )
+    const insert = (): void => {
+      database.prepare( `INSERT INTO extraction_runs (
+          gmail_message_row, model, outcome, created_at
+        ) VALUES ( 'm1', 'claude-haiku-5-5', 'failed', 'now' )` ).run()
+    }
+
+    insert()
+    insert()
+
+    expect( database.prepare( `SELECT id, input_tokens, cost_usd, postings_count
+      FROM extraction_runs ORDER BY id` ).all() ).toEqual( [
+      {
+        id: 1,
+        input_tokens: null,
+        cost_usd: null,
+        postings_count: 0,
+      },
+      {
+        id: 2,
+        input_tokens: null,
+        cost_usd: null,
+        postings_count: 0,
+      },
+    ] )
+  } )
+
+  it( 'rolls back completely when a later step fails', () => {
+    const database = new Database( ':memory:' )
+
+    runMigrations( database, migrations.slice( 0, 5 ) )
+    database.exec( 'CREATE TABLE extraction_runs ( blocker TEXT )' )
+
+    expect( () => runMigrations( database, migrations ) ).toThrow()
+    expect( database.pragma( 'user_version', { simple: true } ) ).toBe( 5 )
+    expect( names( database, 'table' ) ).not.toContain( 'gmail_account' )
+    expect( columnNames( database, 'jobs' ) ).not.toContain( 'gmail_source_id' )
   } )
 } )
 
