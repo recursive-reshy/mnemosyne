@@ -29,20 +29,12 @@ If a script above doesn't exist yet, add it as part of the task that first needs
 
 ## Environment
 
-Parsed once with Zod in `config.ts`; nothing else reads `process.env`.
+Parsed once with Zod in `config.ts`; nothing else reads `process.env`. `.env.example` lists every variable with its default. What isn't obvious from there:
 
-- `PORT`: default `3100`.
-- `WHISPER_URL`: `http://localhost:8178` natively, `http://host.docker.internal:8178` in Docker.
-- `WORK_DIR`: where downloaded and converted audio lives during a job; default the OS temp directory.
-- `DATA_DIR`: where `mnemosyne.db` (the SQLite job store) lives; default `<OS temp dir>/mnemosyne-data`. In Docker it is `/data`, a named volume.
-- `WHISPER_MODEL`: label stored as the transcript's `model` (whisper-server doesn't report it); default `large-v3-turbo`.
-- `ANTHROPIC_API_KEY`: required; the Claude key used to summarize transcripts. Lives in `.env` only.
-- `VAULT_PATH`: required; the Obsidian vault folder. It must exist and be writable at startup, or the server exits with a message. In Docker it is `/vault`, bind-mounted from `VAULT_HOST_PATH`.
-- `DEFAULT_NOTE_FOLDER`: vault-relative folder notes go to unless the job chose another; default `Mnemosyne`. Validated at startup with the shared folder rules and created if missing.
-- `SUMMARY_TIMEOUT_MS`: timeout of one summary request; default `300000`.
-- `REVIEW_TTL_HOURS`: hours a job in review or with a failed summary is kept before deletion; default `24`.
-- `CLEANUP_INTERVAL_MINUTES`: how often the sweeper deletes expired jobs; default `15`.
-- `WEB_DIR`: folder with the built web app; leave empty in development (Vite serves it). When set, Express serves it, with an `index.html` fallback for paths without an extension.
+- `WHISPER_URL` is `http://host.docker.internal:8178` in Docker. `DATA_DIR` is `/data` (a named volume) and `VAULT_PATH` is `/vault` (bind-mounted from `VAULT_HOST_PATH`) in Docker.
+- `ANTHROPIC_API_KEY` and `VAULT_PATH` are required; the vault must exist and be writable at startup, or the server exits with a message. The key lives in `.env` only.
+- `DEFAULT_NOTE_FOLDER` is validated at startup with the shared folder rules and created if missing.
+- `WEB_DIR`: empty in development (Vite serves the web app). When set, Express serves it, with an `index.html` fallback for paths without an extension.
 
 ## Folder structure
 
@@ -55,12 +47,12 @@ src/
   errors.ts          typed errors and the error middleware
   routes/            <name>.routes.ts: an Express Router wiring paths to controller functions, nothing else
   controllers/       <name>.controller.ts: HTTP only (parse the request with Zod, call a service, send the response)
-  services/          <name>.service.ts: business rules and job state changes (jobs: drafts, save, summary runs and regenerate; vault: folder listing; settings, prompts: defaults and prompt profiles; models: the cached model list; feeds: preview, create with a baseline, check with ETag and a 10-item cap; feedInbox: list, summarize, dismiss and queue feed items)
-  repositories/      <name>.repository.ts: the SQLite database (jobs, feeds, feed items, settings, prompts, summary runs), and nothing else; database.ts holds the connection and the migrations
-  clients/           ytDlp, ffmpeg, whisperServer, claude, anthropicModels, vault, http: one external tool each (`<name>.client.ts`); the vault client resolves every folder inside the vault (`resolveFolder`), lists the folder tree and writes notes
-  sources/           adapters that turn a job into a `SourceDocument` (ADR 0030): `adapter.ts` is the interface, `video.adapter.ts` downloads, converts and transcribes, `article.adapter.ts` fetches and extracts a page (`extractArticle.ts` runs Readability on linkedom, `htmlToMarkdown.ts` uses turndown, ADR 0031), `feeds.ts` parses feeds (feedsmith, ADR 0032) and finds a page's feed, `text.ts` builds a document from pasted text, `index.ts` has `adapterFor( sourceType )`; they use clients and report steps through the context, never touch repositories
-  worker/            worker.ts, runJob.ts, summarizeJob.ts, sweeper.ts, feedPoller.ts: runs the next runnable job; deletes expired jobs; checks due feeds every minute, one pass at a time
-  summarizer/        pure constants and functions for the summarizer: locked prompt, seeded profiles, prices
+  services/          <name>.service.ts: business rules and job state changes (jobs, vault, settings, prompts, models, feeds, feedInbox)
+  repositories/      <name>.repository.ts: the SQLite database and nothing else; database.ts holds the connection and the migrations
+  clients/           <name>.client.ts: one external tool each (ytDlp, ffmpeg, whisperServer, claude, anthropicModels, vault, http); the vault client resolves every folder inside the vault (`resolveFolder`)
+  sources/           adapters that turn a job into a `SourceDocument` (ADR 0030): video and article adapters, article extraction (ADR 0031), feed parsing and discovery (ADR 0032), pasted text, `adapterFor( sourceType )`; they use clients and report steps through the context, never touch repositories
+  worker/            worker, runJob, summarizeJob, sweeper, feedPoller: runs the next runnable job; deletes expired jobs; checks due feeds every minute, one pass at a time
+  summarizer/        pure constants and functions: locked prompts, seeded profiles, prices
   formatters/        markdown, srt, txt, summary, note: pure data → string; summary.cleanup.ts filters the model's output
 ```
 
@@ -71,7 +63,7 @@ The order is routes → controllers → services → repositories, and every req
 - **Routes** map a method and path to a controller function. They hold no logic, validation or try/catch.
 - **Controllers** read `params`, `query` and `body`, validate them with a Zod schema, call one service function, and send the response with an explicit status code. They never touch the job store, a client or the worker.
 - **Services** hold the business rules, change job state, call repositories and formatters, and throw typed errors.
-- **Repositories** hold and query the SQLite database (jobs, feeds, feed items, settings, prompts, summary runs), and nothing else. The database is SQLite (better-sqlite3, ADR 0012) behind synchronous free functions; `database.ts` owns the connection and the migrations (`openDatabase` / `closeDatabase` are called from `server.ts` and `shutdown.ts`, `getDatabase` from the other repositories), and tests open `':memory:'` through the Vitest setup file `test-support/database.setup.ts`.
+- **Repositories** hold and query the SQLite database (better-sqlite3, ADR 0012) behind synchronous free functions, and nothing else. `database.ts` owns the connection and the migrations (`openDatabase` / `closeDatabase` from `server.ts` and `shutdown.ts`, `getDatabase` from the other repositories); tests open `':memory:'` through `test-support/database.setup.ts`.
 - **Clients** wrap one external tool each: run the command or make the HTTP call, parse the output with Zod, return typed data, and throw on failure. They hold no job logic.
 - **The sweeper** calls one service function on a timer and deletes expired jobs; it never touches repositories.
 - **The worker** calls services and clients, never repositories. It processes one job at a time and moves it through `queued → downloading → converting → transcribing → summarizing → ready_for_review | summary_failed` for a video, `queued → fetching → summarizing → …` for an article (or `failed`) via services. A job found already `summarizing` runs only the summarize step. Regenerating a summary is the one other way into `summarizing`: `ready_for_review → summarizing` (ADR 0029). Each summary attempt records a row in `summary_runs`, through the jobs service.
@@ -140,142 +132,39 @@ The order is routes → controllers → services → repositories, and every req
 - No unnecessary abstractions; do things inline when they can be done inline.
 - No comments or JSDoc that restate the code. Comment only on why. Import-group comments are the exception.
 
-**Reference example**
+**Reference example** (`feeds.routes.ts` and part of `feeds.controller.ts`)
 
 ```ts
-// jobs.routes.ts
 // Express
 import { Router } from 'express'
 // Controllers
-import { createJob, getJob, downloadTranscript } from '../controllers/jobs.controller.js'
+import { addFeed, getFeeds } from '../controllers/feeds.controller.js'
 
-export const jobsRoutes = Router()
+export const feedsRoutes: Router = Router()
 
-jobsRoutes.post( '/jobs', createJob )
-jobsRoutes.get( '/jobs/:id', getJob )
-jobsRoutes.get( '/jobs/:id/download', downloadTranscript )
+feedsRoutes.get( '/feeds', getFeeds )
+feedsRoutes.post( '/feeds', addFeed )
 ```
 
 ```ts
-// jobs.controller.ts
 // Express
 import { Request, Response } from 'express'
 // Shared
-import {
-  CreateJobBody,
-  CreateJobResponse,
-  DownloadFormat,
-  GetJobResponse,
-} from '@mnemosyne/shared'
+import { CreateFeedBody, FeedResponse, ListFeedsResponse } from '@mnemosyne/shared'
 // Services
-import { findJob, queueJob, renderTranscript } from '../services/jobs.service.js'
+import { createFeed, listFeeds } from '../services/feeds.service.js'
 
-export const createJob = ( { body }: Request, res: Response< CreateJobResponse > ): void => {
-  const { url } = CreateJobBody.parse( body )
-
-  const job = queueJob( url )
-
-  res
-    .status( 202 )
-    .location( `/api/jobs/${ job.id }` )
-    .json( { job_id: job.id } )
+export const getFeeds = ( _req: Request, res: Response< ListFeedsResponse > ): void => {
+  res.status( 200 ).json( { feeds: listFeeds() } )
 }
 
-export const getJob = ( { params }: Request, res: Response< GetJobResponse > ): void => {
-  const job = findJob( String( params.id ) )
+export const addFeed = async (
+  { body }: Request,
+  res: Response< FeedResponse >,
+): Promise< void > => {
+  const feed = await createFeed( CreateFeedBody.parse( body ) )
 
-  res.status( 200 ).json( { job } )
-}
-
-export const downloadTranscript = ( { params, query }: Request, res: Response ): void => {
-  const format = DownloadFormat.parse( query.format ?? 'md' )
-
-  const { filename, contentType, body } = renderTranscript( String( params.id ), format )
-
-  res
-    .status( 200 )
-    .type( contentType )
-    .attachment( filename )
-    .send( body )
-}
-```
-
-```ts
-// runJob.ts
-// Packages
-import { rm } from 'node:fs/promises'
-import path from 'node:path'
-// Shared
-import { Transcript } from '@mnemosyne/shared'
-// Services
-import {
-  completeJob,
-  failJob,
-  findJob,
-  markStatus,
-} from '../services/jobs.service.js'
-// Clients
-import { downloadAudio } from '../clients/ytDlp.client.js'
-import { convertToWav } from '../clients/ffmpeg.client.js'
-import { transcribeAudio } from '../clients/whisperServer.client.js'
-// Config
-import { config } from '../config.js'
-
-const RETRY_DELAY_MS = 3000
-const removeOptions = { recursive: true, force: true }
-
-const downloadWithRetry = async (
-  url: string,
-  workDir: string,
-): ReturnType< typeof downloadAudio > => {
-  try {
-    return await downloadAudio( url, workDir )
-  } catch( error ) {
-    if( !( error instanceof Error && error.message.includes( '403' ) ) ) {
-      throw error
-    }
-  }
-
-  await rm( workDir, removeOptions )
-  await new Promise( ( resolve ) => setTimeout( resolve, RETRY_DELAY_MS ) )
-
-  return downloadAudio( url, workDir )
-}
-
-export const runJob = async ( jobId: string ): Promise< void > => {
-  const job = findJob( jobId )
-  markStatus( jobId, 'downloading' )
-
-  const workDir = path.join( config.workDir, jobId )
-
-  try {
-    const { audioPath, meta } = await downloadWithRetry( job.url, workDir )
-
-    markStatus( jobId, 'converting' )
-    const wavPath = await convertToWav( audioPath )
-
-    markStatus( jobId, 'transcribing' )
-    const segments = await transcribeAudio( wavPath, config.whisperUrl )
-
-    const transcript = Transcript.parse( {
-      meta: {
-        ...meta,
-        transcribed_at: new Date().toISOString(),
-        model: config.whisperModel,
-      },
-      segments,
-    } )
-
-    completeJob( jobId, transcript )
-  } catch( error ) {
-    failJob( jobId, error instanceof Error ? error.message : 'Unknown error' )
-  } finally {
-    try {
-      await rm( workDir, removeOptions )
-    } catch( cleanupError ) {
-      console.error( `Could not remove work folder ${ workDir }`, cleanupError )
-    }
-  }
+  res.status( 201 ).json( { feed } )
 }
 ```
 
