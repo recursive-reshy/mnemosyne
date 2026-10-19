@@ -24,23 +24,25 @@ const JobRow = z.object( {
   source_type: z.string(),
   feed_id: z.string().nullable(),
   feed_name: z.string().nullable(),
+  gmail_source_id: z.string().nullable(),
+  gmail_source_name: z.string().nullable(),
   saved_path: z.string().nullable(),
   expires_at: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
 } )
 
-const SELECT_JOB = `SELECT jobs.*, feeds.name AS feed_name
-  FROM jobs LEFT JOIN feeds ON feeds.id = jobs.feed_id`
+const SELECT_JOB = `SELECT jobs.*, feeds.name AS feed_name,
+    gmail_sources.name AS gmail_source_name
+  FROM jobs
+    LEFT JOIN feeds ON feeds.id = jobs.feed_id
+    LEFT JOIN gmail_sources ON gmail_sources.id = jobs.gmail_source_id`
 
 const toStoredJob = ( raw: unknown ): StoredJob => {
   const row = JobRow.parse( raw )
 
-  // Read from the gmail_sources join in task 3.2.
   return StoredJob.parse( {
     ...row,
-    gmail_source_id: null,
-    gmail_source_name: null,
     source_document: row.source_document === null
       ? null
       : JSON.parse( row.source_document ) as unknown,
@@ -61,6 +63,7 @@ const toRow = ( job: StoredJob ): Record< string, string | null > => {
     prompt_profile_id: job.prompt_profile_id,
     source_type: job.source_type,
     feed_id: job.feed_id,
+    gmail_source_id: job.gmail_source_id,
     saved_path: job.saved_path,
     expires_at: job.expires_at,
     created_at: job.created_at,
@@ -77,12 +80,12 @@ export const insertJob = ( job: StoredJob ): void => {
 
   db.prepare( `INSERT INTO jobs (
       id, url, status, error, title, source_document, note_markdown, target_folder,
-      summary_model, prompt_profile_id, source_type, feed_id, saved_path, expires_at,
-      created_at, updated_at
+      summary_model, prompt_profile_id, source_type, feed_id, gmail_source_id, saved_path,
+      expires_at, created_at, updated_at
     ) VALUES (
       @id, @url, @status, @error, @title, @source_document, @note_markdown, @target_folder,
-      @summary_model, @prompt_profile_id, @source_type, @feed_id, @saved_path, @expires_at,
-      @created_at, @updated_at
+      @summary_model, @prompt_profile_id, @source_type, @feed_id, @gmail_source_id, @saved_path,
+      @expires_at, @created_at, @updated_at
     )` ).run( toRow( job ) )
 }
 
@@ -109,7 +112,7 @@ export const updateJob = (
       source_document = @source_document, note_markdown = @note_markdown,
       target_folder = @target_folder, summary_model = @summary_model,
       prompt_profile_id = @prompt_profile_id, source_type = @source_type,
-      feed_id = @feed_id, saved_path = @saved_path,
+      feed_id = @feed_id, gmail_source_id = @gmail_source_id, saved_path = @saved_path,
       expires_at = @expires_at, created_at = @created_at, updated_at = @updated_at
     WHERE id = @id` ).run( toRow( updated ) )
 

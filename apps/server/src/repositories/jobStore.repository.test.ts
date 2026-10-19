@@ -299,6 +299,78 @@ describe( 'source type, feed and source document', () => {
 
     expect( findJobById( job.id )?.feed_name ).toBe( 'New' )
   } )
+
+  const addGmailSource = ( id: string, name: string, deletedAt: string | null = null ): void => {
+    getDatabase().prepare( `INSERT INTO gmail_sources (
+        id, name, match_kind, label_ids, destination, sync_from, created_at, deleted_at
+      ) VALUES ( ?, ?, 'labels', '["L1"]', 'newsletter', '2026-10-18T10:00:00.000Z',
+        '2026-10-18T10:00:00.000Z', ? )` ).run( id, name, deletedAt )
+  }
+
+  it( 'round-trips the Gmail source id and name', () => {
+    const sourceId = crypto.randomUUID()
+    addGmailSource( sourceId, 'Lenny' )
+    const job = buildJob( {
+      source_type: 'article',
+      gmail_source_id: sourceId,
+      gmail_source_name: 'Lenny',
+      source_document: article,
+    } )
+
+    insertJob( job )
+
+    expect( findJobById( job.id ) ).toEqual( job )
+  } )
+
+  it( 'stores the Gmail source id and can change it with updateJob', () => {
+    const sourceId = crypto.randomUUID()
+    addGmailSource( sourceId, 'Lenny' )
+    const job = buildJob()
+    insertJob( job )
+
+    expect( updateJob( job.id, { gmail_source_id: sourceId } )?.gmail_source_id )
+      .toBe( sourceId )
+    expect( getDatabase().prepare( 'SELECT gmail_source_id FROM jobs WHERE id = ?' ).get( job.id ) )
+      .toEqual( { gmail_source_id: sourceId } )
+  } )
+
+  it( 'gives every read the Gmail source name from the gmail_sources table', () => {
+    const sourceId = crypto.randomUUID()
+    addGmailSource( sourceId, 'Lenny' )
+    const job = buildJob( { source_type: 'article', gmail_source_id: sourceId } )
+    insertJob( job )
+
+    expect( findJobById( job.id )?.gmail_source_name ).toBe( 'Lenny' )
+    expect( listActiveJobs()[ 0 ]?.gmail_source_name ).toBe( 'Lenny' )
+    expect( findNextRunnableJob()?.gmail_source_name ).toBe( 'Lenny' )
+  } )
+
+  it( 'keeps the name of a deleted Gmail source', () => {
+    const sourceId = crypto.randomUUID()
+    addGmailSource( sourceId, 'Gone', '2026-10-18T12:00:00.000Z' )
+    insertJob( buildJob( { gmail_source_id: sourceId } ) )
+
+    expect( listActiveJobs()[ 0 ]?.gmail_source_name ).toBe( 'Gone' )
+  } )
+
+  it( 'has no Gmail source name when the source row is missing', () => {
+    const job = buildJob( { gmail_source_id: crypto.randomUUID() } )
+    insertJob( job )
+
+    expect( findJobById( job.id )?.gmail_source_name ).toBeNull()
+  } )
+
+  it( 'does not write gmail_source_name: it follows the source', () => {
+    const sourceId = crypto.randomUUID()
+    addGmailSource( sourceId, 'Old' )
+    const job = buildJob( { gmail_source_id: sourceId } )
+    insertJob( job )
+
+    getDatabase().prepare( 'UPDATE gmail_sources SET name = ? WHERE id = ?' ).run( 'New', sourceId )
+    updateJob( job.id, { title: 'T', gmail_source_name: 'Stale' } )
+
+    expect( findJobById( job.id )?.gmail_source_name ).toBe( 'New' )
+  } )
 } )
 
 describe( 'clearJobs', () => {
