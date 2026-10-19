@@ -2,9 +2,10 @@
 
 ## Plans
 
-Each version has its own folder. The current version is 0.5.0.
+Each version has its own folder. The current version is 0.6.0.
 
-- **v0.5.0 (in progress):** [PRD](v0.5.0/prd.md) · [TRD](v0.5.0/trd.md) · [Tasks](v0.5.0/tasks.md) · [Release notes](v0.5.0/release-notes.md) · checkpoint plans in `v0.5.0/plans/`
+- **v0.6.0 (planning):** [PRD](v0.6.0/prd.md) · [TRD](v0.6.0/trd.md) · [Tasks](v0.6.0/tasks.md) · checkpoint plans in `v0.6.0/plans/`
+- **v0.5.0 (done):** [PRD](v0.5.0/prd.md) · [TRD](v0.5.0/trd.md) · [Tasks](v0.5.0/tasks.md) · [Release notes](v0.5.0/release-notes.md) · checkpoint plans in `v0.5.0/plans/`
 - **v0.4.0 (done):** [PRD](v0.4.0/prd.md) · [TRD](v0.4.0/trd.md) · [Tasks](v0.4.0/tasks.md) · [Release notes](v0.4.0/release-notes.md) · checkpoint plans in `v0.4.0/plans/`
 - **v0.3.1 (done):** [PRD](v0.3.1/prd.md) · [TRD](v0.3.1/trd.md) · [Tasks](v0.3.1/tasks.md) · checkpoint plans in `v0.3.1/plans/`
 - **v0.3.0 (done):** [PRD](v0.3.0/prd.md) · [TRD](v0.3.0/trd.md) · [Tasks](v0.3.0/tasks.md) · [Release notes](v0.3.0/release-notes.md) · checkpoint plans in `v0.3.0/plans/`
@@ -51,6 +52,10 @@ Each significant decision is recorded as a short ADR (Architecture Decision Reco
 | [0032](decisions/0032-rss-feeds-inbox-poller.md) | RSS feeds with feedsmith, an inbox before summarizing, and a separate poller | Accepted |
 | [0033](decisions/0033-browser-mode-tests.md) | Browser-mode tests with Vitest and Playwright for real-DOM behaviour | Accepted |
 | [0034](decisions/0034-caret-sync-paragraph-and-front-matter.md) | Caret sync: match paragraphs by whole second, and ignore the front-matter | Accepted |
+| [0035](decisions/0035-gmail-intake.md) | Gmail intake: `@googleapis/gmail`, server-side OAuth, an encrypted refresh token, and a date-window sync | Proposed |
+| [0036](decisions/0036-newsletters-email-to-markdown.md) | Newsletters: email to Markdown with Readability first and unwrapped layout tables as fallback | Proposed |
+| [0037](decisions/0037-job-postings-dataset.md) | Job postings: Claude extraction into fixed columns plus JSON, deduplicated by platform job ID | Proposed |
+| [0038](decisions/0038-unified-inbox.md) | One inbox for feed items and newsletter emails | Proposed |
 
 ## Template for new ADRs
 
