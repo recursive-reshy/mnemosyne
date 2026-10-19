@@ -25,3 +25,8 @@ export const feedKeys = {
   all: [ 'feeds' ] as const,
   inbox: [ 'feed-items' ] as const,
 }
+
+export const gmailKeys = {
+  account: [ 'gmail', 'account' ] as const,
+  labels: [ 'gmail', 'labels' ] as const,
+}

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 // App
 import {
   feedKeys,
+  gmailKeys,
   modelKeys,
   promptKeys,
   settingsKeys,
@@ -24,5 +25,12 @@ describe( 'feed query keys', () => {
   it( 'has stable keys for feeds and the inbox', () => {
     expect( feedKeys.all ).toEqual( [ 'feeds' ] )
     expect( feedKeys.inbox ).toEqual( [ 'feed-items' ] )
+  } )
+} )
+
+describe( 'gmail query keys', () => {
+  it( 'has stable keys for the account and the labels', () => {
+    expect( gmailKeys.account ).toEqual( [ 'gmail', 'account' ] )
+    expect( gmailKeys.labels ).toEqual( [ 'gmail', 'labels' ] )
   } )
 } )
