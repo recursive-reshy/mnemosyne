@@ -82,3 +82,62 @@ describe( 'htmlToMarkdown', () => {
     expect( htmlToMarkdown( '<img src="x.png"><script>x</script>' ) ).toBe( '' )
   } )
 } )
+
+describe( 'htmlToMarkdown with layoutTables: unwrap', () => {
+  const unwrap = ( html: string ): string => htmlToMarkdown( html, { layoutTables: 'unwrap' } )
+
+  it( 'keeps the text of every cell, each cell as its own paragraph', () => {
+    const html = '<table><tr><td>First</td><td>Second</td></tr><tr><td>Third</td></tr></table>'
+
+    expect( unwrap( html ) ).toBe( 'First\n\nSecond\n\nThird' )
+  } )
+
+  it( 'flattens nested tables', () => {
+    const html = '<table><tr><td><table><tr><td><table><tr><td>Deep</td></tr></table></td></tr>'
+      + '</table></td></tr></table>'
+
+    expect( unwrap( html ) ).toBe( 'Deep' )
+  } )
+
+  it( 'handles thead, tbody, tfoot and th', () => {
+    const html = '<table><thead><tr><th>Head</th></tr></thead><tbody><tr><td>Body</td></tr></tbody>'
+      + '<tfoot><tr><td>Foot</td></tr></tfoot></table>'
+
+    expect( unwrap( html ) ).toBe( 'Head\n\nBody\n\nFoot' )
+  } )
+
+  it( 'writes headings, links and lists inside cells as usual', () => {
+    const html = '<table><tr><td><h2>Title</h2><p>See <a href="https://example.com/a">this</a>.</p>'
+      + '<ul><li>one</li><li>two</li></ul></td></tr></table>'
+
+    expect( unwrap( html ) ).toBe(
+      '## Title\n\nSee [this](https://example.com/a).\n\n-   one\n-   two',
+    )
+  } )
+
+  it( 'keeps text around the table and collapses the blank lines', () => {
+    expect( unwrap( '<p>a</p><table><tr><td>cell</td></tr></table><p>b</p>' ) )
+      .toBe( 'a\n\ncell\n\nb' )
+  } )
+
+  it.each( [
+    '<img src="x.png">',
+    '<script>alert( 1 )</script>',
+    '<style>p { color: red }</style>',
+    '<button>Share</button>',
+    '<form><label>Search</label></form>',
+  ] )( 'still drops %s inside a cell', ( removed ) => {
+    expect( unwrap( `<table><tr><td>text${ removed }</td></tr></table>` ) ).toBe( 'text' )
+  } )
+
+  it( 'treats "remove" like the default', () => {
+    const html = '<p>a</p><table><tr><td>cell</td></tr></table><p>b</p>'
+
+    expect( htmlToMarkdown( html, { layoutTables: 'remove' } ) ).toBe( htmlToMarkdown( html ) )
+    expect( htmlToMarkdown( html, { layoutTables: 'remove' } ) ).toBe( 'a\n\nb' )
+  } )
+
+  it( 'returns an empty string for an empty table', () => {
+    expect( unwrap( '<table><tr><td></td></tr></table>' ) ).toBe( '' )
+  } )
+} )
