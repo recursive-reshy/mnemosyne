@@ -1,6 +1,6 @@
 # 0037. Job postings: Claude extraction into fixed columns plus JSON, deduplicated by platform job ID
 
-- Status: Accepted
+- Status: Accepted (deferred by ADR 0041; the design stands for a later version)
 - Date: 2026-10-19
 
 ## Context
