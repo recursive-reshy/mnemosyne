@@ -14,8 +14,8 @@ import {
   completeConsent,
   createConsentUrl,
   disconnect,
-  withGmail,
 } from '../gmail/auth.js'
+import { listLabels as listGmailLabels } from '../gmail/gmail.client.js'
 // Repositories
 import { findAccount } from '../repositories/gmailAccount.repository.js'
 
@@ -111,17 +111,8 @@ export const listLabels = async (): Promise< GmailLabel[] > => {
   requireConfigured()
 
   try {
-    const { data } = await withGmail( ( client ) => client.users.labels.list( { userId: 'me' } ) )
-    const labels = ( data.labels ?? [] ).flatMap( ( { id, name, type } ): GmailLabel[] => {
-      if( !id || !name ) {
-        return []
-      }
-
-      if( type === 'user' ) {
-        return [ { id, name, type: 'user' } ]
-      }
-
-      return id === 'INBOX' ? [ { id, name, type: 'system' } ] : []
+    const labels = ( await listGmailLabels() ).filter( ( { id, type } ) => {
+      return type === 'user' || id === 'INBOX'
     } )
 
     return [
