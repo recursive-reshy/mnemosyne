@@ -14,7 +14,6 @@ import TextField from '@mui/material/TextField'
 import type {
   Backfill,
   CreateGmailSourceBody,
-  GmailDestination,
   PromptProfile,
 } from '@mnemosyne/shared'
 // App
@@ -25,9 +24,11 @@ import { usePreviewGmailSource } from '#src/hooks/usePreviewGmailSource'
 import { GmailMatchFields } from '../GmailMatchFields'
 import { GmailNewsletterFields } from '../GmailNewsletterFields'
 import { GmailPreviewSummary } from '../GmailPreviewSummary'
-import { GmailDestinationField } from './GmailDestinationField'
 import { intakeLine } from './intakeLine'
 import { toCreateBody } from './toCreateBody'
+
+// Job-alert sources are deferred (ADR 0041): every source created here is a newsletter.
+const DESTINATION = 'newsletter'
 
 interface AddGmailSourceDialogProps {
   profiles: PromptProfile[]
@@ -47,25 +48,19 @@ export function AddGmailSourceDialog(
   } )
   const [ name, setName ] = useState( '' )
   const [ draft, setDraft ] = useState< MatchDraft >( { kind: 'labels', labelIds: [], query: '' } )
-  const [ destination, setDestination ] = useState< GmailDestination >( 'newsletter' )
   const [ profileId, setProfileId ] = useState( '' )
   const [ autoSummarize, setAutoSummarize ] = useState( false )
   const [ backfill, setBackfill ] = useState< Backfill >( '30d' )
   const [ previewedKey, setPreviewedKey ] = useState< string | null >( null )
 
   const match = toMatch( draft )
-  const key = `${ destination }|${ matchKey( match ) }`
+  const key = matchKey( match )
   const found = previewedKey === key ? preview.data ?? null : null
   const shownError = preview.isError ? preview.error.message : error
 
-  // A preview describes one match and destination; any other needs a new one.
+  // A preview describes one match; any other needs a new one.
   const handleDraft = ( next: MatchDraft ): void => {
     setDraft( next )
-    preview.reset()
-  }
-
-  const handleDestination = ( next: GmailDestination ): void => {
-    setDestination( next )
     preview.reset()
   }
 
@@ -89,7 +84,7 @@ export function AddGmailSourceDialog(
     }
 
     onSubmit( toCreateBody(
-      { name: name.trim(), match, destination },
+      { name: name.trim(), match, destination: DESTINATION },
       { profileId, autoSummarize, backfill },
     ) )
   }
@@ -120,24 +115,17 @@ export function AddGmailSourceDialog(
             labelsError={ labelsError }
             onChange={ handleDraft }
           />
-          <GmailDestinationField
-            id={ titleId }
-            value={ destination }
-            onChange={ handleDestination }
+          <GmailNewsletterFields
+            profileId={ profileId }
+            autoSummarize={ autoSummarize }
+            profiles={ profiles }
+            backfill={ backfill }
+            onProfileChange={ setProfileId }
+            onAutoSummarizeChange={ setAutoSummarize }
+            onBackfillChange={ setBackfill }
           />
-          { destination === 'newsletter' && (
-            <GmailNewsletterFields
-              profileId={ profileId }
-              autoSummarize={ autoSummarize }
-              profiles={ profiles }
-              backfill={ backfill }
-              onProfileChange={ setProfileId }
-              onAutoSummarizeChange={ setAutoSummarize }
-              onBackfillChange={ setBackfill }
-            />
-          ) }
           { found !== null && (
-            <GmailPreviewSummary preview={ found } intake={ intakeLine( destination, backfill ) } />
+            <GmailPreviewSummary preview={ found } intake={ intakeLine( DESTINATION, backfill ) } />
           ) }
           { shownError !== null && <Alert severity="error">{ shownError }</Alert> }
         </Stack>

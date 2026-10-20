@@ -74,8 +74,6 @@ describe( 'AddGmailSourceDialog', () => {
   it( 'starts as a newsletter source matching by labels', () => {
     setup()
 
-    expect( screen.getByRole( 'radio', { name: 'Newsletter' } ) ).toBeChecked()
-    expect( screen.getByRole( 'radio', { name: 'Freelance jobs' } ) ).not.toBeChecked()
     expect( screen.getByRole( 'combobox', { name: 'Labels' } ) ).toBeInTheDocument()
     expect( screen.getByRole( 'combobox', { name: 'Backfill' } ) )
       .toHaveTextContent( 'Last 30 days' )
@@ -191,39 +189,18 @@ describe( 'AddGmailSourceDialog', () => {
 
       expect( screen.getByText( text ) ).toBeInTheDocument()
     } )
-
-    it( 'says a jobs source starts with the next new email', async () => {
-      setup()
-      await userEvent.click( screen.getByRole( 'radio', { name: 'Freelance jobs' } ) )
-      await search()
-      await preview()
-
-      expect( screen.getByText( /starts with the next new email/ ) ).toBeInTheDocument()
-    } )
   } )
 
   describe( 'destination', () => {
-    it( 'shows the newsletter options only for a newsletter', async () => {
+    it( 'has no destination choice and always shows the newsletter options', () => {
       setup()
 
-      const autoSummarize = { name: 'Summarize automatically' }
-
-      expect( screen.getByRole( 'checkbox', autoSummarize ) ).toBeInTheDocument()
-
-      await userEvent.click( screen.getByRole( 'radio', { name: 'Freelance jobs' } ) )
-
-      expect( screen.queryByRole( 'checkbox', autoSummarize ) ).not.toBeInTheDocument()
-      expect( screen.queryByRole( 'combobox', { name: 'Prompt profile' } ) ).not.toBeInTheDocument()
-      expect( screen.queryByRole( 'combobox', { name: 'Backfill' } ) ).not.toBeInTheDocument()
-    } )
-
-    it( 'forgets a preview when the destination changes, since what it says differs', async () => {
-      setup()
-      await search()
-      await preview()
-      await userEvent.click( screen.getByRole( 'radio', { name: 'Freelance jobs' } ) )
-
-      expect( screen.queryByText( '12 emails match' ) ).not.toBeInTheDocument()
+      expect( screen.queryByRole( 'radio', { name: 'Newsletter' } ) ).not.toBeInTheDocument()
+      expect( screen.queryByRole( 'radio', { name: 'Freelance jobs' } ) ).not.toBeInTheDocument()
+      expect( screen.getByRole( 'checkbox', { name: 'Summarize automatically' } ) )
+        .toBeInTheDocument()
+      expect( screen.getByRole( 'combobox', { name: 'Prompt profile' } ) ).toBeInTheDocument()
+      expect( screen.getByRole( 'combobox', { name: 'Backfill' } ) ).toBeInTheDocument()
     } )
   } )
 
@@ -266,20 +243,6 @@ describe( 'AddGmailSourceDialog', () => {
         profile_id: CODING_ID,
         auto_summarize: true,
         backfill: 'none',
-      } )
-    } )
-
-    it( 'sends a jobs source with no newsletter fields', async () => {
-      const { onSubmit } = setup()
-
-      await userEvent.click( screen.getByRole( 'radio', { name: 'Freelance jobs' } ) )
-      await fillAndPreview( 'Upwork' )
-      await userEvent.click( screen.getByRole( 'button', { name: 'Add' } ) )
-
-      expect( onSubmit ).toHaveBeenCalledWith( {
-        name: 'Upwork',
-        match: { kind: 'query', query: 'from:news@example.com' },
-        destination: 'jobs',
       } )
     } )
 
