@@ -1,15 +1,16 @@
 # Mnemosyne
 
-Paste a video URL (YouTube or anything yt-dlp supports) and get a timestamped transcript, or paste an article URL, and get a Claude-written summary that you review and save as a note in your Obsidian vault. You can also subscribe to RSS or Atom feeds and pick which new posts to summarize. It runs on your Mac; the video download, the pages and feeds the server fetches, and the transcript or article text sent to the Claude API for the summary are the only things that leave the machine.
+Paste a video URL (YouTube or anything yt-dlp supports) and get a timestamped transcript, or paste an article URL, and get a Claude-written summary that you review and save as a note in your Obsidian vault. You can also subscribe to RSS or Atom feeds, and connect Gmail (read-only) to pick up email newsletters, and choose which new items to summarize. It runs on your Mac; the video download, the pages and feeds the server fetches, the emails it reads from Gmail, and the transcript, article or email text sent to the Claude API for the summary are the only things that leave the machine.
 
 ## How it works
 
-You submit a URL in the browser; it is a video or an article, detected from the host and overridable. The Express server queues a job, and a worker runs one job at a time through a source adapter. For a video, yt-dlp downloads the audio, ffmpeg converts it to 16 kHz mono WAV, and the WAV is sent over HTTP to whisper-server. The transcript is stored in a SQLite database and rendered to Markdown, SRT or TXT when you download it. For an article, the server fetches the page itself, extracts the main text and stores it as Markdown; a page it can't read (a login or a paywall) is handled by pasting the article's text. The worker then sends the transcript or article to the Claude API for a summary (key points, quotes, tags; article notes have no timestamps), using the prompt profile and model you picked in Settings or for that video. You review the note in the browser, where every edit is saved to the server as a draft, pick the vault folder it goes to, and saving writes it there and deletes the transcript or article. Feeds: you subscribe in Settings, the server checks them on a schedule, and new items wait in a From feeds inbox on the home page; nothing is fetched or summarized until you summarize an item (or switch a feed to summarize automatically). Jobs you leave in review are deleted after 24 hours; every edit starts the 24 hours again. The browser polls the job's status.
+You submit a URL in the browser; it is a video or an article, detected from the host and overridable. The Express server queues a job, and a worker runs one job at a time through a source adapter. For a video, yt-dlp downloads the audio, ffmpeg converts it to 16 kHz mono WAV, and the WAV is sent over HTTP to whisper-server. The transcript is stored in a SQLite database and rendered to Markdown, SRT or TXT when you download it. For an article, the server fetches the page itself, extracts the main text and stores it as Markdown; a page it can't read (a login or a paywall) is handled by pasting the article's text. The worker then sends the transcript or article to the Claude API for a summary (key points, quotes, tags; article notes have no timestamps), using the prompt profile and model you picked in Settings or for that video. You review the note in the browser, where every edit is saved to the server as a draft, pick the vault folder it goes to, and saving writes it there and deletes the transcript or article. Feeds: you subscribe in Settings, the server checks them on a schedule, and new items wait in the Inbox on the home page; nothing is fetched or summarized until you summarize an item (or switch a feed to summarize automatically). Gmail: you connect your account once in Settings (read-only), add sources (Gmail labels or a Gmail search), and the server reads new matching emails on the same schedule; they wait in the same Inbox, and summarizing one turns the email body into an article job whose note links back to the email in Gmail. Jobs you leave in review are deleted after 24 hours; every edit starts the 24 hours again. The browser polls the job's status.
 
 ```text
 browser ──> Express + worker (Docker, :3100)
                 │
                 ├─ fetch articles and feeds (Readability, feedsmith)
+                ├─ Gmail API   read newsletters (read-only, optional)
                 ├─ yt-dlp   download audio
                 ├─ ffmpeg   convert to WAV
                 ├─ whisper-server (native on the Mac, Metal GPU, :8178)
@@ -26,6 +27,7 @@ browser ──> Express + worker (Docker, :3100)
 - Docker Desktop
 - An Anthropic API key (summaries cost a small amount per video)
 - An Obsidian vault folder on this Mac
+- Optional, for Gmail newsletters: a Google account and a one-time Google Cloud setup ([below](#google-cloud-setup-for-gmail)). Without it the app works as before.
 - Homebrew `whisper-cpp`, which provides `whisper-server`:
   ```sh
   brew install whisper-cpp
@@ -67,6 +69,33 @@ pnpm --filter web exec playwright install chromium webkit
 
 3. Open <http://localhost:3100>.
 
+## Google Cloud setup for Gmail
+
+Only needed to read Gmail. Mnemosyne asks Google for read-only access (`gmail.readonly`); it never changes your mailbox. The setup is done once, in the [Google Cloud console](https://console.cloud.google.com/). The console's menus change from time to time; the names below are those of the Google Auth Platform at the time of writing.
+
+1. **Create a project** (any name, for example Mnemosyne).
+2. **Enable the Gmail API:** APIs & Services → Library → Gmail API → Enable.
+3. **Branding:** Google Auth Platform → Branding. Give the app a name and your email as the support and developer contact. Google asks for a homepage and a privacy policy link; any page you control will do (this is a personal app).
+4. **Audience:** choose **External**. Add your own Google account as a test user, then **Publish app** so its status is **In production**. This matters: while an app is in *Testing*, Google expires its refresh tokens after 7 days and Gmail would need reconnecting every week. You don't need to submit it for verification; Google shows an "unverified app" warning when you connect, which is expected for a personal app.
+5. **Data Access:** add the scope `https://www.googleapis.com/auth/gmail.readonly`.
+6. **Clients → Create client → Web application.** Add these authorized redirect URIs:
+   - `http://localhost:3100/api/gmail/oauth/callback` (Docker)
+   - `http://localhost:5173/api/gmail/oauth/callback` (development, `pnpm dev`)
+
+   Copy the client ID and client secret.
+7. Put the values in `.env` (the repo root for Docker, `apps/server/.env` for development):
+
+   ```sh
+   GOOGLE_CLIENT_ID=...
+   GOOGLE_CLIENT_SECRET=...
+   TOKEN_ENCRYPTION_KEY=...   # from: openssl rand -base64 32
+   # Development only, to match the redirect URI above:
+   # GOOGLE_REDIRECT_URI=http://localhost:5173/api/gmail/oauth/callback
+   ```
+
+   `TOKEN_ENCRYPTION_KEY` encrypts the stored Gmail refresh token. Keep it as safe as the secret: a copy of the database is useless without it, and a lost or changed key means Gmail has to be reconnected.
+8. Restart the app (`docker compose up -d`), open **Settings**, and press **Connect Gmail** in the Gmail section. Continue past the unverified-app warning and approve read-only access. You land back in Settings with **Connected as** your address.
+
 ## Using it
 
 1. Paste a video or article URL and submit. Under the field a **Video / Article** switch shows what was detected; click it to override. The button reads Transcribe for a video and Summarize for an article. **Paste text instead** (for articles) takes the article's text with an optional title, and nothing is fetched. Below the field, **Prompt profile** and **Model** start on your defaults (see Settings below); change them to use another for this video only.
@@ -88,7 +117,11 @@ The gear at the bottom of the navigation drawer opens **Settings**. The Summariz
 - **Instructions the app always sends.** Read-only views (one for videos, one for articles) of the fixed part of the prompt that keeps the output in the shape the app needs. Your prompt is added after it, so no edit can break the note.
 
 - **Feeds.** Set how often feeds are checked (15 minutes to daily), **Check all now**, and **Add feed**: enter a feed address or a page that links to one, see its title and latest item, pick its prompt profile and whether it summarizes automatically. Each feed has an on/off switch, an automatic switch and a menu (Check now, Edit, Delete). Adding a feed doesn't import its back catalogue: only its newest item goes to the inbox. A check adds at most 10 new items per feed; the rest are marked seen and skipped, and the feed says how many. A failing feed shows its error and keeps being retried.
-- **From feeds.** On the home page, new items wait here with their feed, title and date. **Summarize** (one item or a selection) turns them into normal jobs with the feed's profile, or one you choose for the batch, and the model you choose; **Dismiss** removes them. Items don't expire; the jobs made from them follow the usual 24-hour review expiry and show the feed's name.
+- **Inbox (feeds).** New feed items wait on the home page with their feed, title and date. **Summarize** (one item or a selection) turns them into normal jobs with the feed's profile, or one you choose for the batch, and the model you choose; **Dismiss** removes them. The jobs made from them show the feed's name.
+
+- **Gmail.** After the setup above, **Connect Gmail** links your account (the section explains what's missing if the variables aren't set). **Disconnect** revokes the access at Google and deletes the stored token; your sources and inbox items stay. If Google stops accepting the connection (you revoked it, or the app went back to Testing), the section shows **Reconnect needed** with the reason, Gmail checks pause, and a warning dot appears on Settings in the navigation drawer; **Reconnect** resumes where it stopped.
+- **Gmail sources.** **Add source** takes a name and either one or more Gmail labels (an email with any of them matches) or a Gmail search such as `from:news@example.com`; create labels and filters in Gmail itself. **Preview** shows how many emails match, the newest subject and sender, and a warning if another source has the same rule; a source can only be saved after a preview of its current rule. Choose a prompt profile, whether to **Summarize automatically**, and a **backfill**: none (only the newest email goes to the inbox), the last 30 or 90 days, or all, up to 200 emails. Backfilled emails only land in the inbox; they are never summarized automatically. Sources are checked on the feed interval; each has an on/off switch and a menu (Check now, Edit, Delete), and **Check all now** checks every enabled one. A check adds at most 10 new emails per source, and the rest are marked seen and skipped, as for feeds. Deleting a source asks whether to remove its inbox items.
+- **Inbox.** On the home page, new feed items and newsletter emails wait together, newest first, each with its feed or source name; emails also show the sender and a link that opens the email in Gmail. **Summarize** and **Dismiss** work on one item or a selection. Summarizing an email uses its body as the article (links, images, tracking and the unsubscribe footer are dropped), and the note's `source` links to the email, `author` is the sender, `site` the source's name and `published` the date received. An email with too little text can't be summarized and stays in the inbox. Items don't expire; the jobs made from them follow the usual 24-hour review expiry.
 
 The app opens with a navigation drawer on the left (**Transcriber**, with **Settings** and the colour-mode control at the bottom). The hamburger in the top bar collapses it to icons or expands it again, and the choice is remembered in the browser. On a narrow window the drawer is hidden and opens over the page. At the bottom of the drawer, **Light**, **Dark** and **System** set the colour mode (System follows the OS and is the default); that choice is remembered too. The note editor follows the colour mode too.
 
@@ -96,7 +129,7 @@ Edits are saved to the server about a second and a half after you stop typing, w
 
 The page address carries the job (`?job=<id>`), so refreshing the page keeps you on the same job. Jobs and their transcripts live in a SQLite database on a Docker volume, so they survive a container restart or rebuild. A job that was downloading, converting or transcribing when the app stopped is marked failed on the next start.
 
-The API also supports listing jobs, listing the vault's folders, updating a review draft, saving it, retrying a failed summary and discarding a job (`GET /api/jobs`, `GET /api/vault/folders`, `PATCH /api/jobs/:id/draft`, `POST /api/jobs/:id/save` with no body, `POST /api/jobs/:id/retry-summary`, `DELETE /api/jobs/:id`). Settings and summaries add `GET` and `PATCH /api/settings`, `GET /api/models`, the prompt profile endpoints under `/api/prompt-profiles` (list, create, rename, delete, versions, restore, reset), `POST /api/jobs/:id/regenerate-summary`, and optional `model` and `profile_id` in the `POST /api/jobs` body. Version 0.5.0 adds `source_type`, `text` and `title` to the `POST /api/jobs` body, `GET /api/jobs/:id/source` (replacing `/transcript`), `POST /api/jobs/:id/text` (pasted text for a failed article job), the feed endpoints (`GET` and `POST /api/feeds`, `POST /api/feeds/preview`, `POST /api/feeds/check`, `PATCH` and `DELETE /api/feeds/:id`, `POST /api/feeds/:id/check`) and the inbox endpoints (`GET /api/inbox`, `POST /api/inbox/summarize`, `POST /api/inbox/dismiss`, taking `{ kind: 'feed' | 'gmail', id }` items; these replace `/api/feed-items`).
+The API also supports listing jobs, listing the vault's folders, updating a review draft, saving it, retrying a failed summary and discarding a job (`GET /api/jobs`, `GET /api/vault/folders`, `PATCH /api/jobs/:id/draft`, `POST /api/jobs/:id/save` with no body, `POST /api/jobs/:id/retry-summary`, `DELETE /api/jobs/:id`). Settings and summaries add `GET` and `PATCH /api/settings`, `GET /api/models`, the prompt profile endpoints under `/api/prompt-profiles` (list, create, rename, delete, versions, restore, reset), `POST /api/jobs/:id/regenerate-summary`, and optional `model` and `profile_id` in the `POST /api/jobs` body. Version 0.5.0 adds `source_type`, `text` and `title` to the `POST /api/jobs` body, `GET /api/jobs/:id/source` (replacing `/transcript`), `POST /api/jobs/:id/text` (pasted text for a failed article job), the feed endpoints (`GET` and `POST /api/feeds`, `POST /api/feeds/preview`, `POST /api/feeds/check`, `PATCH` and `DELETE /api/feeds/:id`, `POST /api/feeds/:id/check`) and the inbox endpoints (`GET /api/inbox`, `POST /api/inbox/summarize`, `POST /api/inbox/dismiss`, taking `{ kind: 'feed' | 'gmail', id }` items; these replace `/api/feed-items`). Version 0.6.0 adds the Gmail endpoints: `GET /api/gmail/account`, `GET /api/gmail/connect` (redirects to Google), `GET /api/gmail/oauth/callback` (Google's redirect target), `POST /api/gmail/disconnect`, `GET /api/gmail/labels`, and the sources under `/api/gmail/sources` (`GET` and `POST`, `POST /api/gmail/sources/preview`, `POST /api/gmail/sources/check`, `PATCH` and `DELETE /api/gmail/sources/:id`, `POST /api/gmail/sources/:id/check`). Jobs from Gmail carry `gmail_source_id` and `gmail_source_name`.
 
 ## Output formats
 
@@ -123,12 +156,17 @@ The server reads these environment variables. Empty values count as unset.
 | `CLEANUP_INTERVAL_MINUTES` | `15` | default |
 | `WHISPER_MODEL` | `large-v3-turbo` | `${WHISPER_MODEL:-large-v3-turbo}` |
 | `WEB_DIR` | unset (Vite serves the web app) | `/app/web` |
+| `GOOGLE_CLIENT_ID` | unset | from `.env` |
+| `GOOGLE_CLIENT_SECRET` | unset | from `.env` |
+| `GOOGLE_REDIRECT_URI` | `http://localhost:<PORT>/api/gmail/oauth/callback` | from `.env`, default as left |
+| `TOKEN_ENCRYPTION_KEY` | unset | from `.env` |
 
 - `WORK_DIR` holds audio files while a job runs; the folder is emptied when the server starts.
 - `WHISPER_MODEL` is only the label stored on each transcript (whisper-server doesn't report its model). Keep it in step with the model the agent runs.
 - `WEB_DIR` is the folder with the built web app; when set, Express serves it.
 - `DATA_DIR` holds `mnemosyne.db`. `VAULT_PATH` must exist and be writable at startup, or the server exits with a message.
 - `DEFAULT_NOTE_FOLDER` is the vault folder notes go to unless you pick another in the review screen. It is relative to the vault, is created at startup if missing, and must be a plain path such as `Notes/Videos` (no `..`, no leading `/`, no folder starting with a dot). The server never writes outside the vault, whatever folder is asked for.
+- The four Google variables are optional. Gmail is off (Settings says so) unless the client ID, the secret and the key are all set; the rest of the app works without them. `TOKEN_ENCRYPTION_KEY` must be 32 bytes in base64 (`openssl rand -base64 32`); any other value stops the server at startup with a message. `GOOGLE_REDIRECT_URI` must match one of the redirect URIs in the Google client exactly.
 - `ANTHROPIC_API_KEY` lives in `.env` only, never in the repo. In Docker, `.env` at the repo root feeds both compose and the container.
 - For development, copy `apps/server/.env.example` to `apps/server/.env` and set `ANTHROPIC_API_KEY` and `VAULT_PATH` (any folder works for trying it out). `pnpm dev` loads it, and the integration tests load it too.
 
@@ -144,6 +182,8 @@ pnpm lint
 pnpm typecheck
 pnpm build
 ```
+
+`pnpm --filter @mnemosyne/server fixture:gmail <messageId> <name> [display name]` saves a real email from the connected account as a test fixture in `apps/server/src/test-support/gmail/`, with your address, name and the links reduced to a host and a generic path. No test touches Gmail or the network; they use these fixtures and fakes.
 
 Stop the container first (`docker compose stop`): the dev server and the container both use port 3100. Open <http://localhost:5173> while developing. The integration tests need whisper-server running; the Claude integration test also needs `ANTHROPIC_API_KEY` and is skipped without it.
 
@@ -166,6 +206,12 @@ On a stop signal the server stops taking work and lets a running job finish, for
 - **A job shows "summary failed".** The transcript is kept; the reason is on the job (`GET /api/jobs/:id`). Retry with `POST /api/jobs/:id/retry-summary`.
 - **An article job fails with "needs a login or is paywalled" or "Not an article page".** The server fetches pages without logging in or running scripts. Use **Paste text** on the failed job and paste the article's text.
 - **A feed shows a warning.** Its last check failed (the message says why, for example the site answered 500). It is retried at the normal interval; **Check now** in its menu retries at once.
+- **Settings says Gmail isn't configured.** One of `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` or `TOKEN_ENCRYPTION_KEY` is missing. Set all three in `.env` and restart the container.
+- **Gmail shows Reconnect needed.** Google no longer accepts the stored access. The reason is shown. If it happens about a week after connecting, the Google Cloud app is still in *Testing*: publish it to **In production** (see the setup), then press **Reconnect**. It also happens after you remove Mnemosyne in your Google account's third-party access, or after `TOKEN_ENCRYPTION_KEY` changes.
+- **After approving Gmail in development you land on port 3100 (or get a connection error).** Google redirected to the Docker port. Under `pnpm dev`, set `GOOGLE_REDIRECT_URI=http://localhost:5173/api/gmail/oauth/callback`, add that URI to the Google client, and restart the dev server.
+- **Google says "Error 400: redirect_uri_mismatch".** The redirect URI the app sent isn't in the Google client's list. It must match `GOOGLE_REDIRECT_URI` (or the default for your port) character for character.
+- **A Gmail source shows "Label not found in Gmail".** A label it uses was deleted in Gmail. Edit the source and pick the labels again; the rest keep working.
+- **An email won't summarize ("too little text" or "too long").** Some emails are mostly images or links. They stay in the inbox; open the email from its link, or dismiss it.
 - **A YouTube video fails with HTTP 403.** The server retries once after three seconds. If it still fails, submit the URL again later. The container updates yt-dlp each time it starts, so `docker compose restart` can also help.
 
 ## Status and roadmap
@@ -174,7 +220,7 @@ Version 0.5.0. A single-user tool: one job at a time, jobs kept in SQLite, no ac
 
 Possible next steps:
 
-- A Gmail adapter for email newsletters and freelance-job alerts (the source adapters are built for it).
+- Freelance job alerts from Gmail (Upwork, Freelancer.com): Claude extraction into a postings dataset and a Freelance jobs page. Deferred from 0.6.0 until real alert emails exist to build against (ADR 0041).
 - OPML import and export of feeds, and a per-feed model.
 - Lazy-load the note editor (the web bundle is about 1.5 MB).
 - A spend summary (per month, per model) built on the recorded usage.
