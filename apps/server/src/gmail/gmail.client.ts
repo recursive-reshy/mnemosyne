@@ -19,6 +19,9 @@ export interface MessageIdQuery {
 
 export interface MatchingIds {
   ids: string[]
+  // The first id of each listing. Ids from different labels aren't ordered against each other,
+  // so the newest message is among the heads.
+  heads: string[]
   missingLabelIds: string[]
 }
 
@@ -91,27 +94,33 @@ export const listMatchingIds = async (
   { after, max }: { after?: Date, max: number },
 ): Promise< MatchingIds > => {
   if( match.kind === 'query' ) {
-    return { ids: await listMessageIds( { q: match.query, after, max } ), missingLabelIds: [] }
+    const ids = await listMessageIds( { q: match.query, after, max } )
+
+    return { ids, heads: ids.slice( 0, 1 ), missingLabelIds: [] }
   }
 
   const known = new Set( ( await listLabels() ).map( ( { id } ) => id ) )
   const missingLabelIds = match.label_ids.filter( ( id ) => !known.has( id ) )
   const merged = new Set< string >()
+  const heads = new Set< string >()
 
   for( const labelId of match.label_ids.filter( ( id ) => known.has( id ) ) ) {
-    ( await listMessageIds( { labelId, after, max } ) ).forEach( ( id ) => merged.add( id ) )
+    const ids = await listMessageIds( { labelId, after, max } )
+
+    ids.forEach( ( id ) => merged.add( id ) )
+    ids.slice( 0, 1 ).forEach( ( id ) => heads.add( id ) )
   }
 
-  return { ids: [ ...merged ], missingLabelIds }
+  return { ids: [ ...merged ], heads: [ ...heads ], missingLabelIds }
 }
 
 export const countMatches = async ( match: GmailMatch ): Promise< MatchCount > => {
   // One more than the limit tells "exactly 500" from "more than 500".
-  const { ids, missingLabelIds } = await listMatchingIds( match, { max: COUNT_LIMIT + 1 } )
+  const matching = await listMatchingIds( match, { max: COUNT_LIMIT + 1 } )
+  const { ids } = matching
 
   return {
-    ids,
-    missingLabelIds,
+    ...matching,
     count: Math.min( ids.length, COUNT_LIMIT ),
     capped: ids.length > COUNT_LIMIT,
   }

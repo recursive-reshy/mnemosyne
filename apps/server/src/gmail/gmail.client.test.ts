@@ -215,7 +215,7 @@ describe( 'listMatchingIds', () => {
 
     const result = await listMatchingIds( { kind: 'query', query: 'from:a@b.c' }, { max: 10 } )
 
-    expect( result ).toEqual( { ids: [ 'a', 'b' ], missingLabelIds: [] } )
+    expect( result ).toEqual( { ids: [ 'a', 'b' ], heads: [ 'a' ], missingLabelIds: [] } )
     expect( messagesList ).toHaveBeenCalledTimes( 1 )
     expect( labelsList ).not.toHaveBeenCalled()
   } )
@@ -231,6 +231,7 @@ describe( 'listMatchingIds', () => {
     )
 
     expect( result.ids ).toEqual( [ 'a', 'b', 'c' ] )
+    expect( result.heads ).toEqual( [ 'a', 'b' ] )
     expect( messagesList ).toHaveBeenNthCalledWith( 1, expect.objectContaining( {
       labelIds: [ 'Label_1' ],
     } ) )
@@ -261,7 +262,7 @@ describe( 'listMatchingIds', () => {
       { max: 10 },
     )
 
-    expect( result ).toEqual( { ids: [ 'a' ], missingLabelIds: [ 'Label_gone' ] } )
+    expect( result ).toEqual( { ids: [ 'a' ], heads: [ 'a' ], missingLabelIds: [ 'Label_gone' ] } )
     expect( messagesList ).toHaveBeenCalledTimes( 1 )
   } )
 
@@ -271,7 +272,7 @@ describe( 'listMatchingIds', () => {
       { max: 10 },
     )
 
-    expect( result ).toEqual( { ids: [], missingLabelIds: [ 'Label_gone' ] } )
+    expect( result ).toEqual( { ids: [], heads: [], missingLabelIds: [ 'Label_gone' ] } )
     expect( messagesList ).not.toHaveBeenCalled()
   } )
 } )
@@ -290,6 +291,7 @@ describe( 'countMatches', () => {
       count: 3,
       capped: false,
       ids: [ 'a', 'b', 'c' ],
+      heads: [ 'a' ],
       missingLabelIds: [],
     } )
   } )
