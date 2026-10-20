@@ -17,6 +17,11 @@ import { renderWithClient } from '#src/test-support/renderWithClient'
 import { GmailSettings } from './GmailSettings'
 
 vi.mock( '#src/hooks/useGmailAccount' )
+vi.mock( '../GmailSources', () => ( {
+  GmailSources: ( { connected }: { connected: boolean } ) => (
+    <p>{ `Sources, connected: ${ String( connected ) }` }</p>
+  ),
+} ) )
 
 const mockedAccount = vi.mocked( useGmailAccount )
 
@@ -183,5 +188,44 @@ describe( 'GmailSettings', () => {
 
       expect( await screen.findByText( /Google didn't grant access/ ) ).toBeInTheDocument()
     } )
+  } )
+} )
+
+describe( 'GmailSettings: sources', () => {
+  type Status = 'not_configured' | 'not_connected' | 'connected' | 'reconnect_needed'
+
+  const withStatus = ( status: Status ): void => {
+    mockedAccount.mockReturnValue( state( { account: gmailAccountFixture( { status } ) } ) )
+  }
+
+  it( 'shows the sources of a connected account', () => {
+    withStatus( 'connected' )
+    renderWithClient( <GmailSettings /> )
+
+    expect( screen.getByText( 'Sources, connected: true' ) ).toBeInTheDocument()
+  } )
+
+  it.each( [ 'not_connected', 'reconnect_needed' ] as const )(
+    'keeps showing the sources when the status is %s, as not connected',
+    ( status ) => {
+      withStatus( status )
+      renderWithClient( <GmailSettings /> )
+
+      expect( screen.getByText( 'Sources, connected: false' ) ).toBeInTheDocument()
+    },
+  )
+
+  it( 'shows no sources when Gmail is not configured', () => {
+    withStatus( 'not_configured' )
+    renderWithClient( <GmailSettings /> )
+
+    expect( screen.queryByText( /^Sources, connected/ ) ).not.toBeInTheDocument()
+  } )
+
+  it( 'shows no sources until the account is known', () => {
+    mockedAccount.mockReturnValue( state( { account: null, isLoading: true } ) )
+    renderWithClient( <GmailSettings /> )
+
+    expect( screen.queryByText( /^Sources, connected/ ) ).not.toBeInTheDocument()
   } )
 } )

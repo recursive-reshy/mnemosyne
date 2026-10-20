@@ -15,6 +15,7 @@ import { GMAIL_CONNECT_URL } from '#src/api/gmail.api'
 import { useGmailAccount } from '#src/hooks/useGmailAccount'
 import { useGmailRedirectNotice } from '#src/hooks/useGmailRedirectNotice'
 import { ConfirmDialog } from '../ConfirmDialog'
+import { GmailSources } from '../GmailSources'
 
 const DISCONNECT_MESSAGE = 'Mnemosyne will revoke its access and forget the stored credentials. '
   + 'Your sources, inbox items and collected jobs are kept.'
@@ -84,6 +85,9 @@ export function GmailSettings(): ReactElement {
       { disconnect.isError && <Alert severity="error">{ disconnect.error?.message }</Alert> }
       { account !== null && (
         <AccountCard account={ account } onDisconnect={ () => setIsConfirming( true ) } />
+      ) }
+      { account !== null && account.status !== 'not_configured' && (
+        <GmailSources connected={ account.status === 'connected' } />
       ) }
       <ConfirmDialog
         open={ isConfirming }
