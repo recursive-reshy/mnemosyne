@@ -68,7 +68,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 7.3 | `AddGmailSourceDialog` (labels or search, destination, newsletter options and backfill, preview and overlap warning) and `EditGmailSourceDialog`, delete dialog (TRD §10.2) | 0035 | ✅ |
 
 ## Checkpoint D: Phase 8 (newsletters and the inbox)
-**Plan:** ⬜ [`plans/checkpoint-d.md`](plans/checkpoint-d.md)
+**Plan:** ✅ [`plans/checkpoint-d.md`](plans/checkpoint-d.md)
 
 Needs the real fixtures from TRD §9.2, saved by Naresh with `fixture:gmail`. Check they exist before planning; if not, stop and ask.
 
