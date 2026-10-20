@@ -56,7 +56,7 @@ Each significant decision is recorded as a short ADR (Architecture Decision Reco
 | [0036](decisions/0036-newsletters-email-to-markdown.md) | Newsletters: email to Markdown with Readability first and unwrapped layout tables as fallback | Accepted (amended by 0040) |
 | [0037](decisions/0037-job-postings-dataset.md) | Job postings: Claude extraction into fixed columns plus JSON, deduplicated by platform job ID | Accepted |
 | [0038](decisions/0038-unified-inbox.md) | One inbox for feed items and newsletter emails | Accepted |
-| [0039](decisions/0039-feed-item-schemas-server-local.md) | Feed-item schemas stay server-local until the unified inbox routes land | Accepted |
+| [0039](decisions/0039-feed-item-schemas-server-local.md) | Feed-item schemas stay server-local until the unified inbox routes land | Superseded (by the 0038 routes, tasks 8.4–8.5) |
 | [0040](decisions/0040-newsletters-whole-body.md) | Newsletters: convert the whole cleaned body, not Readability's best block | Accepted |
 
 ## Template for new ADRs

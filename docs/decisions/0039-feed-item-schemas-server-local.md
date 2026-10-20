@@ -1,6 +1,6 @@
 # 0039. Feed-item schemas stay server-local until the unified inbox routes land
 
-- Status: Accepted
+- Status: Superseded by the implementation of 0038 (task 8.4 removed the schemas and the routes; task 8.5 removes the web shim)
 - Date: 2026-10-19
 
 ## Context

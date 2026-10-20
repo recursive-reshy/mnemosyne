@@ -13,6 +13,7 @@ import request from 'supertest'
 import {
   FeedResponse,
   ListFeedsResponse,
+  ListInboxResponse,
   PreviewFeedResponse,
 } from '@mnemosyne/shared'
 // App
@@ -25,7 +26,6 @@ import { clearJobs } from '../repositories/jobStore.repository.js'
 import { findFeedById } from '../repositories/feeds.repository.js'
 import { getDatabase } from '../repositories/database.js'
 // Services
-import { ListFeedItemsResponse, SummarizeFeedItemsResponse } from '../services/feedItems.schemas.js'
 import { clearModelCache } from '../services/models.service.js'
 import { listProfiles } from '../services/prompts.service.js'
 
@@ -55,6 +55,12 @@ const add = async ( extra: Record< string, unknown > = {} ): Promise< string > =
   const response = await request( app ).post( '/api/feeds' ).send( { url: feedUrl, ...extra } )
 
   return FeedResponse.parse( response.body ).feed.id
+}
+
+const inboxCount = async (): Promise< number > => {
+  const response = await request( app ).get( '/api/inbox' )
+
+  return ListInboxResponse.parse( response.body ).items.length
 }
 
 beforeEach( () => {
@@ -226,9 +232,7 @@ describe( 'DELETE /api/feeds/:id', () => {
 
     expect( response.status ).toBe( 204 )
     expect( findFeedById( id )?.deleted_at ).not.toBeNull()
-    expect( ListFeedItemsResponse.parse(
-      ( await request( app ).get( '/api/feed-items' ) ).body,
-    ).items ).toHaveLength( 1 )
+    expect( await inboxCount() ).toBe( 1 )
   } )
 
   it( 'removes its inbox items with remove_items=true', async () => {
@@ -237,7 +241,7 @@ describe( 'DELETE /api/feeds/:id', () => {
     const response = await request( app ).delete( `/api/feeds/${ id }?remove_items=true` )
 
     expect( response.status ).toBe( 204 )
-    expect( ( await request( app ).get( '/api/feed-items' ) ).body ).toEqual( { items: [] } )
+    expect( await inboxCount() ).toBe( 0 )
   } )
 
   it( 'keeps them with remove_items=false', async () => {
@@ -245,9 +249,7 @@ describe( 'DELETE /api/feeds/:id', () => {
 
     await request( app ).delete( `/api/feeds/${ id }?remove_items=false` )
 
-    expect( ListFeedItemsResponse.parse(
-      ( await request( app ).get( '/api/feed-items' ) ).body,
-    ).items ).toHaveLength( 1 )
+    expect( await inboxCount() ).toBe( 1 )
   } )
 
   it( 'returns 400 for a remove_items value that is not true or false', async () => {
@@ -309,105 +311,5 @@ describe( 'POST /api/feeds/:id/check and POST /api/feeds/check', () => {
     expect( response.status ).toBe( 200 )
     expect( ListFeedsResponse.parse( response.body ).feeds ).toHaveLength( 1 )
     expect( fetchMock ).toHaveBeenCalledTimes( 1 )
-  } )
-} )
-
-describe( 'the feed inbox', () => {
-  const inboxIds = async (): Promise< string[] > => {
-    const response = await request( app ).get( '/api/feed-items' )
-
-    return ListFeedItemsResponse.parse( response.body ).items.map( ( { id } ) => id )
-  }
-
-  it( 'lists the inbox, newest first, with the feed name', async () => {
-    await add( { name: 'Blog' } )
-
-    const response = await request( app ).get( '/api/feed-items' )
-
-    expect( response.status ).toBe( 200 )
-    expect( ListFeedItemsResponse.parse( response.body ).items[ 0 ] ).toMatchObject( {
-      feed_name: 'Blog',
-      title: 'Newest post',
-      source_type: 'article',
-    } )
-  } )
-
-  it( 'summarizes items into jobs', async () => {
-    await add()
-    const ids = await inboxIds()
-
-    const response = await request( app )
-      .post( '/api/feed-items/summarize' )
-      .send( { ids, model: 'claude-opus-5-5' } )
-
-    expect( response.status ).toBe( 200 )
-    const { jobs } = SummarizeFeedItemsResponse.parse( response.body )
-
-    expect( jobs ).toHaveLength( 1 )
-    expect( jobs[ 0 ] )
-      .toMatchObject( { summary_model: 'claude-opus-5-5', feed_name: 'Example Blog' } )
-    expect( await inboxIds() ).toEqual( [] )
-  } )
-
-  it.each( [
-    [ 'no ids', { ids: [] } ],
-    [ 'an id that is not a uuid', { ids: [ 'x' ] } ],
-    [ 'no body', {} ],
-  ] )( 'returns 400 to summarize with %s', async ( _name, body ) => {
-    const response = await request( app ).post( '/api/feed-items/summarize' ).send( body )
-
-    expect( response.status ).toBe( 400 )
-  } )
-
-  it( 'returns 400 for an unknown model and queues nothing', async () => {
-    await add()
-    const ids = await inboxIds()
-
-    const response = await request( app )
-      .post( '/api/feed-items/summarize' )
-      .send( { ids, model: 'claude-nope' } )
-
-    expect( response.status ).toBe( 400 )
-    expect( await inboxIds() ).toEqual( ids )
-  } )
-
-  it( 'returns 409 when an id is not in the inbox, and queues nothing', async () => {
-    await add()
-    const ids = await inboxIds()
-
-    const response = await request( app )
-      .post( '/api/feed-items/summarize' )
-      .send( { ids: [ ...ids, crypto.randomUUID() ] } )
-
-    expect( response.status ).toBe( 409 )
-    expect( await inboxIds() ).toEqual( ids )
-  } )
-
-  it( 'dismisses items with 204', async () => {
-    await add()
-    const ids = await inboxIds()
-
-    const response = await request( app ).post( '/api/feed-items/dismiss' ).send( { ids } )
-
-    expect( response.status ).toBe( 204 )
-    expect( await inboxIds() ).toEqual( [] )
-  } )
-
-  it( 'ignores ids that are not in the inbox when dismissing', async () => {
-    const response = await request( app )
-      .post( '/api/feed-items/dismiss' )
-      .send( { ids: [ crypto.randomUUID() ] } )
-
-    expect( response.status ).toBe( 204 )
-  } )
-
-  it.each( [
-    [ 'no ids', { ids: [] } ],
-    [ 'an id that is not a uuid', { ids: [ 'x' ] } ],
-    [ 'more than 200 ids', { ids: Array.from( { length: 201 }, () => crypto.randomUUID() ) } ],
-  ] )( 'returns 400 to dismiss with %s', async ( _name, body ) => {
-    const response = await request( app ).post( '/api/feed-items/dismiss' ).send( body )
-
-    expect( response.status ).toBe( 400 )
   } )
 } )
