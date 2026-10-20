@@ -82,7 +82,7 @@ Needs the real fixtures from TRD §9.2, saved by Naresh with `fixture:gmail`. Ch
 | 8.5 | Web: `useInbox`, `useSummarizeInbox`, `useDismissInbox`; `FeedInbox` → `Inbox` with Gmail rows and partial-failure snackbar; Gmail source chip in `JobList` and `JobHeading` (TRD §10.3) | 0038 | ✅ |
 
 ## Checkpoint E: Phase 9 (defer job alerts)
-**Plan:** ⬜ [`plans/checkpoint-e.md`](plans/checkpoint-e.md)
+**Plan:** ✅ [`plans/checkpoint-e.md`](plans/checkpoint-e.md)
 
 Scope change on 2026-10-20 (ADR 0041): the former checkpoints E (postings server) and F (postings web) move to a later version. Their tasks are listed at the end of this file, not to be started.
 
