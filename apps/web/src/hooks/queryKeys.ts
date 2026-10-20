@@ -29,4 +29,5 @@ export const feedKeys = {
 export const gmailKeys = {
   account: [ 'gmail', 'account' ] as const,
   labels: [ 'gmail', 'labels' ] as const,
+  sources: [ 'gmail', 'sources' ] as const,
 }

@@ -29,8 +29,9 @@ describe( 'feed query keys', () => {
 } )
 
 describe( 'gmail query keys', () => {
-  it( 'has stable keys for the account and the labels', () => {
+  it( 'has stable keys for the account, the labels and the sources', () => {
     expect( gmailKeys.account ).toEqual( [ 'gmail', 'account' ] )
     expect( gmailKeys.labels ).toEqual( [ 'gmail', 'labels' ] )
+    expect( gmailKeys.sources ).toEqual( [ 'gmail', 'sources' ] )
   } )
 } )
