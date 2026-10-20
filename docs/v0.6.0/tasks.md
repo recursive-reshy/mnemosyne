@@ -95,7 +95,7 @@ Scope change on 2026-10-20 (ADR 0041): the former checkpoints E (postings server
 | 9.4 | Drawer warning dot on **Settings** when the account is `reconnect_needed` (TRD §10.4, last bullet) | 0035 | ✅ |
 
 ## Checkpoint F: Phase 10 (clean-up and verification)
-**Plan:** ⬜ [`plans/checkpoint-f.md`](plans/checkpoint-f.md)
+**Plan:** ✅ [`plans/checkpoint-f.md`](plans/checkpoint-f.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
