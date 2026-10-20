@@ -23,7 +23,10 @@ export const promptKeys = {
 
 export const feedKeys = {
   all: [ 'feeds' ] as const,
-  inbox: [ 'feed-items' ] as const,
+}
+
+export const inboxKeys = {
+  all: [ 'inbox' ] as const,
 }
 
 export const gmailKeys = {

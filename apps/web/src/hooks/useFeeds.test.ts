@@ -20,7 +20,7 @@ import {
 } from '../api/feeds.api'
 import { FEED_ID, feedFixture } from '../test-support/feed.fixture'
 import { renderHookWithClient } from '../test-support/renderWithClient'
-import { feedKeys } from './queryKeys'
+import { feedKeys, inboxKeys } from './queryKeys'
 import { useFeeds } from './useFeeds'
 
 vi.mock( '../api/feeds.api' )
@@ -77,7 +77,7 @@ describe( 'useFeeds', () => {
     await vi.waitFor( () => expect( result.current.createFeed.isSuccess ).toBe( true ) )
     expect( mocks.create ).toHaveBeenCalledWith( body )
     expect( invalidate ).toHaveBeenCalledWith( { queryKey: feedKeys.all } )
-    expect( invalidate ).toHaveBeenCalledWith( { queryKey: feedKeys.inbox } )
+    expect( invalidate ).toHaveBeenCalledWith( { queryKey: inboxKeys.all } )
   } )
 
   it( 'updates a feed and refreshes', async () => {
@@ -100,7 +100,7 @@ describe( 'useFeeds', () => {
     await vi.waitFor( () => expect( result.current.deleteFeed.isSuccess ).toBe( true ) )
     expect( mocks.remove ).toHaveBeenCalledWith( FEED_ID, true )
     expect( invalidate ).toHaveBeenCalledWith( { queryKey: feedKeys.all } )
-    expect( invalidate ).toHaveBeenCalledWith( { queryKey: feedKeys.inbox } )
+    expect( invalidate ).toHaveBeenCalledWith( { queryKey: inboxKeys.all } )
   } )
 
   it( 'checks one feed and refreshes, since a check can add inbox items', async () => {
@@ -112,7 +112,7 @@ describe( 'useFeeds', () => {
     await vi.waitFor( () => expect( result.current.checkFeed.isSuccess ).toBe( true ) )
     expect( mocks.check ).toHaveBeenCalledWith( FEED_ID )
     expect( invalidate ).toHaveBeenCalledWith( { queryKey: feedKeys.all } )
-    expect( invalidate ).toHaveBeenCalledWith( { queryKey: feedKeys.inbox } )
+    expect( invalidate ).toHaveBeenCalledWith( { queryKey: inboxKeys.all } )
   } )
 
   it( 'checks every feed and refreshes', async () => {
@@ -122,7 +122,7 @@ describe( 'useFeeds', () => {
     act( () => result.current.checkAllFeeds.mutate() )
 
     await vi.waitFor( () => expect( result.current.checkAllFeeds.isSuccess ).toBe( true ) )
-    expect( invalidate ).toHaveBeenCalledWith( { queryKey: feedKeys.inbox } )
+    expect( invalidate ).toHaveBeenCalledWith( { queryKey: inboxKeys.all } )
   } )
 
   it( 'keeps the feeds and exposes the error when a change fails', async () => {

@@ -10,38 +10,41 @@ import {
 } from 'vitest'
 // App
 import { ApiError } from '../api/apiError'
-import { dismissFeedItems } from '../api/feedItems.api'
+import { dismissInbox } from '../api/inbox.api'
 import { ITEM_ID } from '../test-support/feed.fixture'
+import { GMAIL_ITEM_ID } from '../test-support/gmail.fixture'
 import { renderHookWithClient } from '../test-support/renderWithClient'
-import { feedKeys } from './queryKeys'
-import { useDismissFeedItems } from './useDismissFeedItems'
+import { feedKeys, gmailKeys, inboxKeys } from './queryKeys'
+import { useDismissInbox } from './useDismissInbox'
 
-vi.mock( '../api/feedItems.api' )
+vi.mock( '../api/inbox.api' )
 
-const mockedDismiss = vi.mocked( dismissFeedItems )
+const mockedDismiss = vi.mocked( dismissInbox )
 const ref = { kind: 'feed' as const, id: ITEM_ID }
+const emailRef = { kind: 'gmail' as const, id: GMAIL_ITEM_ID }
 
 beforeEach( () => {
   mockedDismiss.mockReset()
 } )
 
-describe( 'useDismissFeedItems', () => {
-  it( 'dismisses the ids, then refreshes the inbox and the feeds', async () => {
+describe( 'useDismissInbox', () => {
+  it( 'dismisses the items, then refreshes the inbox, the feeds and the sources', async () => {
     mockedDismiss.mockResolvedValue( undefined )
-    const { result, queryClient } = renderHookWithClient( () => useDismissFeedItems() )
+    const { result, queryClient } = renderHookWithClient( () => useDismissInbox() )
     const invalidate = vi.spyOn( queryClient, 'invalidateQueries' )
 
-    act( () => result.current.mutate( [ ref ] ) )
+    act( () => result.current.mutate( [ ref, emailRef ] ) )
 
     await vi.waitFor( () => expect( result.current.isSuccess ).toBe( true ) )
-    expect( mockedDismiss ).toHaveBeenCalledWith( [ ref ] )
-    expect( invalidate ).toHaveBeenCalledWith( { queryKey: feedKeys.inbox } )
+    expect( mockedDismiss ).toHaveBeenCalledWith( [ ref, emailRef ] )
+    expect( invalidate ).toHaveBeenCalledWith( { queryKey: inboxKeys.all } )
     expect( invalidate ).toHaveBeenCalledWith( { queryKey: feedKeys.all } )
+    expect( invalidate ).toHaveBeenCalledWith( { queryKey: gmailKeys.sources } )
   } )
 
   it( 'reports an error', async () => {
     mockedDismiss.mockRejectedValue( new ApiError( 'Could not reach the server', null ) )
-    const { result } = renderHookWithClient( () => useDismissFeedItems() )
+    const { result } = renderHookWithClient( () => useDismissInbox() )
 
     act( () => result.current.mutate( [ ref ] ) )
 

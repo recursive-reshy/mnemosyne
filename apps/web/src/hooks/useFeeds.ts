@@ -12,7 +12,7 @@ import {
   listFeeds,
   updateFeed,
 } from '../api/feeds.api'
-import { feedKeys } from './queryKeys'
+import { feedKeys, inboxKeys } from './queryKeys'
 
 type Mutation< Variables, Result = Feed > = UseMutationResult< Result, Error, Variables >
 
@@ -39,7 +39,7 @@ export function useFeeds(): FeedsState {
   const refresh = async (): Promise< void > => {
     await Promise.all( [
       queryClient.invalidateQueries( { queryKey: feedKeys.all } ),
-      queryClient.invalidateQueries( { queryKey: feedKeys.inbox } ),
+      queryClient.invalidateQueries( { queryKey: inboxKeys.all } ),
     ] )
   }
 

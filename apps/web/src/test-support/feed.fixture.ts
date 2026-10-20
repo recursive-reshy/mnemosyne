@@ -1,7 +1,7 @@
 // Shared
-import type { Feed } from '@mnemosyne/shared'
-// App
-import type { FeedInboxItem } from '../api/feedItems.api'
+import type { Feed, InboxItem } from '@mnemosyne/shared'
+
+type FeedInboxItem = Extract< InboxItem, { kind: 'feed' } >
 
 export const FEED_ID = '7d1f2a3b-4c5d-4e6f-8a9b-0c1d2e3f4a5b'
 export const ITEM_ID = '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d'

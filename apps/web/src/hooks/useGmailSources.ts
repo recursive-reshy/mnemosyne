@@ -16,7 +16,7 @@ import {
   listGmailSources,
   updateGmailSource,
 } from '../api/gmailSources.api'
-import { feedKeys, gmailKeys, jobKeys } from './queryKeys'
+import { gmailKeys, inboxKeys, jobKeys } from './queryKeys'
 
 type Mutation< Variables, Result = GmailSource > = UseMutationResult< Result, Error, Variables >
 
@@ -40,11 +40,11 @@ export function useGmailSources(): GmailSourcesState {
   } )
 
   // A change to a source can add or remove inbox items (and collected jobs), so those are
-  // refreshed with it. The feed inbox key becomes the inbox's in 8.5.
+  // refreshed with it.
   const refresh = async (): Promise< void > => {
     await Promise.all( [
       queryClient.invalidateQueries( { queryKey: gmailKeys.sources } ),
-      queryClient.invalidateQueries( { queryKey: feedKeys.inbox } ),
+      queryClient.invalidateQueries( { queryKey: inboxKeys.all } ),
       queryClient.invalidateQueries( { queryKey: jobKeys.all } ),
     ] )
   }

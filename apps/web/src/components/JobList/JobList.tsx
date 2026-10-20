@@ -13,6 +13,7 @@ import type { Job } from '@mnemosyne/shared'
 // App
 import { formatExpiry } from '#src/expiry'
 import { FeedChip } from '../FeedChip'
+import { GmailSourceChip } from '../GmailSourceChip'
 
 const STATUS_LABELS = {
   queued: 'Queued',
@@ -65,6 +66,7 @@ export function JobList( { jobs, now }: JobListProps ): ReactElement | null {
             { job.title ?? job.url }
           </Link>
           { job.feed_name !== null && <FeedChip name={ job.feed_name } /> }
+          { job.gmail_source_name !== null && <GmailSourceChip name={ job.gmail_source_name } /> }
           <Typography component="span" sx={ { fontWeight: 600 } }>
             { STATUS_LABELS[ job.status ] }
           </Typography>

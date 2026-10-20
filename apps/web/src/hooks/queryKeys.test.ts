@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import {
   feedKeys,
   gmailKeys,
+  inboxKeys,
   modelKeys,
   promptKeys,
   settingsKeys,
@@ -24,7 +25,13 @@ describe( 'summarizer query keys', () => {
 describe( 'feed query keys', () => {
   it( 'has stable keys for feeds and the inbox', () => {
     expect( feedKeys.all ).toEqual( [ 'feeds' ] )
-    expect( feedKeys.inbox ).toEqual( [ 'feed-items' ] )
+    expect( feedKeys ).not.toHaveProperty( 'inbox' )
+  } )
+} )
+
+describe( 'inbox query keys', () => {
+  it( 'has one key for the inbox of feed items and newsletter emails', () => {
+    expect( inboxKeys.all ).toEqual( [ 'inbox' ] )
   } )
 } )
 

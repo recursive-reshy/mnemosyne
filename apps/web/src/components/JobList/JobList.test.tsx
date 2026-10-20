@@ -51,6 +51,30 @@ describe( 'JobList', () => {
     expect( within( items[ 1 ] ).queryByTestId( 'RssFeedIcon' ) ).not.toBeInTheDocument()
   } )
 
+  it( 'shows the Gmail source name and a mail icon on a newsletter job only', () => {
+    renderWithClient(
+      <JobList
+        now={ now }
+        jobs={ [
+          jobFixture( {
+            title: 'An email',
+            source_type: 'article',
+            gmail_source_id: other,
+            gmail_source_name: 'Substacks',
+          } ),
+          jobFixture( { id: other, title: 'A talk' } ),
+        ] }
+      />,
+    )
+
+    const items = within( screen.getByRole( 'list', { name: 'Jobs' } ) ).getAllByRole( 'listitem' )
+
+    expect( within( items[ 0 ] ).getByText( 'Substacks' ) ).toBeInTheDocument()
+    expect( within( items[ 0 ] ).getByTestId( 'MailOutlinedIcon' ) ).toBeInTheDocument()
+    expect( within( items[ 0 ] ).queryByTestId( 'RssFeedIcon' ) ).not.toBeInTheDocument()
+    expect( within( items[ 1 ] ).queryByTestId( 'MailOutlinedIcon' ) ).not.toBeInTheDocument()
+  } )
+
   it( 'lists each job with its title, status and a link to the job', () => {
     renderWithClient(
       <JobList

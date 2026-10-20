@@ -3,6 +3,7 @@ import type {
   GmailAccount,
   GmailLabel,
   GmailSource,
+  InboxItem,
   PreviewGmailSourceResponse,
 } from '@mnemosyne/shared'
 
@@ -60,6 +61,26 @@ export const gmailPreviewFixture = (
       received_at: '2026-10-19T08:00:00.000Z',
     },
     overlaps: [],
+    ...overrides,
+  }
+}
+
+export const GMAIL_ITEM_ID = '8e7d6c5b-4a39-4281-9a0b-1c2d3e4f5a6b'
+
+export const gmailItemFixture = (
+  overrides: Partial< Extract< InboxItem, { kind: 'gmail' } > > = {},
+): Extract< InboxItem, { kind: 'gmail' } > => {
+  return {
+    kind: 'gmail',
+    id: GMAIL_ITEM_ID,
+    source_id: SOURCE_ID,
+    source_name: 'Newsletters',
+    title: 'This week in tech',
+    sender: 'Lenny',
+    link: 'https://mail.google.com/mail/u/naresh%40example.com/#all/19a1b2c3d4e5f607',
+    published_at: '2026-10-19T08:00:00.000Z',
+    source_type: 'article',
+    added_at: '2026-10-19T09:00:00.000Z',
     ...overrides,
   }
 }

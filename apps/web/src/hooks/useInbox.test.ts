@@ -13,14 +13,15 @@ import {
 } from 'vitest'
 // App
 import { ApiError } from '../api/apiError'
-import { listFeedItems } from '../api/feedItems.api'
+import { listInbox } from '../api/inbox.api'
 import { feedItemFixture } from '../test-support/feed.fixture'
+import { gmailItemFixture } from '../test-support/gmail.fixture'
 import { renderHookWithClient } from '../test-support/renderWithClient'
-import { INBOX_POLL_MS, useFeedInbox } from './useFeedInbox'
+import { INBOX_POLL_MS, useInbox } from './useInbox'
 
-vi.mock( '../api/feedItems.api' )
+vi.mock( '../api/inbox.api' )
 
-const mockedList = vi.mocked( listFeedItems )
+const mockedList = vi.mocked( listInbox )
 
 const advance = async ( milliseconds: number ): Promise< void > => {
   await act( async () => {
@@ -37,17 +38,17 @@ afterEach( () => {
   vi.useRealTimers()
 } )
 
-describe( 'useFeedInbox', () => {
+describe( 'useInbox', () => {
   it( 'starts loading, then returns the items', async () => {
-    mockedList.mockResolvedValue( [ feedItemFixture() ] )
-    const { result } = renderHookWithClient( () => useFeedInbox() )
+    mockedList.mockResolvedValue( [ gmailItemFixture(), feedItemFixture() ] )
+    const { result } = renderHookWithClient( () => useInbox() )
 
     expect( result.current ).toEqual( { items: [], isLoading: true, error: null } )
 
     await advance( 0 )
 
     expect( result.current ).toEqual( {
-      items: [ feedItemFixture() ],
+      items: [ gmailItemFixture(), feedItemFixture() ],
       isLoading: false,
       error: null,
     } )
@@ -55,7 +56,7 @@ describe( 'useFeedInbox', () => {
 
   it( 'reports an error', async () => {
     mockedList.mockRejectedValue( new ApiError( 'Could not reach the server', null ) )
-    const { result } = renderHookWithClient( () => useFeedInbox() )
+    const { result } = renderHookWithClient( () => useInbox() )
 
     await advance( 0 )
 
@@ -65,7 +66,7 @@ describe( 'useFeedInbox', () => {
   it( 'refetches every 60 seconds', async () => {
     expect( INBOX_POLL_MS ).toBe( 60_000 )
     mockedList.mockResolvedValue( [] )
-    renderHookWithClient( () => useFeedInbox() )
+    renderHookWithClient( () => useInbox() )
     await advance( 0 )
     expect( mockedList ).toHaveBeenCalledTimes( 1 )
 
@@ -78,7 +79,7 @@ describe( 'useFeedInbox', () => {
 
   it( 'refetches when the window regains focus, whatever the app default', async () => {
     mockedList.mockResolvedValue( [] )
-    renderHookWithClient( () => useFeedInbox() )
+    renderHookWithClient( () => useInbox() )
     await advance( 0 )
     expect( mockedList ).toHaveBeenCalledTimes( 1 )
 

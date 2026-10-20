@@ -22,7 +22,7 @@ import {
 } from '../api/gmailSources.api'
 import { SOURCE_ID, gmailSourceFixture } from '../test-support/gmail.fixture'
 import { renderHookWithClient } from '../test-support/renderWithClient'
-import { feedKeys, gmailKeys, jobKeys } from './queryKeys'
+import { gmailKeys, inboxKeys, jobKeys } from './queryKeys'
 import { useGmailSources } from './useGmailSources'
 
 vi.mock( '../api/gmailSources.api' )
@@ -47,7 +47,7 @@ const setup = async () => {
 // A change to a source can add or remove inbox items and collected jobs.
 const expectRefreshed = ( invalidate: ReturnType< typeof vi.spyOn > ): void => {
   expect( invalidate ).toHaveBeenCalledWith( { queryKey: gmailKeys.sources } )
-  expect( invalidate ).toHaveBeenCalledWith( { queryKey: feedKeys.inbox } )
+  expect( invalidate ).toHaveBeenCalledWith( { queryKey: inboxKeys.all } )
   expect( invalidate ).toHaveBeenCalledWith( { queryKey: jobKeys.all } )
 }
 

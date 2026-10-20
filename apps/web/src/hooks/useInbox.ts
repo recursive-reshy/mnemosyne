@@ -1,23 +1,23 @@
 // Packages
 import { useQuery } from '@tanstack/react-query'
 // Shared
+import type { InboxItem } from '@mnemosyne/shared'
 // App
-import { listFeedItems } from '../api/feedItems.api'
-import type { FeedInboxItem } from '../api/feedItems.api'
-import { feedKeys } from './queryKeys'
+import { listInbox } from '../api/inbox.api'
+import { inboxKeys } from './queryKeys'
 
 export const INBOX_POLL_MS = 60_000
 
-export interface FeedInboxState {
-  items: FeedInboxItem[]
+export interface InboxState {
+  items: InboxItem[]
   isLoading: boolean
   error: string | null
 }
 
-export function useFeedInbox(): FeedInboxState {
+export function useInbox(): InboxState {
   const { data, error, isPending } = useQuery( {
-    queryKey: feedKeys.inbox,
-    queryFn: listFeedItems,
+    queryKey: inboxKeys.all,
+    queryFn: listInbox,
     refetchInterval: INBOX_POLL_MS,
     refetchOnWindowFocus: true,
   } )

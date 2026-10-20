@@ -89,7 +89,8 @@ export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps )
 
   return (
     <Stack spacing={ 2 } sx={ { width: '100%' } }>
-      <JobHeading title={ job.title ?? job.url } feedName={ job.feed_name } />
+      <JobHeading title={ job.title ?? job.url } feedName={ job.feed_name }
+        gmailSourceName={ job.gmail_source_name } />
       { hasFailed && <Alert severity="error">{ job.error ?? 'Summary failed.' }</Alert> }
       { !hasFailed && (
         <>

@@ -4,18 +4,19 @@ import type { UseMutationResult } from '@tanstack/react-query'
 // Shared
 import type { InboxItemRef } from '@mnemosyne/shared'
 // App
-import { dismissFeedItems } from '../api/feedItems.api'
-import { feedKeys } from './queryKeys'
+import { dismissInbox } from '../api/inbox.api'
+import { feedKeys, gmailKeys, inboxKeys } from './queryKeys'
 
-export function useDismissFeedItems(): UseMutationResult< void, Error, InboxItemRef[] > {
+export function useDismissInbox(): UseMutationResult< void, Error, InboxItemRef[] > {
   const queryClient = useQueryClient()
 
   return useMutation( {
-    mutationFn: ( items: InboxItemRef[] ) => dismissFeedItems( items ),
+    mutationFn: ( items: InboxItemRef[] ) => dismissInbox( items ),
     onSuccess: async () => {
       await Promise.all( [
-        queryClient.invalidateQueries( { queryKey: feedKeys.inbox } ),
+        queryClient.invalidateQueries( { queryKey: inboxKeys.all } ),
         queryClient.invalidateQueries( { queryKey: feedKeys.all } ),
+        queryClient.invalidateQueries( { queryKey: gmailKeys.sources } ),
       ] )
     },
   } )
