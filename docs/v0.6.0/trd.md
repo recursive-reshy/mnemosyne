@@ -4,16 +4,18 @@ Companion to `docs/v0.6.0/prd.md`. The PRD says what; this says how. Where an AD
 
 Written against the 0.5.0 code at commit `c2071cd`. Names below are the real ones in the repo; "new" marks anything that doesn't exist yet. In code, freelance job postings are **postings** (ADR 0037); "job" keeps meaning a processing job.
 
+> **Scope change (2026-10-20, ADR 0041):** job-alert extraction and the Freelance jobs page are deferred to a later version. §7, §10.4 (except the drawer warning) and §10.5 are not built in v0.6.0 and are kept as that version's design. What was already built stays: the postings contracts (§2.3), `extraction_model` in settings (§2.4) and the postings tables in migration 6 (§3.1), unused. New in their place: the server refuses `destination: 'jobs'` on create and the web form has no destination choice (§5.7). Phases and checkpoints are in §11.
+
 ## 1. Changes at a glance
 - **Shared:** Gmail account, source, message and inbox schemas; posting schemas; `ArticleMeta.origin` gains `'email'`; `Job` gains Gmail source fields; `Settings` gains `extraction_model`.
 - **Server:**
   - a Gmail intake (ADR 0035): OAuth connect / callback / disconnect, an encrypted refresh token, a Gmail client, sources matched by label IDs or a search, a date-window sync;
   - email to Markdown for newsletters (ADR 0036), reusing the pasted-text path into a normal article job;
   - a unified inbox over feed items and newsletter emails (ADR 0038), replacing `/api/feed-items`;
-  - job-alert extraction with Claude into `job_postings` (ADR 0037), with runs, retries and re-extract;
+  - ~~job-alert extraction with Claude into `job_postings` (ADR 0037), with runs, retries and re-extract~~ (deferred, ADR 0041);
   - the feed poller becomes an intake poller (feeds, then Gmail sources);
   - migration 6.
-- **Web:** Settings → Gmail (connection and sources); the home-page **Inbox** for both kinds; a **Freelance jobs** page at `/freelance`.
+- **Web:** Settings → Gmail (connection and sources); the home-page **Inbox** for both kinds; ~~a **Freelance jobs** page at `/freelance`~~ (deferred, ADR 0041).
 - **New dependencies** (and only these):
   - server: `@googleapis/gmail` (dependency; brings `google-auth-library`).
   - Pin it to the version current when the task adds it. Check its actual API against this TRD before using it; if it differs in a way that changes the design, stop and ask. Use `google-auth-library` through the package's re-export (or add it as a direct dependency only if the import requires it, recorded in the log line).
@@ -287,6 +289,11 @@ Thin functions over `gmail_v1.Gmail`, each through `withGmail`, each unit-tested
 | POST | `/api/gmail/sources/:id/check` | | `GmailSourceResponse` | 404, 409 not connected |
 | POST | `/api/gmail/sources/check` | | `ListGmailSourcesResponse` | 409 not connected |
 
+### 5.7 Jobs destination refused (ADR 0041)
+- `createSource` refuses `destination: 'jobs'` with `ValidationError( "Freelance jobs sources aren't available yet" )` (400). `GmailDestination` keeps both values in `packages/shared`, so stored data and the later version need no contract change.
+- The check path for jobs sources (6.4) stays as built; with no way to create one, it is unreachable. No migration.
+- Web: `AddGmailSourceDialog` drops `GmailDestinationField` and always sends `destination: 'newsletter'`; the newsletter options always show. `GmailSourceList` keeps its destination chip (it reads stored data).
+
 ## 6. Server: newsletters (ADR 0036, ADR 0038)
 
 ### 6.1 Email to Markdown (`sources/emailToMarkdown.ts`, new, pure)
@@ -323,7 +330,8 @@ Fixture-tested on the saved newsletters (§9.2): output contains the body text, 
 | POST | `/api/inbox/summarize` | `SummarizeInboxBody` | `SummarizeInboxResponse` | 400, 422 |
 | POST | `/api/inbox/dismiss` | `DismissInboxBody` | 204 | 400 |
 
-## 7. Server: job postings (ADR 0037)
+## 7. Server: job postings (ADR 0037) — DEFERRED (ADR 0041)
+Not built in v0.6.0; kept as the design for the version that adds job-alert intake.
 
 ### 7.1 Extraction prompt (`postings/prompt.ts`, new)
 `EXTRACTION_INSTRUCTIONS`, fixed in code:
@@ -373,7 +381,7 @@ Output schema `ExtractionResult = { postings: ExtractedPosting[] }` with `zodOut
 | POST | `/api/postings/emails/:id/retry` | | `{ email: AlertEmail }` | 404, 409 not failed |
 
 ## 8. Server: intake poller and settings
-- `worker/feedPoller.ts` → `worker/intakePoller.ts`, `startIntakePoller()`: every 60 seconds, if no pass is running: `checkDueFeeds()`, then, when Gmail is configured and connected, `checkDueSources()` and `extractPending()` for each jobs source checked. A failure in one part is logged and doesn't stop the others (except `GmailAuthError`, which ends the Gmail part). Same stop semantics as today; `server.ts` and `shutdown.ts` updated. Existing poller tests move with it.
+- (Built in 6.6; the extraction step below is deferred with §7.) `worker/feedPoller.ts` → `worker/intakePoller.ts`, `startIntakePoller()`: every 60 seconds, if no pass is running: `checkDueFeeds()`, then, when Gmail is configured and connected, `checkDueSources()` and `extractPending()` for each jobs source checked. A failure in one part is logged and doesn't stop the others (except `GmailAuthError`, which ends the Gmail part). Same stop semantics as today; `server.ts` and `shutdown.ts` updated. Existing poller tests move with it.
 - Settings: `extraction_model` read with its fallback (§2.4); `GET /api/settings` includes it. `PATCH` validates it.
 
 ## 9. Tests
@@ -404,7 +412,7 @@ New query and mutation hooks on TanStack Query, as 0.5.0's: `useGmailAccount`, `
 ### 10.3 Home page inbox
 `FeedInbox` becomes `Inbox` (title **Inbox**): rows from `useInbox`, a chip with the feed or source name, a mail icon for Gmail items, the sender under the title for Gmail items, the link opening the original (feed link or Gmail). Selection, Summarize (with `SummarizeItemsDialog`) and Dismiss work over `InboxItemRef`s. A partial failure shows a snackbar listing the items that failed.
 
-### 10.4 Freelance jobs page (`/freelance`, `components/FreelancePage`, new)
+### 10.4 Freelance jobs page (`/freelance`, `components/FreelancePage`, new) — DEFERRED (ADR 0041), except the drawer warning in its last bullet, which ships in v0.6.0
 - Drawer item **Freelance jobs** (icon `WorkOutline`) between Home and Settings.
 - Two tabs: **Postings** and **Alert emails**.
 - Postings: search field (debounced 300 ms) and platform select (from `platforms`); "N of M postings"; an MUI `Table` with expandable rows: posted date (else first seen), title as an external link, platform, budget (`$30–50/hr`, `$500 fixed`, or blank), skills as chips (first five, then "+n"). The expanded row shows every non-empty field of `details` (client, experience, duration, proposals, description, extra) and the sightings (`usePostingSightings`) with links to the emails. `TablePagination` at 50 per page.
@@ -412,29 +420,22 @@ New query and mutation hooks on TanStack Query, as 0.5.0's: `useGmailAccount`, `
 - Empty states: not connected or no jobs source → a message and a link to Settings; a source but nothing yet → "No postings yet. New job alerts are read every <interval>."
 - The drawer shows a warning dot on **Settings** when the account is `reconnect_needed` (from `useGmailAccount`, polled every 5 minutes).
 
-### 10.5 Settings → Summaries
+### 10.5 Settings → Summaries — DEFERRED (ADR 0041)
 An **Extraction model** select beside the default model, from `useModels`, with "Used to read job-alert emails".
 
 ## 11. Phases (detail in `tasks.md`)
-1. **Kick-off:** ADRs 0035–0038 indexed and accepted.
-2. **Shared contracts.**
-3. **Server data:** migration 6, repositories.
-4. **Gmail connection:** config, token cipher, OAuth, account routes, fixture script.
-5. **Web connection:** data layer and Settings → Gmail account card.
-6. **Sources and sync:** Gmail client wrapper, message parser, sources service, overlap, routes, intake poller.
-7. **Web sources:** sources list and dialogs.
-8. **Newsletters and inbox:** email to Markdown, newsletter jobs, Gmail links, unified inbox service and routes; web inbox.
-9. **Postings server:** prompt, client, dedupe, extraction service, listing, routes, extraction model setting.
-10. **Postings web:** Freelance jobs page, extraction model select, drawer warning.
-11. **Clean-up and verification:** docs (`CLAUDE.md` files, README setup section), versions 0.6.0, final checks with a real account, release notes.
+Phases 1–8 (checkpoints A–D) are done. After the scope change (ADR 0041):
+9. **Defer job alerts:** accept ADR 0041, refuse the jobs destination (server) and remove the destination choice (web), drawer warning on reconnect needed.
+10. **Clean-up and verification:** docs (`CLAUDE.md` files, README setup section including the dev redirect URI), versions 0.6.0, final checks with a real account, release notes.
 
-Checkpoints (proposed): **A** = phases 1–3, **B** = phases 4–5, **C** = phases 6–7, **D** = phase 8 (needs the fixtures from §9.2), **E** = phase 9, **F** = phase 10, **G** = phase 11.
+Checkpoints: **A**–**D** as before (done), **E** = phase 9, **F** = phase 10. The former postings checkpoints (old phases 9–10) move to the later version.
 
 ## 12. ADRs (new, drafted with this TRD)
 - 0035 Gmail intake: `@googleapis/gmail`, server-side OAuth, an encrypted refresh token, label-ID and query sources with a date-window sync
 - 0036 Newsletters: email to Markdown with Readability first and unwrapped layout tables as fallback
 - 0037 Job postings: Claude extraction into fixed columns plus JSON, deduplicated by platform job ID
 - 0038 One inbox for feed items and newsletter emails
+- 0041 Defer job-alert intake and the Freelance jobs page to a later version (added 2026-10-20)
 
 ## 13. Open questions
 None. Decided with Naresh before drafting: all of the above, with the refresh token encrypted at rest (key in `.env`) rather than kept in the browser, because the poller reads Gmail with no browser open.

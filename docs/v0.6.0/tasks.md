@@ -81,39 +81,44 @@ Needs the real fixtures from TRD §9.2, saved by Naresh with `fixture:gmail`. Ch
 | 8.4 | Inbox routes; feed-item routes removed (route tests move) (TRD §6.5) | 0038, 0039 | ✅ |
 | 8.5 | Web: `useInbox`, `useSummarizeInbox`, `useDismissInbox`; `FeedInbox` → `Inbox` with Gmail rows and partial-failure snackbar; Gmail source chip in `JobList` and `JobHeading` (TRD §10.3) | 0038 | ✅ |
 
-## Checkpoint E: Phase 9 (postings, server)
+## Checkpoint E: Phase 9 (defer job alerts)
 **Plan:** ⬜ [`plans/checkpoint-e.md`](plans/checkpoint-e.md)
+
+Scope change on 2026-10-20 (ADR 0041): the former checkpoints E (postings server) and F (postings web) move to a later version. Their tasks are listed at the end of this file, not to be started.
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
-| **Phase 9** | **Postings server** | | |
-| 9.1 | `postings/prompt.ts` and `ExtractionResult`; `extractPostings` in the Claude client, plus its integration test file (TRD §7.1–7.2) | 0037 | ⬜ |
-| 9.2 | `postings/dedupe.ts` (TRD §7.3) | 0037 | ⬜ |
-| 9.3 | `services/postings.service.ts`: `extractAlertEmail`, `extractPending`, `reextract`, `retry`, runs and cost; wired into the intake poller and Check now (TRD §7.4, §8) | 0037 | ⬜ |
-| 9.4 | Listing with search and platform filter, sightings, alert emails (TRD §7.5) | 0037 | ⬜ |
-| 9.5 | Postings routes; `extraction_model` in settings with its fallback; `apps/server/CLAUDE.md` and root `CLAUDE.md` architecture paragraph (TRD §7.6, §8) | 0037 | ⬜ |
+| **Phase 9** | **Defer job alerts** | | |
+| 9.1 | Set ADR 0041 to Accepted (Status line and the `docs/README.md` index); mark ADR 0037 as deferred by 0041 in its file | 0041 | ⬜ |
+| 9.2 | Server: `createSource` refuses `destination: 'jobs'` (400 "Freelance jobs sources aren't available yet"); route test for the 400 (TRD §5.7) | 0041 | ⬜ |
+| 9.3 | Web: remove `GmailDestinationField` from `AddGmailSourceDialog`; always send `destination: 'newsletter'`; newsletter options always shown (TRD §5.7) | 0041 | ⬜ |
+| 9.4 | Drawer warning dot on **Settings** when the account is `reconnect_needed` (TRD §10.4, last bullet) | 0035 | ⬜ |
 
-## Checkpoint F: Phase 10 (postings, web)
+## Checkpoint F: Phase 10 (clean-up and verification)
 **Plan:** ⬜ [`plans/checkpoint-f.md`](plans/checkpoint-f.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
-| **Phase 10** | **Postings web** | | |
-| 10.1 | Postings hooks (TRD §10.1) | 0037 | ⬜ |
-| 10.2 | `/freelance` route, drawer item, `FreelancePage` Postings tab with search, filter, expandable rows and pagination, empty states (TRD §10.4) | 0037 | ⬜ |
-| 10.3 | Alert emails tab with Re-extract and Retry; drawer warning dot on reconnect needed (TRD §10.4) | 0035, 0037 | ⬜ |
-| 10.4 | Extraction model select in Settings; `apps/web/CLAUDE.md` (TRD §10.5) | 0037 | ⬜ |
+| **Phase 10** | **Clean-up and verification** | | |
+| 10.1 | README: Google Cloud setup (project, Gmail API, Branding with homepage and privacy policy, consent screen, Web client with the redirect URIs for Docker `:3100` and dev `:5173` with `GOOGLE_REDIRECT_URI`, **In production**), the new variables and `openssl` key, Gmail sources, the Inbox, endpoints, the `fixture:gmail` script, troubleshooting (7-day expiry in Testing, reconnect, the dev callback landing on `:3100`); the root `CLAUDE.md` architecture paragraph (Gmail intake) | 0035 | ⬜ |
+| 10.2 | Version 0.6.0 in every `package.json` and the README status line | | ⬜ |
+| 10.3 | Final checks: all tests, lint, typecheck, build, browser tests, Docker build; migration on a copy of the real 0.5.0 database; with Naresh, a real connect in Docker, a newsletter source with backfill, a summarized newsletter note, the Gmail link opening the email (TRD §6.3), a reconnect after revoking access | 0035 | ⬜ |
+| 10.4 | `release-notes.md` (upgrade steps with a database backup and the Google setup; job alerts named as deferred), linked from `docs/README.md` | 0041 | ⬜ |
 
-## Checkpoint G: Phase 11 (clean-up and verification)
-**Plan:** ⬜ [`plans/checkpoint-g.md`](plans/checkpoint-g.md)
+## Deferred to a later version (ADR 0041) — do not start
 
-| ID | Task | ADRs | Status |
-| --- | --- | --- | --- |
-| **Phase 11** | **Clean-up and verification** | | |
-| 11.1 | README: Google Cloud setup (project, Gmail API, consent screen, Web client and redirect URI, **In production**), the new variables and `openssl` key, Gmail sources, the Inbox, Freelance jobs, endpoints, troubleshooting (7-day expiry in Testing, reconnect) | | ⬜ |
-| 11.2 | Version 0.6.0 in every `package.json` and the README status line | | ⬜ |
-| 11.3 | Final checks: all tests, lint, typecheck, build, browser tests, Docker build; migration on a copy of the real 0.5.0 database; with Naresh, a real connect, a newsletter source with backfill, a jobs source, a summarized newsletter note, the Gmail link opening the email (TRD §6.3), a reconnect after revoking access | 0035 | ⬜ |
-| 11.4 | `release-notes.md` (upgrade steps with a database backup and the Google setup), linked from `docs/README.md` | | ⬜ |
+| Former ID | Task | ADRs |
+| --- | --- | --- |
+| 9.1 | `postings/prompt.ts` and `ExtractionResult`; `extractPostings` in the Claude client, plus its integration test file (TRD §7.1–7.2) | 0037 |
+| 9.2 | `postings/dedupe.ts` (TRD §7.3) | 0037 |
+| 9.3 | `services/postings.service.ts`: `extractAlertEmail`, `extractPending`, `reextract`, `retry`, runs and cost; wired into the intake poller and Check now (TRD §7.4, §8) | 0037 |
+| 9.4 | Listing with search and platform filter, sightings, alert emails (TRD §7.5) | 0037 |
+| 9.5 | Postings routes; `extraction_model` with its fallback; `CLAUDE.md` updates (TRD §7.6, §8) | 0037 |
+| 10.1 | Postings hooks (TRD §10.1) | 0037 |
+| 10.2 | `/freelance` route, drawer item, `FreelancePage` Postings tab (TRD §10.4) | 0037 |
+| 10.3 | Alert emails tab with Re-extract and Retry (TRD §10.4) | 0037 |
+| 10.4 | Extraction model select in Settings (TRD §10.5) | 0037 |
+| — | Re-enable the jobs destination (undo task 9.2–9.3 of this version) | 0041 |
 
 ---
 
