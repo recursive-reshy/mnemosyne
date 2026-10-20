@@ -18,6 +18,8 @@ const NOW = Date.parse( '2026-10-20T10:00:00.000Z' )
 const setup = ( overrides: Partial< Parameters< typeof GmailSourceList >[ 0 ] > = {} ) => {
   const onUpdate = vi.fn()
   const onCheck = vi.fn()
+  const onEdit = vi.fn()
+  const onDelete = vi.fn()
 
   renderWithClient(
     <GmailSourceList
@@ -27,11 +29,18 @@ const setup = ( overrides: Partial< Parameters< typeof GmailSourceList >[ 0 ] > 
       disabled={ false }
       onUpdate={ onUpdate }
       onCheck={ onCheck }
+      onEdit={ onEdit }
+      onDelete={ onDelete }
       { ...overrides }
     />,
   )
 
-  return { onUpdate, onCheck }
+  return {
+    onUpdate,
+    onCheck,
+    onEdit,
+    onDelete,
+  }
 }
 
 describe( 'GmailSourceList', () => {
@@ -143,6 +152,24 @@ describe( 'GmailSourceList', () => {
     expect( onCheck ).toHaveBeenCalledWith( SOURCE_ID )
   } )
 
+  it( 'edits a source from its menu', async () => {
+    const { onEdit } = setup()
+
+    await userEvent.click( screen.getByRole( 'button', { name: 'Newsletters actions' } ) )
+    await userEvent.click( screen.getByRole( 'menuitem', { name: 'Edit' } ) )
+
+    expect( onEdit ).toHaveBeenCalledWith( gmailSourceFixture() )
+  } )
+
+  it( 'deletes a source from its menu', async () => {
+    const { onDelete } = setup()
+
+    await userEvent.click( screen.getByRole( 'button', { name: 'Newsletters actions' } ) )
+    await userEvent.click( screen.getByRole( 'menuitem', { name: 'Delete' } ) )
+
+    expect( onDelete ).toHaveBeenCalledWith( gmailSourceFixture() )
+  } )
+
   it( 'shows Checking… and disables Check now for the source being checked', async () => {
     setup( { checkingId: SOURCE_ID } )
 
@@ -157,17 +184,20 @@ describe( 'GmailSourceList', () => {
   } )
 
   describe( 'while Gmail is not connected', () => {
-    it( 'disables the switch and Check now', async () => {
+    it( 'disables the switch, Check now and Edit, but not Delete', async () => {
       setup( { disabled: true } )
 
       expect( screen.getByRole( 'switch', { name: 'On' } ) ).toBeDisabled()
 
       await userEvent.click( screen.getByRole( 'button', { name: 'Newsletters actions' } ) )
 
-      expect( screen.getByRole( 'menuitem', { name: 'Check now' } ) ).toHaveAttribute(
-        'aria-disabled',
-        'true',
-      )
+      for( const name of [ 'Check now', 'Edit' ] ) {
+        expect( screen.getByRole( 'menuitem', { name } ) )
+          .toHaveAttribute( 'aria-disabled', 'true' )
+      }
+
+      expect( screen.getByRole( 'menuitem', { name: 'Delete' } ) )
+        .not.toHaveAttribute( 'aria-disabled' )
     } )
   } )
 } )

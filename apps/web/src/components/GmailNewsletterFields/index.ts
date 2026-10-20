@@ -1,0 +1,1 @@
+export { GmailNewsletterFields } from './GmailNewsletterFields'

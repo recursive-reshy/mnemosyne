@@ -18,6 +18,7 @@ import Typography from '@mui/material/Typography'
 import type { GmailSource, UpdateGmailSourceBody } from '@mnemosyne/shared'
 // App
 import { formatChecked } from '#src/checkedAt'
+import { GmailSourceMatch } from './GmailSourceMatch'
 
 const LIST_SX = { display: 'flex', flexDirection: 'column', gap: 1, width: '100%' } as const
 
@@ -31,7 +32,6 @@ const ITEM_SX = {
 } as const
 
 const WRAP_SX = { overflowWrap: 'anywhere' } as const
-const QUERY_SX = { fontFamily: 'monospace', ...WRAP_SX } as const
 
 const DESTINATION_LABELS: Record< GmailSource[ 'destination' ], string > = {
   newsletter: 'Newsletter',
@@ -45,6 +45,8 @@ interface GmailSourceListProps {
   disabled: boolean
   onUpdate: ( id: string, body: UpdateGmailSourceBody ) => void
   onCheck: ( id: string ) => void
+  onEdit: ( source: GmailSource ) => void
+  onDelete: ( source: GmailSource ) => void
 }
 
 interface MenuState {
@@ -60,22 +62,17 @@ const countText = ( { destination, inbox_count, postings_count }: GmailSource ):
   return `${ postings_count } ${ postings_count === 1 ? 'posting' : 'postings' } collected`
 }
 
-function Match( { source }: { source: GmailSource } ): ReactElement {
-  if( source.match.kind === 'query' ) {
-    return <Typography variant="body2" sx={ QUERY_SX }>{ source.match.query }</Typography>
-  }
-
-  return (
-    <Stack direction="row" sx={ { flexWrap: 'wrap', gap: 0.5 } }>
-      { source.label_names.map( ( name ) => (
-        <Chip key={ name } size="small" variant="outlined" label={ name } />
-      ) ) }
-    </Stack>
-  )
-}
-
 export function GmailSourceList(
-  { sources, now, checkingId, disabled, onUpdate, onCheck }: GmailSourceListProps,
+  {
+    sources,
+    now,
+    checkingId,
+    disabled,
+    onUpdate,
+    onCheck,
+    onEdit,
+    onDelete,
+  }: GmailSourceListProps,
 ): ReactElement {
   const [ menu, setMenu ] = useState< MenuState | null >( null )
 
@@ -87,9 +84,9 @@ export function GmailSourceList(
     setMenu( { source, anchor: event.currentTarget } )
   }
 
-  const handleCheck = (): void => {
+  const handleAction = ( action: ( source: GmailSource ) => void ) => (): void => {
     if( menu !== null ) {
-      onCheck( menu.source.id )
+      action( menu.source )
     }
 
     setMenu( null )
@@ -106,7 +103,7 @@ export function GmailSourceList(
                   <Typography sx={ { fontWeight: 600, ...WRAP_SX } }>{ source.name }</Typography>
                   <Chip size="small" label={ DESTINATION_LABELS[ source.destination ] } />
                 </Stack>
-                <Match source={ source } />
+                <GmailSourceMatch source={ source } />
                 <Typography variant="body2" color="text.secondary">
                   { checkingId === source.id
                     ? 'Checking…'
@@ -155,11 +152,13 @@ export function GmailSourceList(
         onClose={ () => setMenu( null ) }
       >
         <MenuItem
-          onClick={ handleCheck }
+          onClick={ handleAction( ( { id } ) => onCheck( id ) ) }
           disabled={ disabled || menu?.source.id === checkingId }
         >
           Check now
         </MenuItem>
+        <MenuItem onClick={ handleAction( onEdit ) } disabled={ disabled }>Edit</MenuItem>
+        <MenuItem onClick={ handleAction( onDelete ) }>Delete</MenuItem>
       </Menu>
     </>
   )

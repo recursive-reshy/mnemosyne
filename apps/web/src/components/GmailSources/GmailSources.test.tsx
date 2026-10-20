@@ -10,13 +10,21 @@ import {
   vi,
 } from 'vitest'
 // App
+import { usePromptProfiles } from '#src/hooks/usePromptProfiles'
 import { useGmailSources } from '#src/hooks/useGmailSources'
+import { profilesState } from '#src/test-support/hookStates'
 import { SOURCE_ID, gmailSourceFixture } from '#src/test-support/gmail.fixture'
 import { mutationStub } from '#src/test-support/mutationStub'
 import { renderWithClient } from '#src/test-support/renderWithClient'
 import { GmailSources } from './GmailSources'
 
 vi.mock( '#src/hooks/useGmailSources' )
+vi.mock( '#src/hooks/usePromptProfiles' )
+vi.mock( './GmailDialogs', () => ( {
+  GmailDialogs: ( { dialog }: { dialog: { kind: string } | null } ) => (
+    <p>{ `Dialog: ${ dialog?.kind ?? 'none' }` }</p>
+  ),
+} ) )
 
 const mockedSources = vi.mocked( useGmailSources )
 
@@ -37,6 +45,7 @@ const state = ( overrides: Partial< State > = {} ): State => ( {
 
 beforeEach( () => {
   mockedSources.mockReturnValue( state() )
+  vi.mocked( usePromptProfiles ).mockReturnValue( profilesState() )
 } )
 
 describe( 'GmailSources', () => {
@@ -140,12 +149,43 @@ describe( 'GmailSources', () => {
     expect( screen.getByRole( 'alert' ) ).toHaveTextContent( 'Google no longer accepts access' )
   } )
 
+  describe( 'dialogs', () => {
+    it( 'opens none to start with', () => {
+      renderWithClient( <GmailSources connected /> )
+
+      expect( screen.getByText( 'Dialog: none' ) ).toBeInTheDocument()
+    } )
+
+    it( 'opens the add dialog from Add source', async () => {
+      renderWithClient( <GmailSources connected /> )
+
+      await userEvent.click( screen.getByRole( 'button', { name: 'Add source' } ) )
+
+      expect( screen.getByText( 'Dialog: add' ) ).toBeInTheDocument()
+    } )
+
+    it( 'opens the edit and delete dialogs from a source\'s menu', async () => {
+      renderWithClient( <GmailSources connected /> )
+
+      await userEvent.click( screen.getByRole( 'button', { name: 'Newsletters actions' } ) )
+      await userEvent.click( screen.getByRole( 'menuitem', { name: 'Edit' } ) )
+
+      expect( screen.getByText( 'Dialog: edit' ) ).toBeInTheDocument()
+
+      await userEvent.click( screen.getByRole( 'button', { name: 'Newsletters actions' } ) )
+      await userEvent.click( screen.getByRole( 'menuitem', { name: 'Delete' } ) )
+
+      expect( screen.getByText( 'Dialog: delete' ) ).toBeInTheDocument()
+    } )
+  } )
+
   describe( 'while Gmail is not connected', () => {
     it( 'says sources need a connection and holds back the actions', () => {
       renderWithClient( <GmailSources connected={ false } /> )
 
       expect( screen.getByText( /Connect Gmail to add or change sources/ ) ).toBeInTheDocument()
       expect( screen.getByRole( 'button', { name: 'Check all now' } ) ).toBeDisabled()
+      expect( screen.getByRole( 'button', { name: 'Add source' } ) ).toBeDisabled()
       expect( screen.getByRole( 'switch', { name: 'On' } ) ).toBeDisabled()
     } )
 

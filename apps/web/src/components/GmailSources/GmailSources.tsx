@@ -1,4 +1,5 @@
 // React
+import { useState } from 'react'
 import type { ReactElement } from 'react'
 // Packages
 import Alert from '@mui/material/Alert'
@@ -7,7 +8,10 @@ import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 // App
 import { useGmailSources } from '#src/hooks/useGmailSources'
+import { usePromptProfiles } from '#src/hooks/usePromptProfiles'
 import { GmailSourceList } from '../GmailSourceList'
+import { GmailDialogs } from './GmailDialogs'
+import type { GmailDialog } from './GmailDialogs'
 
 interface GmailSourcesProps {
   connected: boolean
@@ -15,7 +19,16 @@ interface GmailSourcesProps {
 
 export function GmailSources( { connected }: GmailSourcesProps ): ReactElement {
   const sources = useGmailSources()
+  const { profiles } = usePromptProfiles()
+  const [ dialog, setDialog ] = useState< GmailDialog | null >( null )
   const checking = sources.checkSource.isPending ? sources.checkSource.variables ?? null : null
+  const handleClose = (): void => {
+    setDialog( null )
+    sources.createSource.reset()
+    sources.updateSource.reset()
+    sources.deleteSource.reset()
+  }
+
   const failure = [ sources.updateSource, sources.checkSource, sources.checkAllSources ]
     .find( ( mutation ) => mutation.isError )?.error
 
@@ -29,13 +42,22 @@ export function GmailSources( { connected }: GmailSourcesProps ): ReactElement {
         <Typography variant="subtitle1" component="h4" sx={ { fontWeight: 600 } }>
           Sources
         </Typography>
-        <Button
-          variant="outlined"
-          onClick={ () => sources.checkAllSources.mutate() }
-          disabled={ !connected || sources.checkAllSources.isPending }
-        >
-          { sources.checkAllSources.isPending ? 'Checking…' : 'Check all now' }
-        </Button>
+        <Stack direction="row" spacing={ 1 }>
+          <Button
+            variant="outlined"
+            onClick={ () => sources.checkAllSources.mutate() }
+            disabled={ !connected || sources.checkAllSources.isPending }
+          >
+            { sources.checkAllSources.isPending ? 'Checking…' : 'Check all now' }
+          </Button>
+          <Button
+            variant="contained"
+            onClick={ () => setDialog( { kind: 'add' } ) }
+            disabled={ !connected }
+          >
+            Add source
+          </Button>
+        </Stack>
       </Stack>
       { !connected && (
         <Typography variant="body2" color="text.secondary">
@@ -53,8 +75,16 @@ export function GmailSources( { connected }: GmailSourcesProps ): ReactElement {
           disabled={ !connected }
           onUpdate={ ( id, body ) => sources.updateSource.mutate( { id, body } ) }
           onCheck={ ( id ) => sources.checkSource.mutate( id ) }
+          onEdit={ ( source ) => setDialog( { kind: 'edit', source } ) }
+          onDelete={ ( source ) => setDialog( { kind: 'delete', source } ) }
         />
       ) }
+      <GmailDialogs
+        dialog={ dialog }
+        profiles={ profiles }
+        sources={ sources }
+        onClose={ handleClose }
+      />
     </Stack>
   )
 }
