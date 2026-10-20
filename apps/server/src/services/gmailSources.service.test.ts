@@ -536,7 +536,7 @@ describe( 'createSource: newsletter', () => {
       .mockRejectedValueOnce( new GmailAuthError( 'revoked' ) )
 
     await expect( createSource( body( { backfill: '30d' } ) ) )
-      .rejects.toBeInstanceOf( GmailAuthError )
+      .rejects.toBeInstanceOf( ConflictError )
 
     expect( await listGmailSources() ).toEqual( [] )
     expect( countRows() ).toBe( 0 )

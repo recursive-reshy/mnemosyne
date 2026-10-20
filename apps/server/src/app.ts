@@ -7,6 +7,7 @@ import { errorMiddleware, notFoundHandler } from './errors.js'
 // Routes
 import { feedsRoutes } from './routes/feeds.routes.js'
 import { gmailRoutes } from './routes/gmail.routes.js'
+import { gmailSourcesRoutes } from './routes/gmailSources.routes.js'
 import { healthRoutes } from './routes/health.routes.js'
 import { jobsRoutes } from './routes/jobs.routes.js'
 import { modelsRoutes } from './routes/models.routes.js'
@@ -22,6 +23,7 @@ app.use( '/api', healthRoutes )
 app.use( '/api', jobsRoutes )
 app.use( '/api', feedsRoutes )
 app.use( '/api', gmailRoutes )
+app.use( '/api', gmailSourcesRoutes )
 app.use( '/api', vaultRoutes )
 app.use( '/api', settingsRoutes )
 app.use( '/api', modelsRoutes )

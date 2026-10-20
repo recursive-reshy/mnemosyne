@@ -227,14 +227,23 @@ export const listGmailSources = async (): Promise< GmailSource[] > => {
   return presentSources( listStoredSources() )
 }
 
+// A lost connection reaches a route as a conflict, so the web app can say so.
+const asConflict = async < T >( run: () => Promise< T > ): Promise< T > => {
+  try {
+    return await run()
+  } catch( error ) {
+    throw error instanceof GmailAuthError ? new ConflictError( error.message ) : error
+  }
+}
+
 export const previewSource = async (
   match: GmailMatch,
   excludeId?: string,
 ): Promise< PreviewGmailSourceResponse > => {
   requireConnectedGmail()
 
-  const { count, capped, heads } = await countMatches( match )
-  const newest = await newestAmong( heads )
+  const { count, capped, heads } = await asConflict( () => countMatches( match ) )
+  const newest = await asConflict( () => newestAmong( heads ) )
 
   return {
     count,
@@ -319,7 +328,7 @@ export const createSource = async ( body: CreateGmailSourceBody ): Promise< Gmai
   }
 
   const now = new Date()
-  const collected = await collectStarting( body, now )
+  const collected = await asConflict( () => collectStarting( body, now ) )
   const source: StoredGmailSource = {
     id: crypto.randomUUID(),
     name: body.name,
@@ -484,15 +493,6 @@ const runCheck = async ( source: StoredGmailSource ): Promise< StoredGmailMessag
   return added
 }
 
-// A lost connection reaches a route as a conflict, so the web app can say so.
-const runCheckForRoute = async ( source: StoredGmailSource ): Promise< void > => {
-  try {
-    await runCheck( source )
-  } catch( error ) {
-    throw error instanceof GmailAuthError ? new ConflictError( error.message ) : error
-  }
-}
-
 export const checkSource = async ( id: string ): Promise< GmailSource > => {
   const source = requireActiveSource( id )
 
@@ -501,7 +501,7 @@ export const checkSource = async ( id: string ): Promise< GmailSource > => {
   }
 
   requireConnectedGmail()
-  await runCheckForRoute( source )
+  await asConflict( () => runCheck( source ) )
 
   return presentSource( requireActiveSource( id ) )
 }
@@ -510,7 +510,7 @@ export const checkAllSources = async (): Promise< GmailSource[] > => {
   requireConnectedGmail()
 
   for( const source of listStoredSources().filter( ( { enabled } ) => enabled ) ) {
-    await runCheckForRoute( source )
+    await asConflict( () => runCheck( source ) )
   }
 
   return listGmailSources()

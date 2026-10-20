@@ -48,9 +48,9 @@ src/
   errors.ts          typed errors and the error middleware
   routes/            <name>.routes.ts: an Express Router wiring paths to controller functions, nothing else
   controllers/       <name>.controller.ts: HTTP only (parse the request with Zod, call a service, send the response)
-  services/          <name>.service.ts: business rules and job state changes (jobs, vault, settings, prompts, models, feeds, feedInbox, gmail)
+  services/          <name>.service.ts: business rules and job state changes (jobs, vault, settings, prompts, models, feeds, feedInbox, gmail, gmailSources: the sources, their sync and checks)
   repositories/      <name>.repository.ts: the SQLite database and nothing else; database.ts holds the connection and the migrations; jobStore, summaryRuns, settings, promptProfiles, feeds, feedItems, and for Gmail (ADRs 0035, 0037): gmailAccount, gmailSources, gmailMessages, postings, extractionRuns
-  gmail/             Gmail intake (ADR 0035): tokenCipher (AES-256-GCM for the refresh token) and auth (OAuth consent, the cached Gmail client, `withGmail` and the reconnect rule); everything else reaches Gmail through `withGmail`
+  gmail/             Gmail intake (ADR 0035): tokenCipher (AES-256-GCM for the refresh token), auth (OAuth consent, the cached Gmail client, `withGmail` and the reconnect rule), gmail.client (labels, message ids by label or search, messages; the only module that calls the Gmail API, always through `withGmail`) and parseMessage (a Gmail message to subject, sender, date and bodies; pure)
   clients/           <name>.client.ts: one external tool each (ytDlp, ffmpeg, whisperServer, claude, anthropicModels, vault, http); the vault client resolves every folder inside the vault (`resolveFolder`)
   sources/           adapters that turn a job into a `SourceDocument` (ADR 0030): video and article adapters, article extraction (ADR 0031), feed parsing and discovery (ADR 0032), pasted text, `adapterFor( sourceType )`; they use clients and report steps through the context, never touch repositories
   worker/            worker, runJob, summarizeJob, sweeper, feedPoller: runs the next runnable job; deletes expired jobs; checks due feeds every minute, one pass at a time
