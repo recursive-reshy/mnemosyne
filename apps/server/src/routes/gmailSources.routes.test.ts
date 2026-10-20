@@ -165,19 +165,30 @@ describe( 'POST /api/gmail/sources', () => {
   it( 'creates a source and answers 201', async () => {
     const response = await request( app )
       .post( '/api/gmail/sources' )
-      .send( { name: ' Upwork alerts ', match: labelBody, destination: 'jobs' } )
+      .send( { name: ' Weekly news ', match: labelBody, destination: 'newsletter' } )
 
     expect( response.status ).toBe( 201 )
 
     const { source } = GmailSourceResponse.parse( response.body )
 
     expect( source ).toMatchObject( {
-      name: 'Upwork alerts',
-      destination: 'jobs',
+      name: 'Weekly news',
+      destination: 'newsletter',
       label_names: [ 'Upwork' ],
       enabled: true,
     } )
     expect( findSourceById( source.id ) ).toBeDefined()
+  } )
+
+  it( 'refuses a jobs source with 400, collecting and storing nothing', async () => {
+    const response = await request( app )
+      .post( '/api/gmail/sources' )
+      .send( { name: 'Upwork alerts', match: labelBody, destination: 'jobs' } )
+
+    expect( response.status ).toBe( 400 )
+    expect( response.body ).toEqual( { error: 'Freelance jobs sources aren\'t available yet' } )
+    expect( listMatchingIds ).not.toHaveBeenCalled()
+    expect( ( await request( app ).get( '/api/gmail/sources' ) ).body ).toEqual( { sources: [] } )
   } )
 
   it( 'backfills a newsletter source when asked', async () => {
@@ -192,8 +203,8 @@ describe( 'POST /api/gmail/sources', () => {
   } )
 
   it.each( [
-    [ 'no name', { match: queryBody, destination: 'jobs' } ],
-    [ 'a blank name', { name: ' ', match: queryBody, destination: 'jobs' } ],
+    [ 'no name', { match: queryBody, destination: 'newsletter' } ],
+    [ 'a blank name', { name: ' ', match: queryBody, destination: 'newsletter' } ],
     [ 'no destination', { name: 'A', match: queryBody } ],
     [ 'an unknown destination', { name: 'A', match: queryBody, destination: 'crm' } ],
     [ 'a backfill on a jobs source', {
@@ -237,7 +248,7 @@ describe( 'POST /api/gmail/sources', () => {
 
     const response = await request( app )
       .post( '/api/gmail/sources' )
-      .send( { name: 'A', match: queryBody, destination: 'jobs' } )
+      .send( { name: 'A', match: queryBody, destination: 'newsletter' } )
 
     expect( response.status ).toBe( 409 )
   } )
@@ -247,7 +258,7 @@ describe( 'POST /api/gmail/sources', () => {
 
     const response = await request( app )
       .post( '/api/gmail/sources' )
-      .send( { name: 'A', match: queryBody, destination: 'jobs' } )
+      .send( { name: 'A', match: queryBody, destination: 'newsletter' } )
 
     expect( response.status ).toBe( 409 )
     expect( ( await request( app ).get( '/api/gmail/sources' ) ).body ).toEqual( { sources: [] } )

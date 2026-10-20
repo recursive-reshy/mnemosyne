@@ -343,6 +343,11 @@ const queueAutomatically = async (
 }
 
 export const createSource = async ( body: CreateGmailSourceBody ): Promise< GmailSource > => {
+  // Job-alert intake is deferred (ADR 0041); stored jobs sources are still read.
+  if( body.destination === 'jobs' ) {
+    throw new ValidationError( 'Freelance jobs sources aren\'t available yet' )
+  }
+
   requireConnectedGmail()
 
   if( body.profile_id !== undefined ) {

@@ -21,7 +21,7 @@ import {
 } from '../gmail/gmail.client.js'
 // Repositories
 import { saveAccount, setAccountStatus } from '../repositories/gmailAccount.repository.js'
-import { findMessagesByIds, listNewsletterInbox } from '../repositories/gmailMessages.repository.js'
+import { listNewsletterInbox } from '../repositories/gmailMessages.repository.js'
 import { getDatabase } from '../repositories/database.js'
 import { findSourceById, insertSource } from '../repositories/gmailSources.repository.js'
 import type { StoredGmailSource } from '../repositories/gmailSources.repository.js'
@@ -118,14 +118,6 @@ const countRows = (): number => {
     .get() as { n: number }
 
   return row.n
-}
-
-const rowIds = ( sourceId: string ): string[] => {
-  const rows = getDatabase()
-    .prepare( 'SELECT id FROM gmail_messages WHERE source_id = ?' )
-    .all( sourceId ) as { id: string }[]
-
-  return rows.map( ( { id } ) => id )
 }
 
 beforeEach( () => {
@@ -578,38 +570,21 @@ describe( 'createSource: jobs', () => {
     destination: 'jobs',
   }
 
-  it( 'marks the emails of the last two days as seen, collecting none of them', async () => {
-    vi.mocked( listMatchingIds ).mockResolvedValue( idsOf( 'x', 'y' ) )
-    serve( { x: { receivedAt: daysAgo( 0.5 ) }, y: { receivedAt: daysAgo( 1.5 ) } } )
-
-    const source = await createSource( body )
-
-    expect( listMatchingIds ).toHaveBeenCalledTimes( 1 )
-    expect( listMatchingIds ).toHaveBeenCalledWith(
-      queryMatch,
-      { after: new Date( NOW.getTime() - 2 * DAY ), max: 100 },
-    )
-    expect( storedFor( source.id ).map( ( row ) => row.status ) )
-      .toEqual( [ 'skipped', 'skipped' ] )
-    expect( source ).toMatchObject( {
-      destination: 'jobs',
-      profile_id: null,
-      auto_summarize: false,
-      inbox_count: 0,
-      postings_count: 0,
-      sync_from: NOW.toISOString(),
-    } )
-    expect( getMessage ).not.toHaveBeenCalledWith( 'x', 'full' )
-  } )
-
-  it( 'keeps no body for the emails it marks as seen', async () => {
+  it( 'is refused as not available yet, storing nothing', async () => {
     vi.mocked( listMatchingIds ).mockResolvedValue( idsOf( 'x' ) )
     serve( { x: {} } )
 
-    const source = await createSource( body )
-    const [ row ] = findMessagesByIds( rowIds( source.id ) )
+    await expect( createSource( body ) )
+      .rejects.toThrow( new ValidationError( 'Freelance jobs sources aren\'t available yet' ) )
+    expect( listMatchingIds ).not.toHaveBeenCalled()
+    expect( await listGmailSources() ).toEqual( [] )
+    expect( countRows() ).toBe( 0 )
+  } )
 
-    expect( row ).toMatchObject( { body_html: null, body_text: null, subject: 'Subject of x' } )
+  it( 'is refused as invalid even while Gmail is not connected', async () => {
+    setAccountStatus( 'reconnect_needed', 'revoked' )
+
+    await expect( createSource( body ) ).rejects.toBeInstanceOf( ValidationError )
   } )
 } )
 
