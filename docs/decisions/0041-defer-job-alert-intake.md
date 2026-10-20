@@ -1,6 +1,6 @@
 # 0041. Defer job-alert intake and the Freelance jobs page to a later version
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-20
 
 ## Context

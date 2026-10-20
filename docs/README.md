@@ -58,7 +58,7 @@ Each significant decision is recorded as a short ADR (Architecture Decision Reco
 | [0038](decisions/0038-unified-inbox.md) | One inbox for feed items and newsletter emails | Accepted |
 | [0039](decisions/0039-feed-item-schemas-server-local.md) | Feed-item schemas stay server-local until the unified inbox routes land | Superseded (by the 0038 routes, tasks 8.4–8.5) |
 | [0040](decisions/0040-newsletters-whole-body.md) | Newsletters: convert the whole cleaned body, not Readability's best block | Accepted |
-| [0041](decisions/0041-defer-job-alert-intake.md) | Defer job-alert intake and the Freelance jobs page to a later version | Proposed |
+| [0041](decisions/0041-defer-job-alert-intake.md) | Defer job-alert intake and the Freelance jobs page to a later version | Accepted |
 
 ## Template for new ADRs
 
