@@ -12,6 +12,7 @@ import { config } from '../config.js'
 // Errors
 import { ConflictError, NotFoundError, ValidationError } from '../errors.js'
 // Gmail
+import { GmailAuthError } from '../gmail/auth.js'
 import {
   countMatches,
   getMessage,
@@ -26,6 +27,7 @@ import { findAccount } from '../repositories/gmailAccount.repository.js'
 import {
   countInbox,
   dismissInboxForSource,
+  findStoredMessageIds,
   insertMessageIfNew,
 } from '../repositories/gmailMessages.repository.js'
 import type { StoredGmailMessage } from '../repositories/gmailMessages.repository.js'
@@ -33,18 +35,22 @@ import {
   findSourceById,
   insertSource,
   listActiveSourcesByMatch,
+  listDueSources,
   listSources as listStoredSources,
   markSourceDeleted,
+  recordSourceCheck,
   updateSource as updateStoredSource,
 } from '../repositories/gmailSources.repository.js'
 import type { StoredGmailSource } from '../repositories/gmailSources.repository.js'
 import { countPostingsForSource } from '../repositories/postings.repository.js'
 // Services
 import { assertActiveProfile } from './prompts.service.js'
+import { getSettings } from './settings.service.js'
 
 const DAY_MS = 86_400_000
 const MARGIN_DAYS = 2
-const MARGIN_MAX = 100
+const LIST_MAX = 100
+const MAX_NEW_NEWSLETTERS_PER_CHECK = 10
 const BACKFILL_MAX = 200
 const BACKFILL_DAYS: Record< Backfill, number | null > = {
   none: 0,
@@ -257,7 +263,7 @@ const collectStarting = async (
   const margin = async ( except: string | null ): Promise< void > => {
     const { ids } = await listMatchingIds(
       body.match,
-      { after: marginStart( now ), max: MARGIN_MAX },
+      { after: marginStart( now ), max: LIST_MAX },
     )
 
     for( const id of [ ...new Set( ids ) ].filter( ( found ) => found !== except ) ) {
@@ -397,4 +403,143 @@ export const deleteSource = (
 
     markSourceDeleted( id, new Date().toISOString() )
   } )
+}
+
+const withoutBodies = ( parsed: ParsedMessage ): ParsedMessage => {
+  return { ...parsed, html: null, text: null }
+}
+
+const readNewMessages = async (
+  source: StoredGmailSource,
+): Promise< { messages: ParsedMessage[], missingLabelIds: string[], failure: string | null } > => {
+  const messages: ParsedMessage[] = []
+  let missingLabelIds: string[] = []
+
+  try {
+    const found = await listMatchingIds(
+      source.match,
+      { after: marginStart( new Date( source.sync_from ) ), max: LIST_MAX },
+    )
+    const ids = [ ...new Set( found.ids ) ]
+    const stored = findStoredMessageIds( source.id, ids )
+
+    missingLabelIds = found.missingLabelIds
+
+    for( const id of ids.filter( ( found ) => !stored.has( found ) ) ) {
+      messages.push( await fetchParsed( id, 'full' ) )
+    }
+
+    return { messages, missingLabelIds, failure: null }
+  } catch( error ) {
+    // The account is no longer usable: end the pass, don't blame this source.
+    if( error instanceof GmailAuthError ) {
+      throw error
+    }
+
+    // What was read before the failure is kept; the rest is picked up by a later check.
+    return {
+      messages,
+      missingLabelIds,
+      failure: error instanceof Error ? error.message : 'Unknown error',
+    }
+  }
+}
+
+// Returns the rows this check added, for what follows a check (queueing, extraction).
+const runCheck = async ( source: StoredGmailSource ): Promise< StoredGmailMessage[] > => {
+  const now = new Date()
+  const { messages, missingLabelIds, failure } = await readNewMessages( source )
+  const newest = [ ...messages ]
+    .sort( ( first, second ) => second.receivedAt.localeCompare( first.receivedAt ) )
+  const collected: Collected[] = newest.map( ( parsed, index ) => {
+    if( source.destination === 'jobs' ) {
+      return { parsed, status: 'pending', backfilled: false }
+    }
+
+    return index < MAX_NEW_NEWSLETTERS_PER_CHECK
+      ? { parsed, status: 'inbox', backfilled: false }
+      : { parsed: withoutBodies( parsed ), status: 'skipped', backfilled: false }
+  } )
+  const overflow = collected.filter( ( { status } ) => status === 'skipped' ).length
+  const added: StoredGmailMessage[] = []
+
+  inTransaction( () => {
+    stampNewestFirst( collected, now, source.id ).forEach( ( row ) => {
+      if( insertMessageIfNew( row ) ) {
+        added.push( row )
+      }
+    } )
+
+    recordSourceCheck( source.id, {
+      last_checked_at: now.toISOString(),
+      last_error: failure ?? ( missingLabelIds.length === 0
+        ? null
+        : `Label not found in Gmail: ${ missingLabelIds.join( ', ' ) }` ),
+      last_skipped_count: source.destination === 'newsletter' && messages.length > 0
+        ? overflow
+        : source.last_skipped_count,
+    } )
+  } )
+
+  return added
+}
+
+// A lost connection reaches a route as a conflict, so the web app can say so.
+const runCheckForRoute = async ( source: StoredGmailSource ): Promise< void > => {
+  try {
+    await runCheck( source )
+  } catch( error ) {
+    throw error instanceof GmailAuthError ? new ConflictError( error.message ) : error
+  }
+}
+
+export const checkSource = async ( id: string ): Promise< GmailSource > => {
+  const source = requireActiveSource( id )
+
+  if( !source.enabled ) {
+    throw new ConflictError( 'This source is turned off' )
+  }
+
+  requireConnectedGmail()
+  await runCheckForRoute( source )
+
+  return presentSource( requireActiveSource( id ) )
+}
+
+export const checkAllSources = async (): Promise< GmailSource[] > => {
+  requireConnectedGmail()
+
+  for( const source of listStoredSources().filter( ( { enabled } ) => enabled ) ) {
+    await runCheckForRoute( source )
+  }
+
+  return listGmailSources()
+}
+
+export const checkDueSources = async (): Promise< number > => {
+  if( config.gmail === null || findAccount()?.status !== 'connected' ) {
+    return 0
+  }
+
+  const due = listDueSources(
+    new Date().toISOString(),
+    getSettings().feed_check_interval_minutes,
+  )
+  let checked = 0
+
+  for( const source of due ) {
+    try {
+      await runCheck( source )
+      checked += 1
+    } catch( error ) {
+      if( error instanceof GmailAuthError ) {
+        console.warn( 'Gmail sources paused: Google no longer accepts the stored access' )
+        break
+      }
+
+      console.error( `Checking Gmail source ${ source.name } failed`, error )
+    }
+  }
+
+  return checked
 }

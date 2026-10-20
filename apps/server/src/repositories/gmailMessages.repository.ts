@@ -95,6 +95,16 @@ export const findMessagesByIds = ( ids: string[] ): StoredGmailMessage[] => {
     .map( toStoredMessage )
 }
 
+export const findStoredMessageIds = ( sourceId: string, messageIds: string[] ): Set< string > => {
+  const rows = getDatabase()
+    .prepare( `SELECT message_id FROM gmail_messages
+      WHERE source_id = ? AND message_id IN ( SELECT value FROM json_each( ? ) )` )
+    .all( sourceId, JSON.stringify( messageIds ) )
+
+  return new Set( z.array( z.object( { message_id: z.string() } ) ).parse( rows )
+    .map( ( { message_id } ) => message_id ) )
+}
+
 export const listNewsletterInbox = (): NewsletterInboxRow[] => {
   return getDatabase()
     .prepare( `SELECT gmail_messages.*, gmail_sources.name AS source_name

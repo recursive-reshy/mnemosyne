@@ -5,6 +5,7 @@ import {
   countInbox,
   dismissInboxForSource,
   findMessagesByIds,
+  findStoredMessageIds,
   insertMessageIfNew,
   listAlertEmails,
   listNewsletterInbox,
@@ -407,5 +408,32 @@ describe( 'dismissInboxForSource', () => {
       .toMatchObject( { status: 'dismissed', body_html: null, body_text: null } )
     expect( findMessagesByIds( [ queued.id ] )[ 0 ]?.status ).toBe( 'queued' )
     expect( findMessagesByIds( [ kept.id ] )[ 0 ]?.status ).toBe( 'inbox' )
+  } )
+} )
+
+describe( 'findStoredMessageIds', () => {
+  it( 'returns the Gmail ids this source already has, whatever their status', () => {
+    const source = addSource()
+    const other = addSource()
+
+    addMessage( source.id, { message_id: 'g1', status: 'inbox' } )
+    addMessage( source.id, { message_id: 'g2', status: 'skipped' } )
+    addMessage( other.id, { message_id: 'g3' } )
+
+    expect( findStoredMessageIds( source.id, [ 'g1', 'g2', 'g3', 'g4' ] ) )
+      .toEqual( new Set( [ 'g1', 'g2' ] ) )
+  } )
+
+  it( 'returns nothing for no ids', () => {
+    expect( findStoredMessageIds( addSource().id, [] ) ).toEqual( new Set() )
+  } )
+
+  it( 'handles more ids than SQLite takes as parameters in one statement', () => {
+    const source = addSource()
+    const ids = Array.from( { length: 1500 }, ( _, index ) => `g${ index }` )
+
+    addMessage( source.id, { message_id: 'g1499' } )
+
+    expect( findStoredMessageIds( source.id, ids ) ).toEqual( new Set( [ 'g1499' ] ) )
   } )
 } )
