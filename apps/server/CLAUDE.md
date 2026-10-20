@@ -41,10 +41,10 @@ Parsed once with Zod in `config.ts`; nothing else reads `process.env`. `.env.exa
 
 ```
 src/
-  server.ts          boot only: load config → check the vault → open the store → recover interrupted jobs → start sweeper, worker and feed poller → listen
+  server.ts          boot only: load config → check the vault → open the store → recover interrupted jobs → start sweeper, worker and intake poller → listen
   app.ts             builds the Express app and mounts routes and the error middleware; tests import this, not server.ts
   config.ts          env parsed with Zod
-  shutdown.ts        signal handling: stop the sweeper, the worker, the feed poller and the server, close the store, exit; with a timeout
+  shutdown.ts        signal handling: stop the sweeper, the worker, the intake poller and the server, close the store, exit; with a timeout
   errors.ts          typed errors and the error middleware
   routes/            <name>.routes.ts: an Express Router wiring paths to controller functions, nothing else
   controllers/       <name>.controller.ts: HTTP only (parse the request with Zod, call a service, send the response)
@@ -53,7 +53,7 @@ src/
   gmail/             Gmail intake (ADR 0035): tokenCipher (AES-256-GCM for the refresh token), auth (OAuth consent, the cached Gmail client, `withGmail` and the reconnect rule), gmail.client (labels, message ids by label or search, messages; the only module that calls the Gmail API, always through `withGmail`) and parseMessage (a Gmail message to subject, sender, date and bodies; pure)
   clients/           <name>.client.ts: one external tool each (ytDlp, ffmpeg, whisperServer, claude, anthropicModels, vault, http); the vault client resolves every folder inside the vault (`resolveFolder`)
   sources/           adapters that turn a job into a `SourceDocument` (ADR 0030): video and article adapters, article extraction (ADR 0031), feed parsing and discovery (ADR 0032), pasted text, `adapterFor( sourceType )`; they use clients and report steps through the context, never touch repositories
-  worker/            worker, runJob, summarizeJob, sweeper, feedPoller: runs the next runnable job; deletes expired jobs; checks due feeds every minute, one pass at a time
+  worker/            worker, runJob, summarizeJob, sweeper, intakePoller: runs the next runnable job; deletes expired jobs; every minute, one pass at a time, checks due feeds and then due Gmail sources (each on its own, so one failing doesn't stop the other)
   summarizer/        pure constants and functions: locked prompts, seeded profiles, prices
   formatters/        markdown, srt, txt, summary, note: pure data → string; summary.cleanup.ts filters the model's output
 ```

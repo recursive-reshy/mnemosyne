@@ -18,14 +18,14 @@ let stopWorker: ReturnType< typeof vi.fn< () => Promise< void > > >
 let closeServer: ReturnType< typeof vi.fn< () => Promise< void > > >
 let closeStore: ReturnType< typeof vi.fn< () => void > >
 let stopSweeper: ReturnType< typeof vi.fn< () => void > >
-let stopFeedPoller: ReturnType< typeof vi.fn< () => Promise< void > > >
+let stopIntakePoller: ReturnType< typeof vi.fn< () => Promise< void > > >
 
 const build = (): ( signal: string ) => Promise< void > => createShutdown( {
   stopWorker,
   closeServer,
   closeStore,
   stopSweeper,
-  stopFeedPoller,
+  stopIntakePoller,
   timeoutMs: TIMEOUT_MS,
   exit,
   log: ( message ) => events.push( `log:${ message }` ),
@@ -40,7 +40,7 @@ beforeEach( () => {
   stopWorker = vi.fn( () => Promise.resolve() )
   closeServer = vi.fn( () => Promise.resolve() )
   stopSweeper = vi.fn()
-  stopFeedPoller = vi.fn( () => Promise.resolve() )
+  stopIntakePoller = vi.fn( () => Promise.resolve() )
   closeStore = vi.fn( () => {
     events.push( 'closeStore' )
   } )
@@ -102,17 +102,17 @@ describe( 'createShutdown', () => {
     expect( closeStore ).toHaveBeenCalledTimes( 1 )
   } )
 
-  it( 'stops the feed poller with the worker and the server', async () => {
+  it( 'stops the intake poller with the worker and the server', async () => {
     const shutdown = build()
 
     await shutdown( 'SIGTERM' )
 
-    expect( stopFeedPoller ).toHaveBeenCalledTimes( 1 )
+    expect( stopIntakePoller ).toHaveBeenCalledTimes( 1 )
   } )
 
-  it( 'closes the store only after the feed poller has stopped', async () => {
+  it( 'closes the store only after the intake poller has stopped', async () => {
     let finishPoller: () => void = () => undefined
-    stopFeedPoller.mockReturnValue( new Promise< void >( ( resolve ) => {
+    stopIntakePoller.mockReturnValue( new Promise< void >( ( resolve ) => {
       finishPoller = resolve
     } ) )
     const shutdown = build()
