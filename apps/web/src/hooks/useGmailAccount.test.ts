@@ -39,6 +39,25 @@ describe( 'useGmailAccount', () => {
     expect( result.current.error ).toBeNull()
   } )
 
+  it( 'asks again every five minutes', async () => {
+    vi.useFakeTimers()
+
+    try {
+      const { result } = renderHookWithClient( () => useGmailAccount() )
+
+      await vi.waitFor( () => expect( result.current.isLoading ).toBe( false ) )
+
+      const loaded = mockedGet.mock.calls.length
+
+      await act( () => vi.advanceTimersByTimeAsync( 4 * 60 * 1000 ) )
+      expect( mockedGet ).toHaveBeenCalledTimes( loaded )
+      await act( () => vi.advanceTimersByTimeAsync( 61 * 1000 ) )
+      expect( mockedGet ).toHaveBeenCalledTimes( loaded + 1 )
+    } finally {
+      vi.useRealTimers()
+    }
+  } )
+
   it( 'returns the error message when loading fails', async () => {
     mockedGet.mockRejectedValue( new ApiError( 'Could not reach the server', null ) )
     const { result } = renderHookWithClient( () => useGmailAccount() )

@@ -9,11 +9,14 @@ import {
   vi,
 } from 'vitest'
 // App
+import { getGmailAccount } from './api/gmail.api'
 import { useJob } from './hooks/useJob'
 import { App } from './App'
+import { gmailAccountFixture } from '#src/test-support/gmail.fixture'
 import { jobFixture } from '#src/test-support/job.fixture'
 import { renderWithClient } from '#src/test-support/renderWithClient'
 
+vi.mock( './api/gmail.api' )
 vi.mock( './hooks/useJob' )
 vi.mock( './components/SettingsPage', () => ( {
   SettingsPage: () => <h2>Settings</h2>,
@@ -24,6 +27,7 @@ const jobId = jobFixture().id
 
 beforeEach( () => {
   mockedUseJob.mockReset()
+  vi.mocked( getGmailAccount ).mockResolvedValue( gmailAccountFixture() )
   mockedUseJob.mockReturnValue( { job: null, error: null } )
 } )
 

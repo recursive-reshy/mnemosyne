@@ -7,6 +7,8 @@ import type { GmailAccount } from '@mnemosyne/shared'
 import { disconnectGmail, getGmailAccount } from '../api/gmail.api'
 import { gmailKeys } from './queryKeys'
 
+const REFRESH_MS = 5 * 60 * 1000
+
 export interface GmailAccountState {
   account: GmailAccount | null
   isLoading: boolean
@@ -19,6 +21,7 @@ export function useGmailAccount(): GmailAccountState {
   const { data, error, isPending } = useQuery( {
     queryKey: gmailKeys.account,
     queryFn: getGmailAccount,
+    refetchInterval: REFRESH_MS,
   } )
   const disconnect = useMutation( {
     mutationFn: () => disconnectGmail(),

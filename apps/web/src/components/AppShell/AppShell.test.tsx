@@ -7,15 +7,21 @@ import {
   describe,
   expect,
   it,
+  vi,
 } from 'vitest'
 // App
 import { AppShell } from './AppShell'
+import { getGmailAccount } from '#src/api/gmail.api'
+import { gmailAccountFixture } from '#src/test-support/gmail.fixture'
 import { mockMatchMedia } from '#src/test-support/matchMedia'
 import { renderWithClient } from '#src/test-support/renderWithClient'
+
+vi.mock( '#src/api/gmail.api' )
 
 const hamburger = (): HTMLElement => screen.getByRole( 'button', { name: /navigation$/ } )
 
 beforeEach( () => {
+  vi.mocked( getGmailAccount ).mockResolvedValue( gmailAccountFixture() )
   window.localStorage.clear()
 } )
 

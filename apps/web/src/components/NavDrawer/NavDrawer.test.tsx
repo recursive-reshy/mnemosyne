@@ -3,6 +3,7 @@ import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 // Vitest
 import {
+  beforeEach,
   describe,
   expect,
   it,
@@ -10,7 +11,19 @@ import {
 } from 'vitest'
 // App
 import { NavDrawer } from './NavDrawer'
+import { ApiError } from '#src/api/apiError'
+import { getGmailAccount } from '#src/api/gmail.api'
+import { gmailAccountFixture } from '#src/test-support/gmail.fixture'
 import { renderWithClient } from '#src/test-support/renderWithClient'
+
+vi.mock( '#src/api/gmail.api' )
+
+const mockedGetAccount = vi.mocked( getGmailAccount )
+
+beforeEach( () => {
+  mockedGetAccount.mockReset()
+  mockedGetAccount.mockResolvedValue( gmailAccountFixture() )
+} )
 
 const defaults = {
   id: 'nav',
@@ -154,5 +167,67 @@ describe( 'NavDrawer, narrow', () => {
     await user.keyboard( '{Escape}' )
 
     expect( onClose ).toHaveBeenCalled()
+  } )
+} )
+
+describe( 'NavDrawer, Gmail warning', () => {
+  const RECONNECT = 'Settings, Gmail needs reconnecting'
+
+  beforeEach( () => {
+    mockedGetAccount.mockResolvedValue(
+      gmailAccountFixture( { status: 'reconnect_needed', error: 'revoked' } ),
+    )
+  } )
+
+  it( 'marks Settings with a warning dot when Gmail needs reconnecting', async () => {
+    renderWithClient( <NavDrawer { ...defaults } /> )
+
+    const link = await screen.findByRole( 'link', { name: RECONNECT } )
+
+    expect( link ).toHaveAttribute( 'href', '/settings' )
+    expect( link.querySelector( '.MuiBadge-dot' ) ).not.toBeNull()
+    expect( link ).toHaveTextContent( 'Settings' )
+  } )
+
+  it( 'still shows the dot and the name when collapsed to icons', async () => {
+    const user = userEvent.setup()
+    renderWithClient( <NavDrawer { ...defaults } isExpanded={ false } /> )
+
+    const link = await screen.findByRole( 'link', { name: RECONNECT } )
+
+    await user.hover( link )
+
+    expect( link.querySelector( '.MuiBadge-dot' ) ).not.toBeNull()
+    expect( await screen.findByRole( 'tooltip' ) ).toHaveTextContent( RECONNECT )
+  } )
+
+  it( 'shows it in the narrow drawer too', async () => {
+    renderWithClient( <NavDrawer { ...defaults } isNarrow isOpen /> )
+
+    expect( await screen.findByRole( 'link', { name: RECONNECT } ) ).toBeVisible()
+  } )
+
+  it.each( [ 'connected', 'not_connected', 'not_configured' ] as const )(
+    'shows no dot when the account is %s',
+    async ( status ) => {
+      mockedGetAccount.mockResolvedValue( gmailAccountFixture( { status, email: null } ) )
+      renderWithClient( <NavDrawer { ...defaults } /> )
+
+      await vi.waitFor( () => expect( mockedGetAccount ).toHaveBeenCalled() )
+
+      const link = screen.getByRole( 'link', { name: 'Settings' } )
+
+      expect( link.querySelector( '.MuiBadge-dot:not(.MuiBadge-invisible)' ) ).toBeNull()
+      expect( screen.queryByRole( 'link', { name: RECONNECT } ) ).not.toBeInTheDocument()
+    },
+  )
+
+  it( 'shows no dot while loading or when the account can not be read', async () => {
+    mockedGetAccount.mockRejectedValue( new ApiError( 'Could not reach the server', null ) )
+    renderWithClient( <NavDrawer { ...defaults } /> )
+
+    expect( screen.queryByRole( 'link', { name: RECONNECT } ) ).not.toBeInTheDocument()
+    await vi.waitFor( () => expect( mockedGetAccount ).toHaveBeenCalled() )
+    expect( screen.queryByRole( 'link', { name: RECONNECT } ) ).not.toBeInTheDocument()
   } )
 } )
