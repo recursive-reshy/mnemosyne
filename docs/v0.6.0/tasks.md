@@ -51,7 +51,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 5.2 | `GmailSettings` account card for all four states, the `?gmail=` snackbar, Disconnect confirm; placed in `SettingsPage` (TRD §10.2) | 0035 | ✅ |
 
 ## Checkpoint C: Phases 6–7 (sources and sync)
-**Plan:** ⬜ [`plans/checkpoint-c.md`](plans/checkpoint-c.md)
+**Plan:** ✅ [`plans/checkpoint-c.md`](plans/checkpoint-c.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
