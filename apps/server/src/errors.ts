@@ -26,6 +26,13 @@ export class ConflictError extends Error {
   }
 }
 
+export class UnprocessableError extends Error {
+  constructor( message: string ) {
+    super( message )
+    this.name = 'UnprocessableError'
+  }
+}
+
 export class BadGatewayError extends Error {
   constructor( message: string ) {
     super( message )
@@ -72,6 +79,8 @@ export const errorMiddleware = (
     sendError( res, 404, { error: error.message } )
   } else if( error instanceof ConflictError ) {
     sendError( res, 409, { error: error.message } )
+  } else if( error instanceof UnprocessableError ) {
+    sendError( res, 422, { error: error.message } )
   } else if( error instanceof BadGatewayError ) {
     sendError( res, 502, { error: error.message } )
   } else if( isTooLarge( error ) ) {

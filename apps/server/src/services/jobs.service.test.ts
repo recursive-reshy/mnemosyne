@@ -24,6 +24,7 @@ import {
   updateJob,
 } from '../repositories/jobStore.repository.js'
 import { insertFeed } from '../repositories/feeds.repository.js'
+import { addStoredSource } from '../test-support/gmailSources.fixture.js'
 // Services
 import {
   completeSummary,
@@ -1458,6 +1459,33 @@ describe( 'queueJob with source types', () => {
     const feedId = crypto.randomUUID()
 
     expect( ( await queueJob( { url: articleUrl }, { feed_id: feedId } ) ).feed_id ).toBe( feedId )
+  } )
+
+  describe( 'a Gmail source', () => {
+    it( 'stores the source id and shows its name on the job', async () => {
+      const source = addStoredSource( { name: 'Substacks', destination: 'newsletter' } )
+
+      const job = await queueJob( { url: articleUrl }, { gmail_source_id: source.id } )
+
+      expect( job ).toMatchObject( {
+        gmail_source_id: source.id,
+        gmail_source_name: 'Substacks',
+        feed_id: null,
+        feed_name: null,
+      } )
+      expect( findJob( job.id ) ).toMatchObject( { gmail_source_name: 'Substacks' } )
+    } )
+
+    it( 'leaves the Gmail fields null for a job with no source', async () => {
+      expect( await queueJob( { url: articleUrl } ) )
+        .toMatchObject( { gmail_source_id: null, gmail_source_name: null } )
+    } )
+
+    it( 'refuses a source that does not exist, and stores no job', async () => {
+      await expect( queueJob( { url: articleUrl }, { gmail_source_id: crypto.randomUUID() } ) )
+        .rejects.toThrow( ValidationError )
+      expect( listJobs() ).toEqual( [] )
+    } )
   } )
 } )
 

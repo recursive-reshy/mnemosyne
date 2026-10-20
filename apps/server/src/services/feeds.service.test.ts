@@ -40,12 +40,12 @@ import {
   previewFeed,
   updateFeed,
 } from './feeds.service.js'
-import { queueFeedItem } from './feedInbox.service.js'
+import { queueFeedItem } from './inbox.service.js'
 import { listJobs } from './jobs.service.js'
 import { listProfiles } from './prompts.service.js'
 
-vi.mock( './feedInbox.service.js', async ( importOriginal ) => {
-  const original = await importOriginal< typeof import( './feedInbox.service.js' ) >()
+vi.mock( './inbox.service.js', async ( importOriginal ) => {
+  const original = await importOriginal< typeof import( './inbox.service.js' ) >()
 
   return { ...original, queueFeedItem: vi.fn( original.queueFeedItem ) }
 } )

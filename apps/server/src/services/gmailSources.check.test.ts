@@ -22,6 +22,7 @@ import {
 } from '../repositories/gmailMessages.repository.js'
 import { findSourceById } from '../repositories/gmailSources.repository.js'
 import { setSetting } from '../repositories/settings.repository.js'
+import { listJobs } from './jobs.service.js'
 // Test support
 import { buildMessage } from '../test-support/gmailMessage.fixture.js'
 import type { MessageOptions } from '../test-support/gmailMessage.fixture.js'
@@ -526,5 +527,105 @@ describe( 'checkDueSources', () => {
     expect( listMatchingIds ).toHaveBeenCalledTimes( 1 )
     expect( findSourceById( first.id )?.last_checked_at ).toBeNull()
     expect( findSourceById( second.id )?.last_checked_at ).toBeNull()
+  } )
+} )
+
+describe( 'checkSource: automatic summaries', () => {
+  const readable = `<p>${ 'Words worth reading, one after another. '.repeat( 12 ) }</p>`
+
+  const serveReadable = ( ids: string[] ): void => {
+    serve( Object.fromEntries( ids.map( ( id, index ) => {
+      return [ id, { html: readable, receivedAt: minutesAgo( 60 * ( index + 1 ) ) } ]
+    } ) ) )
+    vi.mocked( listMatchingIds ).mockResolvedValue( idsOf( ...ids ) )
+  }
+
+  const statuses = ( sourceId: string ): string[] => rowsOf( sourceId ).map( ( row ) => row.status )
+
+  it( 'queues the new emails of an automatic newsletter source', async () => {
+    const source = addStoredSource( { destination: 'newsletter', auto_summarize: true } )
+
+    serveReadable( [ 'm1', 'm2' ] )
+
+    const checked = await checkSource( source.id )
+
+    expect( statuses( source.id ) ).toEqual( [ 'queued', 'queued' ] )
+    expect( checked.inbox_count ).toBe( 0 )
+    expect( listJobs() ).toHaveLength( 2 )
+    expect( listJobs()[ 0 ] ).toMatchObject( {
+      gmail_source_id: source.id,
+      gmail_source_name: source.name,
+      status: 'summarizing',
+    } )
+  } )
+
+  it( 'leaves the emails of a source that is not automatic in the inbox', async () => {
+    const source = addStoredSource( { destination: 'newsletter', auto_summarize: false } )
+
+    serveReadable( [ 'm1' ] )
+    await checkSource( source.id )
+
+    expect( statuses( source.id ) ).toEqual( [ 'inbox' ] )
+    expect( listJobs() ).toEqual( [] )
+  } )
+
+  it( 'queues nothing for a jobs source', async () => {
+    const source = addStoredSource( { destination: 'jobs', auto_summarize: true } )
+
+    serveReadable( [ 'm1' ] )
+    await checkSource( source.id )
+
+    expect( statuses( source.id ) ).toEqual( [ 'pending' ] )
+    expect( listJobs() ).toEqual( [] )
+  } )
+
+  it( 'queues the ten that reached the inbox, not the ones it skipped', async () => {
+    const source = addStoredSource( { destination: 'newsletter', auto_summarize: true } )
+
+    serveReadable( Array.from( { length: 12 }, ( _, index ) => `m${ index }` ) )
+    await checkSource( source.id )
+
+    expect( statuses( source.id ).filter( ( status ) => status === 'queued' ) ).toHaveLength( 10 )
+    expect( statuses( source.id ).filter( ( status ) => status === 'skipped' ) ).toHaveLength( 2 )
+    expect( listJobs() ).toHaveLength( 10 )
+  } )
+
+  it( 'leaves an email it cannot queue in the inbox, logs it, and queues the others', async () => {
+    const source = addStoredSource( { destination: 'newsletter', auto_summarize: true } )
+
+    serve( {
+      m1: { html: readable, receivedAt: minutesAgo( 60 ) },
+      m2: { html: '<p>Hi.</p>', text: 'Hi.', receivedAt: minutesAgo( 120 ) },
+    } )
+    vi.mocked( listMatchingIds ).mockResolvedValue( idsOf( 'm1', 'm2' ) )
+
+    const checked = await checkSource( source.id )
+
+    expect( statuses( source.id ).sort() ).toEqual( [ 'inbox', 'queued' ] )
+    expect( checked.last_error ).toBeNull()
+    expect( console.error ).toHaveBeenCalledWith(
+      expect.stringContaining( 'Subject of m2' ),
+      expect.anything(),
+    )
+  } )
+
+  it( 'does not queue an email again on the next check', async () => {
+    const source = addStoredSource( { destination: 'newsletter', auto_summarize: true } )
+
+    serveReadable( [ 'm1' ] )
+    await checkSource( source.id )
+    await checkSource( source.id )
+
+    expect( listJobs() ).toHaveLength( 1 )
+  } )
+
+  it( 'queues the emails of every automatic source in a due pass', async () => {
+    const source = addStoredSource( { destination: 'newsletter', auto_summarize: true } )
+
+    setSetting( 'feed_check_interval_minutes', 15 )
+    serveReadable( [ 'm1' ] )
+
+    expect( await checkDueSources() ).toBe( 1 )
+    expect( statuses( source.id ) ).toEqual( [ 'queued' ] )
   } )
 } )

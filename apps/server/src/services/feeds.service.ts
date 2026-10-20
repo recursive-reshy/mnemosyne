@@ -42,7 +42,7 @@ import {
 } from '../sources/feeds.js'
 import type { FeedItemData, ParsedFeed } from '../sources/feeds.js'
 // Services
-import { queueFeedItem } from './feedInbox.service.js'
+import { queueFeedItem } from './inbox.service.js'
 import { assertActiveProfile } from './prompts.service.js'
 import { getSettings } from './settings.service.js'
 

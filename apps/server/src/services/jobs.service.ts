@@ -45,6 +45,7 @@ import {
   updateJob,
 } from '../repositories/jobStore.repository.js'
 import { findFeedById } from '../repositories/feeds.repository.js'
+import { findSourceById } from '../repositories/gmailSources.repository.js'
 import { findProfileById, findVersionById } from '../repositories/promptProfiles.repository.js'
 import { insertSummaryRun, listRunsForJob } from '../repositories/summaryRuns.repository.js'
 // Sources
@@ -205,7 +206,7 @@ const validateChoices = async ( { model, profile_id }: SummaryChoices ): Promise
 
 export const queueJob = async (
   body: CreateJobBody,
-  extra: { feed_id?: string, document?: ArticleSource } = {},
+  extra: { feed_id?: string, gmail_source_id?: string, document?: ArticleSource } = {},
 ): Promise< Job > => {
   const { url, text, title } = body
   const sourceType = body.source_type ?? detectSourceType( url )
@@ -219,6 +220,14 @@ export const queueJob = async (
   const document = extra.document ?? ( text === undefined
     ? null
     : articleFromText( { url, text, title, origin: 'pasted' } ) )
+  const gmailSource = extra.gmail_source_id === undefined
+    ? undefined
+    : findSourceById( extra.gmail_source_id )
+
+  if( extra.gmail_source_id !== undefined && gmailSource === undefined ) {
+    throw new ValidationError( 'Unknown Gmail source' )
+  }
+
   const now = new Date().toISOString()
   const job: StoredJob = {
     id: crypto.randomUUID(),
@@ -238,8 +247,8 @@ export const queueJob = async (
     source_type: sourceType,
     feed_id: extra.feed_id ?? null,
     feed_name: extra.feed_id === undefined ? null : findFeedById( extra.feed_id )?.name ?? null,
-    gmail_source_id: null,
-    gmail_source_name: null,
+    gmail_source_id: extra.gmail_source_id ?? null,
+    gmail_source_name: gmailSource?.name ?? null,
   }
 
   insertJob( job )

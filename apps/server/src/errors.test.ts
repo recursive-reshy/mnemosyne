@@ -19,6 +19,7 @@ import {
   BadGatewayError,
   ConflictError,
   NotFoundError,
+  UnprocessableError,
   ValidationError,
   errorMiddleware,
   notFoundHandler,
@@ -38,6 +39,9 @@ const buildApp = (): Express => {
   } )
   testApp.get( '/bad-gateway', () => {
     throw new BadGatewayError( "Couldn't reach the site" )
+  } )
+  testApp.get( '/unprocessable', () => {
+    throw new UnprocessableError( 'Could not summarize "A post"' )
   } )
   testApp.get( '/zod', () => {
     z.object( { url: z.string() } ).parse( { url: 42 } )
@@ -88,6 +92,13 @@ describe( 'errorMiddleware', () => {
 
     expect( response.status ).toBe( 409 )
     expect( response.body ).toEqual( { error: 'Job not done' } )
+  } )
+
+  it( 'maps UnprocessableError to 422 with its message', async () => {
+    const response = await request( buildApp() ).get( '/unprocessable' )
+
+    expect( response.status ).toBe( 422 )
+    expect( response.body ).toEqual( { error: 'Could not summarize "A post"' } )
   } )
 
   it( 'maps ZodError to 400 with its issues', async () => {

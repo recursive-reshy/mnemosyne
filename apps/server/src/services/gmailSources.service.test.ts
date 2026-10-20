@@ -37,6 +37,7 @@ import {
   requireConnectedGmail,
   updateSource,
 } from './gmailSources.service.js'
+import { listJobs } from './jobs.service.js'
 import { listProfiles } from './prompts.service.js'
 
 vi.mock( '../gmail/gmail.client.js' )
@@ -395,6 +396,33 @@ describe( 'createSource: newsletter', () => {
       last_skipped_count: 0,
     } )
     expect( findSourceById( source.id ) ).toBeDefined()
+  } )
+
+  describe( 'automatic summaries', () => {
+    const readable = `<p>${ 'Words worth reading, one after another. '.repeat( 12 ) }</p>`
+
+    it( 'queues the newest email of an automatic source that has no backfill', async () => {
+      vi.mocked( listMatchingIds ).mockImplementation( ( _match, { after } ) => Promise.resolve(
+        after === undefined ? idsOf( 'new' ) : idsOf( 'new' ),
+      ) )
+      serve( { new: { html: readable } } )
+
+      const source = await createSource( body( { auto_summarize: true, backfill: 'none' } ) )
+
+      expect( storedFor( source.id ) ).toEqual( [ { message_id: 'new', status: 'queued' } ] )
+      expect( source.inbox_count ).toBe( 0 )
+      expect( listJobs() ).toHaveLength( 1 )
+    } )
+
+    it( 'never queues a backfill, even for an automatic source', async () => {
+      vi.mocked( listMatchingIds ).mockResolvedValue( idsOf( 'a', 'b' ) )
+      serve( { a: { html: readable }, b: { html: readable } } )
+
+      const source = await createSource( body( { auto_summarize: true, backfill: '30d' } ) )
+
+      expect( source.inbox_count ).toBe( 2 )
+      expect( listJobs() ).toEqual( [] )
+    } )
   } )
 
   describe( 'with no backfill', () => {

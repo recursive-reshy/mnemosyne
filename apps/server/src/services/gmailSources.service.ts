@@ -44,6 +44,7 @@ import {
 import type { StoredGmailSource } from '../repositories/gmailSources.repository.js'
 import { countPostingsForSource } from '../repositories/postings.repository.js'
 // Services
+import { queueNewsletterMessage } from './inbox.service.js'
 import { assertActiveProfile } from './prompts.service.js'
 import { getSettings } from './settings.service.js'
 
@@ -320,6 +321,27 @@ const collectStarting = async (
   return collected
 }
 
+// The emails of an automatic newsletter source skip the inbox. One that can't be queued stays
+// there instead. A backfill is never queued, so it costs nothing until it is picked from the inbox.
+const queueAutomatically = async (
+  source: StoredGmailSource,
+  rows: StoredGmailMessage[],
+): Promise< void > => {
+  if( source.destination !== 'newsletter' || !source.auto_summarize ) {
+    return
+  }
+
+  const waiting = rows.filter( ( { status, backfilled } ) => status === 'inbox' && !backfilled )
+
+  for( const row of waiting ) {
+    try {
+      await queueNewsletterMessage( source, row )
+    } catch( error ) {
+      console.error( `Could not queue "${ row.subject }" from ${ source.name }`, error )
+    }
+  }
+}
+
 export const createSource = async ( body: CreateGmailSourceBody ): Promise< GmailSource > => {
   requireConnectedGmail()
 
@@ -345,10 +367,14 @@ export const createSource = async ( body: CreateGmailSourceBody ): Promise< Gmai
     deleted_at: null,
   }
 
+  const rows = stampNewestFirst( collected, now, source.id )
+
   inTransaction( () => {
     insertSource( source )
-    stampNewestFirst( collected, now, source.id ).forEach( insertMessageIfNew )
+    rows.forEach( insertMessageIfNew )
   } )
+
+  await queueAutomatically( source, rows )
 
   return presentSource( source )
 }
@@ -454,7 +480,7 @@ const readNewMessages = async (
   }
 }
 
-// Returns the rows this check added, for what follows a check (queueing, extraction).
+// Returns the rows this check added, for what follows a check (extraction, task 9.3).
 const runCheck = async ( source: StoredGmailSource ): Promise< StoredGmailMessage[] > => {
   const now = new Date()
   const { messages, missingLabelIds, failure } = await readNewMessages( source )
@@ -489,6 +515,8 @@ const runCheck = async ( source: StoredGmailSource ): Promise< StoredGmailMessag
         : source.last_skipped_count,
     } )
   } )
+
+  await queueAutomatically( source, added )
 
   return added
 }
