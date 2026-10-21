@@ -5,6 +5,7 @@ import {
   countActiveProfiles,
   findLatestVersion,
   findProfileById,
+  findProfileBySeedKey,
   findVersionById,
   insertProfile,
   insertVersion,
@@ -66,6 +67,7 @@ describe( 'findProfileById', () => {
       id,
       name: 'Mine',
       seed_key: null,
+      purpose: 'summary',
       created_at: now,
       deleted_at: null,
     } )
@@ -203,5 +205,59 @@ describe( 'versions', () => {
 
   it( 'refuses a version for an unknown profile', () => {
     expect( () => insertVersion( crypto.randomUUID(), 'g', 'edit' ) ).toThrow()
+  } )
+} )
+
+describe( 'profile purposes', () => {
+  it( 'lists only summary profiles by default', () => {
+    expect( listActiveProfiles().map( ( { name } ) => name ) )
+      .toEqual( [ 'Business ideas', 'Coding', 'General' ] )
+    expect( listActiveProfiles( 'summary' ) ).toEqual( listActiveProfiles() )
+  } )
+
+  it( 'lists the seeded linker profile under the linker purpose', () => {
+    expect( listActiveProfiles( 'linker' ).map( ( { name, seed_key, purpose } ) => ( {
+      name,
+      seed_key,
+      purpose,
+    } ) ) ).toEqual( [ { name: 'Linker', seed_key: 'linker', purpose: 'linker' } ] )
+  } )
+
+  it( 'finds a profile by its seed key, or nothing', () => {
+    expect( findProfileBySeedKey( 'linker' )?.purpose ).toBe( 'linker' )
+    expect( findProfileBySeedKey( 'coding' )?.name ).toBe( 'Coding' )
+    expect( findProfileBySeedKey( 'nope' ) ).toBeUndefined()
+  } )
+
+  it( 'inserts a profile with the summary purpose unless told otherwise', () => {
+    const id = addProfile( 'Plain' )
+
+    expect( findProfileById( id )?.purpose ).toBe( 'summary' )
+
+    const other = crypto.randomUUID()
+
+    expect( insertProfile( {
+      id: other,
+      name: 'Other linker',
+      seed_key: null,
+      purpose: 'linker',
+      created_at: now,
+    } ) ).toEqual( { ok: true } )
+    expect( findProfileById( other )?.purpose ).toBe( 'linker' )
+  } )
+
+  it( 'lets a summary profile share its name with the linker profile', () => {
+    expect( insertProfile( {
+      id: crypto.randomUUID(),
+      name: 'linker',
+      seed_key: null,
+      created_at: now,
+    } ) ).toEqual( { ok: true } )
+  } )
+
+  it( 'counts per purpose, so the last summary profile rule ignores the linker', () => {
+    expect( countActiveProfiles() ).toBe( 3 )
+    expect( countActiveProfiles( 'summary' ) ).toBe( 3 )
+    expect( countActiveProfiles( 'linker' ) ).toBe( 1 )
   } )
 } )

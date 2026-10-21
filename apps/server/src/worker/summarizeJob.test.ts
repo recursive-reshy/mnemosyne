@@ -302,6 +302,8 @@ describe( 'summarizeJob', () => {
         saved_path: null,
         summary_model: null,
         prompt_profile_id: null,
+        link_state: null,
+        link_error: null,
         source_type: 'article',
         feed_id: null,
         feed_name: null,

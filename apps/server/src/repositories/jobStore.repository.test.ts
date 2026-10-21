@@ -15,6 +15,9 @@ import {
 import { transcriptFixture } from '../test-support/transcript.fixture.js'
 // Repositories
 import { closeDatabase, getDatabase, openDatabase } from './database.js'
+import { insertLinkRun, listLinkRuns } from './linkRuns.repository.js'
+import { insertSuggestions, listSuggestions } from './linkSuggestions.repository.js'
+import { findLatestVersion, findProfileBySeedKey } from './promptProfiles.repository.js'
 import {
   StoredJob,
   clearJobs,
@@ -44,6 +47,8 @@ const buildJob = ( overrides: Partial< StoredJob > = {} ): StoredJob => {
     summary_model: null,
     prompt_profile_id: null,
     source_document: null,
+    link_state: null,
+    link_error: null,
     source_type: 'video',
     feed_id: null,
     feed_name: null,
@@ -55,6 +60,28 @@ const buildJob = ( overrides: Partial< StoredJob > = {} ): StoredJob => {
 
 beforeEach( () => {
   clearJobs()
+} )
+
+describe( 'link fields', () => {
+  it( 'round-trips link_state and link_error through insert and update', () => {
+    const job = buildJob( { link_state: 'pending' } )
+    insertJob( job )
+
+    expect( findJobById( job.id ) ).toMatchObject( { link_state: 'pending', link_error: null } )
+
+    updateJob( job.id, { link_state: 'failed', link_error: 'Timed out' } )
+
+    expect( findJobById( job.id ) )
+      .toMatchObject( { link_state: 'failed', link_error: 'Timed out' } )
+  } )
+
+  it( 'does not touch markInterruptedJobs\' statuses: a linking job is left alone', () => {
+    const job = buildJob( { status: 'linking', link_state: 'pending' } )
+    insertJob( job )
+
+    expect( markInterruptedJobs( 'x', '2026-10-15T09:00:00.000Z' ) ).toBe( 0 )
+    expect( findJobById( job.id )?.status ).toBe( 'linking' )
+  } )
 } )
 
 describe( 'insertJob and findJobById', () => {
@@ -118,6 +145,15 @@ describe( 'findNextRunnableJob', () => {
     updateJob( summarizing.id, { status: 'summary_failed' } )
 
     expect( findNextRunnableJob() ).toEqual( queued )
+  } )
+
+  it( 'also returns linking jobs, oldest first', () => {
+    const linking = buildJob( { status: 'linking', link_state: 'pending' } )
+    insertJob( buildJob( { status: 'ready_for_review', link_state: 'linked' } ) )
+    insertJob( linking )
+    insertJob( buildJob() )
+
+    expect( findNextRunnableJob() ).toEqual( linking )
   } )
 
   it( 'returns undefined when no job is runnable', () => {
@@ -606,6 +642,44 @@ describe( 'deleteJob', () => {
 
     expect( deleteJob( job.id ) ).toBe( true )
     expect( findJobById( job.id ) ).toBeUndefined()
+  } )
+
+  it( 'removes the job\'s link runs and suggestions, and only its own', () => {
+    const job = buildJob()
+    const other = buildJob()
+    const linker = findProfileBySeedKey( 'linker' )
+    const version = findLatestVersion( linker?.id ?? '' )
+    const run = ( jobId: string ): number => insertLinkRun( {
+      job_id: jobId,
+      model: 'claude-haiku-5-5',
+      prompt_version_id: version?.id ?? 0,
+      input_tokens: null,
+      output_tokens: null,
+      cache_read_input_tokens: null,
+      cache_creation_input_tokens: null,
+      tool_calls: null,
+      cost_usd: null,
+      outcome: 'succeeded',
+      error: null,
+      created_at: '2026-10-21T10:00:00.000Z',
+    } )
+    const suggestion = [ {
+      target: 'Pricing',
+      kind: 'new_concept' as const,
+      anchor: null,
+      reason: 'Because.',
+    } ]
+    insertJob( job )
+    insertJob( other )
+    insertSuggestions( run( job.id ), job.id, suggestion )
+    insertSuggestions( run( other.id ), other.id, suggestion )
+
+    deleteJob( job.id )
+
+    expect( listLinkRuns( job.id ) ).toEqual( [] )
+    expect( listSuggestions( job.id ) ).toEqual( [] )
+    expect( listLinkRuns( other.id ) ).toHaveLength( 1 )
+    expect( listSuggestions( other.id ) ).toHaveLength( 1 )
   } )
 
   it( 'returns false for an unknown id and leaves other jobs alone', () => {

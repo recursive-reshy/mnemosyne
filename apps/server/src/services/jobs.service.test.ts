@@ -1286,6 +1286,8 @@ describe( 'article jobs', () => {
       saved_path: null,
       summary_model: null,
       prompt_profile_id: null,
+      link_state: null,
+      link_error: null,
       source_document: article,
       source_type: 'article',
       feed_id: feedId,

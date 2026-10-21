@@ -5,16 +5,22 @@ import { PromptVersion, PromptVersionSource } from '@mnemosyne/shared'
 // Repositories
 import { getDatabase } from './database.js'
 
+export const ProfilePurpose = z.enum( [ 'summary', 'linker' ] )
+export type ProfilePurpose = z.infer< typeof ProfilePurpose >
+
 export const ProfileRecord = z.object( {
   id: z.string(),
   name: z.string(),
   seed_key: z.string().nullable(),
+  purpose: ProfilePurpose,
   created_at: z.string(),
   deleted_at: z.string().nullable(),
 } )
 export type ProfileRecord = z.infer< typeof ProfileRecord >
 
-export type NewProfile = Omit< ProfileRecord, 'deleted_at' >
+export type NewProfile = Omit< ProfileRecord, 'deleted_at' | 'purpose' > & {
+  purpose?: ProfilePurpose
+}
 export type WriteResult = { ok: true } | { ok: false, reason: 'name_taken' }
 
 const isUniqueViolation = ( error: unknown ): boolean => {
@@ -37,11 +43,11 @@ const writeProfile = ( write: () => void ): WriteResult => {
   return { ok: true }
 }
 
-export const listActiveProfiles = (): ProfileRecord[] => {
+export const listActiveProfiles = ( purpose: ProfilePurpose = 'summary' ): ProfileRecord[] => {
   return z.array( ProfileRecord ).parse( getDatabase()
-    .prepare( `SELECT * FROM prompt_profiles WHERE deleted_at IS NULL AND purpose = 'summary'
+    .prepare( `SELECT * FROM prompt_profiles WHERE deleted_at IS NULL AND purpose = ?
       ORDER BY lower( name ), rowid` )
-    .all() )
+    .all( purpose ) )
 }
 
 export const findProfileById = ( id: string ): ProfileRecord | undefined => {
@@ -50,12 +56,20 @@ export const findProfileById = ( id: string ): ProfileRecord | undefined => {
   return row === undefined ? undefined : ProfileRecord.parse( row )
 }
 
+export const findProfileBySeedKey = ( seedKey: string ): ProfileRecord | undefined => {
+  const row = getDatabase()
+    .prepare( 'SELECT * FROM prompt_profiles WHERE seed_key = ? AND deleted_at IS NULL' )
+    .get( seedKey )
+
+  return row === undefined ? undefined : ProfileRecord.parse( row )
+}
+
 export const insertProfile = ( profile: NewProfile ): WriteResult => {
   return writeProfile( () => {
     getDatabase()
-      .prepare( `INSERT INTO prompt_profiles ( id, name, seed_key, created_at )
-        VALUES ( @id, @name, @seed_key, @created_at )` )
-      .run( profile )
+      .prepare( `INSERT INTO prompt_profiles ( id, name, seed_key, purpose, created_at )
+        VALUES ( @id, @name, @seed_key, @purpose, @created_at )` )
+      .run( { purpose: 'summary', ...profile } )
   } )
 }
 
@@ -71,11 +85,11 @@ export const markProfileDeleted = ( id: string, deletedAt: string ): void => {
     .run( deletedAt, id )
 }
 
-export const countActiveProfiles = (): number => {
+export const countActiveProfiles = ( purpose: ProfilePurpose = 'summary' ): number => {
   const row = getDatabase()
     .prepare( `SELECT COUNT(*) AS count FROM prompt_profiles
-      WHERE deleted_at IS NULL AND purpose = 'summary'` )
-    .get() as { count: number }
+      WHERE deleted_at IS NULL AND purpose = ?` )
+    .get( purpose ) as { count: number }
 
   return row.count
 }
