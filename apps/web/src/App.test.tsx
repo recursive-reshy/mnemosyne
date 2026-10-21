@@ -11,10 +11,9 @@ import {
 // App
 import { getGmailAccount } from './api/gmail.api'
 import { useJob } from './hooks/useJob'
-import { App } from './App'
 import { gmailAccountFixture } from '#src/test-support/gmail.fixture'
 import { jobFixture } from '#src/test-support/job.fixture'
-import { renderWithClient } from '#src/test-support/renderWithClient'
+import { renderWithRouter } from '#src/test-support/renderWithRouter'
 
 vi.mock( './api/gmail.api' )
 vi.mock( './hooks/useJob' )
@@ -33,7 +32,7 @@ beforeEach( () => {
 
 describe( 'App', () => {
   it( 'shows the heading and the form on the home route', () => {
-    renderWithClient( <App /> )
+    renderWithRouter( '/' )
 
     expect( screen.getByRole( 'heading', { level: 1, name: 'Mnemosyne' } ) ).toBeInTheDocument()
     expect( screen.getByRole( 'form', { name: 'Add a video or article' } ) ).toBeInTheDocument()
@@ -41,7 +40,7 @@ describe( 'App', () => {
 
   it( 'shows the job on /jobs/:id', () => {
     mockedUseJob.mockReturnValue( { job: jobFixture( { status: 'downloading' } ), error: null } )
-    renderWithClient( <App />, { route: `/jobs/${ jobId }` } )
+    renderWithRouter( `/jobs/${ jobId }` )
 
     expect( screen.getByRole( 'heading', { level: 1, name: 'Mnemosyne' } ) ).toBeInTheDocument()
     expect( screen.getByRole( 'status' ) ).toHaveTextContent( 'Downloading audio…' )
@@ -50,7 +49,7 @@ describe( 'App', () => {
   } )
 
   it( 'shows the settings page on /settings', () => {
-    renderWithClient( <App />, { route: '/settings' } )
+    renderWithRouter( '/settings' )
 
     expect( screen.getByRole( 'heading', { level: 2, name: 'Settings' } ) ).toBeInTheDocument()
     expect( screen.queryByRole( 'form', { name: 'Add a video or article' } ) )
@@ -58,7 +57,7 @@ describe( 'App', () => {
   } )
 
   it( 'sends an unknown path to the home route', () => {
-    const { location } = renderWithClient( <App />, { route: '/nowhere' } )
+    const { location } = renderWithRouter( '/nowhere' )
 
     expect( location().pathname ).toBe( '/' )
     expect( screen.getByRole( 'form', { name: 'Add a video or article' } ) ).toBeInTheDocument()

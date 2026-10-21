@@ -1,9 +1,10 @@
 // React
+import { createContext, useContext, useState } from 'react'
 import type { ReactElement, ReactNode } from 'react'
 // Packages
 import { ThemeProvider } from '@mui/material/styles'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { MemoryRouter, useLocation } from 'react-router'
+import { createMemoryRouter, RouterProvider, useLocation } from 'react-router'
 import type { InitialEntry, Location } from 'react-router'
 // Testing Library
 import { render, renderHook } from '@testing-library/react'
@@ -21,28 +22,57 @@ type ClientHookRender< Result, Props > = RenderHookResult< Result, Props > & {
   queryClient: QueryClient
 }
 
+const ContentContext = createContext< ReactNode >( null )
+
+function Content( { onLocation }: { onLocation?: ( location: Location ) => void } ): ReactElement {
+  const content = useContext( ContentContext )
+  const location = useLocation()
+
+  onLocation?.( location )
+
+  return <>{ content }</>
+}
+
+interface HarnessProps {
+  queryClient: QueryClient
+  route: InitialEntry
+  onLocation?: ( location: Location ) => void
+  children: ReactNode
+}
+
+// A memory data router (useBlocker needs one) that shows `children` on every path. The router is
+// created once, so rerendering with new children keeps their state.
+function Harness( { queryClient, route, onLocation, children }: HarnessProps ): ReactElement {
+  const [ router ] = useState( () => createMemoryRouter(
+    [ { path: '*', element: <Content onLocation={ onLocation } /> } ],
+    { initialEntries: [ route ] },
+  ) )
+
+  return (
+    <ThemeProvider theme={ theme } defaultMode="system" noSsr>
+      <QueryClientProvider client={ queryClient }>
+        <ContentContext.Provider value={ children }>
+          <RouterProvider router={ router } />
+        </ContentContext.Provider>
+      </QueryClientProvider>
+    </ThemeProvider>
+  )
+}
+
 export const renderWithClient = (
   ui: ReactElement,
   { route = '/' }: { route?: InitialEntry } = {},
 ): ClientRender => {
   const queryClient = createQueryClient()
   let current: Location | undefined
-
-  function LocationProbe(): null {
-    current = useLocation()
-
-    return null
+  const onLocation = ( next: Location ): void => {
+    current = next
   }
 
   const wrap = ( content: ReactNode ): ReactElement => (
-    <ThemeProvider theme={ theme } defaultMode="system" noSsr>
-      <QueryClientProvider client={ queryClient }>
-        <MemoryRouter initialEntries={ [ route ] }>
-          <LocationProbe />
-          { content }
-        </MemoryRouter>
-      </QueryClientProvider>
-    </ThemeProvider>
+    <Harness queryClient={ queryClient } route={ route } onLocation={ onLocation }>
+      { content }
+    </Harness>
   )
   const result = render( wrap( ui ) )
 
@@ -67,9 +97,7 @@ export const renderHookWithClient = < Result, Props = undefined >(
 ): ClientHookRender< Result, Props > => {
   const queryClient = options?.queryClient ?? createQueryClient()
   const wrapper = ( { children }: { children: ReactNode } ): ReactElement => (
-    <ThemeProvider theme={ theme } defaultMode="system" noSsr>
-      <QueryClientProvider client={ queryClient }>{ children }</QueryClientProvider>
-    </ThemeProvider>
+    <Harness queryClient={ queryClient } route="/">{ children }</Harness>
   )
 
   return {

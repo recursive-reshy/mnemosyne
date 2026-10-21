@@ -27,9 +27,10 @@ Don't add a dependency without it being approved first. Ask instead.
 
 ```
 src/
-  main.tsx          mounts <App /> inside the MUI theme (ThemeProvider, CssBaseline), the query client provider and BrowserRouter
+  main.tsx          mounts the data router (`createBrowserRouter( routes )`, ADR 0052) inside the MUI theme (ThemeProvider, CssBaseline) and the query client provider
   theme.ts          the one MUI theme: CSS variables, light and dark colour schemes, radius, font, repeated component overrides
-  App.tsx           the routes inside AppShell: `/` → HomePage, `/jobs/:id` → JobPage, `/settings` → SettingsPage
+  routes.tsx        the route objects (tests build memory routers from them): `App` is the layout route; `/` → HomePage, `/jobs/:id` → JobPage, `/settings/*` → SettingsPage, `*` → `/`
+  App.tsx           the layout route: AppShell around an `<Outlet>`
   api/              <name>.api.ts: fetch wrappers; parse responses with shared schemas
   expiry.ts         pure display helpers sit next to main.tsx as small camelCase modules (expiry.ts, later timestamp.ts)
   queryClient.ts    createQueryClient(): the app's TanStack Query defaults (no retries, no refetch on focus)
@@ -66,7 +67,7 @@ src/
 - Query by role, label or text, as a user would. Never by class name or test id unless nothing else works.
 - Tests import Testing Library from `@testing-library/react` and `userEvent` from `@testing-library/user-event`; matchers such as `toBeInTheDocument` come from the setup file.
 - Use `userEvent` for interaction. Use Vitest fake timers for the polling hook; the test setup hands TanStack results to React from a microtask so fake timers don't stall them. Never use real sleeps.
-- Mock at the boundary: component tests pass props; hook tests mock the `api/` module and render through `renderHookWithClient` (component tests that use queries or the router use `renderWithClient`, which also takes a `route` and returns `location()`), both from `test-support/renderWithClient.tsx` with a fresh client; `api/` tests stub `fetch` with `vi.stubGlobal`. No test touches the network or a real server.
+- Mock at the boundary: component tests pass props; hook tests mock the `api/` module and render through `renderHookWithClient` (component tests that use queries or the router use `renderWithClient`, which also takes a `route` and returns `location()`; both run inside a memory data router, so `useBlocker` works; `renderWithRouter( path )` renders the app's real `routes`), both from `test-support/renderWithClient.tsx` with a fresh client; `api/` tests stub `fetch` with `vi.stubGlobal`. No test touches the network or a real server.
 - Render components that use MUI themed features, queries or the router with `renderWithClient` (it wraps the same theme as `main.tsx`). For a narrow window or a dark OS, call `mockMatchMedia` from `test-support/matchMedia.ts` (the setup file installs a wide, light default).
 - MUI quirks to know: `Alert` puts `role="alert"` on its root and the text in an inner element, so query by role and check `textContent`; a disabled MUI `Button` has `pointer-events: none`, so where a test clicks a disabled button, give it `pointerEvents: 'auto'` in `sx`; a tree item's name comes from its descendants unless it has an `aria-label`.
 - **Browser tests** (`*.browser.test.tsx`, ADR 0033) are only for behaviour that depends on a real DOM: selection, focus, scrolling, layout. Everything else stays in jsdom. They import `userEvent` from `vitest/browser` (real input events), mock the `api/` modules and hooks like the jsdom tests, run in both browsers, and are typechecked by `tsconfig.browser.json` (the `vitest/browser` matcher types clash with jest-dom's, so `tsconfig.app.json` excludes them). Never use real sleeps; wait with `expect.poll` or `vi.waitFor`. Failure screenshots go to `.vitest/` (git-ignored).
