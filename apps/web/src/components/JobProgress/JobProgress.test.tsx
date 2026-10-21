@@ -228,3 +228,62 @@ describe( 'JobProgress for an article', () => {
     expect( screen.queryByRole( 'button', { name: 'Paste text' } ) ).not.toBeInTheDocument()
   } )
 } )
+
+describe( 'JobProgress linking step', () => {
+  const stageTexts = (): Array< string | null > => {
+    return screen.getAllByRole( 'listitem' ).map( ( item ) => item.textContent )
+  }
+
+  const stageStates = (): Array< string | undefined > => {
+    return screen.getAllByRole( 'listitem' ).map( ( item ) => item.dataset.state )
+  }
+
+  it( 'makes Linking the current video step after Summarizing', () => {
+    setup( jobFixture( { status: 'linking', link_state: 'pending' } ) )
+
+    expect( screen.getByRole( 'status' ) ).toHaveTextContent( 'Linking…' )
+    expect( stageTexts() ).toEqual( [ ...labels.slice( 0, 5 ), 'Linking', 'Ready for review' ] )
+    expect( stageStates() ).toEqual( [
+      'complete',
+      'complete',
+      'complete',
+      'complete',
+      'complete',
+      'current',
+      'pending',
+    ] )
+    expect( screen.getByRole( 'listitem', { current: 'step' } ) ).toHaveTextContent( 'Linking' )
+  } )
+
+  it( 'makes Linking the current article step after Summarizing', () => {
+    setup( jobFixture( { status: 'linking', link_state: 'pending', source_type: 'article' } ) )
+
+    expect( stageTexts() ).toEqual( [
+      'Waiting to start',
+      'Fetching the article',
+      'Summarizing',
+      'Linking',
+      'Ready for review',
+    ] )
+    expect( stageStates() ).toEqual( [ 'complete', 'complete', 'complete', 'current', 'pending' ] )
+  } )
+
+  it.each( [ 'linked', 'failed' ] as const )(
+    'keeps Linking, complete, for a job ready for review whose linking %s',
+    ( linkState ) => {
+      setup( jobFixture( { status: 'ready_for_review', link_state: linkState } ) )
+
+      expect( stageTexts() ).toContain( 'Linking' )
+      expect( stageStates().every( ( state ) => state === 'complete' ) ).toBe( true )
+    },
+  )
+
+  it.each( [ 'off', null ] as const )(
+    'shows the 0.6.0 steps when linking is %s',
+    ( linkState ) => {
+      setup( jobFixture( { status: 'summarizing', link_state: linkState } ) )
+
+      expect( stageTexts() ).toEqual( labels )
+    },
+  )
+} )

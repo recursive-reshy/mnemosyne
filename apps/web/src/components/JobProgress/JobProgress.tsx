@@ -24,15 +24,19 @@ const VIDEO_STAGES = [
   { status: 'converting', label: 'Converting audio' },
   { status: 'transcribing', label: 'Transcribing' },
   { status: 'summarizing', label: 'Summarizing' },
-  { status: 'ready_for_review', label: 'Ready for review' },
 ] as const
 
 const ARTICLE_STAGES = [
   { status: 'queued', label: 'Waiting to start' },
   { status: 'fetching', label: 'Fetching the article' },
   { status: 'summarizing', label: 'Summarizing' },
-  { status: 'ready_for_review', label: 'Ready for review' },
 ] as const
+
+const LINKING_STAGE = { status: 'linking', label: 'Linking' } as const
+
+const READY_STAGE = { status: 'ready_for_review', label: 'Ready for review' } as const
+
+const LINKED_STATES: Job[ 'link_state' ][] = [ 'pending', 'linked', 'failed' ]
 
 const STATUS_MESSAGES = {
   queued: 'Waiting in the queue…',
@@ -82,7 +86,12 @@ export function JobProgress( props: JobProgressProps ): ReactElement {
   const { job, connectionError, onRetry, onPasteText } = props
   const { isPasting = false, pasteError = null } = props
   const [ isDialogOpen, setIsDialogOpen ] = useState( false )
-  const stages = job.source_type === 'article' ? ARTICLE_STAGES : VIDEO_STAGES
+  const hasLinking = job.status === 'linking' || LINKED_STATES.includes( job.link_state )
+  const stages = [
+    ...( job.source_type === 'article' ? ARTICLE_STAGES : VIDEO_STAGES ),
+    ...( hasLinking ? [ LINKING_STAGE ] : [] ),
+    READY_STAGE,
+  ]
 
   if( job.status === 'failed' ) {
     const canPaste = job.source_type === 'article' && onPasteText !== undefined
