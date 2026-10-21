@@ -4,6 +4,7 @@
 
 Each version has its own folder. The current version is 0.6.0.
 
+- **v0.7.1 (planned):** [PRD](v0.7.1/prd.md) · [TRD](v0.7.1/trd.md) · [Tasks](v0.7.1/tasks.md) · checkpoint plans in `v0.7.1/plans/`
 - **v0.7.0 (done):** [PRD](v0.7.0/prd.md) · [TRD](v0.7.0/trd.md) · [Tasks](v0.7.0/tasks.md) · [Release notes](v0.7.0/release-notes.md) · checkpoint plans in `v0.7.0/plans/`
 - **v0.6.0 (done):** [PRD](v0.6.0/prd.md) · [TRD](v0.6.0/trd.md) · [Tasks](v0.6.0/tasks.md) · [Release notes](v0.6.0/release-notes.md) · checkpoint plans in `v0.6.0/plans/`
 - **v0.5.0 (done):** [PRD](v0.5.0/prd.md) · [TRD](v0.5.0/trd.md) · [Tasks](v0.5.0/tasks.md) · [Release notes](v0.5.0/release-notes.md) · checkpoint plans in `v0.5.0/plans/`
@@ -66,6 +67,12 @@ Each significant decision is recorded as a short ADR (Architecture Decision Reco
 | [0045](decisions/0045-per-link-review.md) | Per-link review: shared insertion functions and one transaction per accept | Accepted |
 | [0046](decisions/0046-linker-prompt-and-settings.md) | Linker prompt as a prompt profile with a purpose; locked instructions owned by the agent service | Accepted |
 | [0047](decisions/0047-async-settings-and-linking-model-default.md) | Settings resolve the linking model asynchronously; hot paths read narrow accessors | Accepted |
+| [0048](decisions/0048-job-lifecycle-table.md) | One job lifecycle: a pure table of states and moves, enforced by `moveTo` | Proposed |
+| [0049](decisions/0049-structured-logging.md) | Structured logs: pino in the server, a JSON formatter in the agent, the job ID across both | Proposed |
+| [0050](decisions/0050-health-status.md) | Health status: one table per subject, one `recordCheck`, and a Status panel | Proposed |
+| [0051](decisions/0051-manual-database-backups.md) | Manual database backups with SQLite's online backup, to a host folder | Proposed |
+| [0052](decisions/0052-data-router-and-settings-routes.md) | A data router, Settings as routed tabs, and one unsaved-changes guard | Proposed |
+| [0053](decisions/0053-e2e-smoke-test.md) | End-to-end smoke test: the real Compose stack against local fakes, driven by Playwright | Proposed |
 
 ## Template for new ADRs
 
