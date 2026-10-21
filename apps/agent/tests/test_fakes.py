@@ -1,3 +1,5 @@
+import time
+
 import pytest
 
 from mnemosyne_agent.claude import ClaudeError, MessageReply, MessageRequest, TextBlock, Usage
@@ -41,3 +43,11 @@ async def test_fails_loudly_when_the_script_runs_out() -> None:
 
     with pytest.raises( AssertionError, match = "no reply left for request 1" ):
         await claude.create_message( make_request() )
+
+async def test_waits_before_replying_when_given_a_delay() -> None:
+    claude = ScriptedClaude( [ make_reply( "slow" ) ], delay_seconds = 0.05 )
+    started = time.perf_counter()
+
+    await claude.create_message( make_request() )
+
+    assert time.perf_counter() - started >= 0.05

@@ -9,7 +9,7 @@ from mnemosyne_agent.vault.notes import ReadNoteOutcome, list_notes, read_note
 from mnemosyne_agent.vault.search import search_vault
 
 class SubmittedSuggestion( BaseModel ):
-    target: str = Field( max_length = 200 )
+    target: str = Field( min_length = 1, max_length = 200 )
     anchor: str | None = None
     reason: str = Field( min_length = 1, max_length = 300 )
 
