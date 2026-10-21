@@ -7,6 +7,7 @@ import {
   it,
   expect,
   beforeEach,
+  afterEach,
   vi,
 } from 'vitest'
 import request from 'supertest'
@@ -16,7 +17,9 @@ import {
   GetSourceResponse,
   Job,
   JobStatus,
+  LinkSuggestionsResponse,
   ListJobsResponse,
+  ListLinkSuggestionsResponse,
   UpdateDraftResponse,
 } from '@mnemosyne/shared'
 // App
@@ -26,14 +29,19 @@ import { config } from '../config.js'
 import { listSummaryModels } from '../clients/anthropicModels.client.js'
 // Repositories
 import { clearJobs, findJobById, updateJob } from '../repositories/jobStore.repository.js'
+import { setStatus } from '../repositories/linkSuggestions.repository.js'
 // Services
 import {
-  completeSummary,
   completeAcquisition,
+  completeLinking,
+  completeSummary,
   failJob,
   failSummary,
+  listLinkSuggestions,
   markStatus,
   queueJob,
+  recordLinkRun,
+  recordLinkSuggestions,
 } from '../services/jobs.service.js'
 // Formatters
 import { formatMarkdown } from '../formatters/markdown.formatter.js'
@@ -41,7 +49,7 @@ import { formatSrt } from '../formatters/srt.formatter.js'
 import { formatTxt } from '../formatters/txt.formatter.js'
 // Services
 import { clearModelCache } from '../services/models.service.js'
-import { listProfiles } from '../services/prompts.service.js'
+import { listProfiles, resolveLinkerPrompt } from '../services/prompts.service.js'
 // Fixtures
 import { transcriptFixture } from '../test-support/transcript.fixture.js'
 
@@ -917,5 +925,196 @@ describe( 'GET /api/jobs/:id/download for articles', () => {
     const response = await request( app ).get( `/api/jobs/${ id }/source` )
 
     expect( GetSourceResponse.parse( response.body ).source ).toMatchObject( { kind: 'article' } )
+  } )
+} )
+
+describe( 'link suggestion routes', () => {
+  const agent = { url: 'http://agent:8100', secret: 'x'.repeat( 32 ), timeoutMs: 1000 }
+
+  beforeEach( () => {
+    config.agent = agent
+  } )
+
+  afterEach( () => {
+    config.agent = null
+  } )
+
+  const reviewed = async (): Promise< { id: string, ids: string[] } > => {
+    const id = await seedJobAt( 'transcribing' )
+    completeAcquisition( id, { kind: 'video', ...transcriptFixture } )
+    completeSummary( id, '## Summary\n\nAbout pricing.', [] )
+
+    const runId = recordLinkRun( id, {
+      model: 'claude-haiku-5-5',
+      promptVersionId: resolveLinkerPrompt().version.id,
+      usage: undefined,
+    } )
+
+    recordLinkSuggestions( id, runId, [
+      { target: 'Alpha', kind: 'new_concept', anchor: 'pricing', reason: 'Because.' },
+      { target: 'Beta', kind: 'existing_note', anchor: null, reason: 'Also.' },
+    ] )
+    completeLinking( id )
+
+    return { id, ids: listLinkSuggestions( id ).map( ( { id: suggestionId } ) => suggestionId ) }
+  }
+
+  const noteWith = ( id: string, target: string ): string => {
+    return `${ findJobById( id )?.note_markdown ?? '' }\n- [[${ target }]]\n`
+  }
+
+  describe( 'GET /api/jobs/:id/link-suggestions', () => {
+    it( 'lists the suggestions by position', async () => {
+      const { id } = await reviewed()
+
+      const response = await request( app ).get( `/api/jobs/${ id }/link-suggestions` )
+
+      expect( response.status ).toBe( 200 )
+      expect( ListLinkSuggestionsResponse.parse( response.body ).suggestions
+        .map( ( { target, status } ) => ( { target, status } ) ) )
+        .toEqual( [
+          { target: 'Alpha', status: 'pending' },
+          { target: 'Beta', status: 'pending' },
+        ] )
+    } )
+
+    it( 'leaves superseded suggestions out', async () => {
+      const { id, ids } = await reviewed()
+      setStatus( [ ids[ 0 ] ?? '' ], 'superseded', '2026-10-21T10:00:00.000Z' )
+
+      const response = await request( app ).get( `/api/jobs/${ id }/link-suggestions` )
+
+      expect( ListLinkSuggestionsResponse.parse( response.body ).suggestions ).toHaveLength( 1 )
+    } )
+
+    it( 'responds 404 for an unknown job and 400 for an id that is not a uuid', async () => {
+      expect( ( await request( app )
+        .get( `/api/jobs/${ crypto.randomUUID() }/link-suggestions` ) ).status ).toBe( 404 )
+      expect( ( await request( app ).get( '/api/jobs/nope/link-suggestions' ) ).status )
+        .toBe( 400 )
+    } )
+  } )
+
+  describe( 'POST /api/jobs/:id/link-suggestions/accept', () => {
+    it( 'stores the note and the decision and returns both', async () => {
+      const { id, ids } = await reviewed()
+
+      const response = await request( app )
+        .post( `/api/jobs/${ id }/link-suggestions/accept` )
+        .send( { ids: [ ids[ 0 ] ], note_markdown: noteWith( id, 'Alpha' ) } )
+
+      expect( response.status ).toBe( 200 )
+      const body = LinkSuggestionsResponse.parse( response.body )
+
+      expect( body.job.note_markdown ).toContain( '- [[Alpha]]' )
+      expect( body.suggestions.map( ( { status } ) => status ) )
+        .toEqual( [ 'accepted', 'pending' ] )
+    } )
+
+    it.each( [
+      [ 'no ids', () => ( { ids: [], note_markdown: 'x' } ) ],
+      [ 'ids that are not uuids', () => ( { ids: [ 'x' ], note_markdown: 'x' } ) ],
+      [ 'no note', ( ids: string[] ) => ( { ids: [ ids[ 0 ] ] } ) ],
+      [
+        'an invalid note',
+        ( ids: string[] ) => ( { ids: [ ids[ 0 ] ], note_markdown: 'no front-matter' } ),
+      ],
+    ] )( 'responds 400 for %s', async ( _label, makeBody ) => {
+      const { id, ids } = await reviewed()
+
+      const response = await request( app )
+        .post( `/api/jobs/${ id }/link-suggestions/accept` )
+        .send( makeBody( ids ) )
+
+      expect( response.status ).toBe( 400 )
+    } )
+
+    it( 'responds 409 for a suggestion that is not pending', async () => {
+      const { id } = await reviewed()
+
+      const response = await request( app )
+        .post( `/api/jobs/${ id }/link-suggestions/accept` )
+        .send( { ids: [ crypto.randomUUID() ], note_markdown: noteWith( id, 'Alpha' ) } )
+
+      expect( response.status ).toBe( 409 )
+    } )
+
+    it( 'responds 404 for an unknown job', async () => {
+      const response = await request( app )
+        .post( `/api/jobs/${ crypto.randomUUID() }/link-suggestions/accept` )
+        .send( { ids: [ crypto.randomUUID() ], note_markdown: 'x' } )
+
+      expect( response.status ).toBe( 404 )
+    } )
+  } )
+
+  describe( 'POST /api/jobs/:id/link-suggestions/reject', () => {
+    it( 'rejects and returns the job and the suggestions', async () => {
+      const { id, ids } = await reviewed()
+
+      const response = await request( app )
+        .post( `/api/jobs/${ id }/link-suggestions/reject` )
+        .send( { ids } )
+
+      expect( response.status ).toBe( 200 )
+      expect( LinkSuggestionsResponse.parse( response.body ).suggestions
+        .map( ( { status } ) => status ) ).toEqual( [ 'rejected', 'rejected' ] )
+    } )
+
+    it( 'responds 400 for no ids, 409 for a decided one, 404 for an unknown job', async () => {
+      const { id, ids } = await reviewed()
+      setStatus( [ ids[ 0 ] ?? '' ], 'accepted', '2026-10-21T10:00:00.000Z' )
+
+      expect( ( await request( app )
+        .post( `/api/jobs/${ id }/link-suggestions/reject` ).send( { ids: [] } ) ).status )
+        .toBe( 400 )
+      expect( ( await request( app )
+        .post( `/api/jobs/${ id }/link-suggestions/reject` )
+        .send( { ids: [ ids[ 0 ] ] } ) ).status ).toBe( 409 )
+      expect( ( await request( app )
+        .post( `/api/jobs/${ crypto.randomUUID() }/link-suggestions/reject` )
+        .send( { ids } ) ).status ).toBe( 404 )
+    } )
+  } )
+
+  describe( 'POST /api/jobs/:id/linking', () => {
+    it( 'queues linking with 202 and the job, with no body', async () => {
+      const { id } = await reviewed()
+
+      const response = await request( app ).post( `/api/jobs/${ id }/linking` )
+
+      expect( response.status ).toBe( 202 )
+      expect( GetJobResponse.parse( response.body ).job )
+        .toMatchObject( { id, status: 'linking', link_state: 'pending' } )
+    } )
+
+    it( 'saves the note it is sent', async () => {
+      const { id } = await reviewed()
+
+      const response = await request( app )
+        .post( `/api/jobs/${ id }/linking` )
+        .send( { note_markdown: noteWith( id, 'Alpha' ) } )
+
+      expect( response.status ).toBe( 202 )
+      expect( GetJobResponse.parse( response.body ).job.note_markdown )
+        .toContain( '- [[Alpha]]' )
+    } )
+
+    it( 'responds 400, 409 or 404 for a bad note, a wrong state or an unknown job', async () => {
+      const { id } = await reviewed()
+
+      expect( ( await request( app ).post( `/api/jobs/${ id }/linking` )
+        .send( { note_markdown: 'nope' } ) ).status ).toBe( 400 )
+
+      config.agent = null
+      expect( ( await request( app ).post( `/api/jobs/${ id }/linking` ) ).status ).toBe( 409 )
+
+      config.agent = agent
+      updateJob( id, { status: 'summarizing' } )
+      expect( ( await request( app ).post( `/api/jobs/${ id }/linking` ) ).status ).toBe( 409 )
+
+      expect( ( await request( app )
+        .post( `/api/jobs/${ crypto.randomUUID() }/linking` ) ).status ).toBe( 404 )
+    } )
   } )
 } )

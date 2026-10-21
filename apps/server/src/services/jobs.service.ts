@@ -1,11 +1,16 @@
 // Shared
 import {
+  AcceptLinkSuggestionsBody,
   CreateJobBody,
   DownloadFormat,
   Job,
   JobStatus,
   LinkSuggestion,
+  LinkSuggestionsResponse,
   LinkUsage,
+  RejectLinkSuggestionsBody,
+  RunLinkingBody,
+  StoredLinkSuggestion,
   SummaryUsage,
   NoteParseError,
   ArticleSource,
@@ -35,6 +40,7 @@ import { formatNote } from '../formatters/note.formatter.js'
 import { formatSrt } from '../formatters/srt.formatter.js'
 import { formatTxt } from '../formatters/txt.formatter.js'
 // Repositories
+import { inTransaction } from '../repositories/database.js'
 import {
   StoredJob,
   deleteJob,
@@ -48,7 +54,13 @@ import {
   updateJob,
 } from '../repositories/jobStore.repository.js'
 import { insertLinkRun, summarizeLinkUsage } from '../repositories/linkRuns.repository.js'
-import { insertSuggestions, supersedePending } from '../repositories/linkSuggestions.repository.js'
+import {
+  findSuggestions,
+  insertSuggestions,
+  listSuggestions,
+  setStatus,
+  supersedePending,
+} from '../repositories/linkSuggestions.repository.js'
 import { findFeedById } from '../repositories/feeds.repository.js'
 import { findSourceById } from '../repositories/gmailSources.repository.js'
 import { findProfileById, findVersionById } from '../repositories/promptProfiles.repository.js'
@@ -468,6 +480,86 @@ export const regenerateSummary = async (
     link_error: null,
     expires_at: null,
   } )
+}
+
+export const listLinkSuggestions = ( id: string ): StoredLinkSuggestion[] => {
+  requireJob( id )
+
+  return listSuggestions( id )
+}
+
+export const runLinking = ( id: string, body: RunLinkingBody ): Job => {
+  const job = requireJob( id )
+
+  if( job.status !== 'ready_for_review' ) {
+    throw conflict( job.status, 'linking' )
+  }
+
+  if( config.agent === null ) {
+    throw new ConflictError( 'Linking isn\'t configured' )
+  }
+
+  return inTransaction( () => {
+    if( body.note_markdown !== undefined ) {
+      updateDraft( id, { note_markdown: body.note_markdown } )
+    }
+
+    supersedePending( id )
+
+    return moveTo( requireJob( id ), 'linking', {
+      link_state: 'pending',
+      link_error: null,
+      expires_at: null,
+    } )
+  } )
+}
+
+// Every id must be a pending suggestion of this job; the first one that isn't is named
+const assertPendingSuggestions = ( jobId: string, ids: string[] ): void => {
+  const found = new Map( findSuggestions( jobId, ids ).map( ( stored ) => [ stored.id, stored ] ) )
+
+  for( const suggestionId of ids ) {
+    if( found.get( suggestionId )?.status !== 'pending' ) {
+      throw new ConflictError( `Link suggestion ${ suggestionId } is not pending` )
+    }
+  }
+}
+
+export const acceptSuggestions = (
+  id: string,
+  body: AcceptLinkSuggestionsBody,
+): LinkSuggestionsResponse => {
+  const job = requireJob( id )
+
+  if( job.status !== 'ready_for_review' ) {
+    throw conflict( job.status, 'ready_for_review' )
+  }
+
+  assertPendingSuggestions( id, body.ids )
+
+  return inTransaction( () => {
+    const updated = updateDraft( id, { note_markdown: body.note_markdown } )
+
+    setStatus( body.ids, 'accepted', new Date().toISOString() )
+
+    return { job: updated, suggestions: listSuggestions( id ) }
+  } )
+}
+
+export const rejectSuggestions = (
+  id: string,
+  body: RejectLinkSuggestionsBody,
+): LinkSuggestionsResponse => {
+  const job = requireJob( id )
+
+  if( job.status !== 'ready_for_review' ) {
+    throw conflict( job.status, 'ready_for_review' )
+  }
+
+  assertPendingSuggestions( id, body.ids )
+  setStatus( body.ids, 'rejected', new Date().toISOString() )
+
+  return { job: toPublicJob( job ), suggestions: listSuggestions( id ) }
 }
 
 export const discardJob = ( id: string ): void => {

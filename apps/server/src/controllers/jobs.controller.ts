@@ -1,14 +1,21 @@
 // Express
 import { Request, Response } from 'express'
+// Packages
+import { z } from 'zod'
 // Shared
 import {
+  AcceptLinkSuggestionsBody,
   CreateJobBody,
   CreateJobResponse,
   DownloadFormat,
   GetJobResponse,
   GetSourceResponse,
+  LinkSuggestionsResponse,
   ListJobsResponse,
+  ListLinkSuggestionsResponse,
   RegenerateSummaryBody,
+  RejectLinkSuggestionsBody,
+  RunLinkingBody,
   SaveJobResponse,
   SubmitPastedTextBody,
   UpdateDraftBody,
@@ -16,14 +23,18 @@ import {
 } from '@mnemosyne/shared'
 // Services
 import {
+  acceptSuggestions,
   discardJob,
   findJob,
   findSource,
   listJobs,
+  listLinkSuggestions,
   queueJob,
   regenerateSummary,
+  rejectSuggestions,
   renderTranscript,
   retrySummary,
+  runLinking,
   saveJob,
   submitPastedText,
   updateDraft,
@@ -122,4 +133,40 @@ export const downloadTranscript = ( { params, query }: Request, res: Response ):
     .type( contentType )
     .attachment( filename )
     .send( body )
+}
+
+const jobIdParam = ( params: Request[ 'params' ] ): string => z.uuid().parse( params.id )
+
+export const getLinkSuggestions = (
+  { params }: Request,
+  res: Response< ListLinkSuggestionsResponse >,
+): void => {
+  res.status( 200 ).json( { suggestions: listLinkSuggestions( jobIdParam( params ) ) } )
+}
+
+export const acceptLinkSuggestions = (
+  { params, body }: Request,
+  res: Response< LinkSuggestionsResponse >,
+): void => {
+  const result = acceptSuggestions( jobIdParam( params ), AcceptLinkSuggestionsBody.parse( body ) )
+
+  res.status( 200 ).json( result )
+}
+
+export const rejectLinkSuggestions = (
+  { params, body }: Request,
+  res: Response< LinkSuggestionsResponse >,
+): void => {
+  const result = rejectSuggestions( jobIdParam( params ), RejectLinkSuggestionsBody.parse( body ) )
+
+  res.status( 200 ).json( result )
+}
+
+export const runJobLinking = (
+  { params, body }: Request,
+  res: Response< GetJobResponse >,
+): void => {
+  const job = runLinking( jobIdParam( params ), RunLinkingBody.parse( body ?? {} ) )
+
+  res.status( 202 ).json( { job } )
 }

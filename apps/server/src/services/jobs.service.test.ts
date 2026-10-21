@@ -27,6 +27,7 @@ import {
 } from '../repositories/jobStore.repository.js'
 import { insertLinkRun } from '../repositories/linkRuns.repository.js'
 import {
+  findSuggestions,
   insertSuggestions,
   listSuggestions,
   setStatus,
@@ -40,6 +41,7 @@ import { insertFeed } from '../repositories/feeds.repository.js'
 import { addStoredSource } from '../test-support/gmailSources.fixture.js'
 // Services
 import {
+  acceptSuggestions,
   completeLinking,
   completeSummary,
   completeAcquisition,
@@ -53,6 +55,7 @@ import {
   findNextRunnableJob,
   getSource,
   listJobs,
+  listLinkSuggestions,
   markStatus,
   queueJob,
   recordLinkRun,
@@ -60,8 +63,10 @@ import {
   recordSummaryRun,
   recoverInterruptedJobs,
   regenerateSummary,
+  rejectSuggestions,
   renderTranscript,
   retrySummary,
+  runLinking,
   saveJob,
   submitPastedText,
   updateDraft,
@@ -88,6 +93,13 @@ import { transcriptFixture } from '../test-support/transcript.fixture.js'
 
 vi.mock( '../clients/vault.client.js' )
 vi.mock( './models.service.js' )
+vi.mock( '../repositories/linkSuggestions.repository.js', async ( importOriginal ) => {
+  const original = await importOriginal<
+    typeof import( '../repositories/linkSuggestions.repository.js' )
+  >()
+
+  return { ...original, setStatus: vi.fn( original.setStatus ) }
+} )
 
 const writeNoteMock = vi.mocked( writeNote )
 const assertKnownModelMock = vi.mocked( assertKnownModel )
@@ -1989,6 +2001,310 @@ describe( 'linking', () => {
 
       await expect( regenerateSummary( id, { model: 'nope' } ) ).rejects.toThrow( ValidationError )
       expect( listSuggestions( id ).map( ( { status } ) => status ) ).toEqual( [ 'pending' ] )
+    } )
+  } )
+
+  describe( 'reviewing link suggestions', () => {
+    const setStatusMock = vi.mocked( setStatus )
+
+    const reviewed = async (
+      ...targets: string[]
+    ): Promise< { id: string, ids: string[] } > => {
+      const id = await linking()
+      const runId = recordLinkRun( id, {
+        model: 'claude-haiku-5-5',
+        promptVersionId: linkerVersion().id,
+        usage,
+      } )
+
+      recordLinkSuggestions( id, runId, targets.map( ( target ) => suggestion( target ) ) )
+      completeLinking( id )
+
+      return { id, ids: listSuggestions( id ).map( ( { id: suggestionId } ) => suggestionId ) }
+    }
+
+    const withLink = ( id: string, target: string ): string => {
+      return `${ findJob( id ).note_markdown ?? '' }\n- [[${ target }]]\n`
+    }
+
+    const statuses = ( id: string ): string[] => {
+      return listSuggestions( id ).map( ( { status } ) => status )
+    }
+
+    describe( 'listLinkSuggestions', () => {
+      it( 'lists the suggestions of the job in position order', async () => {
+        const { id } = await reviewed( 'Alpha', 'Beta' )
+
+        expect( listLinkSuggestions( id ).map( ( { target } ) => target ) )
+          .toEqual( [ 'Alpha', 'Beta' ] )
+      } )
+
+      it( 'throws NotFoundError for an unknown job', () => {
+        expect( () => listLinkSuggestions( crypto.randomUUID() ) ).toThrow( NotFoundError )
+      } )
+    } )
+
+    describe( 'runLinking', () => {
+      it( 'moves a reviewed job to linking, pending and without an expiry', async () => {
+        const { id } = await reviewed( 'Alpha' )
+
+        expect( runLinking( id, {} ) ).toMatchObject( {
+          status: 'linking',
+          link_state: 'pending',
+          link_error: null,
+          expires_at: null,
+        } )
+      } )
+
+      it( 'works from a failed link state and from linking switched off', async () => {
+        config.agent = null
+        const off = await summarizing()
+        completeSummary( off, '## Summary', [] )
+        config.agent = agent
+
+        expect( runLinking( off, {} ) )
+          .toMatchObject( { status: 'linking', link_state: 'pending' } )
+
+        const failed = await linking()
+        failLinking( failed, 'Agent service unreachable' )
+
+        expect( runLinking( failed, {} ) ).toMatchObject( {
+          status: 'linking',
+          link_state: 'pending',
+          link_error: null,
+        } )
+      } )
+
+      it( 'supersedes pending suggestions and keeps the decided ones', async () => {
+        const { id, ids } = await reviewed( 'Alpha', 'Beta' )
+        setStatus( [ ids[ 0 ] ?? '' ], 'accepted', startTime.toISOString() )
+
+        runLinking( id, {} )
+
+        expect( listSuggestions( id ).map( ( { target, status } ) => ( { target, status } ) ) )
+          .toEqual( [ { target: 'Alpha', status: 'accepted' } ] )
+      } )
+
+      it( 'saves the note first when one is sent', async () => {
+        const { id } = await reviewed( 'Alpha' )
+        const note = withLink( id, 'Alpha' )
+
+        const job = runLinking( id, { note_markdown: note } )
+
+        expect( job.note_markdown ).toContain( '- [[Alpha]]' )
+        expect( job.status ).toBe( 'linking' )
+      } )
+
+      it( 'leaves the draft alone when no note is sent', async () => {
+        const { id } = await reviewed( 'Alpha' )
+        const before = findJob( id ).note_markdown
+
+        expect( runLinking( id, {} ).note_markdown ).toBe( before )
+      } )
+
+      it( 'changes nothing when the note is invalid', async () => {
+        const { id } = await reviewed( 'Alpha' )
+        const before = findJob( id )
+
+        expect( () => runLinking( id, { note_markdown: 'no front-matter' } ) )
+          .toThrow( ValidationError )
+        expect( findJob( id ) ).toEqual( before )
+        expect( statuses( id ) ).toEqual( [ 'pending' ] )
+      } )
+
+      it.each( [ 'summarizing', 'linking', 'summary_failed', 'saved' ] as const )(
+        'refuses a job that is %s',
+        async ( status ) => {
+          const { id } = await reviewed( 'Alpha' )
+          updateJob( id, { status } )
+
+          expect( () => runLinking( id, {} ) ).toThrow( ConflictError )
+        },
+      )
+
+      it( 'refuses with "Linking isn\'t configured" when there is no agent', async () => {
+        const { id } = await reviewed( 'Alpha' )
+        config.agent = null
+
+        expect( () => runLinking( id, {} ) )
+          .toThrow( new ConflictError( 'Linking isn\'t configured' ) )
+        expect( findJob( id ).status ).toBe( 'ready_for_review' )
+      } )
+
+      it( 'throws NotFoundError for an unknown job', () => {
+        expect( () => runLinking( crypto.randomUUID(), {} ) ).toThrow( NotFoundError )
+      } )
+    } )
+
+    describe( 'acceptSuggestions', () => {
+      afterEach( () => {
+        setStatusMock.mockClear()
+      } )
+
+      it( 'stores the note and marks the suggestions accepted together', async () => {
+        const { id, ids } = await reviewed( 'Alpha', 'Beta', 'Gamma' )
+        vi.setSystemTime( laterTime )
+
+        const result = acceptSuggestions( id, {
+          ids: [ ids[ 0 ] ?? '', ids[ 2 ] ?? '' ],
+          note_markdown: withLink( id, 'Alpha' ),
+        } )
+
+        expect( result.job.note_markdown ).toContain( '- [[Alpha]]' )
+        expect( findJob( id ).note_markdown ).toBe( result.job.note_markdown )
+        expect( result.suggestions.map( ( { target, status, decided_at } ) => ( {
+          target,
+          status,
+          decided_at,
+        } ) ) ).toEqual( [
+          { target: 'Alpha', status: 'accepted', decided_at: laterTime.toISOString() },
+          { target: 'Beta', status: 'pending', decided_at: null },
+          { target: 'Gamma', status: 'accepted', decided_at: laterTime.toISOString() },
+        ] )
+      } )
+
+      it( 'restarts the expiry', async () => {
+        const { id, ids } = await reviewed( 'Alpha' )
+        vi.setSystemTime( laterTime )
+
+        const { job } = acceptSuggestions( id, {
+          ids: [ ids[ 0 ] ?? '' ],
+          note_markdown: withLink( id, 'Alpha' ),
+        } )
+
+        expect( job.expires_at )
+          .toBe( new Date( laterTime.getTime() + 24 * 3_600_000 ).toISOString() )
+      } )
+
+      it( 'keeps the locked properties, as a draft save does', async () => {
+        const { id, ids } = await reviewed( 'Alpha' )
+        const note = withLink( id, 'Alpha' ).replace( /source: ".*"/, 'source: "https://evil.example"' )
+
+        const { job } = acceptSuggestions( id, { ids: [ ids[ 0 ] ?? '' ], note_markdown: note } )
+
+        expect( parseNote( job.note_markdown ?? '' ).properties.source )
+          .toBe( transcript.meta.source )
+      } )
+
+      it( 'changes nothing when the note is invalid', async () => {
+        const { id, ids } = await reviewed( 'Alpha' )
+        const before = findJob( id )
+
+        expect( () => acceptSuggestions( id, { ids: [ ids[ 0 ] ?? '' ], note_markdown: 'nope' } ) )
+          .toThrow( ValidationError )
+        expect( findJob( id ) ).toEqual( before )
+        expect( statuses( id ) ).toEqual( [ 'pending' ] )
+      } )
+
+      it( 'rolls the draft back when recording the decision fails', async () => {
+        const { id, ids } = await reviewed( 'Alpha' )
+        const before = findJob( id )
+        vi.setSystemTime( laterTime )
+        setStatusMock.mockImplementationOnce( () => {
+          throw new Error( 'disk full' )
+        } )
+
+        expect( () => acceptSuggestions( id, {
+          ids: [ ids[ 0 ] ?? '' ],
+          note_markdown: withLink( id, 'Alpha' ),
+        } ) ).toThrow( 'disk full' )
+        expect( findJob( id ) ).toEqual( before )
+        expect( statuses( id ) ).toEqual( [ 'pending' ] )
+      } )
+
+      it( 'refuses a job that is not in review', async () => {
+        const { id, ids } = await reviewed( 'Alpha' )
+        updateJob( id, { status: 'linking' } )
+
+        expect( () => acceptSuggestions( id, { ids, note_markdown: withLink( id, 'Alpha' ) } ) )
+          .toThrow( ConflictError )
+      } )
+
+      it( 'names the first id that is not a pending suggestion of the job', async () => {
+        const { id, ids } = await reviewed( 'Alpha', 'Beta' )
+        const unknown = crypto.randomUUID()
+        const { ids: otherIds } = await reviewed( 'Elsewhere' )
+
+        for( const bad of [ unknown, otherIds[ 0 ] ?? '' ] ) {
+          expect( () => acceptSuggestions( id, {
+            ids: [ ids[ 0 ] ?? '', bad, ids[ 1 ] ?? '' ],
+            note_markdown: withLink( id, 'Alpha' ),
+          } ) ).toThrow( new ConflictError( `Link suggestion ${ bad } is not pending` ) )
+        }
+
+        expect( statuses( id ) ).toEqual( [ 'pending', 'pending' ] )
+      } )
+
+      it( 'refuses a suggestion that is already decided or superseded', async () => {
+        const { id, ids } = await reviewed( 'Alpha', 'Beta' )
+        setStatus( [ ids[ 0 ] ?? '' ], 'rejected', startTime.toISOString() )
+        setStatus( [ ids[ 1 ] ?? '' ], 'superseded', startTime.toISOString() )
+
+        for( const done of ids ) {
+          expect( () => acceptSuggestions( id, {
+            ids: [ done ],
+            note_markdown: withLink( id, 'Alpha' ),
+          } ) ).toThrow( new ConflictError( `Link suggestion ${ done } is not pending` ) )
+        }
+      } )
+    } )
+
+    describe( 'rejectSuggestions', () => {
+      it( 'marks the suggestions rejected without touching the draft or the expiry', async () => {
+        const { id, ids } = await reviewed( 'Alpha', 'Beta' )
+        const before = findJob( id )
+        vi.setSystemTime( laterTime )
+
+        const result = rejectSuggestions( id, { ids: [ ids[ 1 ] ?? '' ] } )
+
+        expect( result.job.note_markdown ).toBe( before.note_markdown )
+        expect( result.job.expires_at ).toBe( before.expires_at )
+        expect( result.suggestions.map( ( { target, status, decided_at } ) => ( {
+          target,
+          status,
+          decided_at,
+        } ) ) ).toEqual( [
+          { target: 'Alpha', status: 'pending', decided_at: null },
+          { target: 'Beta', status: 'rejected', decided_at: laterTime.toISOString() },
+        ] )
+      } )
+
+      it( 'refuses a job that is not in review', async () => {
+        const { id, ids } = await reviewed( 'Alpha' )
+        updateJob( id, { status: 'linking' } )
+
+        expect( () => rejectSuggestions( id, { ids } ) ).toThrow( ConflictError )
+      } )
+
+      it( 'names the first id that is not pending', async () => {
+        const { id, ids } = await reviewed( 'Alpha' )
+        const unknown = crypto.randomUUID()
+        setStatus( ids, 'accepted', startTime.toISOString() )
+
+        expect( () => rejectSuggestions( id, { ids: [ unknown ] } ) )
+          .toThrow( new ConflictError( `Link suggestion ${ unknown } is not pending` ) )
+        expect( () => rejectSuggestions( id, { ids } ) )
+          .toThrow( new ConflictError( `Link suggestion ${ ids[ 0 ] ?? '' } is not pending` ) )
+      } )
+    } )
+
+    describe( 'saving and discarding', () => {
+      it( 'saveJob leaves the suggestion rows alone', async () => {
+        const { id, ids } = await reviewed( 'Alpha' )
+
+        await saveJob( id )
+
+        expect( findSuggestions( id, ids ) ).toHaveLength( 1 )
+        expect( findJob( id ).status ).toBe( 'saved' )
+      } )
+
+      it( 'discardJob removes them with the job', async () => {
+        const { id, ids } = await reviewed( 'Alpha' )
+
+        discardJob( id )
+
+        expect( findSuggestions( id, ids ) ).toEqual( [] )
+      } )
     } )
   } )
 } )
