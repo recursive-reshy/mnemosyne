@@ -1,0 +1,26 @@
+# Mnemosyne vault agent service
+
+A stateless Python 3.14 / FastAPI service that reads the Obsidian vault (read-only) and runs Claude tool-use agents for the Express server. Its first endpoint, `POST /v1/link`, proposes `[[wikilinks]]` for a new note (ADRs 0042–0046). It has no database, no write access to the vault and no published port; only the server calls it, with a bearer secret.
+
+The setup, configuration and troubleshooting are in the [root README](../../README.md) (Setup, Configuration, Troubleshooting). Working rules are in [CLAUDE.md](CLAUDE.md).
+
+## Run it
+
+Needs [uv](https://docs.astral.sh/uv/).
+
+```sh
+ANTHROPIC_API_KEY=… AGENT_SECRET=$(openssl rand -hex 32) VAULT_PATH=/path/to/vault pnpm --filter @mnemosyne/agent dev
+```
+
+It listens on port 8100. Use the same `AGENT_SECRET` and `AGENT_URL=http://localhost:8100` in `apps/server/.env`.
+
+## Checks
+
+```sh
+pnpm --filter @mnemosyne/agent test        # pytest
+pnpm --filter @mnemosyne/agent lint        # ruff check
+pnpm --filter @mnemosyne/agent typecheck   # pyright
+cd apps/agent && uv run pytest -m docker   # builds the image; needs Docker
+```
+
+The contract is Pydantic-first (`src/mnemosyne_agent/contract/`). After changing it, regenerate `schema/link_contract.json` with `uv run python -m mnemosyne_agent.contract.export` and update the Zod mirror in `packages/shared/src/agent.ts`.

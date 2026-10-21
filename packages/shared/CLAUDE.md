@@ -9,3 +9,4 @@ Cross-app contracts for Mnemosyne: Zod schemas and their inferred types, importe
 - Every schema is exported as a value, and its type with the same name via `z.infer`.
 - JSON field names on the wire are snake_case (`job_id`, `created_at`).
 - Changing a schema is a contract change: stop and ask unless the TRD or the task covers it.
+- Linking (v0.7.0): `linkSuggestions.ts` holds the suggestion schemas, `wikilinks.ts` the pure `findAnchor`, `insertLink`, `isStale` and `hasWikilink` (ADR 0045). `agent.ts` is a hand-kept Zod mirror of the Python agent's contract (ADR 0043): change it in the same commit as the Pydantic models, the committed JSON Schema in `apps/agent/schema/` and the golden examples, which `agent.examples.test.ts` also reads.
