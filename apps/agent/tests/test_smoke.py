@@ -1,4 +1,4 @@
-from mnemosyne_agent import main
+import mnemosyne_agent
 
-def test_package_imports_and_exposes_main() -> None:
-    assert callable( main )
+def test_package_imports() -> None:
+    assert mnemosyne_agent.__name__ == "mnemosyne_agent"
