@@ -35,7 +35,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 2.4 | `jobStore.repository.ts` status lists from `statusesWhere`, recovery updates from `onRestart`, as bound parameters; ADR 0048's table and both Mermaid diagrams updated to the final version (TRD §2.3) | 0048 | ✅ |
 
 ## Checkpoint B: Phase 3 (structured logs)
-**Plan:** ⬜ `plans/checkpoint-b.md`
+**Plan:** ✅ [`plans/checkpoint-b.md`](plans/checkpoint-b.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
