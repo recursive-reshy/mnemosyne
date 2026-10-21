@@ -100,6 +100,8 @@ const transcript = {
 }
 
 beforeEach( () => {
+  vi.mocked( useSettings ).mockReturnValue( settingsState() )
+  vi.mocked( useModels ).mockReturnValue( modelsState() )
   mockedUseFolders.mockReset()
   mockedUseFolders.mockReturnValue(
     { defaultFolder: 'Mnemosyne', folders: folderTree, error: null },

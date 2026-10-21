@@ -19,6 +19,7 @@ import {
   acceptLinkSuggestions,
   listLinkSuggestions,
   rejectLinkSuggestions,
+  runLinking,
 } from '#src/api/linkSuggestions.api'
 import { useFolders } from '#src/hooks/useFolders'
 import { useModels } from '#src/hooks/useModels'
@@ -51,6 +52,7 @@ vi.mock( '../NoteEditor', () => ( {
 const mockedList = vi.mocked( listLinkSuggestions )
 const mockedAccept = vi.mocked( acceptLinkSuggestions )
 const mockedReject = vi.mocked( rejectLinkSuggestions )
+const mockedRun = vi.mocked( runLinking )
 
 const ID_B = '5a1e0b7c-2d4f-4a6e-8b9c-0d1e2f3a4b02'
 const ID_C = '5a1e0b7c-2d4f-4a6e-8b9c-0d1e2f3a4b03'
@@ -105,6 +107,8 @@ beforeEach( () => {
   mockedList.mockReset()
   mockedAccept.mockReset()
   mockedReject.mockReset()
+  mockedRun.mockReset()
+  mockedRun.mockResolvedValue( jobFixture( { status: 'linking', link_state: 'pending' } ) )
   vi.mocked( updateDraft ).mockReset()
   vi.mocked( updateDraft ).mockResolvedValue( linkedJob )
   vi.mocked( useSource ).mockReturnValue( {
@@ -268,5 +272,109 @@ describe( 'ReviewScreen rejecting links', () => {
     expect( mockedReject ).toHaveBeenCalledOnce()
     expect( mockedReject ).toHaveBeenCalledWith( linkedJob.id, { ids: [ anchored.id, ID_C ] } )
     expect( editor() ).toHaveValue( note )
+  } )
+} )
+
+describe( 'ReviewScreen linking runs', () => {
+  const failedLinking = jobFixture( {
+    ...linkedJob,
+    link_state: 'failed',
+    link_error: 'Agent service unreachable',
+  } )
+
+  it( 'shows why linking failed and retries with the text in the editor', async () => {
+    const user = render( failedLinking, [] )
+    const edited = note.replace( 'startups', 'founders' )
+    fireEvent.change( editor(), { target: { value: edited } } )
+
+    expect( screen.getByRole( 'alert' ) ).toHaveTextContent( 'Agent service unreachable' )
+
+    await user.click( screen.getByRole( 'button', { name: 'Retry linking' } ) )
+
+    expect( mockedRun ).toHaveBeenCalledWith( linkedJob.id, { note_markdown: edited } )
+    expect( mockedList ).not.toHaveBeenCalled()
+  } )
+
+  it( 'offers Run linking when linking was off and the agent is set up', async () => {
+    const user = render( jobFixture( { ...linkedJob, link_state: 'off' } ) )
+
+    await user.click( screen.getByRole( 'button', { name: 'Run linking' } ) )
+
+    expect( mockedRun ).toHaveBeenCalledWith( linkedJob.id, { note_markdown: note } )
+  } )
+
+  it( 'points to Settings when the agent is not configured', () => {
+    vi.mocked( useSettings ).mockReturnValue( settingsState( { agentStatus: 'not_configured' } ) )
+    render( jobFixture( { ...linkedJob, link_state: 'off' } ) )
+
+    expect( screen.getByRole( 'link', { name: 'Settings' } ) ).toBeInTheDocument()
+    expect( screen.queryByRole( 'button', { name: 'Run linking' } ) ).not.toBeInTheDocument()
+  } )
+
+  it( 'asks before re-running while suggestions are pending', async () => {
+    const user = render( linkedJob, [ anchored ] )
+
+    await user.click( await screen.findByRole( 'button', { name: 'Re-run linking' } ) )
+
+    expect( mockedRun ).not.toHaveBeenCalled()
+
+    await user.click( screen.getByRole( 'button', { name: 'Re-run' } ) )
+
+    expect( mockedRun ).toHaveBeenCalledWith( linkedJob.id, { note_markdown: note } )
+  } )
+
+  it( 'keeps the pending suggestions when the re-run is cancelled', async () => {
+    const user = render( linkedJob, [ anchored ] )
+
+    await user.click( await screen.findByRole( 'button', { name: 'Re-run linking' } ) )
+    await user.click( screen.getByRole( 'button', { name: 'Cancel' } ) )
+
+    expect( mockedRun ).not.toHaveBeenCalled()
+    expect( await screen.findByRole( 'button', { name: 'Accept' } ) ).toBeInTheDocument()
+  } )
+
+  it( 're-runs at once when nothing is pending', async () => {
+    const user = render( linkedJob, [ { ...anchored, status: 'accepted' } ] )
+
+    await user.click( await screen.findByRole( 'button', { name: 'Re-run linking' } ) )
+
+    expect( mockedRun ).toHaveBeenCalledWith( linkedJob.id, { note_markdown: note } )
+  } )
+
+  it( 'shows the error when starting the run fails', async () => {
+    mockedRun.mockRejectedValue( new ApiError( 'Linking isn\'t configured', 409 ) )
+    const user = render( failedLinking, [] )
+
+    await user.click( screen.getByRole( 'button', { name: 'Retry linking' } ) )
+
+    expect( await screen.findAllByRole( 'alert' ) ).toHaveLength( 2 )
+    expect( screen.getByText( 'Linking isn\'t configured' ) ).toBeInTheDocument()
+  } )
+
+  it( 'shows the linking usage under the summary', async () => {
+    render( jobFixture( {
+      ...linkedJob,
+      link_usage: {
+        last_run: {
+          model: 'claude-haiku-5-5',
+          prompt_version: 1,
+          input_tokens: 5_000,
+          output_tokens: 300,
+          cache_read_input_tokens: 0,
+          cache_creation_input_tokens: 0,
+          tool_calls: 4,
+          cost_usd: null,
+          outcome: 'succeeded',
+          created_at: '2026-10-17T10:00:00.000Z',
+        },
+        run_count: 1,
+        total_input_tokens: 5_000,
+        total_output_tokens: 300,
+        total_cost_usd: null,
+      },
+    } ), [] )
+
+    expect( await screen.findByText( /^Linking · claude-haiku-5-5 · prompt v1 · 4 tool calls/ ) )
+      .toBeInTheDocument()
   } )
 } )

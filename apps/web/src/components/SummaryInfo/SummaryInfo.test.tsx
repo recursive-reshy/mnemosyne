@@ -77,4 +77,67 @@ describe( 'SummaryInfo', () => {
 
     expect( screen.queryByText( /attempts/ ) ).not.toBeInTheDocument()
   } )
+
+  describe( 'linking usage', () => {
+    const linkUsage = ( overrides: Record< string, unknown > = {} ) => ( {
+      last_run: {
+        model: 'claude-haiku-5-5',
+        prompt_version: 2,
+        input_tokens: 12_000,
+        output_tokens: 800,
+        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: 0,
+        tool_calls: 6,
+        cost_usd: null,
+        outcome: 'succeeded' as const,
+        created_at: '2026-10-17T10:00:00.000Z',
+      },
+      run_count: 1,
+      total_input_tokens: 12_000,
+      total_output_tokens: 800,
+      total_cost_usd: null,
+      ...overrides,
+    } )
+
+    it( 'shows the linking run under the summary, with the model\'s display name', () => {
+      vi.mocked( useModels ).mockReturnValue( modelsState( {
+        models: [
+          { id: 'claude-sonnet-5-5', display_name: 'Claude Sonnet 5.5' },
+          { id: 'claude-haiku-5-5', display_name: 'Claude Haiku 5.5' },
+        ],
+      } ) )
+      renderWithClient( <SummaryInfo usage={ usage() } linkUsage={ linkUsage() } /> )
+
+      expect( screen.getByText(
+        'Linking · Claude Haiku 5.5 · prompt v2 · 6 tool calls · 12.0k in / 0.8k out',
+      ) ).toBeInTheDocument()
+      expect( screen.getByText( /^Claude Sonnet 5.5 · Business ideas v3/ ) ).toBeInTheDocument()
+    } )
+
+    it( 'shows the attempts of linking when there was more than one', () => {
+      renderWithClient(
+        <SummaryInfo usage={ usage() } linkUsage={ linkUsage( { run_count: 2 } ) } />,
+      )
+
+      expect( screen.getByText( '2 attempts' ) ).toBeInTheDocument()
+    } )
+
+    it( 'shows linking alone when the summary has no usage', () => {
+      renderWithClient( <SummaryInfo usage={ null } linkUsage={ linkUsage() } /> )
+
+      expect( screen.getByText( /^Linking · claude-haiku-5-5 · prompt v2/ ) ).toBeInTheDocument()
+    } )
+
+    it( 'renders nothing without any usage', () => {
+      const { container } = renderWithClient( <SummaryInfo usage={ null } linkUsage={ null } /> )
+
+      expect( container ).toBeEmptyDOMElement()
+    } )
+
+    it( 'shows no linking line without link usage', () => {
+      renderWithClient( <SummaryInfo usage={ usage() } linkUsage={ null } /> )
+
+      expect( screen.queryByText( /^Linking/ ) ).not.toBeInTheDocument()
+    } )
+  } )
 } )

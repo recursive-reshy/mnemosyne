@@ -4,27 +4,48 @@ import type { ReactElement } from 'react'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 // Shared
-import type { SummaryUsage } from '@mnemosyne/shared'
+import type { LinkUsageSummary, SummaryUsage } from '@mnemosyne/shared'
 // App
 import { useModels } from '#src/hooks/useModels'
-import { formatSummaryInfo } from './formatSummaryInfo'
+import { formatLinkInfo, formatSummaryInfo } from './formatSummaryInfo'
+import type { SummaryInfoText } from './formatSummaryInfo'
 
 interface SummaryInfoProps {
-  usage: SummaryUsage
+  usage: SummaryUsage | null
+  linkUsage?: LinkUsageSummary | null
 }
 
-export function SummaryInfo( { usage }: SummaryInfoProps ): ReactElement {
+export function SummaryInfo(
+  { usage, linkUsage = null }: SummaryInfoProps,
+): ReactElement | null {
   const { models } = useModels()
-  const { model } = usage.last_run
-  const name = models.find( ( { id } ) => id === model )?.display_name ?? model
-  const { line, attempts } = formatSummaryInfo( usage, name )
+  const nameOf = ( model: string ): string => {
+    return models.find( ( { id } ) => id === model )?.display_name ?? model
+  }
+  const texts: SummaryInfoText[] = []
+
+  if( usage !== null ) {
+    texts.push( formatSummaryInfo( usage, nameOf( usage.last_run.model ) ) )
+  }
+
+  if( linkUsage !== null ) {
+    texts.push( formatLinkInfo( linkUsage, nameOf( linkUsage.last_run.model ) ) )
+  }
+
+  if( texts.length === 0 ) {
+    return null
+  }
 
   return (
     <Stack>
-      <Typography variant="body2" color="text.secondary">{ line }</Typography>
-      { attempts !== null && (
-        <Typography variant="body2" color="text.secondary">{ attempts }</Typography>
-      ) }
+      { texts.flatMap( ( { line, attempts } ) => [
+        <Typography key={ line } variant="body2" color="text.secondary">{ line }</Typography>,
+        ...( attempts === null ? [] : [
+          <Typography key={ `${ line }-attempts` } variant="body2" color="text.secondary">
+            { attempts }
+          </Typography>,
+        ] ),
+      ] ) }
     </Stack>
   )
 }

@@ -3,23 +3,26 @@ import { useState } from 'react'
 import type { ReactElement } from 'react'
 // Packages
 import Box from '@mui/material/Box'
+import Button from '@mui/material/Button'
+import Stack from '@mui/material/Stack'
 import Tab from '@mui/material/Tab'
 import Tabs from '@mui/material/Tabs'
 // Shared
-import { insertLink, isStale } from '@mnemosyne/shared'
-import type { Job, SourceDocument, StoredLinkSuggestion } from '@mnemosyne/shared'
+import type { Job, SourceDocument } from '@mnemosyne/shared'
 // App
 import type { AutosaveState } from '#src/hooks/useAutosaveDraft'
-import { useAcceptLinkSuggestions } from '#src/hooks/useAcceptLinkSuggestions'
-import { useDebouncedValue } from '#src/hooks/useDebouncedValue'
 import { useLinkSuggestions } from '#src/hooks/useLinkSuggestions'
-import { useRejectLinkSuggestions } from '#src/hooks/useRejectLinkSuggestions'
-import { LinkSuggestionsPanel } from '../LinkSuggestionsPanel'
+import { useRunLinking } from '#src/hooks/useRunLinking'
+import { useSettings } from '#src/hooks/useSettings'
+import { ConfirmDialog } from '../ConfirmDialog'
+import { LinkingNotice } from '../LinkingNotice'
 import { SourcePane } from '../SourcePane'
-
-const STALE_DEBOUNCE_MS = 300
+import { LinkSuggestionsTab } from './LinkSuggestionsTab'
 
 type TabName = 'links' | 'source'
+
+const RERUN_MESSAGE = 'The suggestions still pending will be replaced by new ones. '
+  + 'Links you have accepted stay in the note.'
 
 interface LinkReviewProps {
   job: Job
@@ -29,25 +32,15 @@ interface LinkReviewProps {
   focusSecond: number | null
 }
 
-const applyLinks = ( note: string, suggestions: StoredLinkSuggestion[] ): string => {
-  return suggestions.reduce(
-    ( text, suggestion ) => insertLink( text, suggestion, {
-      asRelated: isStale( text, suggestion ),
-    } ),
-    note,
-  )
-}
-
 export function LinkReview(
   { job, autosave, source, sourceError, focusSecond }: LinkReviewProps,
 ): ReactElement {
   const hasLinks = job.link_state === 'linked'
   const { suggestions, isLoading } = useLinkSuggestions( job.id, { enabled: hasLinks } )
-  const accept = useAcceptLinkSuggestions( job.id )
-  const reject = useRejectLinkSuggestions( job.id )
-  const { note } = autosave
-  const shownNote = useDebouncedValue( note, STALE_DEBOUNCE_MS )
+  const run = useRunLinking( job.id )
+  const { agentStatus } = useSettings()
   const [ selected, setSelected ] = useState< TabName | null >( null )
+  const [ isConfirming, setIsConfirming ] = useState( false )
 
   const pending = suggestions
     .filter( ( { status } ) => status === 'pending' )
@@ -71,43 +64,67 @@ export function LinkReview(
     return sourcePane
   }
 
-  const handleAccept = ( chosen: StoredLinkSuggestion[] ): void => {
-    const next = applyLinks( note, chosen )
-
-    reject.reset()
-    autosave.replaceNote( next )
-    accept.mutate(
-      { ids: chosen.map( ( { id } ) => id ), note_markdown: next },
-      { onSuccess: () => autosave.markSaved( next ) },
-    )
+  // The job is about to become `linking`, which unmounts this screen; the text goes in the request.
+  const handleRun = (): void => {
+    autosave.cancelPending()
+    run.mutate( { note_markdown: autosave.note } )
   }
 
-  const handleReject = ( chosen: StoredLinkSuggestion[] ): void => {
-    accept.reset()
-    reject.mutate( { ids: chosen.map( ( { id } ) => id ) } )
+  const handleRerun = (): void => {
+    if( pending.length > 0 ) {
+      setIsConfirming( true )
+    } else {
+      handleRun()
+    }
   }
 
   return (
-    <Box sx={ { minWidth: 0 } }>
-      <Tabs value={ tab } onChange={ ( _event, value: TabName ) => setSelected( value ) }>
-        <Tab value="links" label={ `Suggested links (${ pending.length } pending)` } />
-        <Tab value="source" label="Source" />
-      </Tabs>
-      <Box hidden={ tab !== 'links' } sx={ { pt: 2 } }>
-        <LinkSuggestionsPanel
-          suggestions={ suggestions }
-          note={ shownNote }
-          isBusy={ accept.isPending || reject.isPending }
-          error={ accept.error?.message ?? reject.error?.message ?? null }
-          onAccept={ ( suggestion ) => handleAccept( [ suggestion ] ) }
-          onReject={ ( suggestion ) => handleReject( [ suggestion ] ) }
-          onAcceptAll={ () => handleAccept( pending ) }
-          onRejectAll={ () => handleReject( pending ) }
-        />
+    <Stack spacing={ 2 } sx={ { minWidth: 0, alignItems: 'stretch' } }>
+      <LinkingNotice
+        linkState={ job.link_state }
+        linkError={ job.link_error }
+        agentStatus={ agentStatus }
+        isRunning={ run.isPending }
+        error={ run.error?.message ?? null }
+        onRun={ handleRun }
+      />
+      { hasLinks && (
+        <Button
+          size="small"
+          variant="outlined"
+          disabled={ run.isPending }
+          onClick={ handleRerun }
+          sx={ { alignSelf: 'flex-start' } }
+        >
+          Re-run linking
+        </Button>
+      ) }
+      <Box>
+        <Tabs value={ tab } onChange={ ( _event, value: TabName ) => setSelected( value ) }>
+          <Tab value="links" label={ `Suggested links (${ pending.length } pending)` } />
+          <Tab value="source" label="Source" />
+        </Tabs>
+        <Box hidden={ tab !== 'links' } sx={ { pt: 2 } }>
+          <LinkSuggestionsTab
+            job={ job }
+            autosave={ autosave }
+            suggestions={ suggestions }
+            pending={ pending }
+          />
+        </Box>
+        <Box hidden={ tab !== 'source' } sx={ { pt: 2 } }>{ sourcePane }</Box>
       </Box>
-      <Box hidden={ tab !== 'source' } sx={ { pt: 2 } }>
-        { sourcePane }
-      </Box>
-    </Box>
+      <ConfirmDialog
+        open={ isConfirming }
+        title="Re-run linking?"
+        message={ RERUN_MESSAGE }
+        confirmLabel="Re-run"
+        onConfirm={ () => {
+          setIsConfirming( false )
+          handleRun()
+        } }
+        onCancel={ () => setIsConfirming( false ) }
+      />
+    </Stack>
   )
 }

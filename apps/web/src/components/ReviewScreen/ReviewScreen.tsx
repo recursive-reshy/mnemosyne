@@ -128,7 +128,7 @@ export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps )
       { !hasFailed && autosave.status !== 'error' && (
         <Typography role="status">{ STATUS_LABELS[ autosave.status ] }</Typography>
       ) }
-      { job.summary_usage !== null && <SummaryInfo usage={ job.summary_usage } /> }
+      <SummaryInfo usage={ job.summary_usage } linkUsage={ job.link_usage } />
       <DownloadLinks jobId={ job.id } sourceType={ job.source_type } />
       { save.isError && autosave.status !== 'error' && (
         <Alert severity="error">{ save.error.message }</Alert>
