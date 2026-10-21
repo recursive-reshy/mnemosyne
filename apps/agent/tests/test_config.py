@@ -76,3 +76,16 @@ def test_every_problem_is_reported_together( tmp_path: Path ) -> None:
     assert "ANTHROPIC_API_KEY" in message
     assert "AGENT_SECRET" in message
     assert "VAULT_PATH" in message
+
+@pytest.mark.parametrize( "name", [ "fatal", "error", "warn", "info", "debug", "trace", "silent" ] )
+def test_log_level_accepts_the_server_names( fixture_vault: Path, name: str ) -> None:
+    assert load_settings( make_environ( fixture_vault, LOG_LEVEL = name ) ).log_level == name
+
+def test_log_level_defaults_to_info_and_ignores_case_and_empty( fixture_vault: Path ) -> None:
+    assert load_settings( make_environ( fixture_vault ) ).log_level == "info"
+    assert load_settings( make_environ( fixture_vault, LOG_LEVEL = "" ) ).log_level == "info"
+    assert load_settings( make_environ( fixture_vault, LOG_LEVEL = "DEBUG" ) ).log_level == "debug"
+
+def test_an_unknown_log_level_names_the_variable( fixture_vault: Path ) -> None:
+    with pytest.raises( ConfigError, match = "LOG_LEVEL" ):
+        load_settings( make_environ( fixture_vault, LOG_LEVEL = "loud" ) )

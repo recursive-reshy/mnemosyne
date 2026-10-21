@@ -1,3 +1,4 @@
+import json
 import logging
 from pathlib import Path
 from typing import Any
@@ -7,6 +8,7 @@ from fastapi.testclient import TestClient
 
 from mnemosyne_agent.config import Settings
 from mnemosyne_agent.contract.link import LinkResponse
+from mnemosyne_agent.logging_setup import configure_logging
 from mnemosyne_agent.claude import ClaudeError
 from mnemosyne_agent.main import create_app
 from tests.fakes import ScriptedClaude, submit_reply, tool_reply
@@ -159,3 +161,25 @@ def test_logs_tool_calls_and_tokens_but_no_content(
 
     for forbidden in [ "title-sentinel", "body-sentinel", "guidance-sentinel", "Free Tier", settings.agent_secret, settings.anthropic_api_key ]:
         assert forbidden not in caplog.text
+
+def test_the_json_log_line_of_a_link_run_has_its_fields_and_none_of_the_content(
+    settings: Settings,
+    auth_headers: dict[ str, str ],
+    capsys: pytest.CaptureFixture[ str ]
+) -> None:
+    configure_logging( "debug" )
+    claude = ScriptedClaude( [ submit_reply( [ { "target": "Free Tier", "anchor": None, "reason": "Mentioned." } ] ) ] )
+    body = { **make_body( title = "title-sentinel", body = "body-sentinel" ), "guidance": "guidance-sentinel" }
+
+    make_client( settings, claude ).post( "/v1/link", json = body, headers = auth_headers )
+
+    output = capsys.readouterr().err
+    line = json.loads( output.splitlines()[ 0 ] )
+
+    assert line[ "outcome" ] == "linked"
+    assert line[ "tool_calls" ] == 1
+    assert line[ "input_tokens" ] == 100
+    assert line[ "output_tokens" ] == 10
+
+    for forbidden in [ "title-sentinel", "body-sentinel", "guidance-sentinel", "Free Tier", settings.agent_secret, settings.anthropic_api_key ]:
+        assert forbidden not in output

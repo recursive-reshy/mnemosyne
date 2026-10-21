@@ -3,6 +3,8 @@ import { InstructionsResponse, LinkResponse } from '@mnemosyne/shared'
 import type { LinkRequest } from '@mnemosyne/shared'
 // Config
 import { config } from '../config.js'
+// Logging
+import { getLogContext } from '../logContext.js'
 
 const HEALTH_TIMEOUT_MS = 2_000
 const HEALTH_CACHE_MS = 30_000
@@ -39,7 +41,7 @@ const isTimeout = ( error: unknown ): boolean => {
 // Sends the request and returns the parsed JSON, turning every failure into a plain AgentError
 const call = async (
   path: string,
-  init: { method: 'GET' | 'POST', body?: unknown },
+  init: { method: 'GET' | 'POST', body?: unknown, jobId?: string },
 ): Promise< unknown > => {
   const agent = requireAgent()
   let response: Response
@@ -49,6 +51,7 @@ const call = async (
       method: init.method,
       headers: {
         Authorization: `Bearer ${ agent.secret }`,
+        ...init.jobId === undefined ? {} : { 'X-Job-Id': init.jobId },
         ...init.body === undefined ? {} : { 'Content-Type': 'application/json' },
       },
       body: init.body === undefined ? undefined : JSON.stringify( init.body ),
@@ -82,7 +85,11 @@ const call = async (
 }
 
 export const requestLinks = async ( request: LinkRequest ): Promise< LinkResponse > => {
-  const body = await call( '/v1/link', { method: 'POST', body: request } )
+  const body = await call( '/v1/link', {
+    method: 'POST',
+    body: request,
+    jobId: getLogContext()?.job_id,
+  } )
   const parsed = LinkResponse.safeParse( body )
 
   if( !parsed.success ) {

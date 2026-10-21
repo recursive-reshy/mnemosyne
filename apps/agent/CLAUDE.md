@@ -26,6 +26,7 @@ The TRD sections this service needs (`docs/v0.7.0/trd.md`):
 - **No model choice.** The model comes in the request. Never hardcode or default a model name.
 - **One response shape.** Once authorized, `/v1/link` always answers HTTP 200 with a `LinkResponse`. A bad request or any agent failure is `outcome: failed` with a reason, never FastAPI's default 422. Only a missing or wrong secret is a 401.
 - **The locked instructions (`linker/instructions.py`) are Naresh's prompt text.** Change them only when a task says to. The editable guidance lives in the server's database and arrives in the request.
+- **Logs are JSON** (`logging_setup.py`: `JsonFormatter`, `configure_logging( level )`, the `job_id_var` filled from the `X-Job-Id` header when it is a UUID). Put variable parts in `extra`, not only in the message. `LOG_LEVEL` uses the server's names (`fatal`, `error`, `warn`, `info`, `debug`, `trace`, `silent`).
 - **Never log** the note body, the guidance, `AGENT_SECRET` or `ANTHROPIC_API_KEY`.
 - **Dependencies** named in the TRD are added with `uv add` (or `uv add --dev`), never by editing `pyproject.toml` by hand. Never run `uv init` or recreate the scaffold.
 

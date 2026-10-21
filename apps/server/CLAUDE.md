@@ -36,6 +36,7 @@ Parsed once with Zod in `config.ts`; nothing else reads `process.env`. `.env.exa
 - `DEFAULT_NOTE_FOLDER` is validated at startup with the shared folder rules and created if missing.
 - Gmail (ADR 0035) is optional: `config.gmail` is `null` unless `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `TOKEN_ENCRYPTION_KEY` (32 bytes, base64) are all set. A key that is set but isn't 32 bytes stops startup. `GOOGLE_REDIRECT_URI` defaults to the callback on `PORT`.
 - The vault agent service (ADR 0042) is optional: `config.agent` is `null` unless `AGENT_SECRET` (at least 32 characters) is set, and then jobs skip linking. `AGENT_URL` defaults to `http://localhost:8100`, `AGENT_TIMEOUT_MS` to 120000.
+- `LOG_LEVEL` (ADR 0049): `fatal`, `error`, `warn`, `info` (default), `debug`, `trace` or `silent`; vitest runs with `silent`.
 - `WEB_DIR`: empty in development (Vite serves the web app). When set, Express serves it, with an `index.html` fallback for paths without an extension.
 
 ## Folder structure
@@ -47,6 +48,8 @@ src/
   config.ts          env parsed with Zod
   shutdown.ts        signal handling: stop the sweeper, the worker, the intake poller and the server, close the store, exit; with a timeout
   errors.ts          typed errors and the error middleware
+  logger.ts          the pino logger (ADR 0049); logContext.ts holds the job, feed or Gmail source ID for every line written inside `withLogContext`
+  middleware/        requestLog.ts: one log line per request (method, route pattern, status, duration; health and status skipped)
   jobs/              lifecycle.ts (ADR 0048): the pure table of job statuses, their properties and allowed moves, `canMove`, `assertMove`, `statusesWhere` and the link-state moves; no imports from services or repositories
   routes/            <name>.routes.ts: an Express Router wiring paths to controller functions, nothing else
   controllers/       <name>.controller.ts: HTTP only (parse the request with Zod, call a service, send the response)
@@ -75,6 +78,14 @@ The order is routes → controllers → services → repositories, and every req
 - Nothing imports `routes/` or `controllers/` except `app.ts`.
 - The worker deletes a job's audio files when the job finishes, whether it succeeded or failed.
 - The exceptions are `GET /api/health`, whose controller responds directly with no service or repository because it has no rules or data, and `web.routes.ts`, which serves the built web app from `WEB_DIR` with no controller.
+
+## Logging
+
+- Log through `logger` from `logger.ts` (pino, JSON per line; `pino-pretty` only in `pnpm dev`), never `console` (`no-console` is an ESLint error in `src/`; `config.ts` is the one exception because it runs before the logger exists).
+- A fixed message and the variable parts as fields: `logger.error( { err: error, feed_id }, 'Feed check failed' )`. Pass errors as `err`.
+- `logContext.ts` holds `job_id`, `feed_id` or `gmail_source_id` in an `AsyncLocalStorage`; wrap each unit of work in `withLogContext( { … }, fn )` and every line written inside carries it. `requestLinks` sends the job ID to the agent as `X-Job-Id`.
+- Never log bodies, note or transcript text, prompts, email content, tokens or keys. `redact` covers fields named like secrets one level down; don't rely on it for anything else.
+- Tests spy on the logger (`vi.spyOn( logger, 'error' )`); a test that mocks `config.js` must include `logLevel`.
 
 ## Errors
 

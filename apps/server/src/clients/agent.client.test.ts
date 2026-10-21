@@ -18,6 +18,8 @@ import {
   fetchInstructions,
   requestLinks,
 } from './agent.client.js'
+// Logging
+import { withLogContext } from '../logContext.js'
 
 const SECRET = 's3cr3t-'.repeat( 6 )
 
@@ -100,6 +102,24 @@ describe( 'requestLinks', () => {
     expect( headers.get( 'content-type' ) ).toContain( 'application/json' )
     expect( JSON.parse( init.body as string ) ).toEqual( request )
     expect( init.signal ).toBeInstanceOf( AbortSignal )
+  } )
+
+  it( 'sends the job ID of the log context as X-Job-Id', async () => {
+    await withLogContext( { job_id: 'job-1' }, () => requestLinks( request ) )
+
+    const [ , init ] = fetchMock.mock.calls[ 0 ] as [ URL | string, RequestInit ]
+
+    expect( new Headers( init.headers ).get( 'x-job-id' ) ).toBe( 'job-1' )
+  } )
+
+  it( 'sends no X-Job-Id outside a job context, or on the instructions call', async () => {
+    await requestLinks( request )
+    fetchMock.mockResolvedValueOnce( json( { instructions: 'Locked.' } ) )
+    await withLogContext( { job_id: 'job-1' }, () => fetchInstructions() )
+
+    for( const [ , init ] of fetchMock.mock.calls as [ URL | string, RequestInit ][] ) {
+      expect( new Headers( init.headers ).has( 'x-job-id' ) ).toBe( false )
+    }
   } )
 
   it( 'handles a trailing slash in the URL', async () => {

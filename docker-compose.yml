@@ -9,6 +9,7 @@ services:
       WHISPER_URL: http://host.docker.internal:8178
       WHISPER_MODEL: ${WHISPER_MODEL:-large-v3-turbo}
       AGENT_URL: http://agent:8100
+      LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - mnemosyne-data:/data
       - ${VAULT_HOST_PATH:?Set VAULT_HOST_PATH in .env to your Obsidian vault folder}:/vault
@@ -34,6 +35,7 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?Set ANTHROPIC_API_KEY in .env}
       AGENT_SECRET: ${AGENT_SECRET:?Set AGENT_SECRET in .env}
       VAULT_PATH: /vault
+      LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - ${VAULT_HOST_PATH:?Set VAULT_HOST_PATH in .env to your Obsidian vault folder}:/vault:ro
     read_only: true

@@ -1,5 +1,6 @@
+import logging
 import shutil
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import pytest
@@ -36,3 +37,15 @@ def auth_headers( settings: Settings ) -> dict[ str, str ]:
 @pytest.fixture
 def app_factory() -> Callable[ [ Settings ], FastAPI ]:
     return lambda settings: create_app( settings, ScriptedClaude( [] ) )
+
+@pytest.fixture( autouse = True )
+def restore_loggers() -> Iterator[ None ]:
+    names = [ "mnemosyne_agent", "uvicorn", "uvicorn.access" ]
+    saved = [ ( logging.getLogger( name ), list( logging.getLogger( name ).handlers ), logging.getLogger( name ).propagate, logging.getLogger( name ).level ) for name in names ]
+
+    yield
+
+    for logger, handlers, propagate, level in saved:
+        logger.handlers = handlers
+        logger.propagate = propagate
+        logger.setLevel( level )

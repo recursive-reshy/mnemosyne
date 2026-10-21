@@ -1,4 +1,5 @@
 import importlib
+import json
 import logging
 import shutil
 from collections.abc import Callable
@@ -12,6 +13,7 @@ from fastapi.testclient import TestClient
 from mnemosyne_agent import main
 from mnemosyne_agent.claude import AnthropicClaude
 from mnemosyne_agent.config import ConfigError, Settings
+from mnemosyne_agent.logging_setup import configure_logging
 from mnemosyne_agent.main import create_app, create_secret_check
 from tests.fakes import ScriptedClaude
 
@@ -130,3 +132,36 @@ def test_create_app_keeps_the_claude_client_it_is_given( settings: Settings ) ->
     claude = ScriptedClaude( [] )
 
     assert create_app( settings, claude ).state.claude is claude
+
+def test_the_request_line_is_json_with_the_job_id_from_the_header(
+    settings: Settings,
+    app_factory: Callable[ [ Settings ], FastAPI ],
+    capsys: pytest.CaptureFixture[ str ]
+) -> None:
+    configure_logging( "info" )
+    job_id = "6f1c1f0e-8c1a-4a53-9a47-6a2a5d7c3b10"
+
+    TestClient( app_factory( settings ) ).get( "/health", headers = { "X-Job-Id": job_id } )
+
+    line = json.loads( capsys.readouterr().err.splitlines()[ 0 ] )
+
+    assert line[ "service" ] == "agent"
+    assert line[ "job_id" ] == job_id
+    assert line[ "method" ] == "GET"
+    assert line[ "path" ] == "/health"
+    assert line[ "status" ] == 200
+    assert "GET /health 200" in line[ "msg" ]
+
+@pytest.mark.parametrize( "header", [ None, "not-a-uuid", "6f1c1f0e-8c1a-4a53-9a47-6a2a5d7c3b10; drop table" ] )
+def test_a_missing_or_malformed_job_id_is_not_logged(
+    header: str | None,
+    settings: Settings,
+    app_factory: Callable[ [ Settings ], FastAPI ],
+    capsys: pytest.CaptureFixture[ str ]
+) -> None:
+    configure_logging( "info" )
+    headers = {} if header is None else { "X-Job-Id": header }
+
+    TestClient( app_factory( settings ) ).get( "/health", headers = headers )
+
+    assert "job_id" not in json.loads( capsys.readouterr().err.splitlines()[ 0 ] )

@@ -3,6 +3,8 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+from mnemosyne_agent.logging_setup import LOG_LEVELS
+
 SECRET_MINIMUM_LENGTH = 32
 
 LIMIT_DEFAULTS: dict[ str, int ] = {
@@ -25,6 +27,7 @@ class Settings( BaseModel ):
     anthropic_api_key: str
     agent_secret: str
     vault_path: Path
+    log_level: str = "info"
     max_turns: int = LIMIT_DEFAULTS[ "max_turns" ]
     max_tool_calls: int = LIMIT_DEFAULTS[ "max_tool_calls" ]
     max_output_tokens: int = LIMIT_DEFAULTS[ "max_output_tokens" ]
@@ -41,6 +44,7 @@ def load_settings( environ: Mapping[ str, str ] ) -> Settings:
     api_key = environ.get( "ANTHROPIC_API_KEY", "" )
     secret = environ.get( "AGENT_SECRET", "" )
     vault_value = environ.get( "VAULT_PATH", "" )
+    log_level = environ.get( "LOG_LEVEL", "" ).lower() or "info"
 
     if not api_key:
         problems.append( "ANTHROPIC_API_KEY is required" )
@@ -52,6 +56,9 @@ def load_settings( environ: Mapping[ str, str ] ) -> Settings:
         problems.append( "VAULT_PATH is required" )
     elif not Path( vault_value ).is_dir():
         problems.append( "VAULT_PATH must be an existing directory" )
+
+    if log_level not in LOG_LEVELS:
+        problems.append( f"LOG_LEVEL must be one of {', '.join( LOG_LEVELS )}" )
 
     limits: dict[ str, int ] = {}
 
@@ -72,4 +79,7 @@ def load_settings( environ: Mapping[ str, str ] ) -> Settings:
     if problems:
         raise ConfigError( f"Invalid configuration: {'; '.join( problems )}" )
 
-    return Settings( anthropic_api_key = api_key, agent_secret = secret, vault_path = Path( vault_value ), **limits )
+    return Settings( anthropic_api_key = api_key, agent_secret = secret, vault_path = Path( vault_value ),
+        log_level = log_level,
+        **limits
+    )

@@ -2,6 +2,7 @@ import hmac
 import logging
 import os
 import time
+import uuid
 from collections.abc import Awaitable, Callable
 from typing import Annotated
 
@@ -20,6 +21,7 @@ from mnemosyne_agent.contract.link import (
 )
 from mnemosyne_agent.linker.instructions import build_instructions
 from mnemosyne_agent.linker.loop import run_linker
+from mnemosyne_agent.logging_setup import configure_logging, job_id_var
 
 logger = logging.getLogger( "mnemosyne_agent" )
 
@@ -32,6 +34,15 @@ def create_secret_check( settings: Settings ) -> Callable[ [ str | None ], Await
 
     return check_secret
 
+def read_job_id( value: str | None ) -> str | None:
+    if value is None:
+        return None
+
+    try:
+        return str( uuid.UUID( value ) )
+    except ValueError:
+        return None
+
 def create_app( settings: Settings, claude: ClaudeClient ) -> FastAPI:
     app = FastAPI( docs_url = None, redoc_url = None, openapi_url = None )
     app.state.claude = claude
@@ -39,21 +50,38 @@ def create_app( settings: Settings, claude: ClaudeClient ) -> FastAPI:
     @app.middleware( "http" )
     async def log_request( request: Request, call_next: Callable[ [ Request ], Awaitable[ Response ] ] ) -> Response:
         started = time.perf_counter()
-        response = await call_next( request )
-        duration = ( time.perf_counter() - started ) * 1000
-        line = f"{request.method} {request.url.path} {response.status_code} {duration:.0f}ms"
-        link_response: LinkResponse | None = getattr( request.state, "link_response", None )
+        token = job_id_var.set( read_job_id( request.headers.get( "X-Job-Id" ) ) )
 
-        if link_response is not None:
-            usage = link_response.usage
-            line = (
-                f"{line} outcome={link_response.outcome.value} tool_calls={usage.tool_calls} "
-                f"input_tokens={usage.input_tokens} output_tokens={usage.output_tokens}"
-            )
+        try:
+            response = await call_next( request )
+            duration = ( time.perf_counter() - started ) * 1000
+            line = f"{request.method} {request.url.path} {response.status_code} {duration:.0f}ms"
+            fields: dict[ str, object ] = {
+                "method": request.method,
+                "path": request.url.path,
+                "status": response.status_code,
+                "duration_ms": round( duration )
+            }
+            link_response: LinkResponse | None = getattr( request.state, "link_response", None )
 
-        logger.info( line )
+            if link_response is not None:
+                usage = link_response.usage
+                line = (
+                    f"{line} outcome={link_response.outcome.value} tool_calls={usage.tool_calls} "
+                    f"input_tokens={usage.input_tokens} output_tokens={usage.output_tokens}"
+                )
+                fields.update(
+                    outcome = link_response.outcome.value,
+                    tool_calls = usage.tool_calls,
+                    input_tokens = usage.input_tokens,
+                    output_tokens = usage.output_tokens
+                )
 
-        return response
+            logger.info( line, extra = fields )
+
+            return response
+        finally:
+            job_id_var.reset( token )
 
     @app.get( "/health" )
     def read_health() -> JSONResponse:
@@ -114,11 +142,7 @@ def __getattr__( name: str ) -> FastAPI:
     if name != "app":
         raise AttributeError( f"module {__name__!r} has no attribute {name!r}" )
 
-    handler = logging.StreamHandler()
-    handler.setFormatter( logging.Formatter( "%(asctime)s %(levelname)s %(message)s" ) )
-    logger.addHandler( handler )
-    logger.setLevel( logging.INFO )
-
     settings = load_settings( os.environ )
+    configure_logging( settings.log_level )
 
     return create_app( settings, AnthropicClaude( settings.anthropic_api_key ) )
