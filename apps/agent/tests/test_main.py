@@ -10,8 +10,10 @@ from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
 from mnemosyne_agent import main
+from mnemosyne_agent.claude import AnthropicClaude
 from mnemosyne_agent.config import ConfigError, Settings
-from mnemosyne_agent.main import create_secret_check
+from mnemosyne_agent.main import create_app, create_secret_check
+from tests.fakes import ScriptedClaude
 
 def test_health_is_ok_without_auth( settings: Settings, app_factory: Callable[ [ Settings ], FastAPI ] ) -> None:
     response = TestClient( app_factory( settings ) ).get( "/health" )
@@ -113,3 +115,18 @@ def test_the_module_level_app_is_built_from_the_environment(
     monkeypatch.setenv( "VAULT_PATH", str( fixture_vault ) )
 
     assert TestClient( main.app ).get( "/health" ).status_code == 200
+
+def test_the_module_level_app_uses_the_anthropic_client(
+    monkeypatch: pytest.MonkeyPatch,
+    fixture_vault: Path
+) -> None:
+    monkeypatch.setenv( "ANTHROPIC_API_KEY", "sk-test-key" )
+    monkeypatch.setenv( "AGENT_SECRET", "s" * 32 )
+    monkeypatch.setenv( "VAULT_PATH", str( fixture_vault ) )
+
+    assert isinstance( main.app.state.claude, AnthropicClaude )
+
+def test_create_app_keeps_the_claude_client_it_is_given( settings: Settings ) -> None:
+    claude = ScriptedClaude( [] )
+
+    assert create_app( settings, claude ).state.claude is claude

@@ -7,8 +7,13 @@ from fastapi import FastAPI
 
 from mnemosyne_agent.config import Settings
 from mnemosyne_agent.main import create_app
+from tests.fakes import ScriptedClaude
 
 FIXTURE_VAULT = Path( __file__ ).parent / "fixtures" / "vault"
+
+@pytest.fixture
+def anyio_backend() -> str:
+    return "asyncio"
 
 @pytest.fixture
 def fixture_vault() -> Path:
@@ -30,4 +35,4 @@ def auth_headers( settings: Settings ) -> dict[ str, str ]:
 
 @pytest.fixture
 def app_factory() -> Callable[ [ Settings ], FastAPI ]:
-    return create_app
+    return lambda settings: create_app( settings, ScriptedClaude( [] ) )

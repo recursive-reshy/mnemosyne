@@ -8,6 +8,7 @@ from typing import Annotated
 from fastapi import FastAPI, Header, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 
+from mnemosyne_agent.claude import AnthropicClaude, ClaudeClient
 from mnemosyne_agent.config import Settings, load_settings
 
 logger = logging.getLogger( "mnemosyne_agent" )
@@ -21,8 +22,9 @@ def create_secret_check( settings: Settings ) -> Callable[ [ str | None ], Await
 
     return check_secret
 
-def create_app( settings: Settings ) -> FastAPI:
+def create_app( settings: Settings, claude: ClaudeClient ) -> FastAPI:
     app = FastAPI( docs_url = None, redoc_url = None, openapi_url = None )
+    app.state.claude = claude
 
     @app.middleware( "http" )
     async def log_request( request: Request, call_next: Callable[ [ Request ], Awaitable[ Response ] ] ) -> Response:
@@ -53,4 +55,6 @@ def __getattr__( name: str ) -> FastAPI:
     logger.addHandler( handler )
     logger.setLevel( logging.INFO )
 
-    return create_app( load_settings( os.environ ) )
+    settings = load_settings( os.environ )
+
+    return create_app( settings, AnthropicClaude( settings.anthropic_api_key ) )
