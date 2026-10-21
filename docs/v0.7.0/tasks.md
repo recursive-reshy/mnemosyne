@@ -86,7 +86,7 @@ Needs Naresh's scaffold in `apps/agent` (TRD §2.1). Check it exists before plan
 | 7.6 | `LinkingSettings`: agent status, the switch, the model select, the linker prompt editor and history, locked instructions (TRD §7.4); `apps/web/CLAUDE.md` names the new components | 0046 | ✅ |
 
 ## Checkpoint E: Phase 8 (clean-up and verification)
-**Plan:** ⬜ [`plans/checkpoint-e.md`](plans/checkpoint-e.md)
+**Plan:** ✅ [`plans/checkpoint-e.md`](plans/checkpoint-e.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
