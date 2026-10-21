@@ -15,7 +15,26 @@ By 0.7.0 a job can come from five places (video, article, feed item, newsletter,
 - The table reproduces 0.7.0 exactly. A characterization test, written first against the 0.7.0 services, pins every move and stays in the suite.
 
 ## The lifecycle
-Final table and diagrams are filled in by task 2.4 from the characterization test (TRD §2.2 has the expected version).
+Final version, taken from the characterization test (`jobs/lifecycle.characterization.test.ts`), which pins 0.7.0. Three points differ from what the TRD first expected, and the test is the authority:
+
+- `failJob` works from seven states only (`queued`, `downloading`, `converting`, `transcribing`, `fetching`, `summarizing`, `linking`). It is not available from `ready_for_review` or `summary_failed`.
+- `editable` is `ready_for_review` only. `summary_failed` is not editable: editing the draft, accepting and rejecting suggestions give 409 there.
+- `summary_failed → saved` does not exist; only `ready_for_review` is saved.
+
+| State | runnable | active | expires | terminal | editable | onRestart |
+| --- | --- | --- | --- | --- | --- | --- |
+| queued | ✓ | ✓ | | | | — |
+| fetching, downloading, converting, transcribing | | ✓ | | | | failed |
+| summarizing | ✓ | ✓ | | | | — (picked up again) |
+| linking | ✓ | ✓ | | | | ready_for_review (link failed) |
+| ready_for_review | | ✓ | ✓ | | ✓ | — |
+| summary_failed | | ✓ | ✓ | | | — |
+| saved | | | | ✓ | | — |
+| failed | | | | ✓ | | — |
+
+Moves: video `queued → downloading → converting → transcribing → summarizing`; article `queued → fetching → summarizing`; `summarizing → linking | ready_for_review | summary_failed`; `linking → ready_for_review`; `summary_failed → summarizing` (retry); `ready_for_review → summarizing` (regenerate), `→ linking` (run linking), `→ saved`; `failed → summarizing` (article, pasted text); the seven states above `→ failed`. A same-state move is allowed only in `ready_for_review`.
+
+The table lists which moves exist, not which function may make them: `summarizing → ready_for_review` is a legal move, yet `failLinking` must start from `linking`. A service function that makes one move therefore also names its start status (`assertFrom`), and `moveTo()` asks the table for the move itself.
 
 ```mermaid
 stateDiagram-v2
@@ -34,15 +53,32 @@ stateDiagram-v2
   ready_for_review --> summarizing: regenerate
   ready_for_review --> linking: run linking
   ready_for_review --> saved
-  failed --> summarizing: pasted text
+  failed --> summarizing: pasted text (article)
   saved --> [*]
-  note right of failed: every non-terminal state can move to failed
+  note right of failed: queued, downloading, converting, transcribing, fetching, summarizing and linking can move to failed
+```
+
+The link state (`null`, `off`, `pending`, `linked`, `failed`) has its own table in `lifecycle.ts`:
+
+```mermaid
+stateDiagram-v2
+  [*] --> none
+  none --> off: summary done, linking off
+  none --> pending: summary done, linking on
+  pending --> linked: linking succeeded
+  pending --> failed: linking failed or interrupted
+  off --> pending: run linking
+  linked --> pending: run linking again
+  failed --> pending: retry linking
+  off --> none: regenerate summary
+  linked --> none: regenerate summary
+  failed --> none: regenerate summary
 ```
 
 ## Consequences
 - Adding a status or a source is one table edit plus tests; the SQL, the expiry and the recovery follow.
 - A bug that writes an impossible status now fails loudly instead of leaving a stuck job.
-- Hand-written checks and their error messages move into one place; the messages are kept so the API doesn't change.
+- The move checks and their error messages move into one place; the messages are kept so the API doesn't change. Each function that makes one move still names its start status (`assertFrom`), since the table can't say which function may make a move.
 
 ## Alternatives considered
 - **XState or another state-machine library:** more than a table of about 20 moves needs, and a new dependency.

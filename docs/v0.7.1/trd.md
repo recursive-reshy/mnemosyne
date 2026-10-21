@@ -38,10 +38,10 @@ export const STATES: Record< JobStatus, StateInfo >
 export const MOVES: ReadonlyArray< { from: JobStatus, to: JobStatus, sources?: SourceType[] } >
 export const canMove( from, to, source ): boolean
 export const assertMove( job: { status, source_type }, to ): void   // throws the existing conflict error
-export const statusesWhere( key: keyof StateInfo ): JobStatus[]
+export const statusesWhere( key: keyof StateInfo, value = true ): JobStatus[]
 export const LINK_STATES / LINK_MOVES / assertLinkMove( from, to )
 ```
-Expected table (from reading the 0.7.0 code; task 2.1's characterization test is the authority, and any difference from this table is a stop-and-ask):
+Table (task 2.1's characterization test of the 0.7.0 services is the authority, and this is the version it confirmed):
 
 | State | runnable | active | expires | terminal | editable | onRestart |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -50,13 +50,13 @@ Expected table (from reading the 0.7.0 code; task 2.1's characterization test is
 | summarizing | ✓ | ✓ | | | | — (re-picked) |
 | linking | ✓ | ✓ | | | | ready_for_review (link failed) |
 | ready_for_review | | ✓ | ✓ | | ✓ | — |
-| summary_failed | | ✓ | ✓ | | ✓ | — |
+| summary_failed | | ✓ | ✓ | | | — |
 | saved | | | | ✓ | | — |
 | failed | | | | ✓ | | — |
 
-Moves: video `queued → downloading → converting → transcribing → summarizing`; article `queued → fetching → summarizing`; `summarizing → linking | ready_for_review | summary_failed`; `linking → ready_for_review`; `summary_failed → summarizing` (retry); `ready_for_review → summarizing` (regenerate), `→ linking` (run linking), `→ saved`; `failed → summarizing` (article, pasted text); every non-terminal state `→ failed`. Whether `summary_failed → saved` exists is settled by the characterization test.
+Moves: video `queued → downloading → converting → transcribing → summarizing`; article `queued → fetching → summarizing`; `summarizing → linking | ready_for_review | summary_failed`; `linking → ready_for_review`; `summary_failed → summarizing` (retry); `ready_for_review → summarizing` (regenerate), `→ linking` (run linking), `→ saved`; `failed → summarizing` (article, pasted text); `queued`, `downloading`, `converting`, `transcribing`, `fetching`, `summarizing` and `linking` `→ failed` (not the two review states). `summary_failed → saved` does not exist, and `summary_failed` is not `editable`. `statusesWhere( key, value = true )` takes a value so recovery can ask for `onRestart` `failed` or `ready_for_review`.
 
-Link states: `off | pending | linked | failed`, with the moves the 0.7.0 code makes (also pinned by the characterization test).
+Link states: `off | pending | linked | failed`, plus `null` before a summary completes and after a regenerate; the moves are those the 0.7.0 code makes, pinned by the characterization test.
 
 ### 2.3 Changes
 - `moveTo( job, to, changes )` calls `assertMove()`; same-state moves need `editable`. It sets `expires_at` itself: `expiryFromNow()` when the target `expires` and the job is entering it, `null` when it doesn't, unchanged on an editable same-state move unless the caller passes the autosave reset. Callers stop passing `expires_at` except that reset.

@@ -2,6 +2,8 @@
 import { z } from 'zod'
 // Shared
 import { Job, SourceDocument } from '@mnemosyne/shared'
+// Lifecycle
+import { statusesWhere } from '../jobs/lifecycle.js'
 // Repositories
 import { getDatabase } from './database.js'
 
@@ -39,6 +41,9 @@ const SELECT_JOB = `SELECT jobs.*, feeds.name AS feed_name,
   FROM jobs
     LEFT JOIN feeds ON feeds.id = jobs.feed_id
     LEFT JOIN gmail_sources ON gmail_sources.id = jobs.gmail_source_id`
+
+// Statuses are bound parameters, never concatenated into the SQL
+const marks = ( statuses: string[] ): string => statuses.map( () => '?' ).join( ', ' )
 
 const toStoredJob = ( raw: unknown ): StoredJob => {
   const row = JobRow.parse( raw )
@@ -125,10 +130,11 @@ export const updateJob = (
 }
 
 export const findNextRunnableJob = (): StoredJob | undefined => {
+  const statuses = statusesWhere( 'runnable' )
   const row = getDatabase()
-    .prepare( `${ SELECT_JOB } WHERE jobs.status IN ( 'queued', 'summarizing', 'linking' )
+    .prepare( `${ SELECT_JOB } WHERE jobs.status IN ( ${ marks( statuses ) } )
       ORDER BY jobs.rowid LIMIT 1` )
-    .get()
+    .get( ...statuses )
 
   return row === undefined ? undefined : toStoredJob( row )
 }
@@ -138,10 +144,11 @@ export const clearJobs = (): void => {
 }
 
 export const markInterruptedJobs = ( message: string, now: string ): number => {
+  const statuses = statusesWhere( 'onRestart', 'failed' )
   const { changes } = getDatabase()
     .prepare( `UPDATE jobs SET status = 'failed', error = ?, updated_at = ?
-      WHERE status IN ( 'fetching', 'downloading', 'converting', 'transcribing' )` )
-    .run( message, now )
+      WHERE status IN ( ${ marks( statuses ) } )` )
+    .run( message, now, ...statuses )
 
   return changes
 }
@@ -151,21 +158,24 @@ export const markInterruptedLinkingJobs = (
   now: string,
   expiresAt: string,
 ): number => {
+  const statuses = statusesWhere( 'onRestart', 'ready_for_review' )
   const { changes } = getDatabase()
     .prepare( `UPDATE jobs SET status = 'ready_for_review', link_state = 'failed',
         link_error = ?, expires_at = ?, updated_at = ?
-      WHERE status = 'linking'` )
-    .run( message, expiresAt, now )
+      WHERE status IN ( ${ marks( statuses ) } )` )
+    .run( message, expiresAt, now, ...statuses )
 
   return changes
 }
 
 export const listActiveJobs = (): StoredJob[] => {
+  const statuses = statusesWhere( 'active' )
+
   return getDatabase()
     .prepare( `${ SELECT_JOB }
-      WHERE jobs.status NOT IN ( 'failed', 'saved' )
+      WHERE jobs.status IN ( ${ marks( statuses ) } )
       ORDER BY jobs.created_at DESC, jobs.rowid DESC` )
-    .all()
+    .all( ...statuses )
     .map( toStoredJob )
 }
 
@@ -181,10 +191,12 @@ export const deleteJob = ( id: string ): boolean => {
 }
 
 export const findExpiredJobs = ( now: string ): StoredJob[] => {
+  const statuses = statusesWhere( 'expires' )
+
   return getDatabase()
     .prepare( `${ SELECT_JOB }
-      WHERE jobs.status IN ( 'ready_for_review', 'summary_failed' )
+      WHERE jobs.status IN ( ${ marks( statuses ) } )
         AND jobs.expires_at IS NOT NULL AND jobs.expires_at <= ?` )
-    .all( now )
+    .all( ...statuses, now )
     .map( toStoredJob )
 }
