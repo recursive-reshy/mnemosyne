@@ -5,22 +5,32 @@ import {
   expect,
   vi,
   beforeEach,
+  afterEach,
 } from 'vitest'
 import request from 'supertest'
 // Shared
 import { GetSettingsResponse } from '@mnemosyne/shared'
 // App
 import { app } from '../app.js'
+import { config } from '../config.js'
 // Clients
+import { AgentError, checkHealth, fetchInstructions } from '../clients/agent.client.js'
 import { listSummaryModels } from '../clients/anthropicModels.client.js'
 // Services
 import { clearModelCache } from '../services/models.service.js'
-import { listProfiles } from '../services/prompts.service.js'
+import { listProfiles, resolveLinkerPrompt } from '../services/prompts.service.js'
 import { LOCKED_INSTRUCTIONS_ARTICLE, LOCKED_INSTRUCTIONS_VIDEO } from '../summarizer/prompts.js'
 
 vi.mock( '../clients/anthropicModels.client.js' )
+vi.mock( '../clients/agent.client.js', async ( importOriginal ) => {
+  const original = await importOriginal< typeof import( '../clients/agent.client.js' ) >()
+
+  return { ...original, checkHealth: vi.fn(), fetchInstructions: vi.fn() }
+} )
 
 const listMock = vi.mocked( listSummaryModels )
+const healthMock = vi.mocked( checkHealth )
+const instructionsMock = vi.mocked( fetchInstructions )
 
 const profileId = ( name: string ): string => {
   return listProfiles().find( ( profile ) => profile.name === name )?.id ?? ''
@@ -48,7 +58,7 @@ describe( 'GET /api/settings', () => {
         feed_check_interval_minutes: 60,
         linking_enabled: true,
         linking_model: 'claude-sonnet-5-5',
-        linker_profile_id: profileId( 'Business ideas' ),
+        linker_profile_id: resolveLinkerPrompt().profile.id,
       },
       locked_instructions: {
         video: LOCKED_INSTRUCTIONS_VIDEO,
@@ -60,7 +70,97 @@ describe( 'GET /api/settings', () => {
   } )
 } )
 
+describe( 'GET /api/settings with an agent service', () => {
+  const agent = { url: 'http://agent:8100', secret: 'x'.repeat( 32 ), timeoutMs: 1000 }
+
+  beforeEach( () => {
+    config.agent = agent
+  } )
+
+  afterEach( () => {
+    config.agent = null
+  } )
+
+  it( 'reports the agent as ok and carries its locked instructions', async () => {
+    healthMock.mockResolvedValue( 'ok' )
+    instructionsMock.mockResolvedValue( 'You link notes.' )
+
+    const body = GetSettingsResponse.parse( ( await request( app ).get( '/api/settings' ) ).body )
+
+    expect( body ).toMatchObject( {
+      agent_status: 'ok',
+      linker_locked_instructions: 'You link notes.',
+    } )
+  } )
+
+  it( 'still answers 200 when the agent is down', async () => {
+    healthMock.mockResolvedValue( 'unavailable' )
+
+    const response = await request( app ).get( '/api/settings' )
+
+    expect( response.status ).toBe( 200 )
+    expect( GetSettingsResponse.parse( response.body ) ).toMatchObject( {
+      agent_status: 'unavailable',
+      linker_locked_instructions: null,
+    } )
+  } )
+
+  it( 'still answers 200 when the instructions cannot be fetched', async () => {
+    healthMock.mockResolvedValue( 'ok' )
+    instructionsMock.mockRejectedValue( new AgentError( 'Agent service unreachable' ) )
+
+    const response = await request( app ).get( '/api/settings' )
+
+    expect( response.status ).toBe( 200 )
+    expect( GetSettingsResponse.parse( response.body ).linker_locked_instructions ).toBeNull()
+  } )
+
+  it( 'picks the newest Haiku as the linking model when none is saved', async () => {
+    listMock.mockResolvedValue( [
+      { id: 'claude-sonnet-5-5', display_name: 'Claude Sonnet 5.5' },
+      { id: 'claude-haiku-5-5', display_name: 'Claude Haiku 5.5' },
+    ] )
+    healthMock.mockResolvedValue( 'ok' )
+    instructionsMock.mockResolvedValue( 'x' )
+
+    const { settings } = GetSettingsResponse.parse(
+      ( await request( app ).get( '/api/settings' ) ).body,
+    )
+
+    expect( settings.linking_model ).toBe( 'claude-haiku-5-5' )
+  } )
+} )
+
 describe( 'PATCH /api/settings', () => {
+  it( 'saves the linking switch and the linking model', async () => {
+    const response = await request( app )
+      .patch( '/api/settings' )
+      .send( { linking_enabled: false, linking_model: 'claude-opus-5-5' } )
+
+    expect( response.status ).toBe( 200 )
+    expect( GetSettingsResponse.parse( response.body ) ).toMatchObject( {
+      settings: { linking_enabled: false, linking_model: 'claude-opus-5-5' },
+      agent_status: 'not_configured',
+    } )
+  } )
+
+  it( 'returns 400 for an unknown linking model', async () => {
+    const response = await request( app )
+      .patch( '/api/settings' )
+      .send( { linking_model: 'claude-nope' } )
+
+    expect( response.status ).toBe( 400 )
+    expect( response.body ).toEqual( { error: 'Unknown model: claude-nope' } )
+  } )
+
+  it( 'does not accept the linker profile id', async () => {
+    const response = await request( app )
+      .patch( '/api/settings' )
+      .send( { linker_profile_id: crypto.randomUUID() } )
+
+    expect( response.status ).toBe( 400 )
+  } )
+
   it( 'saves the model and returns the new settings', async () => {
     const response = await request( app )
       .patch( '/api/settings' )

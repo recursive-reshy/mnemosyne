@@ -21,9 +21,14 @@ import {
 } from '../repositories/promptProfiles.repository.js'
 import { getSetting } from '../repositories/settings.repository.js'
 // Summarizer
-import { LINKER_SEED_KEY, SEEDED_PROFILES } from '../summarizer/prompts.js'
+import {
+  DEFAULT_LINKER_GUIDANCE,
+  LINKER_SEED_KEY,
+  SEEDED_PROFILES,
+} from '../summarizer/prompts.js'
 
 const NAME_TAKEN = 'A profile with that name already exists'
+const LINKER_LOCKED = 'The linker prompt can\'t be renamed or deleted'
 
 const toProfile = ( record: ProfileRecord ): PromptProfile => {
   const current = findLatestVersion( record.id )
@@ -83,8 +88,14 @@ export const createProfile = (
   return findProfile( id )
 }
 
+const requireNotLinker = ( record: ProfileRecord ): void => {
+  if( record.purpose === 'linker' ) {
+    throw new ConflictError( LINKER_LOCKED )
+  }
+}
+
 export const renameProfile = ( id: string, name: string ): PromptProfile => {
-  requireActive( id )
+  requireNotLinker( requireActive( id ) )
 
   if( !renameStoredProfile( id, name ).ok ) {
     throw new ConflictError( NAME_TAKEN )
@@ -94,7 +105,7 @@ export const renameProfile = ( id: string, name: string ): PromptProfile => {
 }
 
 export const deleteProfile = ( id: string ): void => {
-  requireActive( id )
+  requireNotLinker( requireActive( id ) )
 
   if( id === defaultProfileId() ) {
     throw new ConflictError( 'The default profile cannot be deleted' )
@@ -134,13 +145,15 @@ export const restoreVersion = ( id: string, versionId: number ): PromptProfile =
 
 export const resetProfile = ( id: string ): PromptProfile => {
   const record = requireActive( id )
-  const seeded = SEEDED_PROFILES.find( ( { seedKey } ) => seedKey === record.seed_key )
+  const guidance = record.purpose === 'linker'
+    ? DEFAULT_LINKER_GUIDANCE
+    : SEEDED_PROFILES.find( ( { seedKey } ) => seedKey === record.seed_key )?.guidance
 
-  if( seeded === undefined ) {
+  if( guidance === undefined ) {
     throw new ConflictError( 'Only the profiles the app ships can be reset' )
   }
 
-  insertVersion( id, seeded.guidance, 'reset' )
+  insertVersion( id, guidance, 'reset' )
 
   return findProfile( id )
 }
@@ -155,6 +168,11 @@ export const resolvePrompt = (
   profileId: string | null,
 ): { profile: PromptProfile, version: PromptVersion } => {
   let record = profileId === null ? undefined : findProfileById( profileId )
+
+  // The linker prompt is never a summary prompt
+  if( record?.purpose === 'linker' ) {
+    record = undefined
+  }
 
   if( profileId !== null && record === undefined ) {
     console.error( `Prompt profile ${ profileId } not found; using the default profile` )

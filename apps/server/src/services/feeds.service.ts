@@ -44,7 +44,7 @@ import type { FeedItemData, ParsedFeed } from '../sources/feeds.js'
 // Services
 import { queueFeedItem } from './inbox.service.js'
 import { assertActiveProfile } from './prompts.service.js'
-import { getSettings } from './settings.service.js'
+import { getFeedCheckInterval } from './settings.service.js'
 
 const MAX_NEW_ITEMS_PER_CHECK = 10
 
@@ -354,7 +354,7 @@ export const checkAllFeeds = async (): Promise< Feed[] > => {
 export const checkDueFeeds = async (): Promise< number > => {
   const due = listDueFeeds(
     new Date().toISOString(),
-    getSettings().feed_check_interval_minutes,
+    getFeedCheckInterval(),
   )
   let checked = 0
 

@@ -7,7 +7,7 @@ import {
   recordSummaryRun,
 } from '../services/jobs.service.js'
 import { resolvePrompt } from '../services/prompts.service.js'
-import { getSettings } from '../services/settings.service.js'
+import { getDefaultModel } from '../services/settings.service.js'
 // Clients
 import { SummaryError, summarizeSource } from '../clients/claude.client.js'
 import type { SummaryOutcome } from '../clients/claude.client.js'
@@ -20,7 +20,7 @@ export const summarizeJob = async ( jobId: string ): Promise< void > => {
     const job = findJob( jobId )
     const document = getSource( jobId )
     const { version } = resolvePrompt( job.prompt_profile_id )
-    const model = job.summary_model ?? getSettings().default_model
+    const model = job.summary_model ?? getDefaultModel()
     const promptVersionId = version.id
 
     let outcome: SummaryOutcome

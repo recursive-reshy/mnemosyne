@@ -46,7 +46,7 @@ import { countPostingsForSource } from '../repositories/postings.repository.js'
 // Services
 import { queueNewsletterMessage } from './inbox.service.js'
 import { assertActiveProfile } from './prompts.service.js'
-import { getSettings } from './settings.service.js'
+import { getFeedCheckInterval } from './settings.service.js'
 
 const DAY_MS = 86_400_000
 const MARGIN_DAYS = 2
@@ -556,7 +556,7 @@ export const checkDueSources = async (): Promise< number > => {
 
   const due = listDueSources(
     new Date().toISOString(),
-    getSettings().feed_check_interval_minutes,
+    getFeedCheckInterval(),
   )
   let checked = 0
 

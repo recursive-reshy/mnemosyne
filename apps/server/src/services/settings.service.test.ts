@@ -5,6 +5,7 @@ import {
   expect,
   vi,
   beforeEach,
+  afterEach,
 } from 'vitest'
 // Errors
 import { ValidationError } from '../errors.js'
@@ -12,18 +13,39 @@ import { ValidationError } from '../errors.js'
 import { getSetting, setSetting } from '../repositories/settings.repository.js'
 // Summarizer
 import { LOCKED_INSTRUCTIONS_ARTICLE, LOCKED_INSTRUCTIONS_VIDEO } from '../summarizer/prompts.js'
+// Clients
+import { AgentError, checkHealth, fetchInstructions } from '../clients/agent.client.js'
+// Config
+import { config } from '../config.js'
 // Services
-import { assertKnownModel } from './models.service.js'
-import { deleteProfile, listProfiles } from './prompts.service.js'
+import { assertKnownModel, listModels } from './models.service.js'
+import { deleteProfile, listProfiles, resolveLinkerPrompt } from './prompts.service.js'
 import {
+  getDefaultModel,
+  getFeedCheckInterval,
   getLockedInstructions,
   getSettings,
+  getSettingsResponse,
+  resolveLinkingModel,
   updateSettings,
 } from './settings.service.js'
 
 vi.mock( './models.service.js' )
+vi.mock( '../clients/agent.client.js', async ( importOriginal ) => {
+  const original = await importOriginal< typeof import( '../clients/agent.client.js' ) >()
+
+  return { ...original, checkHealth: vi.fn(), fetchInstructions: vi.fn() }
+} )
 
 const assertMock = vi.mocked( assertKnownModel )
+const listModelsMock = vi.mocked( listModels )
+const healthMock = vi.mocked( checkHealth )
+const instructionsMock = vi.mocked( fetchInstructions )
+
+const modelList = ( ...ids: string[] ): Awaited< ReturnType< typeof listModels > > => ( {
+  models: ids.map( ( id ) => ( { id, display_name: id } ) ),
+  source: 'api',
+} )
 
 const byName = ( name: string ): string => {
   return listProfiles().find( ( profile ) => profile.name === name )?.id ?? ''
@@ -32,31 +54,156 @@ const byName = ( name: string ): string => {
 beforeEach( () => {
   vi.resetAllMocks()
   assertMock.mockResolvedValue( undefined )
+  listModelsMock.mockResolvedValue( modelList( 'claude-sonnet-5-5', 'claude-opus-5-5' ) )
 } )
 
 describe( 'getSettings', () => {
-  it( 'defaults to the shipped model and the Business ideas profile', () => {
-    expect( getSettings() ).toEqual( {
+  it( 'defaults to the shipped model and the Business ideas profile', async () => {
+    expect( await getSettings() ).toEqual( {
       default_model: 'claude-sonnet-5-5',
       extraction_model: 'claude-sonnet-5-5',
       default_profile_id: byName( 'Business ideas' ),
       feed_check_interval_minutes: 60,
       linking_enabled: true,
       linking_model: 'claude-sonnet-5-5',
-      linker_profile_id: byName( 'Business ideas' ),
+      linker_profile_id: resolveLinkerPrompt().profile.id,
     } )
   } )
 
-  it( 'reads the extraction model from the stored setting when there is one', () => {
+  it( 'reads the extraction model from the stored setting when there is one', async () => {
     setSetting( 'extraction_model', 'claude-haiku-5-5' )
 
-    expect( getSettings().extraction_model ).toBe( 'claude-haiku-5-5' )
+    expect( ( await getSettings() ).extraction_model ).toBe( 'claude-haiku-5-5' )
   } )
 
-  it( 'reads the feed check interval from the stored setting when there is one', () => {
+  it( 'reads the feed check interval from the stored setting when there is one', async () => {
     setSetting( 'feed_check_interval_minutes', 180 )
 
-    expect( getSettings().feed_check_interval_minutes ).toBe( 180 )
+    expect( ( await getSettings() ).feed_check_interval_minutes ).toBe( 180 )
+  } )
+
+  it( 'turns linking on by default and reads the stored switch', async () => {
+    expect( ( await getSettings() ).linking_enabled ).toBe( true )
+
+    setSetting( 'linking_enabled', false )
+
+    expect( ( await getSettings() ).linking_enabled ).toBe( false )
+  } )
+
+  it( 'reads the linking model from the stored setting without asking for models', async () => {
+    setSetting( 'linking_model', 'claude-opus-5-5' )
+
+    expect( ( await getSettings() ).linking_model ).toBe( 'claude-opus-5-5' )
+    expect( listModelsMock ).not.toHaveBeenCalled()
+  } )
+
+  it( 'gives the id of the seeded linker profile, not a summary profile', async () => {
+    const { linker_profile_id, default_profile_id } = await getSettings()
+
+    expect( linker_profile_id ).toBe( resolveLinkerPrompt().profile.id )
+    expect( linker_profile_id ).not.toBe( default_profile_id )
+  } )
+} )
+
+describe( 'resolveLinkingModel', () => {
+  it( 'defaults to the first Haiku the model list gives', async () => {
+    listModelsMock.mockResolvedValue( modelList(
+      'claude-opus-5-5',
+      'claude-haiku-5-5',
+      'claude-haiku-4-5',
+    ) )
+
+    expect( await resolveLinkingModel() ).toBe( 'claude-haiku-5-5' )
+  } )
+
+  it( 'falls back to the shipped default when the list has no Haiku', async () => {
+    expect( await resolveLinkingModel() ).toBe( 'claude-sonnet-5-5' )
+  } )
+
+  it( 'falls back to the shipped default when the models cannot be listed', async () => {
+    listModelsMock.mockRejectedValue( new Error( 'offline' ) )
+
+    expect( await resolveLinkingModel() ).toBe( 'claude-sonnet-5-5' )
+  } )
+
+  it( 'prefers the stored model over any Haiku', async () => {
+    listModelsMock.mockResolvedValue( modelList( 'claude-haiku-5-5' ) )
+    setSetting( 'linking_model', 'claude-opus-5-5' )
+
+    expect( await resolveLinkingModel() ).toBe( 'claude-opus-5-5' )
+  } )
+
+  it( 'shows up in the settings when nothing is stored', async () => {
+    listModelsMock.mockResolvedValue( modelList( 'claude-haiku-5-5', 'claude-sonnet-5-5' ) )
+
+    expect( ( await getSettings() ).linking_model ).toBe( 'claude-haiku-5-5' )
+  } )
+} )
+
+describe( 'getDefaultModel and getFeedCheckInterval', () => {
+  it( 'read the stored values without asking for models', () => {
+    expect( getDefaultModel() ).toBe( 'claude-sonnet-5-5' )
+    expect( getFeedCheckInterval() ).toBe( 60 )
+
+    setSetting( 'default_model', 'claude-opus-5-5' )
+    setSetting( 'feed_check_interval_minutes', 15 )
+
+    expect( getDefaultModel() ).toBe( 'claude-opus-5-5' )
+    expect( getFeedCheckInterval() ).toBe( 15 )
+    expect( listModelsMock ).not.toHaveBeenCalled()
+  } )
+} )
+
+describe( 'getSettingsResponse', () => {
+  const agent = { url: 'http://agent:8100', secret: 'x'.repeat( 32 ), timeoutMs: 1000 }
+
+  afterEach( () => {
+    config.agent = null
+  } )
+
+  it( 'says not configured, and asks the agent nothing, without an agent', async () => {
+    const response = await getSettingsResponse()
+
+    expect( response ).toMatchObject( {
+      linker_locked_instructions: null,
+      agent_status: 'not_configured',
+      locked_instructions: getLockedInstructions(),
+    } )
+    expect( healthMock ).not.toHaveBeenCalled()
+    expect( instructionsMock ).not.toHaveBeenCalled()
+  } )
+
+  it( 'carries the agent\'s locked instructions when it is up', async () => {
+    config.agent = agent
+    healthMock.mockResolvedValue( 'ok' )
+    instructionsMock.mockResolvedValue( 'You link notes.' )
+
+    expect( await getSettingsResponse() ).toMatchObject( {
+      linker_locked_instructions: 'You link notes.',
+      agent_status: 'ok',
+    } )
+  } )
+
+  it( 'says unavailable, with no instructions asked for, when the agent is down', async () => {
+    config.agent = agent
+    healthMock.mockResolvedValue( 'unavailable' )
+
+    expect( await getSettingsResponse() ).toMatchObject( {
+      linker_locked_instructions: null,
+      agent_status: 'unavailable',
+    } )
+    expect( instructionsMock ).not.toHaveBeenCalled()
+  } )
+
+  it( 'still answers, with no instructions, when fetching them fails', async () => {
+    config.agent = agent
+    healthMock.mockResolvedValue( 'ok' )
+    instructionsMock.mockRejectedValue( new AgentError( 'Agent service rejected the secret' ) )
+
+    expect( await getSettingsResponse() ).toMatchObject( {
+      linker_locked_instructions: null,
+      agent_status: 'ok',
+    } )
   } )
 } )
 
@@ -75,7 +222,28 @@ describe( 'updateSettings', () => {
 
     expect( assertMock ).toHaveBeenCalledWith( 'claude-opus-5-5' )
     expect( settings.default_model ).toBe( 'claude-opus-5-5' )
-    expect( getSettings().default_model ).toBe( 'claude-opus-5-5' )
+    expect( ( await getSettings() ).default_model ).toBe( 'claude-opus-5-5' )
+  } )
+
+  it( 'saves a known linking model and the linking switch', async () => {
+    const settings = await updateSettings( {
+      linking_model: 'claude-opus-5-5',
+      linking_enabled: false,
+    } )
+
+    expect( assertMock ).toHaveBeenCalledWith( 'claude-opus-5-5' )
+    expect( settings ).toMatchObject( { linking_model: 'claude-opus-5-5', linking_enabled: false } )
+    expect( getSetting( 'linking_model' ) ).toBe( 'claude-opus-5-5' )
+    expect( getSetting( 'linking_enabled' ) ).toBe( false )
+  } )
+
+  it( 'rejects an unknown linking model and saves nothing', async () => {
+    assertMock.mockRejectedValue( new ValidationError( 'Unknown model: nope' ) )
+
+    await expect( updateSettings( { linking_model: 'nope', linking_enabled: false } ) )
+      .rejects.toThrow( 'Unknown model: nope' )
+    expect( getSetting( 'linking_model' ) ).toBeUndefined()
+    expect( getSetting( 'linking_enabled' ) ).toBeUndefined()
   } )
 
   it( 'saves a known extraction model', async () => {
@@ -100,7 +268,7 @@ describe( 'updateSettings', () => {
 
     await updateSettings( { default_profile_id: coding } )
 
-    expect( getSettings().default_profile_id ).toBe( coding )
+    expect( ( await getSettings() ).default_profile_id ).toBe( coding )
   } )
 
   it( 'saves both together', async () => {
@@ -118,7 +286,7 @@ describe( 'updateSettings', () => {
       feed_check_interval_minutes: 60,
       linking_enabled: true,
       linking_model: 'claude-sonnet-5-5',
-      linker_profile_id: coding,
+      linker_profile_id: resolveLinkerPrompt().profile.id,
     } )
   } )
 
@@ -130,11 +298,16 @@ describe( 'updateSettings', () => {
       default_profile_id: byName( 'Coding' ),
     } ) ).rejects.toThrow( 'Unknown model: nope' )
     expect( getSetting( 'default_model' ) ).toBeUndefined()
-    expect( getSettings().default_profile_id ).toBe( byName( 'Business ideas' ) )
+    expect( ( await getSettings() ).default_profile_id ).toBe( byName( 'Business ideas' ) )
   } )
 
   it( 'rejects an unknown profile', async () => {
     await expect( updateSettings( { default_profile_id: crypto.randomUUID() } ) )
+      .rejects.toThrow( ValidationError )
+  } )
+
+  it( 'rejects the linker profile as the default summary profile', async () => {
+    await expect( updateSettings( { default_profile_id: resolveLinkerPrompt().profile.id } ) )
       .rejects.toThrow( ValidationError )
   } )
 

@@ -11,7 +11,7 @@ import {
 // App
 import { app } from '../app.js'
 // Summarizer
-import { SEEDED_PROFILES } from '../summarizer/prompts.js'
+import { DEFAULT_LINKER_GUIDANCE, SEEDED_PROFILES } from '../summarizer/prompts.js'
 
 const list = async (): Promise< PromptProfile[] > => {
   const response = await request( app ).get( '/api/prompt-profiles' )
@@ -294,5 +294,66 @@ describe( 'POST /api/prompt-profiles/:id/reset', () => {
     const response = await request( app ).post( url( id, '/reset' ) )
 
     expect( response.status ).toBe( 409 )
+  } )
+} )
+
+describe( 'the linker prompt', () => {
+  const linkerId = async (): Promise< string > => {
+    const settings = await request( app ).get( '/api/settings' )
+
+    return String( ( settings.body as { settings: { linker_profile_id: string } } )
+      .settings.linker_profile_id )
+  }
+
+  it( 'is not listed', async () => {
+    expect( ( await list() ).map( ( { name } ) => name ) ).not.toContain( 'Linker' )
+  } )
+
+  it( 'lets a summary profile be created with the name Linker', async () => {
+    const response = await request( app )
+      .post( '/api/prompt-profiles' )
+      .send( { name: 'Linker', guidance: 'Focus.' } )
+
+    expect( response.status ).toBe( 201 )
+  } )
+
+  it( 'cannot be renamed or deleted', async () => {
+    const id = await linkerId()
+
+    const renamed = await request( app ).patch( url( id ) ).send( { name: 'Other' } )
+    const deleted = await request( app ).delete( url( id ) )
+
+    expect( renamed.status ).toBe( 409 )
+    expect( renamed.body ).toEqual( { error: 'The linker prompt can\'t be renamed or deleted' } )
+    expect( deleted.status ).toBe( 409 )
+  } )
+
+  it( 'has versions, saves new ones and resets to the default guidance', async () => {
+    const id = await linkerId()
+
+    const saved = await request( app )
+      .post( url( id, '/versions' ) )
+      .send( { guidance: 'Be brief.' } )
+    const versions = await request( app ).get( url( id, '/versions' ) )
+    const reset = await request( app ).post( url( id, '/reset' ) )
+
+    expect( saved.status ).toBe( 200 )
+    expect( ListPromptVersionsResponse.parse( versions.body ).versions ).toHaveLength( 2 )
+    expect( reset.status ).toBe( 200 )
+    expect( PromptProfileResponse.parse( reset.body ).profile.current_version )
+      .toMatchObject( { source: 'reset', guidance: DEFAULT_LINKER_GUIDANCE } )
+  } )
+
+  it( 'cannot be chosen as a summary profile', async () => {
+    const id = await linkerId()
+
+    expect( ( await request( app ).patch( '/api/settings' ).send( { default_profile_id: id } ) )
+      .status ).toBe( 400 )
+    expect( ( await request( app ).post( '/api/jobs' )
+      .send( { url: 'https://www.youtube.com/watch?v=abc', profile_id: id } ) ).status )
+      .toBe( 400 )
+    expect( ( await request( app ).post( '/api/feeds' )
+      .send( { url: 'https://blog.example.com/feed.xml', profile_id: id } ) ).status )
+      .toBe( 400 )
   } )
 } )

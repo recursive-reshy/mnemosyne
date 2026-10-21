@@ -317,3 +317,58 @@ describe( 'resolveLinkerPrompt', () => {
     } )
   } )
 } )
+
+describe( 'the linker profile', () => {
+  const linkerId = (): string => resolveLinkerPrompt().profile.id
+
+  it( 'is left out of the profile list and does not take a summary profile\'s name', () => {
+    expect( listProfiles().map( ( { name } ) => name ) ).not.toContain( 'Linker' )
+    expect( createProfile( { name: 'Linker', guidance: 'Mine.' } ).name ).toBe( 'Linker' )
+    expect( resolveLinkerPrompt().profile.name ).toBe( 'Linker' )
+  } )
+
+  it( 'can reset, so the app can show a reset action', () => {
+    expect( findProfile( linkerId() ) ).toMatchObject( { name: 'Linker', can_reset: true } )
+  } )
+
+  it( 'cannot be renamed or deleted', () => {
+    const message = 'The linker prompt can\'t be renamed or deleted'
+
+    expect( () => renameProfile( linkerId(), 'Other' ) ).toThrow( new ConflictError( message ) )
+    expect( () => deleteProfile( linkerId() ) ).toThrow( new ConflictError( message ) )
+    expect( findProfile( linkerId() ).name ).toBe( 'Linker' )
+  } )
+
+  it( 'keeps its history: save, list, restore', () => {
+    saveVersion( linkerId(), 'Link only people.' )
+    const versions = listVersions( linkerId() )
+
+    expect( versions.map( ( { version, source } ) => ( { version, source } ) ) )
+      .toEqual( [ { version: 2, source: 'edit' }, { version: 1, source: 'seed' } ] )
+
+    const restored = restoreVersion( linkerId(), versions[ 1 ]?.id ?? 0 )
+
+    expect( restored.current_version )
+      .toMatchObject( { version: 3, source: 'restore', guidance: DEFAULT_LINKER_GUIDANCE } )
+  } )
+
+  it( 'resets to the default linker guidance', () => {
+    saveVersion( linkerId(), 'Link only people.' )
+
+    expect( resetProfile( linkerId() ).current_version ).toMatchObject( {
+      version: 3,
+      source: 'reset',
+      guidance: DEFAULT_LINKER_GUIDANCE,
+    } )
+  } )
+
+  it( 'is refused where a summary profile is chosen', () => {
+    expect( () => assertActiveProfile( linkerId() ) ).toThrow( ValidationError )
+  } )
+
+  it( 'is never used for a summary: resolvePrompt falls back to the default profile', () => {
+    vi.spyOn( console, 'error' ).mockImplementation( () => undefined )
+
+    expect( resolvePrompt( linkerId() ).profile.id ).toBe( defaultId() )
+  } )
+} )

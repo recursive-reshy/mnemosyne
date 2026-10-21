@@ -65,6 +65,7 @@ Each significant decision is recorded as a short ADR (Architecture Decision Reco
 | [0044](decisions/0044-wikilinks-concepts-and-agent-loop.md) | Wikilinks: links only from the new note, concept links, text-tool search and computed kinds | Accepted |
 | [0045](decisions/0045-per-link-review.md) | Per-link review: shared insertion functions and one transaction per accept | Accepted |
 | [0046](decisions/0046-linker-prompt-and-settings.md) | Linker prompt as a prompt profile with a purpose; locked instructions owned by the agent service | Accepted |
+| [0047](decisions/0047-async-settings-and-linking-model-default.md) | Settings resolve the linking model asynchronously; hot paths read narrow accessors | Accepted |
 
 ## Template for new ADRs
 

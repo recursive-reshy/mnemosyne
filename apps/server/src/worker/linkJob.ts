@@ -14,7 +14,7 @@ import {
   recordLinkSuggestions,
 } from '../services/jobs.service.js'
 import { resolveLinkerPrompt } from '../services/prompts.service.js'
-import { getSettings } from '../services/settings.service.js'
+import { resolveLinkingModel } from '../services/settings.service.js'
 
 export const linkJob = async ( jobId: string ): Promise< void > => {
   try {
@@ -26,7 +26,7 @@ export const linkJob = async ( jobId: string ): Promise< void > => {
 
     const { properties, body } = parseNote( job.note_markdown )
     const { version } = resolveLinkerPrompt()
-    const model = getSettings().linking_model
+    const model = await resolveLinkingModel()
 
     let response: LinkResponse
 
