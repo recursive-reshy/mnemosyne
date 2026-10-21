@@ -43,6 +43,9 @@ import {
 import { queueFeedItem } from './inbox.service.js'
 import { listJobs } from './jobs.service.js'
 import { listProfiles } from './prompts.service.js'
+// Logging
+import { logger } from '../logger.js'
+import { getLogContext } from '../logContext.js'
 
 vi.mock( './inbox.service.js', async ( importOriginal ) => {
   const original = await importOriginal< typeof import( './inbox.service.js' ) >()
@@ -544,6 +547,23 @@ describe( 'checkAllFeeds and checkDueFeeds', () => {
     expect( feeds.map( ( { id } ) => id ) ).toEqual( [ 'a' ] )
   } )
 
+  it( 'checks each due feed inside a log context carrying its id', async () => {
+    const seen: ( string | undefined )[] = []
+    const serving = fetchMock.getMockImplementation()!
+    fetchMock.mockImplementation( ( ...args ) => {
+      seen.push( getLogContext()?.feed_id )
+
+      return serving( ...args )
+    } )
+    addFeed( 'a', 'https://a.example/f' )
+    addFeed( 'c', 'https://c.example/f' )
+
+    await checkDueFeeds()
+
+    expect( seen.sort() ).toEqual( [ 'a', 'c' ] )
+    expect( getLogContext() ).toBeUndefined()
+  } )
+
   it( 'checks the due feeds one at a time, the least recently checked first', async () => {
     setSetting( 'feed_check_interval_minutes', 60 )
     const old = new Date( NOW.getTime() - 3 * 3_600_000 ).toISOString()
@@ -649,7 +669,7 @@ describe( 'automatic feeds', () => {
 
   it( 'leaves an item in the inbox, and says so in the log, when it cannot be queued', async () => {
     serve( { [ feedUrl ]: { body: richFeed( 3 ) } } )
-    const errorSpy = vi.spyOn( console, 'error' ).mockImplementation( () => undefined )
+    const errorSpy = vi.spyOn( logger, 'error' ).mockImplementation( () => undefined )
     vi.mocked( queueFeedItem ).mockRejectedValueOnce( new Error( 'boom' ) )
 
     const feed = await createFeed( { url: feedUrl, auto_summarize: true } )

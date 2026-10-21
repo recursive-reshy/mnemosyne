@@ -40,6 +40,9 @@ import {
   stampNewestFirst,
 } from './gmailSources.service.js'
 import { parseMessage } from '../gmail/parseMessage.js'
+// Logging
+import { logger } from '../logger.js'
+import { getLogContext } from '../logContext.js'
 
 vi.mock( '../gmail/gmail.client.js' )
 
@@ -100,8 +103,8 @@ beforeEach( () => {
   vi.resetAllMocks()
   connectGmail()
   serve( {} )
-  vi.spyOn( console, 'error' ).mockImplementation( () => undefined )
-  vi.spyOn( console, 'warn' ).mockImplementation( () => undefined )
+  vi.spyOn( logger, 'error' ).mockImplementation( () => undefined )
+  vi.spyOn( logger, 'warn' ).mockImplementation( () => undefined )
   vi.mocked( listLabels ).mockResolvedValue( [] )
   vi.mocked( listMatchingIds ).mockResolvedValue( idsOf() )
   vi.mocked( getMessage ).mockImplementation( ( id, format = 'full' ) => {
@@ -466,6 +469,22 @@ describe( 'checkDueSources', () => {
     setSetting( 'feed_check_interval_minutes', 15 )
   } )
 
+  it( 'checks each due source inside a log context carrying its id', async () => {
+    const one = addStoredSource( { name: 'One' } )
+    const two = addStoredSource( { name: 'Two' } )
+    const seen: ( string | undefined )[] = []
+    vi.mocked( listMatchingIds ).mockImplementation( () => {
+      seen.push( getLogContext()?.gmail_source_id )
+
+      return Promise.resolve( idsOf() )
+    } )
+
+    await checkDueSources()
+
+    expect( seen.sort() ).toEqual( [ one.id, two.id ].sort() )
+    expect( getLogContext() ).toBeUndefined()
+  } )
+
   it( 'checks the sources not checked within the interval, and counts them', async () => {
     const never = addStoredSource( { name: 'Never' } )
     const stale = addStoredSource( { name: 'Stale', last_checked_at: minutesAgo( 20 ) } )
@@ -603,9 +622,9 @@ describe( 'checkSource: automatic summaries', () => {
 
     expect( statuses( source.id ).sort() ).toEqual( [ 'inbox', 'queued' ] )
     expect( checked.last_error ).toBeNull()
-    expect( console.error ).toHaveBeenCalledWith(
-      expect.stringContaining( 'Subject of m2' ),
-      expect.anything(),
+    expect( logger.error ).toHaveBeenCalledWith(
+      expect.objectContaining( { subject: 'Subject of m2' } ),
+      expect.any( String ),
     )
   } )
 

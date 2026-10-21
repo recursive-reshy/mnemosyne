@@ -30,6 +30,8 @@ import {
   saveAccount,
   setAccountStatus,
 } from '../repositories/gmailAccount.repository.js'
+// Logging
+import { logger } from '../logger.js'
 
 const key = Buffer.alloc( 32, 3 )
 const refreshToken = '1//0g-secret-refresh-token'
@@ -76,7 +78,10 @@ vi.mock( '@googleapis/gmail', () => {
 } )
 
 const configMock = vi.hoisted( () => {
-  const mock: { gmail: Record< string, unknown > | null } = { gmail: null }
+  const mock: { gmail: Record< string, unknown > | null, logLevel: string } = {
+    gmail: null,
+    logLevel: 'silent',
+  }
 
   return mock
 } )
@@ -112,14 +117,14 @@ const grantOnce = ( tokens: Record< string, unknown > ): void => {
   mocks.getProfile.mockResolvedValue( { data: { emailAddress: 'naresh@example.com' } } )
 }
 
-type ConsoleSpy = MockInstance< ( ...args: unknown[] ) => void >
+type LogSpy = MockInstance< ( ...args: unknown[] ) => void >
 
-const consoleSpies = (): ConsoleSpy[] => {
-  return ( [ 'log', 'info', 'warn', 'error', 'debug' ] as const )
-    .map( ( method ) => vi.spyOn( console, method ).mockImplementation( () => undefined ) )
+const logSpies = (): LogSpy[] => {
+  return ( [ 'info', 'warn', 'error', 'debug' ] as const )
+    .map( ( method ) => vi.spyOn( logger, method ).mockImplementation( () => undefined ) )
 }
 
-const logged = ( spies: ConsoleSpy[] ): string => {
+const logged = ( spies: LogSpy[] ): string => {
   return JSON.stringify( spies.flatMap( ( spy ) => spy.mock.calls ) )
 }
 
@@ -313,7 +318,7 @@ describe( 'getGmailClient', () => {
   } )
 
   it( 'marks the account reconnect_needed when the token cannot be decrypted', () => {
-    const spies = consoleSpies()
+    const spies = logSpies()
 
     saveAccount( {
       email: 'naresh@example.com',
@@ -364,7 +369,7 @@ describe( 'withGmail', () => {
       Object.assign( new Error( 'Unauthorized' ), { response: { status: 401 } } ),
     ],
   ] )( 'turns %s into GmailAuthError and reconnect_needed', async ( _name, failure ) => {
-    const spies = consoleSpies()
+    const spies = logSpies()
 
     connectAccount()
 
@@ -398,7 +403,7 @@ describe( 'disconnect', () => {
   } )
 
   it( 'still deletes the account when the revoke fails, without logging the token', async () => {
-    const spies = consoleSpies()
+    const spies = logSpies()
 
     connectAccount()
     mocks.revokeToken.mockRejectedValueOnce(
@@ -437,7 +442,7 @@ describe( 'disconnect', () => {
 
 describe( 'logging', () => {
   it( 'never logs the authorization code on a failed consent', async () => {
-    const spies = consoleSpies()
+    const spies = logSpies()
 
     createConsentUrl()
     mocks.getToken.mockRejectedValueOnce( new Error( `bad code ${ authCode }` ) )

@@ -8,6 +8,8 @@ import { ValidationError } from '../errors.js'
 import { getSetting } from '../repositories/settings.repository.js'
 // Summarizer
 import { SHIPPED_DEFAULT_MODEL } from '../summarizer/models.js'
+// Logging
+import { logger } from '../logger.js'
 
 const CACHE_MS = 3_600_000
 
@@ -35,7 +37,7 @@ export const listModels = async (): Promise< ListModelsResponse > => {
 
     return { models, source: 'api' }
   } catch( error ) {
-    console.error( 'Could not list models', error )
+    logger.error( { err: error }, 'Could not list models' )
 
     const id = currentDefaultModel()
 

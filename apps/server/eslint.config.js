@@ -21,6 +21,10 @@ export default tseslint.config(
     extends: [ tseslint.configs.disableTypeChecked ],
   },
   {
+    files: [ 'src/**/*.ts' ],
+    rules: { 'no-console': 'error' },
+  },
+  {
     plugins: { '@stylistic': stylistic },
     rules: {
       '@stylistic/space-in-parens': [ 'error', 'always' ],

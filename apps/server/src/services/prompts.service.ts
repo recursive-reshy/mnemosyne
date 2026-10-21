@@ -26,6 +26,8 @@ import {
   LINKER_SEED_KEY,
   SEEDED_PROFILES,
 } from '../summarizer/prompts.js'
+// Logging
+import { logger } from '../logger.js'
 
 const NAME_TAKEN = 'A profile with that name already exists'
 const LINKER_LOCKED = 'The linker prompt can\'t be renamed or deleted'
@@ -175,7 +177,10 @@ export const resolvePrompt = (
   }
 
   if( profileId !== null && record === undefined ) {
-    console.error( `Prompt profile ${ profileId } not found; using the default profile` )
+    logger.error(
+      { profile_id: profileId },
+      'Prompt profile not found; using the default profile',
+    )
   }
 
   record ??= findProfileById( defaultProfileId() )

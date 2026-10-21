@@ -2,6 +2,9 @@
 import { findNextRunnableJob } from '../services/jobs.service.js'
 // Worker
 import { runJob } from './runJob.js'
+// Logging
+import { logger } from '../logger.js'
+import { withLogContext } from '../logContext.js'
 
 const POLL_INTERVAL_MS = 1000
 
@@ -15,11 +18,13 @@ export const startWorker = (): ( () => Promise< void > ) => {
       let job = findNextRunnableJob()
 
       while( job !== undefined && !stopped ) {
-        await runJob( job.id )
+        const { id } = job
+
+        await withLogContext( { job_id: id }, () => runJob( id ) )
         job = findNextRunnableJob()
       }
     } catch( error ) {
-      console.error( 'Worker pass failed', error )
+      logger.error( { err: error }, 'Worker pass failed' )
     }
   }
 

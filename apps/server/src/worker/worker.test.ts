@@ -19,6 +19,9 @@ import { clearJobs, updateJob } from '../repositories/jobStore.repository.js'
 // Worker
 import { runJob } from './runJob.js'
 import { startWorker } from './worker.js'
+// Logging
+import { logger } from '../logger.js'
+import { getLogContext } from '../logContext.js'
 
 vi.mock( './runJob.js' )
 
@@ -74,6 +77,22 @@ describe( 'startWorker', () => {
     await vi.advanceTimersByTimeAsync( 0 )
 
     expect( runJobMock ).toHaveBeenCalledWith( id )
+  } )
+
+  it( 'runs each job inside a log context carrying its id', async () => {
+    const id = await queue()
+    const seen: ( string | undefined )[] = []
+    const realistic = runJobMock.getMockImplementation()!
+    runJobMock.mockImplementation( ( jobId ) => {
+      seen.push( getLogContext()?.job_id )
+
+      return realistic( jobId )
+    } )
+
+    stopWorker = startWorker()
+    await vi.advanceTimersByTimeAsync( 0 )
+
+    expect( seen ).toEqual( [ id ] )
   } )
 
   it( 'runs a queued job immediately', async () => {
@@ -150,7 +169,7 @@ describe( 'startWorker', () => {
   } )
 
   it( 'keeps going after a job throws', async () => {
-    const errorSpy = vi.spyOn( console, 'error' ).mockImplementation( () => undefined )
+    const errorSpy = vi.spyOn( logger, 'error' ).mockImplementation( () => undefined )
     const broken = await queue()
     runJobMock.mockRejectedValueOnce( new Error( 'broken' ) )
 
@@ -166,7 +185,7 @@ describe( 'startWorker', () => {
   } )
 
   it( 'makes one call per pass when a job stays queued', async () => {
-    vi.spyOn( console, 'error' ).mockImplementation( () => undefined )
+    vi.spyOn( logger, 'error' ).mockImplementation( () => undefined )
     const id = await queue()
     runJobMock.mockRejectedValue( new Error( 'broken' ) )
 

@@ -69,11 +69,13 @@ import { articleFromText } from '../sources/text.js'
 // Summarizer
 import { estimateCostUsd } from '../summarizer/pricing.js'
 // Lifecycle
-import { STATES, assertMove } from '../jobs/lifecycle.js'
+import { STATES, assertMove as assertTableMove } from '../jobs/lifecycle.js'
 // Services
 import { assertKnownModel } from './models.service.js'
 import { assertActiveProfile } from './prompts.service.js'
 import { isLinkingEnabled } from './settings.service.js'
+// Logging
+import { logger } from '../logger.js'
 
 export type StepStatus = 'fetching' | 'downloading' | 'converting' | 'transcribing'
 
@@ -188,6 +190,16 @@ const expiryFor = ( job: StoredJob, status: JobStatus ): string | null => {
   }
 
   return job.status === status ? job.expires_at : expiryFromNow()
+}
+
+// The table refuses; this logs the refusal, then lets the ConflictError through
+const assertMove = ( job: StoredJob, to: JobStatus ): void => {
+  try {
+    assertTableMove( job, to )
+  } catch( error ) {
+    logger.warn( { from: job.status, to, source_type: job.source_type }, 'Job move refused' )
+    throw error
+  }
 }
 
 const moveTo = ( job: StoredJob, status: JobStatus, changes: Partial< StoredJob > ): Job => {

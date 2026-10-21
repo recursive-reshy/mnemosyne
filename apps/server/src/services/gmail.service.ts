@@ -18,6 +18,8 @@ import {
 import { listLabels as listGmailLabels } from '../gmail/gmail.client.js'
 // Repositories
 import { findAccount } from '../repositories/gmailAccount.repository.js'
+// Logging
+import { logger } from '../logger.js'
 
 export type ConsentFailure = 'denied' | 'state' | 'no_refresh_token' | 'scope' | 'failed'
 
@@ -67,7 +69,7 @@ const failureFor = ( error: unknown ): ConsentFailure => {
     return 'scope'
   }
 
-  console.error( 'Gmail: completing the consent failed' )
+  logger.error( 'Gmail: completing the consent failed' )
   return 'failed'
 }
 

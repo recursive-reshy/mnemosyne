@@ -4,6 +4,8 @@ import { NextFunction, Request, Response } from 'express'
 import { ZodError } from 'zod'
 // Shared
 import { ErrorResponse } from '@mnemosyne/shared'
+// Logging
+import { logger } from './logger.js'
 
 export class ValidationError extends Error {
   constructor( message: string ) {
@@ -90,7 +92,7 @@ export const errorMiddleware = (
   } else if( error instanceof ZodError ) {
     sendError( res, 400, { error: 'Invalid request', issues: error.issues } )
   } else {
-    console.error( error )
+    logger.error( { err: error }, 'Unhandled error' )
     sendError( res, 500, { error: 'Internal Server Error' } )
   }
 }

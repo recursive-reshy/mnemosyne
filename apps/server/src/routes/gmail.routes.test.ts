@@ -25,6 +25,8 @@ import {
 } from '../gmail/auth.js'
 // Repositories
 import { saveAccount, setAccountStatus } from '../repositories/gmailAccount.repository.js'
+// Logging
+import { logger } from '../logger.js'
 
 vi.mock( '../gmail/auth.js', async ( importOriginal ) => ( {
   ...await importOriginal< typeof import( '../gmail/auth.js' ) >(),
@@ -173,7 +175,7 @@ describe( 'GET /api/gmail/oauth/callback', () => {
     [ 'any other failure', '?code=c&state=s', new Error( 'boom' ), 'failed' ],
     [ 'a missing code', '?state=s', undefined, 'failed' ],
   ] )( 'redirects with the reason for %s', async ( _name, query, failure, reason ) => {
-    vi.spyOn( console, 'error' ).mockImplementation( () => undefined )
+    vi.spyOn( logger, 'error' ).mockImplementation( () => undefined )
 
     if( failure !== undefined ) {
       vi.mocked( completeConsent ).mockRejectedValue( failure )
@@ -196,7 +198,7 @@ describe( 'GET /api/gmail/oauth/callback', () => {
 
   it( 'never puts the code or a token in the redirect', async () => {
     vi.mocked( completeConsent ).mockRejectedValue( new Error( 'bad code 4/secret-code' ) )
-    vi.spyOn( console, 'error' ).mockImplementation( () => undefined )
+    vi.spyOn( logger, 'error' ).mockImplementation( () => undefined )
 
     const response = await request( app )
       .get( '/api/gmail/oauth/callback?code=4/secret-code&state=s' )

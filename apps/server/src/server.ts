@@ -7,6 +7,8 @@ import { app } from './app.js'
 import { assertVaultWritable, resolveFolder } from './clients/vault.client.js'
 // Config
 import { config } from './config.js'
+// Logging
+import { logger } from './logger.js'
 // Repositories
 import { closeDatabase, openDatabase } from './repositories/database.js'
 // Services
@@ -25,7 +27,7 @@ try {
   await assertVaultWritable( config.vaultPath )
   await resolveFolder( config.vaultPath, config.defaultNoteFolder )
 } catch( error ) {
-  console.error( error instanceof Error ? error.message : error )
+  logger.error( { err: error }, 'The vault is not ready' )
   process.exit( 1 )
 }
 
@@ -35,7 +37,7 @@ openDatabase( join( config.dataDir, 'mnemosyne.db' ) )
 const interrupted = recoverInterruptedJobs()
 
 if( interrupted > 0 ) {
-  console.log( `Marked ${ interrupted } interrupted job(s) as failed` )
+  logger.info( { interrupted }, 'Marked interrupted jobs as failed' )
 }
 
 const stopSweeper = startSweeper()
@@ -43,7 +45,7 @@ const stopWorker = startWorker()
 const stopIntakePoller = startIntakePoller()
 
 const server = app.listen( config.port, () => {
-  console.log( `Mnemosyne server listening on http://localhost:${ config.port }` )
+  logger.info( { port: config.port }, 'Server listening' )
 } )
 
 const closeServer = (): Promise< void > => new Promise( ( resolve, reject ) => {
@@ -59,7 +61,7 @@ const shutdown = createShutdown( {
   stopIntakePoller,
   timeoutMs: SHUTDOWN_TIMEOUT_MS,
   exit: ( code ) => process.exit( code ),
-  log: ( message ) => console.log( message ),
+  log: ( message ) => logger.info( message ),
 } )
 
 process.on( 'SIGTERM', () => void shutdown( 'SIGTERM' ) )

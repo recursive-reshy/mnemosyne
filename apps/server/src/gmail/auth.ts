@@ -15,6 +15,8 @@ import {
 import type { StoredGmailAccount } from '../repositories/gmailAccount.repository.js'
 // Gmail
 import { TokenDecryptError, decryptToken, encryptToken } from './tokenCipher.js'
+// Logging
+import { logger } from '../logger.js'
 
 export const SCOPE = 'https://www.googleapis.com/auth/gmail.readonly'
 
@@ -156,7 +158,7 @@ const readToken = ( account: StoredGmailAccount, settings: GmailConfig ): string
       throw error
     }
 
-    console.error( 'Gmail: the stored refresh token could not be decrypted' )
+    logger.error( 'Gmail: the stored refresh token could not be decrypted' )
     setAccountStatus( 'reconnect_needed', UNREADABLE_REASON )
     throw new GmailNotConnectedError( UNREADABLE_REASON )
   }
@@ -217,7 +219,7 @@ export const withGmail = async < T >(
       throw error
     }
 
-    console.warn( 'Gmail: Google rejected the stored access' )
+    logger.warn( 'Gmail: Google rejected the stored access' )
     setAccountStatus( 'reconnect_needed', REVOKED_REASON )
     cached = null
     throw new GmailAuthError( REVOKED_REASON )
@@ -236,7 +238,7 @@ export const disconnect = async (): Promise< void > => {
     await buildOAuthClient( settings )
       .revokeToken( decryptToken( account.refresh_token_enc, settings.encryptionKey ) )
   } catch{
-    console.warn( 'Gmail: revoking the token at Google failed; deleting it locally' )
+    logger.warn( 'Gmail: revoking the token at Google failed; deleting it locally' )
   }
 
   deleteAccount()

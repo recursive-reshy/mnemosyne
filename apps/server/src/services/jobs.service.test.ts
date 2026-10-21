@@ -90,6 +90,8 @@ import { formatSrt } from '../formatters/srt.formatter.js'
 import { formatTxt } from '../formatters/txt.formatter.js'
 // Fixtures
 import { transcriptFixture } from '../test-support/transcript.fixture.js'
+// Logging
+import { logger } from '../logger.js'
 
 vi.mock( '../clients/vault.client.js' )
 vi.mock( './models.service.js' )
@@ -251,6 +253,18 @@ describe( 'markStatus', () => {
     expect( () => markStatus( id, 'converting' ) ).toThrow( ConflictError )
     expect( () => markStatus( id, 'converting' ) ).toThrow(
       'Cannot move job from queued to converting',
+    )
+  } )
+
+  it( 'logs a refused move with the statuses and source', async () => {
+    const warnSpy = vi.spyOn( logger, 'warn' ).mockImplementation( () => undefined )
+    const { id } = await queueJob( { url } )
+
+    expect( () => markStatus( id, 'converting' ) ).toThrow( ConflictError )
+
+    expect( warnSpy ).toHaveBeenCalledWith(
+      { from: 'queued', to: 'converting', source_type: 'video' },
+      'Job move refused',
     )
   } )
 

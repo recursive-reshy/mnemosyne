@@ -2,6 +2,8 @@
 import { deleteExpiredJobs } from '../services/jobs.service.js'
 // Config
 import { config } from '../config.js'
+// Logging
+import { logger } from '../logger.js'
 
 const MINUTE_MS = 60_000
 
@@ -11,10 +13,10 @@ export const startSweeper = (): ( () => void ) => {
       const deleted = deleteExpiredJobs()
 
       if( deleted > 0 ) {
-        console.log( `Deleted ${ deleted } expired job(s)` )
+        logger.info( { deleted }, 'Deleted expired jobs' )
       }
     } catch( error ) {
-      console.error( 'Sweep failed', error )
+      logger.error( { err: error }, 'Sweep failed' )
     }
   }
 

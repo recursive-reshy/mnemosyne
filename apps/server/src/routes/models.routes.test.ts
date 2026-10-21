@@ -15,6 +15,8 @@ import { app } from '../app.js'
 import { listSummaryModels } from '../clients/anthropicModels.client.js'
 // Services
 import { clearModelCache } from '../services/models.service.js'
+// Logging
+import { logger } from '../logger.js'
 
 vi.mock( '../clients/anthropicModels.client.js' )
 
@@ -23,7 +25,7 @@ const listMock = vi.mocked( listSummaryModels )
 beforeEach( () => {
   vi.resetAllMocks()
   clearModelCache()
-  vi.spyOn( console, 'error' ).mockImplementation( () => undefined )
+  vi.spyOn( logger, 'error' ).mockImplementation( () => undefined )
 } )
 
 describe( 'GET /api/models', () => {

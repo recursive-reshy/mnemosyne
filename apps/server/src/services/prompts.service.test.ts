@@ -32,6 +32,8 @@ import {
   restoreVersion,
   saveVersion,
 } from './prompts.service.js'
+// Logging
+import { logger } from '../logger.js'
 
 const byName = ( name: string ): string => {
   const profile = listProfiles().find( ( candidate ) => candidate.name === name )
@@ -244,7 +246,7 @@ describe( 'listVersions', () => {
 
 describe( 'resolvePrompt', () => {
   beforeEach( () => {
-    vi.spyOn( console, 'error' ).mockImplementation( () => undefined )
+    vi.spyOn( logger, 'error' ).mockImplementation( () => undefined )
   } )
 
   afterEach( () => {
@@ -279,7 +281,7 @@ describe( 'resolvePrompt', () => {
     const { profile } = resolvePrompt( crypto.randomUUID() )
 
     expect( profile.id ).toBe( defaultId() )
-    expect( console.error ).toHaveBeenCalled()
+    expect( logger.error ).toHaveBeenCalled()
   } )
 } )
 
@@ -367,7 +369,7 @@ describe( 'the linker profile', () => {
   } )
 
   it( 'is never used for a summary: resolvePrompt falls back to the default profile', () => {
-    vi.spyOn( console, 'error' ).mockImplementation( () => undefined )
+    vi.spyOn( logger, 'error' ).mockImplementation( () => undefined )
 
     expect( resolvePrompt( linkerId() ).profile.id ).toBe( defaultId() )
   } )

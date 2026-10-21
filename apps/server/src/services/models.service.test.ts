@@ -19,6 +19,8 @@ import {
   clearModelCache,
   listModels,
 } from './models.service.js'
+// Logging
+import { logger } from '../logger.js'
 
 vi.mock( '../clients/anthropicModels.client.js' )
 
@@ -36,7 +38,7 @@ beforeEach( () => {
   vi.resetAllMocks()
   clearModelCache()
   listMock.mockResolvedValue( options )
-  vi.spyOn( console, 'error' ).mockImplementation( () => undefined )
+  vi.spyOn( logger, 'error' ).mockImplementation( () => undefined )
 } )
 
 afterEach( () => {
@@ -72,7 +74,7 @@ describe( 'listModels', () => {
       models: [ { id: 'claude-sonnet-5-5', display_name: 'claude-sonnet-5-5' } ],
       source: 'fallback',
     } )
-    expect( console.error ).toHaveBeenCalled()
+    expect( logger.error ).toHaveBeenCalled()
   } )
 
   it( 'falls back to the saved default model when there is one', async () => {

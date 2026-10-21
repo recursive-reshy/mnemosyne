@@ -1,6 +1,8 @@
 // Services
 import { checkDueFeeds } from '../services/feeds.service.js'
 import { checkDueSources } from '../services/gmailSources.service.js'
+// Logging
+import { logger } from '../logger.js'
 
 const TICK_MS = 60_000
 
@@ -14,20 +16,20 @@ export const startIntakePoller = (): ( () => Promise< void > ) => {
       const checked = await checkDueFeeds()
 
       if( checked > 0 ) {
-        console.log( `Checked ${ checked } feed(s)` )
+        logger.info( { checked }, 'Checked feeds' )
       }
     } catch( error ) {
-      console.error( 'Feed check failed', error )
+      logger.error( { err: error }, 'Feed check failed' )
     }
 
     try {
       const checked = await checkDueSources()
 
       if( checked > 0 ) {
-        console.log( `Checked ${ checked } Gmail source(s)` )
+        logger.info( { checked }, 'Checked Gmail sources' )
       }
     } catch( error ) {
-      console.error( 'Gmail source check failed', error )
+      logger.error( { err: error }, 'Gmail source check failed' )
     }
   }
 

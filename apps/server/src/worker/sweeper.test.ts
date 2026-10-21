@@ -11,9 +11,11 @@ import {
 import { deleteExpiredJobs } from '../services/jobs.service.js'
 // Worker
 import { startSweeper } from './sweeper.js'
+// Logging
+import { logger } from '../logger.js'
 
 vi.mock( '../services/jobs.service.js' )
-vi.mock( '../config.js', () => ( { config: { cleanupIntervalMinutes: 15 } } ) )
+vi.mock( '../config.js', () => ( { config: { cleanupIntervalMinutes: 15, logLevel: 'silent' } } ) )
 
 const deleteMock = vi.mocked( deleteExpiredJobs )
 const INTERVAL_MS = 15 * 60_000
@@ -63,16 +65,16 @@ describe( 'startSweeper', () => {
   } )
 
   it( 'logs how many jobs it deleted when there were some', () => {
-    const logSpy = vi.spyOn( console, 'log' ).mockImplementation( () => undefined )
+    const logSpy = vi.spyOn( logger, 'info' ).mockImplementation( () => undefined )
     deleteMock.mockReturnValue( 2 )
 
     startSweeper()()
 
-    expect( logSpy ).toHaveBeenCalledWith( 'Deleted 2 expired job(s)' )
+    expect( logSpy ).toHaveBeenCalledWith( { deleted: 2 }, 'Deleted expired jobs' )
   } )
 
   it( 'stays quiet when nothing expired', () => {
-    const logSpy = vi.spyOn( console, 'log' ).mockImplementation( () => undefined )
+    const logSpy = vi.spyOn( logger, 'info' ).mockImplementation( () => undefined )
 
     startSweeper()()
 
@@ -80,7 +82,7 @@ describe( 'startSweeper', () => {
   } )
 
   it( 'keeps running after a sweep throws', async () => {
-    const errorSpy = vi.spyOn( console, 'error' ).mockImplementation( () => undefined )
+    const errorSpy = vi.spyOn( logger, 'error' ).mockImplementation( () => undefined )
     deleteMock.mockImplementationOnce( () => {
       throw new Error( 'db locked' )
     } )

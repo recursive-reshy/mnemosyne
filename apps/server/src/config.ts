@@ -108,6 +108,7 @@ const loadConfigOrExit = ( env: NodeJS.ProcessEnv ): Config => {
   try {
     return loadConfig( env )
   } catch( error ) {
+    // eslint-disable-next-line no-console -- runs before the logger, which needs the config
     console.error( error instanceof Error ? error.message : error )
     return process.exit( 1 )
   }

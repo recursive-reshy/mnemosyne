@@ -20,6 +20,7 @@ vi.mock( './config.js', () => ( {
     port: 3100,
     whisperUrl: 'http://localhost:8178',
     workDir: '/work',
+    logLevel: 'silent',
     whisperModel: 'test-model',
     get webDir(): string {
       return state.webDir

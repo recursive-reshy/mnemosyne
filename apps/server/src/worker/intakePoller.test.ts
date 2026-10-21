@@ -12,6 +12,8 @@ import { checkDueFeeds } from '../services/feeds.service.js'
 import { checkDueSources } from '../services/gmailSources.service.js'
 // Worker
 import { startIntakePoller } from './intakePoller.js'
+// Logging
+import { logger } from '../logger.js'
 
 vi.mock( '../services/feeds.service.js' )
 vi.mock( '../services/gmailSources.service.js' )
@@ -93,7 +95,7 @@ describe( 'startIntakePoller', () => {
   } )
 
   it( 'keeps going after a pass fails, and logs it', async () => {
-    const errorSpy = vi.spyOn( console, 'error' ).mockImplementation( () => undefined )
+    const errorSpy = vi.spyOn( logger, 'error' ).mockImplementation( () => undefined )
     checkMock.mockRejectedValueOnce( new Error( 'boom' ) )
     stop = startIntakePoller()
 
@@ -104,13 +106,13 @@ describe( 'startIntakePoller', () => {
   } )
 
   it( 'logs how many feeds were checked when there were some', async () => {
-    const logSpy = vi.spyOn( console, 'log' ).mockImplementation( () => undefined )
+    const logSpy = vi.spyOn( logger, 'info' ).mockImplementation( () => undefined )
     checkMock.mockResolvedValueOnce( 2 )
     stop = startIntakePoller()
 
     await vi.advanceTimersByTimeAsync( TICK_MS )
 
-    expect( logSpy ).toHaveBeenCalledWith( 'Checked 2 feed(s)' )
+    expect( logSpy ).toHaveBeenCalledWith( { checked: 2 }, 'Checked feeds' )
   } )
 
   describe( 'Gmail sources', () => {
@@ -134,7 +136,7 @@ describe( 'startIntakePoller', () => {
     } )
 
     it( 'still checks the sources when the feeds fail, and logs the failure', async () => {
-      const errorSpy = vi.spyOn( console, 'error' ).mockImplementation( () => undefined )
+      const errorSpy = vi.spyOn( logger, 'error' ).mockImplementation( () => undefined )
       checkMock.mockRejectedValueOnce( new Error( 'feeds down' ) )
       stop = startIntakePoller()
 
@@ -145,7 +147,7 @@ describe( 'startIntakePoller', () => {
     } )
 
     it( 'keeps checking feeds when the sources fail, and logs the failure', async () => {
-      const errorSpy = vi.spyOn( console, 'error' ).mockImplementation( () => undefined )
+      const errorSpy = vi.spyOn( logger, 'error' ).mockImplementation( () => undefined )
       sourcesMock.mockRejectedValueOnce( new Error( 'gmail down' ) )
       stop = startIntakePoller()
 
@@ -157,14 +159,14 @@ describe( 'startIntakePoller', () => {
     } )
 
     it( 'logs how many sources were checked when there were some', async () => {
-      const logSpy = vi.spyOn( console, 'log' ).mockImplementation( () => undefined )
+      const logSpy = vi.spyOn( logger, 'info' ).mockImplementation( () => undefined )
       sourcesMock.mockResolvedValueOnce( 3 )
       stop = startIntakePoller()
 
       await vi.advanceTimersByTimeAsync( TICK_MS )
 
-      expect( logSpy ).toHaveBeenCalledWith( 'Checked 3 Gmail source(s)' )
-      expect( logSpy ).not.toHaveBeenCalledWith( expect.stringContaining( 'feed(s)' ) )
+      expect( logSpy ).toHaveBeenCalledWith( { checked: 3 }, 'Checked Gmail sources' )
+      expect( logSpy ).not.toHaveBeenCalledWith( expect.anything(), 'Checked feeds' )
     } )
 
     it( 'does not overlap passes while the sources are being checked', async () => {

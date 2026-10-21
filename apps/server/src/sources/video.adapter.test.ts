@@ -19,13 +19,19 @@ import { transcribeAudio } from '../clients/whisperServer.client.js'
 // Sources
 import type { AdapterContext } from './adapter.js'
 import { videoAdapter } from './video.adapter.js'
+// Logging
+import { logger } from '../logger.js'
 
 vi.mock( '../clients/ytDlp.client.js' )
 vi.mock( '../clients/ffmpeg.client.js' )
 vi.mock( '../clients/whisperServer.client.js' )
 vi.mock( 'node:fs/promises' )
 vi.mock( '../config.js', () => ( {
-  config: { whisperUrl: 'http://whisper:8178', whisperModel: 'test-model' },
+  config: {
+    whisperUrl: 'http://whisper:8178',
+    whisperModel: 'test-model',
+    logLevel: 'silent',
+  },
 } ) )
 
 const NOW = '2026-10-14T12:00:00.000Z'
@@ -154,7 +160,7 @@ describe( 'videoAdapter.acquire', () => {
   } )
 
   it( 'still returns the document when cleanup fails, and logs it', async () => {
-    const errorSpy = vi.spyOn( console, 'error' ).mockImplementation( () => undefined )
+    const errorSpy = vi.spyOn( logger, 'error' ).mockImplementation( () => undefined )
     rmMock.mockRejectedValue( new Error( 'disk' ) )
 
     await expect( videoAdapter.acquire( context() ) ).resolves.toMatchObject( { kind: 'video' } )

@@ -23,6 +23,8 @@ import {
   resolveLinkerPrompt,
   resolvePrompt,
 } from './prompts.service.js'
+// Logging
+import { logger } from '../logger.js'
 
 const DEFAULT_FEED_INTERVAL = 60
 
@@ -61,7 +63,7 @@ export const resolveLinkingModel = async (): Promise< string > => {
 
     return models.find( ( { id } ) => id.includes( 'haiku' ) )?.id ?? SHIPPED_DEFAULT_MODEL
   } catch( error ) {
-    console.error( 'Could not pick a linking model', error )
+    logger.error( { err: error }, 'Could not pick a linking model' )
 
     return SHIPPED_DEFAULT_MODEL
   }

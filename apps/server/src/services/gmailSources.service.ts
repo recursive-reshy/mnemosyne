@@ -47,6 +47,9 @@ import { countPostingsForSource } from '../repositories/postings.repository.js'
 import { queueNewsletterMessage } from './inbox.service.js'
 import { assertActiveProfile } from './prompts.service.js'
 import { getFeedCheckInterval } from './settings.service.js'
+// Logging
+import { logger } from '../logger.js'
+import { withLogContext } from '../logContext.js'
 
 const DAY_MS = 86_400_000
 const MARGIN_DAYS = 2
@@ -337,7 +340,10 @@ const queueAutomatically = async (
     try {
       await queueNewsletterMessage( source, row )
     } catch( error ) {
-      console.error( `Could not queue "${ row.subject }" from ${ source.name }`, error )
+      logger.error(
+        { err: error, source_name: source.name, subject: row.subject },
+        'Could not queue newsletter email',
+      )
     }
   }
 }
@@ -562,15 +568,18 @@ export const checkDueSources = async (): Promise< number > => {
 
   for( const source of due ) {
     try {
-      await runCheck( source )
+      await withLogContext( { gmail_source_id: source.id }, () => runCheck( source ) )
       checked += 1
     } catch( error ) {
       if( error instanceof GmailAuthError ) {
-        console.warn( 'Gmail sources paused: Google no longer accepts the stored access' )
+        logger.warn( 'Gmail sources paused: Google no longer accepts the stored access' )
         break
       }
 
-      console.error( `Checking Gmail source ${ source.name } failed`, error )
+      logger.error(
+        { err: error, gmail_source_id: source.id, source_name: source.name },
+        'Gmail source check failed',
+      )
     }
   }
 

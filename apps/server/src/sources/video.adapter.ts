@@ -10,6 +10,8 @@ import { transcribeAudio } from '../clients/whisperServer.client.js'
 import { config } from '../config.js'
 // Sources
 import type { SourceAdapter } from './adapter.js'
+// Logging
+import { logger } from '../logger.js'
 
 const RETRY_DELAY_MS = 3000
 const removeOptions = { recursive: true, force: true }
@@ -58,7 +60,7 @@ export const videoAdapter: SourceAdapter = {
       try {
         await rm( workDir, removeOptions )
       } catch( cleanupError ) {
-        console.error( `Could not remove work folder ${ workDir }`, cleanupError )
+        logger.error( { err: cleanupError, workDir }, 'Could not remove work folder' )
       }
     }
   },

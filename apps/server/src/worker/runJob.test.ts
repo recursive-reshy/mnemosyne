@@ -32,6 +32,8 @@ import { linkJob } from './linkJob.js'
 import { summarizeJob } from './summarizeJob.js'
 // Node
 import { rm } from 'node:fs/promises'
+// Logging
+import { logger } from '../logger.js'
 
 vi.mock( '../clients/ytDlp.client.js' )
 vi.mock( '../clients/ffmpeg.client.js' )
@@ -41,7 +43,12 @@ vi.mock( './linkJob.js' )
 vi.mock( '../sources/extractArticle.js' )
 vi.mock( 'node:fs/promises' )
 vi.mock( '../config.js', () => ( {
-  config: { workDir: '/work', whisperUrl: 'http://whisper:8178', whisperModel: 'test-model' },
+  config: {
+    workDir: '/work',
+    whisperUrl: 'http://whisper:8178',
+    whisperModel: 'test-model',
+    logLevel: 'silent',
+  },
 } ) )
 
 const NOW = '2026-10-14T12:00:00.000Z'
@@ -204,7 +211,7 @@ describe( 'runJob', () => {
 
   it( 'keeps the job summarizing and resolves when cleanup fails', async () => {
     const id = await queue()
-    const errorSpy = vi.spyOn( console, 'error' ).mockImplementation( () => undefined )
+    const errorSpy = vi.spyOn( logger, 'error' ).mockImplementation( () => undefined )
     rmMock.mockRejectedValue( new Error( 'disk' ) )
 
     await expect( runJob( id ) ).resolves.toBeUndefined()

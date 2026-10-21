@@ -24,6 +24,8 @@ import {
   errorMiddleware,
   notFoundHandler,
 } from './errors.js'
+// Logging
+import { logger } from './logger.js'
 
 const buildApp = (): Express => {
   const testApp: Express = express()
@@ -112,14 +114,17 @@ describe( 'errorMiddleware', () => {
   } )
 
   it( 'logs an unexpected error and responds with a generic 500', async () => {
-    const consoleError = vi.spyOn( console, 'error' ).mockImplementation( () => {} )
+    const consoleError = vi.spyOn( logger, 'error' ).mockImplementation( () => {} )
 
     const response = await request( buildApp() ).get( '/boom' )
 
     expect( response.status ).toBe( 500 )
     expect( response.body ).toEqual( { error: 'Internal Server Error' } )
     expect( response.text ).not.toContain( 'boom' )
-    expect( consoleError ).toHaveBeenCalledWith( expect.objectContaining( { message: 'boom' } ) )
+    expect( consoleError ).toHaveBeenCalledWith(
+      { err: expect.objectContaining( { message: 'boom' } ) as unknown },
+      'Unhandled error',
+    )
   } )
 
   it( 'forwards a rejected async handler to the middleware', async () => {

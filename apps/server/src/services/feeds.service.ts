@@ -45,6 +45,9 @@ import type { FeedItemData, ParsedFeed } from '../sources/feeds.js'
 import { queueFeedItem } from './inbox.service.js'
 import { assertActiveProfile } from './prompts.service.js'
 import { getFeedCheckInterval } from './settings.service.js'
+// Logging
+import { logger } from '../logger.js'
+import { withLogContext } from '../logContext.js'
 
 const MAX_NEW_ITEMS_PER_CHECK = 10
 
@@ -136,7 +139,10 @@ const queueAutomatically = async ( feed: StoredFeed, items: StoredFeedItem[] ): 
     try {
       await queueFeedItem( feed, item )
     } catch( error ) {
-      console.error( `Could not queue "${ item.title }" from ${ feed.name }`, error )
+      logger.error(
+        { err: error, feed_name: feed.name, item_title: item.title },
+        'Could not queue feed item',
+      )
     }
   }
 }
@@ -360,10 +366,13 @@ export const checkDueFeeds = async (): Promise< number > => {
 
   for( const feed of due ) {
     try {
-      await checkFeed( feed.id )
+      await withLogContext( { feed_id: feed.id }, () => checkFeed( feed.id ) )
       checked += 1
     } catch( error ) {
-      console.error( `Checking feed ${ feed.name } failed`, error )
+      logger.error(
+        { err: error, feed_id: feed.id, feed_name: feed.name },
+        'Feed check failed',
+      )
     }
   }
 
