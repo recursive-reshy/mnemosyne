@@ -15,7 +15,6 @@ import {
   NoteParseError,
   ArticleSource,
   SourceDocument,
-  SourceType,
   SubmitPastedTextBody,
   Transcript,
   UpdateDraftBody,
@@ -69,21 +68,14 @@ import { insertSummaryRun, listRunsForJob } from '../repositories/summaryRuns.re
 import { articleFromText } from '../sources/text.js'
 // Summarizer
 import { estimateCostUsd } from '../summarizer/pricing.js'
+// Lifecycle
+import { STATES, assertMove } from '../jobs/lifecycle.js'
 // Services
 import { assertKnownModel } from './models.service.js'
 import { assertActiveProfile } from './prompts.service.js'
 import { isLinkingEnabled } from './settings.service.js'
 
 export type StepStatus = 'fetching' | 'downloading' | 'converting' | 'transcribing'
-
-const nextStep: Record< SourceType, Partial< Record< JobStatus, StepStatus > > > = {
-  video: {
-    queued: 'downloading',
-    downloading: 'converting',
-    converting: 'transcribing',
-  },
-  article: { queued: 'fetching' },
-}
 
 const transcriptFormats = {
   md: { contentType: 'text/markdown; charset=utf-8', formatter: formatMarkdown },
@@ -97,12 +89,6 @@ type RenderedTranscript = {
   body: string
 }
 
-const finalStatuses: JobStatus[] = [
-  'failed',
-  'ready_for_review',
-  'summary_failed',
-  'saved',
-]
 const downloadableStatuses: JobStatus[] = [ 'ready_for_review', 'summary_failed' ]
 const HOUR_MS = 3_600_000
 
@@ -195,8 +181,20 @@ const requireJob = ( id: string ): StoredJob => {
   return job
 }
 
+// A caller passes `expires_at` only for the autosave reset; otherwise the target state decides
+const expiryFor = ( job: StoredJob, status: JobStatus ): string | null => {
+  if( !STATES[ status ].expires ) {
+    return null
+  }
+
+  return job.status === status ? job.expires_at : expiryFromNow()
+}
+
 const moveTo = ( job: StoredJob, status: JobStatus, changes: Partial< StoredJob > ): Job => {
+  assertMove( job, status )
+
   const updated = updateJob( job.id, {
+    expires_at: expiryFor( job, status ),
     ...changes,
     status,
     updated_at: new Date().toISOString(),
@@ -211,6 +209,16 @@ const moveTo = ( job: StoredJob, status: JobStatus, changes: Partial< StoredJob 
 
 const conflict = ( from: JobStatus, to: JobStatus ): ConflictError => {
   return new ConflictError( `Cannot move job from ${ from } to ${ to }` )
+}
+
+// The table says which moves exist; a function that makes one move also names the single
+// status it starts from, because the same target can be reached from others
+const assertFrom = ( job: StoredJob, from: JobStatus, to: JobStatus ): void => {
+  if( job.status !== from ) {
+    throw conflict( job.status, to )
+  }
+
+  assertMove( job, to )
 }
 
 type SummaryChoices = { model?: string | undefined, profile_id?: string | undefined }
@@ -294,14 +302,7 @@ export const findNextRunnableJob = (): Job | undefined => {
 }
 
 export const markStatus = ( id: string, status: StepStatus ): Job => {
-  const job = requireJob( id )
-  const allowed = nextStep[ job.source_type ][ job.status ]
-
-  if( allowed !== status ) {
-    throw conflict( job.status, status )
-  }
-
-  return moveTo( job, status, {} )
+  return moveTo( requireJob( id ), status, {} )
 }
 
 export const completeAcquisition = ( id: string, document: SourceDocument ): Job => {
@@ -326,9 +327,7 @@ export const completeSummary = (
 ): Job => {
   const job = requireJob( id )
 
-  if( job.status !== 'summarizing' ) {
-    throw conflict( job.status, 'ready_for_review' )
-  }
+  assertFrom( job, 'summarizing', 'ready_for_review' )
 
   const document = getSource( id )
 
@@ -345,36 +344,23 @@ export const completeSummary = (
     error: null,
     link_state: linking ? 'pending' : 'off',
     link_error: null,
-    expires_at: linking ? null : expiryFromNow(),
   } )
 }
 
 export const completeLinking = ( id: string ): Job => {
   const job = requireJob( id )
 
-  if( job.status !== 'linking' ) {
-    throw conflict( job.status, 'ready_for_review' )
-  }
+  assertFrom( job, 'linking', 'ready_for_review' )
 
-  return moveTo( job, 'ready_for_review', {
-    link_state: 'linked',
-    link_error: null,
-    expires_at: expiryFromNow(),
-  } )
+  return moveTo( job, 'ready_for_review', { link_state: 'linked', link_error: null } )
 }
 
 export const failLinking = ( id: string, message: string ): Job => {
   const job = requireJob( id )
 
-  if( job.status !== 'linking' ) {
-    throw conflict( job.status, 'ready_for_review' )
-  }
+  assertFrom( job, 'linking', 'ready_for_review' )
 
-  return moveTo( job, 'ready_for_review', {
-    link_state: 'failed',
-    link_error: message,
-    expires_at: expiryFromNow(),
-  } )
+  return moveTo( job, 'ready_for_review', { link_state: 'failed', link_error: message } )
 }
 
 export const recordLinkRun = (
@@ -441,21 +427,15 @@ export const recordSummaryRun = (
 export const failSummary = ( id: string, message: string ): Job => {
   const job = requireJob( id )
 
-  if( job.status !== 'summarizing' ) {
-    throw conflict( job.status, 'summary_failed' )
-  }
-
-  return moveTo( job, 'summary_failed', { error: message, expires_at: expiryFromNow() } )
+  return moveTo( job, 'summary_failed', { error: message } )
 }
 
 export const retrySummary = ( id: string ): Job => {
   const job = requireJob( id )
 
-  if( job.status !== 'summary_failed' ) {
-    throw conflict( job.status, 'summarizing' )
-  }
+  assertFrom( job, 'summary_failed', 'summarizing' )
 
-  return moveTo( job, 'summarizing', { error: null, expires_at: null } )
+  return moveTo( job, 'summarizing', { error: null } )
 }
 
 export const regenerateSummary = async (
@@ -464,9 +444,7 @@ export const regenerateSummary = async (
 ): Promise< Job > => {
   const job = requireJob( id )
 
-  if( job.status !== 'ready_for_review' ) {
-    throw conflict( job.status, 'summarizing' )
-  }
+  assertFrom( job, 'ready_for_review', 'summarizing' )
 
   await validateChoices( choices )
 
@@ -478,7 +456,6 @@ export const regenerateSummary = async (
     error: null,
     link_state: null,
     link_error: null,
-    expires_at: null,
   } )
 }
 
@@ -491,9 +468,7 @@ export const listLinkSuggestions = ( id: string ): StoredLinkSuggestion[] => {
 export const runLinking = ( id: string, body: RunLinkingBody ): Job => {
   const job = requireJob( id )
 
-  if( job.status !== 'ready_for_review' ) {
-    throw conflict( job.status, 'linking' )
-  }
+  assertFrom( job, 'ready_for_review', 'linking' )
 
   if( config.agent === null ) {
     throw new ConflictError( 'Linking isn\'t configured' )
@@ -509,7 +484,6 @@ export const runLinking = ( id: string, body: RunLinkingBody ): Job => {
     return moveTo( requireJob( id ), 'linking', {
       link_state: 'pending',
       link_error: null,
-      expires_at: null,
     } )
   } )
 }
@@ -531,9 +505,7 @@ export const acceptSuggestions = (
 ): LinkSuggestionsResponse => {
   const job = requireJob( id )
 
-  if( job.status !== 'ready_for_review' ) {
-    throw conflict( job.status, 'ready_for_review' )
-  }
+  assertFrom( job, 'ready_for_review', 'ready_for_review' )
 
   assertPendingSuggestions( id, body.ids )
 
@@ -552,9 +524,7 @@ export const rejectSuggestions = (
 ): LinkSuggestionsResponse => {
   const job = requireJob( id )
 
-  if( job.status !== 'ready_for_review' ) {
-    throw conflict( job.status, 'ready_for_review' )
-  }
+  assertFrom( job, 'ready_for_review', 'ready_for_review' )
 
   assertPendingSuggestions( id, body.ids )
   setStatus( body.ids, 'rejected', new Date().toISOString() )
@@ -614,10 +584,6 @@ export const submitPastedText = (
 export const failJob = ( id: string, message: string ): Job => {
   const job = requireJob( id )
 
-  if( finalStatuses.includes( job.status ) ) {
-    throw conflict( job.status, 'failed' )
-  }
-
   return moveTo( job, 'failed', { error: message } )
 }
 
@@ -648,9 +614,7 @@ const today = (): string => new Date().toISOString().slice( 0, 10 )
 export const updateDraft = ( id: string, body: UpdateDraftBody ): Job => {
   const job = requireJob( id )
 
-  if( job.status !== 'ready_for_review' ) {
-    throw conflict( job.status, 'ready_for_review' )
-  }
+  assertFrom( job, 'ready_for_review', 'ready_for_review' )
 
   if( job.source_document === null ) {
     throw new Error( `Job ${ id } is ${ job.status } but has no transcript` )
@@ -700,9 +664,7 @@ export const updateDraft = ( id: string, body: UpdateDraftBody ): Job => {
 export const saveJob = async ( id: string ): Promise< string > => {
   const job = requireJob( id )
 
-  if( job.status !== 'ready_for_review' ) {
-    throw conflict( job.status, 'saved' )
-  }
+  assertMove( job, 'saved' )
 
   if( job.source_document === null ) {
     throw new Error( `Job ${ id } is ${ job.status } but has no transcript` )
@@ -728,7 +690,6 @@ export const saveJob = async ( id: string ): Promise< string > => {
     saved_path: savedPath,
     title: note.properties.title,
     source_document: null,
-    expires_at: null,
   } )
 
   return savedPath

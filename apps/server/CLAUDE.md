@@ -47,6 +47,7 @@ src/
   config.ts          env parsed with Zod
   shutdown.ts        signal handling: stop the sweeper, the worker, the intake poller and the server, close the store, exit; with a timeout
   errors.ts          typed errors and the error middleware
+  jobs/              lifecycle.ts (ADR 0048): the pure table of job statuses, their properties and allowed moves, `canMove`, `assertMove`, `statusesWhere` and the link-state moves; no imports from services or repositories
   routes/            <name>.routes.ts: an Express Router wiring paths to controller functions, nothing else
   controllers/       <name>.controller.ts: HTTP only (parse the request with Zod, call a service, send the response)
   services/          <name>.service.ts: business rules and job state changes (jobs, vault, settings, prompts, models, feeds, inbox, gmail, gmailSources: the sources, their sync and checks)
@@ -65,7 +66,7 @@ The order is routes → controllers → services → repositories, and every req
 
 - **Routes** map a method and path to a controller function. They hold no logic, validation or try/catch.
 - **Controllers** read `params`, `query` and `body`, validate them with a Zod schema, call one service function, and send the response with an explicit status code. They never touch the job store, a client or the worker.
-- **Services** hold the business rules, change job state, call repositories and formatters, and throw typed errors.
+- **Services** hold the business rules, change job state, call repositories and formatters, and throw typed errors. Every status change goes through `moveTo()` in `jobs.service.ts`, which refuses any move `jobs/lifecycle.ts` doesn't list and sets or clears `expires_at` from the target state; callers don't pass `expires_at` except the autosave reset. A function that makes one move also names the one status it starts from (`assertFrom`), because the same target can be reached from several.
 - **Repositories** hold and query the SQLite database (better-sqlite3, ADR 0012) behind synchronous free functions, and nothing else. `database.ts` owns the connection and the migrations (`openDatabase` / `closeDatabase` from `server.ts` and `shutdown.ts`, `getDatabase` from the other repositories); tests open `':memory:'` through `test-support/database.setup.ts`.
 - **Clients** wrap one external tool each: run the command or make the HTTP call, parse the output with Zod, return typed data, and throw on failure. They hold no job logic.
 - **The sweeper** calls one service function on a timer and deletes expired jobs; it never touches repositories.
