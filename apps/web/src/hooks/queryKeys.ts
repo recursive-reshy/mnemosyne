@@ -4,6 +4,10 @@ export const jobKeys = {
   source: ( id: string ) => [ 'jobs', id, 'source' ] as const,
 }
 
+export const linkSuggestionKeys = {
+  list: ( jobId: string ) => [ 'jobs', jobId, 'link-suggestions' ] as const,
+}
+
 export const vaultKeys = {
   folders: [ 'vault', 'folders' ] as const,
 }

@@ -33,6 +33,8 @@ type State = ReturnType< typeof useSettings >
 const state = ( overrides: Partial< State > = {} ): State => ( {
   settings: settingsFixture().settings,
   lockedInstructions: settingsFixture().locked_instructions,
+  linkerLockedInstructions: settingsFixture().linker_locked_instructions,
+  agentStatus: settingsFixture().agent_status,
   isLoading: false,
   error: null,
   updateSettings: mutationStub(),

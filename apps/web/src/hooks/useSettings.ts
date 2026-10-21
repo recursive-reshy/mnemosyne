@@ -14,6 +14,8 @@ import { settingsKeys } from './queryKeys'
 export interface SettingsState {
   settings: Settings | null
   lockedInstructions: GetSettingsResponse[ 'locked_instructions' ] | null
+  linkerLockedInstructions: string | null
+  agentStatus: GetSettingsResponse[ 'agent_status' ] | null
   isLoading: boolean
   error: string | null
   updateSettings: UseMutationResult< GetSettingsResponse, Error, UpdateSettingsBody >
@@ -35,6 +37,8 @@ export function useSettings(): SettingsState {
   return {
     settings: data?.settings ?? null,
     lockedInstructions: data?.locked_instructions ?? null,
+    linkerLockedInstructions: data?.linker_locked_instructions ?? null,
+    agentStatus: data?.agent_status ?? null,
     isLoading: isPending,
     error: error === null ? null : error.message,
     updateSettings: update,

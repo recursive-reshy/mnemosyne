@@ -46,6 +46,34 @@ describe( 'useSettings', () => {
     } )
   } )
 
+  it( 'returns the agent status and the linker locked instructions', async () => {
+    mockedGet.mockResolvedValue( {
+      ...settingsFixture(),
+      linker_locked_instructions: null,
+      agent_status: 'unavailable',
+    } )
+    const { result } = renderHookWithClient( () => useSettings() )
+
+    expect( result.current ).toMatchObject( { agentStatus: null, linkerLockedInstructions: null } )
+
+    await vi.waitFor( () => expect( result.current.isLoading ).toBe( false ) )
+    expect( result.current ).toMatchObject( {
+      agentStatus: 'unavailable',
+      linkerLockedInstructions: null,
+    } )
+  } )
+
+  it( 'returns the linker locked instructions when the agent answers', async () => {
+    mockedGet.mockResolvedValue( settingsFixture() )
+    const { result } = renderHookWithClient( () => useSettings() )
+
+    await vi.waitFor( () => expect( result.current.isLoading ).toBe( false ) )
+    expect( result.current ).toMatchObject( {
+      agentStatus: 'ok',
+      linkerLockedInstructions: 'You propose links.',
+    } )
+  } )
+
   it( 'reports a load error', async () => {
     mockedGet.mockRejectedValue( new ApiError( 'Could not reach the server', null ) )
     const { result } = renderHookWithClient( () => useSettings() )

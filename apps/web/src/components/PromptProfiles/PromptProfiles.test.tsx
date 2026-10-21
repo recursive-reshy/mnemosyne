@@ -86,6 +86,8 @@ beforeEach( () => {
   mockedSettings.mockReturnValue( {
     settings: settingsFixture().settings,
     lockedInstructions: { video: 'locked', article: 'locked' },
+    linkerLockedInstructions: settingsFixture().linker_locked_instructions,
+    agentStatus: settingsFixture().agent_status,
     isLoading: false,
     error: null,
     updateSettings: mutationStub(),

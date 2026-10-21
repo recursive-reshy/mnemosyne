@@ -115,6 +115,15 @@ describe( 'useJob', () => {
     expect( mockedGetJob ).toHaveBeenCalledTimes( 3 )
   } )
 
+  it( 'keeps polling while linking', async () => {
+    mockedGetJob.mockResolvedValue( jobFixture( { status: 'linking', link_state: 'pending' } ) )
+
+    renderHookWithClient( () => useJob( 'a' ) )
+    await advance( POLL_INTERVAL_MS * 2 )
+
+    expect( mockedGetJob ).toHaveBeenCalledTimes( 3 )
+  } )
+
   it( 'never overlaps requests', async () => {
     const first = deferred()
     mockedGetJob.mockReturnValueOnce( first.promise )

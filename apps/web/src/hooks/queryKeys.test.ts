@@ -5,6 +5,8 @@ import {
   feedKeys,
   gmailKeys,
   inboxKeys,
+  jobKeys,
+  linkSuggestionKeys,
   modelKeys,
   promptKeys,
   settingsKeys,
@@ -40,5 +42,12 @@ describe( 'gmail query keys', () => {
     expect( gmailKeys.account ).toEqual( [ 'gmail', 'account' ] )
     expect( gmailKeys.labels ).toEqual( [ 'gmail', 'labels' ] )
     expect( gmailKeys.sources ).toEqual( [ 'gmail', 'sources' ] )
+  } )
+} )
+
+describe( 'link suggestion query keys', () => {
+  it( 'nests a job\'s suggestions under the job\'s key', () => {
+    expect( linkSuggestionKeys.list( 'abc' ) ).toEqual( [ 'jobs', 'abc', 'link-suggestions' ] )
+    expect( linkSuggestionKeys.list( 'abc' ).slice( 0, 2 ) ).toEqual( jobKeys.detail( 'abc' ) )
   } )
 } )

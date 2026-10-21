@@ -38,6 +38,8 @@ type ProfilesState = ReturnType< typeof usePromptProfiles >
 const settingsState = ( overrides: Partial< SettingsState > = {} ): SettingsState => ( {
   settings: settingsFixture().settings,
   lockedInstructions: { video: 'locked', article: 'locked' },
+  linkerLockedInstructions: settingsFixture().linker_locked_instructions,
+  agentStatus: settingsFixture().agent_status,
   isLoading: false,
   error: null,
   updateSettings: mutationStub(),
