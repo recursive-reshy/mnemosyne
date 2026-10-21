@@ -4,6 +4,8 @@ import express, { Express } from 'express'
 import { config } from './config.js'
 // Errors
 import { errorMiddleware, notFoundHandler } from './errors.js'
+// Middleware
+import { requestLog } from './middleware/requestLog.js'
 // Routes
 import { feedsRoutes } from './routes/feeds.routes.js'
 import { gmailRoutes } from './routes/gmail.routes.js'
@@ -19,6 +21,7 @@ import { webRoutes } from './routes/web.routes.js'
 
 export const app: Express = express()
 
+app.use( '/api', requestLog )
 app.use( '/api', express.json( { limit: '2mb' } ) )
 app.use( '/api', healthRoutes )
 app.use( '/api', jobsRoutes )
