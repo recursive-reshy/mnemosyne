@@ -23,6 +23,7 @@ describe( 'loadConfig', () => {
       summaryTimeoutMs: 300_000,
       reviewTtlHours: 24,
       cleanupIntervalMinutes: 15,
+      logLevel: 'info',
       gmail: null,
       agent: null,
     } )
@@ -57,9 +58,26 @@ describe( 'loadConfig', () => {
       summaryTimeoutMs: 60_000,
       reviewTtlHours: 48,
       cleanupIntervalMinutes: 5,
+      logLevel: 'info',
       gmail: null,
       agent: null,
     } )
+  } )
+
+  it.each( [ 'fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent' ] )(
+    'accepts LOG_LEVEL %s',
+    ( level ) => {
+      expect( loadConfig( { ...base, LOG_LEVEL: level } ).logLevel ).toBe( level )
+    },
+  )
+
+  it( 'defaults LOG_LEVEL to info and treats an empty value as unset', () => {
+    expect( loadConfig( base ).logLevel ).toBe( 'info' )
+    expect( loadConfig( { ...base, LOG_LEVEL: '' } ).logLevel ).toBe( 'info' )
+  } )
+
+  it( 'throws naming LOG_LEVEL for an unknown level', () => {
+    expect( () => loadConfig( { ...base, LOG_LEVEL: 'loud' } ) ).toThrow( 'LOG_LEVEL' )
   } )
 
   it( 'falls back to Mnemosyne when DEFAULT_NOTE_FOLDER is empty', () => {
