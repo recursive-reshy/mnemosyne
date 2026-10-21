@@ -48,6 +48,14 @@ describe( 'SettingsLayout tabs', () => {
     expect( screen.getByText( content ) ).toBeInTheDocument()
   } )
 
+  it( 'keeps the Prompts tab selected while a prompt is open', () => {
+    renderWithRouter( '/settings/prompts/abc' )
+
+    expect( screen.getByRole( 'tab', { name: 'Prompts' } ) )
+      .toHaveAttribute( 'aria-selected', 'true' )
+    expect( screen.getByText( 'prompts content' ) ).toBeInTheDocument()
+  } )
+
   it( 'switches tab with a click and puts the tab in the address', async () => {
     const { location } = renderWithRouter( '/settings/prompts' )
 

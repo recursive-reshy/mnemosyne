@@ -24,6 +24,7 @@ export const routes: RouteObject[] = [
         children: [
           { index: true, element: <SettingsIndexRedirect /> },
           { path: 'prompts', element: <PromptsTab /> },
+          { path: 'prompts/:promptId', element: <PromptsTab /> },
           { path: 'models', element: <ModelsTab /> },
           { path: 'sources', element: <SourcesTab /> },
           { path: '*', element: <Navigate to="/settings/prompts" replace /> },

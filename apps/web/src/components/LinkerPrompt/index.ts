@@ -1,1 +1,0 @@
-export { LinkerPrompt } from './LinkerPrompt'

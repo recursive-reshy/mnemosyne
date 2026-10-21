@@ -66,3 +66,29 @@ describe( 'ProfileActions', () => {
     expect( onDelete ).not.toHaveBeenCalled()
   } )
 } )
+
+describe( 'ProfileActions, for the list', () => {
+  it( 'offers Set as default, and disables it for the default profile', async () => {
+    const user = userEvent.setup()
+    const onSetDefault = vi.fn()
+    const { rerender } = renderWithClient(
+      <ProfileActions { ...base } onSetDefault={ onSetDefault } isDefault={ false } />,
+    )
+
+    await user.click( screen.getByRole( 'button', { name: 'Set as default' } ) )
+
+    expect( onSetDefault ).toHaveBeenCalledTimes( 1 )
+
+    rerender( <ProfileActions { ...base } onSetDefault={ onSetDefault } isDefault /> )
+
+    expect( screen.getByRole( 'button', { name: 'Set as default' } ) ).toBeDisabled()
+  } )
+
+  it( 'offers only New profile when no profile is selected', () => {
+    renderWithClient( <ProfileActions { ...base } hasProfile={ false } /> )
+
+    expect( screen.getByRole( 'button', { name: 'New profile' } ) ).toBeInTheDocument()
+    expect( screen.queryByRole( 'button', { name: 'Rename' } ) ).not.toBeInTheDocument()
+    expect( screen.queryByRole( 'button', { name: 'Delete' } ) ).not.toBeInTheDocument()
+  } )
+} )

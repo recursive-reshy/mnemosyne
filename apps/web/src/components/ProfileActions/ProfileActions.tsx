@@ -13,28 +13,47 @@ interface ProfileActionsProps {
   onNew: () => void
   onRename: () => void
   onDelete: () => void
+  // The list also offers these; without a selected summary profile only New profile applies.
+  onSetDefault?: () => void
+  isDefault?: boolean
+  hasProfile?: boolean
 }
 
 export function ProfileActions(
-  { deleteBlockedReason, onNew, onRename, onDelete }: ProfileActionsProps,
+  {
+    deleteBlockedReason,
+    onNew,
+    onRename,
+    onDelete,
+    onSetDefault,
+    isDefault = false,
+    hasProfile = true,
+  }: ProfileActionsProps,
 ): ReactElement {
   return (
-    <Stack direction="row" spacing={ 1 } sx={ { flexWrap: 'wrap', gap: 1 } }>
+    <Stack direction="row" useFlexGap spacing={ 1 } sx={ { flexWrap: 'wrap' } }>
       <Button variant="outlined" onClick={ onNew }>New profile</Button>
-      <Button variant="outlined" onClick={ onRename }>Rename</Button>
-      <Tooltip title={ deleteBlockedReason ?? '' }>
-        <span>
-          <Button
-            variant="outlined"
-            color="error"
-            onClick={ onDelete }
-            disabled={ deleteBlockedReason !== null }
-            sx={ DELETE_SX }
-          >
-            Delete
-          </Button>
-        </span>
-      </Tooltip>
+      { hasProfile && <Button variant="outlined" onClick={ onRename }>Rename</Button> }
+      { hasProfile && onSetDefault !== undefined && (
+        <Button variant="outlined" onClick={ onSetDefault } disabled={ isDefault }>
+          Set as default
+        </Button>
+      ) }
+      { hasProfile && (
+        <Tooltip title={ deleteBlockedReason ?? '' }>
+          <span>
+            <Button
+              variant="outlined"
+              color="error"
+              onClick={ onDelete }
+              disabled={ deleteBlockedReason !== null }
+              sx={ DELETE_SX }
+            >
+              Delete
+            </Button>
+          </span>
+        </Tooltip>
+      ) }
     </Stack>
   )
 }
