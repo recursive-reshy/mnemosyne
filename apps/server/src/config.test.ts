@@ -24,6 +24,7 @@ describe( 'loadConfig', () => {
       reviewTtlHours: 24,
       cleanupIntervalMinutes: 15,
       gmail: null,
+      agent: null,
     } )
   } )
 
@@ -57,6 +58,7 @@ describe( 'loadConfig', () => {
       reviewTtlHours: 48,
       cleanupIntervalMinutes: 5,
       gmail: null,
+      agent: null,
     } )
   } )
 
@@ -138,6 +140,61 @@ describe( 'loadConfig', () => {
     expect( () => loadConfig( { ...base, CLEANUP_INTERVAL_MINUTES: value } ) ).toThrow(
       /CLEANUP_INTERVAL_MINUTES/,
     )
+  } )
+
+  describe( 'agent', () => {
+    const secret = 'a'.repeat( 32 )
+
+    it( 'is null when AGENT_SECRET is unset or empty', () => {
+      expect( loadConfig( base ).agent ).toBeNull()
+      expect( loadConfig( { ...base, AGENT_SECRET: '' } ).agent ).toBeNull()
+    } )
+
+    it( 'is null without a secret even when the URL is set', () => {
+      expect( loadConfig( { ...base, AGENT_URL: 'http://agent:8100' } ).agent ).toBeNull()
+    } )
+
+    it( 'uses the local URL and a two minute timeout by default', () => {
+      expect( loadConfig( { ...base, AGENT_SECRET: secret } ).agent ).toEqual( {
+        url: 'http://localhost:8100',
+        secret,
+        timeoutMs: 120_000,
+      } )
+    } )
+
+    it( 'takes the URL and timeout from the environment, with empty values as unset', () => {
+      expect( loadConfig( {
+        ...base,
+        AGENT_SECRET: secret,
+        AGENT_URL: 'http://agent:8100',
+        AGENT_TIMEOUT_MS: '30000',
+      } ).agent ).toEqual( { url: 'http://agent:8100', secret, timeoutMs: 30_000 } )
+      expect( loadConfig( {
+        ...base,
+        AGENT_SECRET: secret,
+        AGENT_URL: '',
+        AGENT_TIMEOUT_MS: '',
+      } ).agent ).toEqual( { url: 'http://localhost:8100', secret, timeoutMs: 120_000 } )
+    } )
+
+    it( 'stops startup naming AGENT_SECRET when it is under 32 characters', () => {
+      expect( () => loadConfig( { ...base, AGENT_SECRET: 'short' } ) )
+        .toThrow( /AGENT_SECRET/ )
+    } )
+
+    it( 'does not echo the secret in the error', () => {
+      expect( () => loadConfig( { ...base, AGENT_SECRET: 'too-short-secret' } ) )
+        .toThrow( expect.objectContaining( {
+          message: expect.not.stringContaining( 'too-short-secret' ) as string,
+        } ) )
+    } )
+
+    it( 'rejects a URL that is not a URL and a timeout that is not a positive number', () => {
+      expect( () => loadConfig( { ...base, AGENT_SECRET: secret, AGENT_URL: 'nope' } ) )
+        .toThrow( /AGENT_URL/ )
+      expect( () => loadConfig( { ...base, AGENT_SECRET: secret, AGENT_TIMEOUT_MS: '0' } ) )
+        .toThrow( /AGENT_TIMEOUT_MS/ )
+    } )
   } )
 
   describe( 'gmail', () => {

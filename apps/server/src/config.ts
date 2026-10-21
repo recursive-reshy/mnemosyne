@@ -14,6 +14,7 @@ const portSchema = z.coerce.number().int().min( 1 ).max( 65535 ).default( 3100 )
 const summaryTimeoutSchema = z.coerce.number().int().positive().default( 300_000 )
 const reviewTtlSchema = z.coerce.number().positive().default( 24 )
 const cleanupIntervalSchema = z.coerce.number().positive().default( 15 )
+const agentTimeoutSchema = z.coerce.number().int().positive().default( 120_000 )
 
 const isFolderPath = ( value: string ): boolean => {
   return value.split( '/' ).every( isValidFolderName )
@@ -53,6 +54,9 @@ const EnvSchema = z
     GOOGLE_CLIENT_SECRET: z.preprocess( emptyAsUnset, z.string().min( 1 ).optional() ),
     GOOGLE_REDIRECT_URI: z.preprocess( emptyAsUnset, z.url().optional() ),
     TOKEN_ENCRYPTION_KEY: z.preprocess( emptyAsUnset, encryptionKeySchema.optional() ),
+    AGENT_URL: z.preprocess( emptyAsUnset, z.url().default( 'http://localhost:8100' ) ),
+    AGENT_SECRET: z.preprocess( emptyAsUnset, z.string().min( 32 ).optional() ),
+    AGENT_TIMEOUT_MS: z.preprocess( emptyAsUnset, agentTimeoutSchema ),
   } )
   .transform( ( env ) => ( {
     port: env.PORT,
@@ -78,6 +82,9 @@ const EnvSchema = z
         encryptionKey: env.TOKEN_ENCRYPTION_KEY,
       }
       : null,
+    agent: env.AGENT_SECRET === undefined
+      ? null
+      : { url: env.AGENT_URL, secret: env.AGENT_SECRET, timeoutMs: env.AGENT_TIMEOUT_MS },
   } ) )
 
 export type Config = z.infer< typeof EnvSchema >
