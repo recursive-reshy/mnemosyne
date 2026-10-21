@@ -13,6 +13,7 @@ import { userEvent } from 'vitest/browser'
 import { serializeNote } from '@mnemosyne/shared'
 // App
 import { updateDraft } from '#src/api/jobs.api'
+import { acceptLinkSuggestions, listLinkSuggestions } from '#src/api/linkSuggestions.api'
 import { useFolders } from '#src/hooks/useFolders'
 import { useModels } from '#src/hooks/useModels'
 import { usePromptProfiles } from '#src/hooks/usePromptProfiles'
@@ -20,10 +21,12 @@ import { useSettings } from '#src/hooks/useSettings'
 import { useSource } from '#src/hooks/useSource'
 import { modelsState, profilesState, settingsState } from '#src/test-support/hookStates'
 import { jobFixture } from '#src/test-support/job.fixture'
+import { linkSuggestionFixture } from '#src/test-support/linkSuggestion.fixture'
 import { renderWithClient } from '#src/test-support/renderWithClient'
 import { ReviewScreen } from './ReviewScreen'
 
 vi.mock( '#src/api/jobs.api' )
+vi.mock( '#src/api/linkSuggestions.api' )
 vi.mock( '#src/hooks/useSource' )
 vi.mock( '#src/hooks/useFolders' )
 vi.mock( '#src/hooks/useModels' )
@@ -83,8 +86,8 @@ const marked = (): string[] => {
   return [ ...pane().querySelectorAll( '[aria-current="true"]' ) ].map( ( element ) => element.id )
 }
 
-const render = (): void => {
-  renderWithClient( <ReviewScreen job={ job } onSaved={ vi.fn() } onDiscarded={ vi.fn() } /> )
+const render = ( shown = job ): void => {
+  renderWithClient( <ReviewScreen job={ shown } onSaved={ vi.fn() } onDiscarded={ vi.fn() } /> )
 }
 
 const settle = async (): Promise< void > => {
@@ -231,5 +234,54 @@ describe( 'ReviewScreen caret sync in a real browser', () => {
     await settle()
 
     expect( marked() ).toEqual( [] )
+  } )
+} )
+
+describe( 'ReviewScreen suggested links in a real browser', () => {
+  const linkedJob = { ...job, link_state: 'linked' as const }
+  const suggestion = linkSuggestionFixture( {
+    job_id: job.id,
+    target: 'Plain Point',
+    kind: 'new_concept',
+    anchor: 'plain point',
+  } )
+
+  beforeEach( () => {
+    vi.mocked( listLinkSuggestions ).mockResolvedValue( [ suggestion ] )
+    vi.mocked( acceptLinkSuggestions ).mockImplementation( ( _id, body ) => Promise.resolve( {
+      job: { ...linkedJob, note_markdown: body.note_markdown },
+      suggestions: [ { ...suggestion, status: 'accepted' } ],
+    } ) )
+  } )
+
+  it( 'puts an accepted link in the real editor and saves it once', async () => {
+    render( linkedJob )
+
+    await userEvent.click( await screen.findByRole( 'button', { name: 'Accept' } ) )
+
+    await vi.waitFor( () => expect( acceptLinkSuggestions ).toHaveBeenCalledOnce() )
+    const sent = vi.mocked( acceptLinkSuggestions ).mock.calls[ 0 ]?.[ 1 ].note_markdown ?? ''
+
+    expect( sent ).toContain( 'A [[Plain Point|plain point]] with no timestamp' )
+    await expect.poll( async () => ( await richItem( 'A [[Plain Point' ) ).textContent )
+      .toBe( 'A [[Plain Point|plain point]] with no timestamp' )
+    await expect.poll( () => screen.queryByText( 'Saved' ) !== null ).toBe( true )
+
+    // The editor reports the replaced text back; it must not turn into a second, different save.
+    await settle()
+    await settle()
+
+    expect( screen.queryByText( 'Unsaved changes' ) ).toBeNull()
+    expect( updateDraft ).not.toHaveBeenCalled()
+  } )
+
+  it( 'keeps the caret sync working on the Source tab', async () => {
+    render( linkedJob )
+    await userEvent.click( await screen.findByRole( 'tab', { name: 'Source' } ) )
+
+    await userEvent.click( await richItem( 'Middle point' ) )
+
+    await expect.poll( marked ).toEqual( [ 'transcript-820' ] )
+    expectVisible( 'transcript-820' )
   } )
 } )

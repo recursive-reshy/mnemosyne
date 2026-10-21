@@ -34,6 +34,8 @@ const setup = ( {
 }: SetupOptions = {} ) => {
   const onAccept = vi.fn()
   const onReject = vi.fn()
+  const onAcceptAll = vi.fn()
+  const onRejectAll = vi.fn()
 
   render(
     <LinkSuggestionsPanel
@@ -43,10 +45,18 @@ const setup = ( {
       error={ error }
       onAccept={ onAccept }
       onReject={ onReject }
+      onAcceptAll={ onAcceptAll }
+      onRejectAll={ onRejectAll }
     />,
   )
 
-  return { onAccept, onReject, user: userEvent.setup() }
+  return {
+    onAccept,
+    onReject,
+    onAcceptAll,
+    onRejectAll,
+    user: userEvent.setup(),
+  }
 }
 
 describe( 'LinkSuggestionsPanel', () => {
@@ -171,5 +181,41 @@ describe( 'LinkSuggestionsPanel', () => {
     setup( { error: 'Link suggestion x is not pending' } )
 
     expect( screen.getByRole( 'alert' ) ).toHaveTextContent( 'Link suggestion x is not pending' )
+  } )
+
+  describe( 'Accept all and Reject all', () => {
+    const two = (): StoredLinkSuggestion[] => [
+      linkSuggestionFixture(),
+      linkSuggestionFixture( { id: ID_B, position: 1, target: 'Second', anchor: null } ),
+    ]
+
+    it( 'calls onAcceptAll and onRejectAll', async () => {
+      const { onAcceptAll, onRejectAll, user } = setup( { suggestions: two() } )
+
+      await user.click( screen.getByRole( 'button', { name: 'Accept all' } ) )
+      await user.click( screen.getByRole( 'button', { name: 'Reject all' } ) )
+
+      expect( onAcceptAll ).toHaveBeenCalledOnce()
+      expect( onRejectAll ).toHaveBeenCalledOnce()
+    } )
+
+    it( 'are offered only while two or more suggestions are pending', () => {
+      setup( {
+        suggestions: [
+          linkSuggestionFixture(),
+          linkSuggestionFixture( { id: ID_B, position: 1, status: 'accepted' } ),
+        ],
+      } )
+
+      expect( screen.queryByRole( 'button', { name: 'Accept all' } ) ).not.toBeInTheDocument()
+      expect( screen.queryByRole( 'button', { name: 'Reject all' } ) ).not.toBeInTheDocument()
+    } )
+
+    it( 'are disabled while a request is running', () => {
+      setup( { suggestions: two(), isBusy: true } )
+
+      expect( screen.getByRole( 'button', { name: 'Accept all' } ) ).toBeDisabled()
+      expect( screen.getByRole( 'button', { name: 'Reject all' } ) ).toBeDisabled()
+    } )
   } )
 } )

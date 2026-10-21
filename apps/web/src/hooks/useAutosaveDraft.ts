@@ -7,6 +7,7 @@ import type { Job, UpdateDraftBody } from '@mnemosyne/shared'
 // App
 import { updateDraft } from '../api/jobs.api'
 import { jobKeys } from './queryKeys'
+import { useUnsavedChangesWarning } from './useUnsavedChangesWarning'
 
 export const AUTOSAVE_DEBOUNCE_MS = 1500
 
@@ -22,6 +23,8 @@ export interface AutosaveState {
   message: string | null
   adoptServerNote: () => void
   cancelPending: () => void
+  replaceNote: ( note: string ) => void
+  markSaved: ( note: string ) => void
 }
 
 interface Values {
@@ -84,6 +87,13 @@ export function useAutosaveDraft( job: Job ): AutosaveState {
     return true
   }
 
+  // While a request runs, its loop sets the status itself.
+  const refreshStatus = (): void => {
+    if( inFlight.current === null ) {
+      setStatus( isDirty() ? 'unsaved' : 'saved' )
+    }
+  }
+
   const flush = async (): Promise< boolean > => {
     clearTimeout( timer.current )
 
@@ -110,15 +120,15 @@ export function useAutosaveDraft( job: Job ): AutosaveState {
     timer.current = setTimeout( () => void flushRef.current(), AUTOSAVE_DEBOUNCE_MS )
   }
 
-  const setNote = ( note: string ): void => {
+  const putNote = ( note: string ): void => {
     isCancelled.current = false
     latest.current = { ...latest.current, note }
     setValues( latest.current )
+    refreshStatus()
+  }
 
-    if( inFlight.current === null ) {
-      setStatus( isDirty() ? 'unsaved' : 'saved' )
-    }
-
+  const setNote = ( note: string ): void => {
+    putNote( note )
     scheduleFlush()
   }
 
@@ -136,6 +146,19 @@ export function useAutosaveDraft( job: Job ): AutosaveState {
     isCancelled.current = true
   }
 
+  // For a change the caller stores itself (an accepted link): the note changes on screen and no
+  // save is scheduled. markSaved records that the server has it; until then it stays unsaved.
+  const replaceNote = ( note: string ): void => {
+    clearTimeout( timer.current )
+    putNote( note )
+  }
+
+  const markSaved = ( note: string ): void => {
+    sent.current = { ...sent.current, note }
+    serverNote.current = note
+    refreshStatus()
+  }
+
   const adoptServerNote = (): void => {
     const note = serverNote.current
 
@@ -148,31 +171,15 @@ export function useAutosaveDraft( job: Job ): AutosaveState {
     setValues( latest.current )
   }
 
-  useEffect( () => {
-    return () => {
-      clearTimeout( timer.current )
+  useEffect( () => () => {
+    clearTimeout( timer.current )
 
-      if( isDirty() && !isCancelled.current ) {
-        void flushRef.current()
-      }
+    if( isDirty() && !isCancelled.current ) {
+      void flushRef.current()
     }
   }, [] )
 
-  const hasUnsaved = status !== 'saved'
-
-  useEffect( () => {
-    if( !hasUnsaved ) {
-      return undefined
-    }
-
-    const warn = ( event: BeforeUnloadEvent ): void => {
-      event.preventDefault()
-    }
-
-    window.addEventListener( 'beforeunload', warn )
-
-    return () => window.removeEventListener( 'beforeunload', warn )
-  }, [ hasUnsaved ] )
+  useUnsavedChangesWarning( status !== 'saved' )
 
   return {
     note: values.note,
@@ -184,5 +191,7 @@ export function useAutosaveDraft( job: Job ): AutosaveState {
     message,
     adoptServerNote,
     cancelPending,
+    replaceNote,
+    markSaved,
   }
 }

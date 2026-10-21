@@ -18,6 +18,7 @@ import { useSaveJob } from '#src/hooks/useSaveJob'
 import { useSource } from '#src/hooks/useSource'
 import { DownloadLinks } from '../DownloadLinks'
 import { JobHeading } from '../JobHeading'
+import { LinkReview } from '../LinkReview'
 import { NoteDestination } from '../NoteDestination'
 import { NoteEditor } from '../NoteEditor'
 import type { NoteEditorMode } from '../NoteEditor'
@@ -25,7 +26,6 @@ import { PropertiesPanel } from '../PropertiesPanel'
 import { RegenerateDialog } from '../RegenerateDialog'
 import { ReviewActions } from '../ReviewActions'
 import { SummaryInfo } from '../SummaryInfo'
-import { SourcePane } from '../SourcePane'
 import {
   COLUMNS_SX,
   STATUS_LABELS,
@@ -114,10 +114,11 @@ export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps )
             onCaretText={ handleCaretLine }
           />
         ) }
-        <SourcePane
+        <LinkReview
+          job={ job }
+          autosave={ autosave }
           source={ source }
-          sourceType={ job.source_type }
-          error={ transcriptError }
+          sourceError={ transcriptError }
           focusSecond={ focusSecond }
         />
       </Box>

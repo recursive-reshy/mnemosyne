@@ -288,6 +288,86 @@ describe( 'useAutosaveDraft', () => {
     )
   } )
 
+  describe( 'replaceNote and markSaved', () => {
+    it( 'replaceNote swaps the note, marks it unsaved and schedules no save', async () => {
+      const { result } = setup()
+
+      act( () => result.current.replaceNote( 'linked' ) )
+      await act( () => vi.advanceTimersByTimeAsync( 10_000 ) )
+
+      expect( result.current.note ).toBe( 'linked' )
+      expect( result.current.status ).toBe( 'unsaved' )
+      expect( mockedUpdateDraft ).not.toHaveBeenCalled()
+    } )
+
+    it( 'replaceNote cancels a save that was already scheduled', async () => {
+      const { result } = setup()
+      act( () => result.current.setNote( 'typed' ) )
+
+      act( () => result.current.replaceNote( 'linked' ) )
+      await act( () => vi.advanceTimersByTimeAsync( 10_000 ) )
+
+      expect( mockedUpdateDraft ).not.toHaveBeenCalled()
+    } )
+
+    it( 'markSaved makes the replaced note clean without a request', async () => {
+      const { result } = setup()
+      act( () => result.current.replaceNote( 'linked' ) )
+
+      act( () => result.current.markSaved( 'linked' ) )
+      await act( () => vi.advanceTimersByTimeAsync( 10_000 ) )
+
+      expect( result.current.status ).toBe( 'saved' )
+      expect( mockedUpdateDraft ).not.toHaveBeenCalled()
+    } )
+
+    it( 'markSaved keeps text typed since as unsaved, and saves only that', async () => {
+      const { result } = setup()
+      act( () => result.current.replaceNote( 'linked' ) )
+      act( () => result.current.setNote( 'linked and typed' ) )
+
+      act( () => result.current.markSaved( 'linked' ) )
+
+      expect( result.current.status ).toBe( 'unsaved' )
+
+      await act( () => vi.advanceTimersByTimeAsync( 1500 ) )
+
+      expect( mockedUpdateDraft ).toHaveBeenCalledExactlyOnceWith(
+        job.id,
+        { note_markdown: 'linked and typed' },
+      )
+    } )
+
+    it( 'stores the replaced note on the next flush when markSaved never comes', async () => {
+      const { result } = setup()
+      act( () => result.current.replaceNote( 'linked' ) )
+
+      await act( async () => {
+        await result.current.flush()
+      } )
+
+      expect( mockedUpdateDraft ).toHaveBeenCalledExactlyOnceWith(
+        job.id,
+        { note_markdown: 'linked' },
+      )
+      expect( result.current.status ).toBe( 'saved' )
+    } )
+
+    it( 'a later edit after markSaved still saves', async () => {
+      const { result } = setup()
+      act( () => result.current.replaceNote( 'linked' ) )
+      act( () => result.current.markSaved( 'linked' ) )
+
+      act( () => result.current.setNote( 'linked again' ) )
+      await act( () => vi.advanceTimersByTimeAsync( 1500 ) )
+
+      expect( mockedUpdateDraft ).toHaveBeenCalledExactlyOnceWith(
+        job.id,
+        { note_markdown: 'linked again' },
+      )
+    } )
+  } )
+
   describe( 'cancelPending', () => {
     it( 'stops the debounced save', async () => {
       const { result } = setup()
