@@ -1,6 +1,6 @@
 # 0051. Manual database backups with SQLite's online backup, to a host folder
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-21
 
 ## Context

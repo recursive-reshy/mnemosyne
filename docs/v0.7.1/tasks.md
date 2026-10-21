@@ -27,7 +27,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
 | **Phase 1** | **Kick-off** | | |
-| 1.1 | Set ADRs 0048–0053 to Accepted (Status lines and the `docs/README.md` index); `docs/README.md` "current version" line to 0.7.1 (it still says 0.6.0) and the v0.7.1 entry to "in progress". The root `CLAUDE.md` already points at 0.7.1 (updated with these docs) | 0048–0053 | ⬜ |
+| 1.1 | Set ADRs 0048–0053 to Accepted (Status lines and the `docs/README.md` index); `docs/README.md` "current version" line to 0.7.1 (it still says 0.6.0) and the v0.7.1 entry to "in progress". The root `CLAUDE.md` already points at 0.7.1 (updated with these docs) | 0048–0053 | ✅ |
 | **Phase 2** | **Job lifecycle** | | |
 | 2.1 | `jobs/lifecycle.characterization.test.ts` against the unchanged 0.7.0 services: every service function from every status and source, recording which moves succeed, which give 409 and what `expires_at` becomes. Green on 0.7.0 code (it pins today's behaviour; the red step is a deliberately wrong expectation, shown failing, then corrected). Any move that looks like a bug: stop and ask (TRD §2.4) | 0048 | ⬜ |
 | 2.2 | `jobs/lifecycle.ts`: `STATES`, `MOVES`, `canMove`, `assertMove`, `statusesWhere`, and the link-state table, matching 2.1's findings; `lifecycle.test.ts` (TRD §2.2) | 0048 | ⬜ |
@@ -123,3 +123,5 @@ The plan for this checkpoint is written after 9.1 has run: 9.1's table decides w
 
 ## Log
 
+
+- 1.1 ✅ ADRs 0048–0053 set to Accepted (Status lines and index); `docs/README.md` current version 0.7.1, v0.7.1 in progress.

@@ -1,6 +1,6 @@
 # 0052. A data router, Settings as routed tabs, and one unsaved-changes guard
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-21
 
 ## Context

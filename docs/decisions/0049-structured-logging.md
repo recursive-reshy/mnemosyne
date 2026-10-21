@@ -1,6 +1,6 @@
 # 0049. Structured logs: pino in the server, a JSON formatter in the agent, the job ID across both
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-21
 
 ## Context

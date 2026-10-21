@@ -1,6 +1,6 @@
 # 0048. One job lifecycle: a pure table of states and moves, enforced by `moveTo`
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-21
 
 ## Context

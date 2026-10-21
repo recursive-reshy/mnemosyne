@@ -1,6 +1,6 @@
 # 0053. End-to-end smoke test: the real Compose stack against local fakes, driven by Playwright
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-21
 
 ## Context

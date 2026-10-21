@@ -1,6 +1,6 @@
 # 0050. Health status: one table per subject, one `recordCheck`, and a Status panel
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-21
 
 ## Context
