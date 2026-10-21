@@ -1,0 +1,23 @@
+{
+  "schema": "LinkResponse",
+  "value": {
+    "outcome": "linked",
+    "reason": null,
+    "suggestions": [
+      {
+        "target": "Pricing Strategy",
+        "kind": "stub_note",
+        "anchor": "Usage-based pricing",
+        "reason": "The note is about how to price a product."
+      }
+    ],
+    "usage": {
+      "input_tokens": 4200,
+      "output_tokens": 310,
+      "cache_read_input_tokens": 3100,
+      "cache_creation_input_tokens": 0,
+      "tool_calls": 3,
+      "turns": 4
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "schema": "LinkRequest",
+  "value": {
+    "note": {
+      "title": "Pricing a developer tool",
+      "tags": [],
+      "folder": null,
+      "body": "Usage-based pricing aligns cost with value.\n\n## Takeaways\n\n- Start with a free tier\n"
+    },
+    "model": "claude-haiku-5-5",
+    "guidance": ""
+  }
+}

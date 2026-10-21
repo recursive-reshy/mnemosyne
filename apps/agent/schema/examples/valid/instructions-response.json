@@ -1,0 +1,6 @@
+{
+  "schema": "InstructionsResponse",
+  "value": {
+    "instructions": "You propose wikilinks for a new note. Suggest at most 8."
+  }
+}

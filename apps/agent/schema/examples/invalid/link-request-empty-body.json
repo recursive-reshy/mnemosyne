@@ -1,0 +1,16 @@
+{
+  "schema": "LinkRequest",
+  "value": {
+    "note": {
+      "title": "Pricing a developer tool",
+      "tags": [
+        "saas",
+        "pricing"
+      ],
+      "folder": "Ideas",
+      "body": ""
+    },
+    "model": "claude-haiku-5-5",
+    "guidance": "Link to what the note is genuinely about."
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "schema": "LinkResponse",
+  "value": {
+    "outcome": "linked",
+    "reason": null,
+    "suggestions": [],
+    "usage": {
+      "input_tokens": 4200,
+      "output_tokens": 310,
+      "cache_read_input_tokens": 3100,
+      "cache_creation_input_tokens": 0,
+      "tool_calls": 3,
+      "turns": 4
+    }
+  }
+}

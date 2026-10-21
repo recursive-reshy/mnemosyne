@@ -1,0 +1,16 @@
+{
+  "schema": "LinkResponse",
+  "value": {
+    "outcome": "failed",
+    "reason": "Timed out after 90 s",
+    "suggestions": [],
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "tool_calls": 0,
+      "turns": 0
+    }
+  }
+}

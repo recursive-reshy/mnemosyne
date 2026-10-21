@@ -1,0 +1,29 @@
+{
+  "schema": "LinkResponse",
+  "value": {
+    "outcome": "linked",
+    "reason": "Done",
+    "suggestions": [
+      {
+        "target": "Pricing Strategy",
+        "kind": "existing_concept",
+        "anchor": "Usage-based pricing",
+        "reason": "The note is about how to price a product."
+      },
+      {
+        "target": "Free Tier",
+        "kind": "new_concept",
+        "anchor": null,
+        "reason": "The note recommends starting with a free tier."
+      }
+    ],
+    "usage": {
+      "input_tokens": 4200,
+      "output_tokens": 310,
+      "cache_read_input_tokens": 3100,
+      "cache_creation_input_tokens": 0,
+      "tool_calls": 3,
+      "turns": 4
+    }
+  }
+}
