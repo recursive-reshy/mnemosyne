@@ -207,6 +207,8 @@ importers:
 
   .: {}
 
+  apps/agent: {}
+
   apps/server:
     dependencies:
       '@anthropic-ai/sdk':

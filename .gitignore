@@ -6,3 +6,6 @@ coverage/
 
 .DS_Store
 .vitest/
+
+.venv/
+__pycache__/

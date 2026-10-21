@@ -1,0 +1,11 @@
+{
+  "name": "@mnemosyne/agent",
+  "version": "0.6.0",
+  "private": true,
+  "scripts": {
+    "dev": "uv run uvicorn mnemosyne_agent.main:app --reload --port 8100",
+    "test": "uv run pytest",
+    "lint": "uv run ruff check",
+    "typecheck": "uv run pyright"
+  }
+}

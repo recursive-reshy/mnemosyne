@@ -30,7 +30,7 @@ Needs Naresh's scaffold in `apps/agent` (TRD §2.1). Check it exists before plan
 | --- | --- | --- | --- |
 | **Phase 1** | **Kick-off** | | |
 | 1.1 | Set ADRs 0042–0046 to Accepted (Status lines and the `docs/README.md` index). Root `CLAUDE.md`: current version 0.7.0 and the `docs/v0.7.0/` paths in Workflow, `apps/agent` in the Folders table, and the contract exception (ADR 0043) under "Rules that span apps" | 0042–0046 | ✅ |
-| 1.2 | Check the scaffold (Python 3.14, `src/mnemosyne_agent`, the five dependencies, `uv.lock`, `.gitignore` entries); add `apps/agent/package.json`, the Ruff, Pyright and pytest sections of `pyproject.toml`, and one passing smoke test so `pnpm -r test|lint|typecheck` cover the agent (TRD §2.1) | 0042 | ⬜ |
+| 1.2 | Check the scaffold (Python 3.14, `src/mnemosyne_agent`, the five dependencies, `uv.lock`, `.gitignore` entries); add `apps/agent/package.json`, the Ruff, Pyright and pytest sections of `pyproject.toml`, and one passing smoke test so `pnpm -r test|lint|typecheck` cover the agent (TRD §2.1) | 0042 | ✅ |
 | **Phase 2** | **Contract** | | |
 | 2.1 | `contract/` Pydantic models with tests (limits, `failed` needs a reason and no suggestions, `linked` has no reason) (TRD §3.1) | 0043 | ⬜ |
 | 2.2 | `contract/export.py`, the committed `schema/link_contract.json`, and the drift test (TRD §3.2) | 0043 | ⬜ |
@@ -101,3 +101,4 @@ Needs Naresh's scaffold in `apps/agent` (TRD §2.1). Check it exists before plan
 ## Log
 
 - 1.1 ✅ ADRs 0042–0046 Accepted (files and index); root CLAUDE.md: 0.7.0 paths, `apps/agent` row, ADR 0043 contract exception. Docs only. Scaffold was renamed to the TRD layout first (`apps/mnemosyne_agent` → `apps/agent`, `src/agent` → `src/mnemosyne_agent`, project `mnemosyne-agent`) at Naresh's choice.
+- 1.2 ✅ Scaffold checked (Python 3.14, `src/mnemosyne_agent`, fastapi/uvicorn/anthropic + pytest/ruff/pyright, `uv.lock`); added `package.json`, Ruff/Pyright/pytest sections, root `.gitignore` entries, `tests/test_smoke.py`. Red was `pnpm --filter @mnemosyne/agent test` matching no project (the smoke test can't fail on content). `pnpm -r test` green across all four packages; no existing test changed.
