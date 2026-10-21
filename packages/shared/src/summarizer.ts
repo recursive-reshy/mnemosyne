@@ -28,8 +28,14 @@ export const Settings = z.object( {
   extraction_model: z.string().min( 1 ),
   default_profile_id: z.uuid(),
   feed_check_interval_minutes: FeedCheckInterval,
+  linking_enabled: z.boolean(),
+  linking_model: z.string().min( 1 ),
+  linker_profile_id: z.uuid(),
 } )
 export type Settings = z.infer< typeof Settings >
+
+export const AgentStatus = z.enum( [ 'ok', 'unavailable', 'not_configured' ] )
+export type AgentStatus = z.infer< typeof AgentStatus >
 
 export const GetSettingsResponse = z.object( {
   settings: Settings,
@@ -37,6 +43,8 @@ export const GetSettingsResponse = z.object( {
     video: z.string(),
     article: z.string(),
   } ),
+  linker_locked_instructions: z.string().nullable(),
+  agent_status: AgentStatus,
 } )
 export type GetSettingsResponse = z.infer< typeof GetSettingsResponse >
 
@@ -45,12 +53,14 @@ export const UpdateSettingsBody = z.object( {
   extraction_model: z.string().min( 1 ).optional(),
   default_profile_id: z.uuid().optional(),
   feed_check_interval_minutes: FeedCheckInterval.optional(),
+  linking_enabled: z.boolean().optional(),
+  linking_model: z.string().min( 1 ).optional(),
 } ).refine(
   ( body ) => Object.values( body ).some( ( value ) => value !== undefined ),
   {
     message: [
-      'Provide default_model, extraction_model,',
-      'default_profile_id or feed_check_interval_minutes',
+      'Provide default_model, extraction_model, default_profile_id,',
+      'feed_check_interval_minutes, linking_enabled or linking_model',
     ].join( ' ' ),
   },
 )

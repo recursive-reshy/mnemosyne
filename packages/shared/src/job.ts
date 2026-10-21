@@ -12,12 +12,39 @@ export const JobStatus = z.enum( [
   'converting',
   'transcribing',
   'summarizing',
+  'linking',
   'ready_for_review',
   'summary_failed',
   'saved',
   'failed',
 ] )
 export type JobStatus = z.infer< typeof JobStatus >
+
+export const LinkState = z.enum( [ 'off', 'pending', 'linked', 'failed' ] )
+export type LinkState = z.infer< typeof LinkState >
+
+export const LinkRun = z.object( {
+  model: z.string(),
+  prompt_version: z.int().min( 1 ),
+  input_tokens: z.int().min( 0 ).nullable(),
+  output_tokens: z.int().min( 0 ).nullable(),
+  cache_read_input_tokens: z.int().min( 0 ).nullable(),
+  cache_creation_input_tokens: z.int().min( 0 ).nullable(),
+  tool_calls: z.int().min( 0 ).nullable(),
+  cost_usd: z.number().nullable(),
+  outcome: z.enum( [ 'succeeded', 'failed' ] ),
+  created_at: z.iso.datetime(),
+} )
+export type LinkRun = z.infer< typeof LinkRun >
+
+export const LinkUsageSummary = z.object( {
+  last_run: LinkRun,
+  run_count: z.int().min( 1 ),
+  total_input_tokens: z.int(),
+  total_output_tokens: z.int(),
+  total_cost_usd: z.number().nullable(),
+} )
+export type LinkUsageSummary = z.infer< typeof LinkUsageSummary >
 
 export const Job = z.object( {
   id: z.uuid(),
@@ -34,6 +61,9 @@ export const Job = z.object( {
   summary_model: z.string().nullable(),
   prompt_profile_id: z.uuid().nullable(),
   summary_usage: SummaryUsage.nullable(),
+  link_state: LinkState.nullable(),
+  link_error: z.string().nullable(),
+  link_usage: LinkUsageSummary.nullable(),
   source_type: SourceType,
   feed_id: z.uuid().nullable(),
   feed_name: z.string().nullable(),

@@ -522,6 +522,9 @@ describe( 'POST /api/jobs with summary options', () => {
       summary_model: 'claude-opus-5-5',
       prompt_profile_id: codingId(),
       summary_usage: null,
+      link_state: null,
+      link_error: null,
+      link_usage: null,
     } )
   } )
 

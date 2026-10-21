@@ -22,6 +22,7 @@ const STATUS_LABELS = {
   converting: 'Converting',
   transcribing: 'Transcribing',
   summarizing: 'Summarizing',
+  linking: 'Linking',
   ready_for_review: 'Ready for review',
   summary_failed: 'Summary failed',
   saved: 'Saved',

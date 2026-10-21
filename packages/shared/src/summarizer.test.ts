@@ -77,6 +77,9 @@ describe( 'Settings', () => {
     extraction_model: 'h',
     default_profile_id: profileId,
     feed_check_interval_minutes: 60,
+    linking_enabled: true,
+    linking_model: 'h',
+    linker_profile_id: profileId,
   }
 
   it( 'accepts a model, a profile id and a feed interval', () => {
@@ -95,6 +98,21 @@ describe( 'Settings', () => {
     expect( Settings.safeParse( { ...settings, default_profile_id: 'x' } ).success ).toBe( false )
   } )
 
+  it.each( [ 'linking_enabled', 'linking_model', 'linker_profile_id' ] )(
+    'rejects a missing %s',
+    ( key ) => {
+      const without: Record< string, unknown > = { ...settings }
+      delete without[ key ]
+
+      expect( Settings.safeParse( without ).success ).toBe( false )
+    },
+  )
+
+  it( 'rejects an empty linking model and a linker profile id that is not a uuid', () => {
+    expect( Settings.safeParse( { ...settings, linking_model: '' } ).success ).toBe( false )
+    expect( Settings.safeParse( { ...settings, linker_profile_id: 'x' } ).success ).toBe( false )
+  } )
+
   it.each( [ 15, 30, 60, 180, 360, 1440 ] )( 'accepts a feed interval of %s', ( minutes ) => {
     expect( Settings.safeParse( { ...settings, feed_check_interval_minutes: minutes } ).success )
       .toBe( true )
@@ -109,10 +127,24 @@ describe( 'Settings', () => {
     const body = {
       settings,
       locked_instructions: { video: 'video text', article: 'article text' },
+      linker_locked_instructions: 'linker text',
+      agent_status: 'ok',
     }
 
     expect( GetSettingsResponse.safeParse( body ).success ).toBe( true )
     expect( GetSettingsResponse.safeParse( { settings } ).success ).toBe( false )
+    expect( GetSettingsResponse.safeParse( { ...body, linker_locked_instructions: null } ).success )
+      .toBe( true )
+    expect( GetSettingsResponse.safeParse( { ...body, agent_status: 'unavailable' } ).success )
+      .toBe( true )
+    expect( GetSettingsResponse.safeParse( { ...body, agent_status: 'not_configured' } ).success )
+      .toBe( true )
+    expect( GetSettingsResponse.safeParse( { ...body, agent_status: 'down' } ).success )
+      .toBe( false )
+    expect( GetSettingsResponse.safeParse( {
+      settings,
+      locked_instructions: body.locked_instructions,
+    } ).success ).toBe( false )
     expect( GetSettingsResponse.safeParse( { ...body, locked_instructions: 'text' } ).success )
       .toBe( false )
     expect( GetSettingsResponse.safeParse( {
@@ -146,11 +178,25 @@ describe( 'UpdateSettingsBody', () => {
       .toBe( false )
   } )
 
+  it( 'accepts the linking switch and the linking model, each alone', () => {
+    expect( UpdateSettingsBody.safeParse( { linking_enabled: false } ).success ).toBe( true )
+    expect( UpdateSettingsBody.safeParse( { linking_model: 'h' } ).success ).toBe( true )
+    expect( UpdateSettingsBody.safeParse( { linking_model: '' } ).success ).toBe( false )
+    expect( UpdateSettingsBody.safeParse( { linking_enabled: 'yes' } ).success ).toBe( false )
+  } )
+
+  it( 'does not accept the linker profile id', () => {
+    expect( UpdateSettingsBody.safeParse( { linker_profile_id: profileId } ).success ).toBe( false )
+  } )
+
   it( 'rejects an empty body, naming every key it accepts', () => {
     const result = UpdateSettingsBody.safeParse( {} )
+    const message = result.error?.issues[ 0 ]?.message
 
     expect( result.success ).toBe( false )
-    expect( result.error?.issues[ 0 ]?.message ).toContain( 'extraction_model' )
+    expect( message ).toContain( 'extraction_model' )
+    expect( message ).toContain( 'linking_enabled' )
+    expect( message ).toContain( 'linking_model' )
   } )
 
   it( 'rejects an empty model', () => {

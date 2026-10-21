@@ -41,6 +41,7 @@ const STATUS_MESSAGES = {
   converting: 'Converting audio…',
   transcribing: 'Transcribing…',
   summarizing: 'Summarizing…',
+  linking: 'Linking…',
   ready_for_review: 'Ready for review',
   summary_failed: 'Summary failed',
   saved: 'Saved',

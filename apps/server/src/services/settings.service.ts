@@ -28,6 +28,10 @@ export const getSettings = (): Settings => {
       : SHIPPED_DEFAULT_MODEL,
     default_profile_id: resolvePrompt( null ).profile.id,
     feed_check_interval_minutes: interval.success ? interval.data : DEFAULT_FEED_INTERVAL,
+    // Placeholders until task 6.4 reads the real linking settings
+    linking_enabled: true,
+    linking_model: SHIPPED_DEFAULT_MODEL,
+    linker_profile_id: resolvePrompt( null ).profile.id,
   }
 }
 

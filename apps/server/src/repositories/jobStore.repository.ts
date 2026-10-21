@@ -5,7 +5,13 @@ import { Job, SourceDocument } from '@mnemosyne/shared'
 // Repositories
 import { getDatabase } from './database.js'
 
-export const StoredJob = Job.omit( { summary_usage: true } ).extend( {
+// The link fields join the stored job in task 5.4
+export const StoredJob = Job.omit( {
+  summary_usage: true,
+  link_state: true,
+  link_error: true,
+  link_usage: true,
+} ).extend( {
   source_document: SourceDocument.nullable(),
 } )
 export type StoredJob = z.infer< typeof StoredJob >

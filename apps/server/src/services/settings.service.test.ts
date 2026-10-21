@@ -41,6 +41,9 @@ describe( 'getSettings', () => {
       extraction_model: 'claude-sonnet-5-5',
       default_profile_id: byName( 'Business ideas' ),
       feed_check_interval_minutes: 60,
+      linking_enabled: true,
+      linking_model: 'claude-sonnet-5-5',
+      linker_profile_id: byName( 'Business ideas' ),
     } )
   } )
 
@@ -113,6 +116,9 @@ describe( 'updateSettings', () => {
       extraction_model: 'claude-sonnet-5-5',
       default_profile_id: coding,
       feed_check_interval_minutes: 60,
+      linking_enabled: true,
+      linking_model: 'claude-sonnet-5-5',
+      linker_profile_id: coding,
     } )
   } )
 

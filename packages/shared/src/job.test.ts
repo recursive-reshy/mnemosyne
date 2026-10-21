@@ -1,7 +1,13 @@
 // Packages
 import { describe, it, expect } from 'vitest'
 // Job
-import { Job, JobStatus } from './job.js'
+import {
+  Job,
+  JobStatus,
+  LinkRun,
+  LinkState,
+  LinkUsageSummary,
+} from './job.js'
 
 const validJob = {
   id: '3f2b8c1e-6d1a-4b8e-9a53-0c1d2e3f4a5b',
@@ -18,6 +24,9 @@ const validJob = {
   summary_model: null,
   prompt_profile_id: null,
   summary_usage: null,
+  link_state: null,
+  link_error: null,
+  link_usage: null,
   source_type: 'video',
   feed_id: null,
   feed_name: null,
@@ -33,6 +42,7 @@ describe( 'JobStatus', () => {
     'converting',
     'transcribing',
     'summarizing',
+    'linking',
     'ready_for_review',
     'summary_failed',
     'saved',
@@ -93,6 +103,9 @@ describe( 'Job', () => {
   } )
 
   it.each( [
+    'link_state',
+    'link_error',
+    'link_usage',
     'source_type',
     'feed_id',
     'feed_name',
@@ -216,5 +229,87 @@ describe( 'Job summary fields', () => {
 
   it( 'rejects a profile id that is not a uuid', () => {
     expect( Job.safeParse( { ...validJob, prompt_profile_id: 'x' } ).success ).toBe( false )
+  } )
+} )
+
+const linkRun = {
+  model: 'claude-haiku-5-5',
+  prompt_version: 1,
+  input_tokens: 1200,
+  output_tokens: 300,
+  cache_read_input_tokens: 800,
+  cache_creation_input_tokens: 0,
+  tool_calls: 4,
+  cost_usd: null,
+  outcome: 'succeeded',
+  created_at: '2026-10-21T10:00:00.000Z',
+}
+
+describe( 'LinkState', () => {
+  it.each( [ 'off', 'pending', 'linked', 'failed' ] )( 'accepts %s', ( state ) => {
+    expect( LinkState.safeParse( state ).success ).toBe( true )
+  } )
+
+  it( 'rejects an unknown state', () => {
+    expect( LinkState.safeParse( 'running' ).success ).toBe( false )
+  } )
+} )
+
+describe( 'Job link fields', () => {
+  it.each( [ 'off', 'pending', 'linked', 'failed' ] )( 'accepts link_state %s', ( state ) => {
+    expect( Job.safeParse( { ...validJob, link_state: state } ).success ).toBe( true )
+  } )
+
+  it( 'rejects an unknown link_state', () => {
+    expect( Job.safeParse( { ...validJob, link_state: 'running' } ).success ).toBe( false )
+  } )
+
+  it( 'accepts a link error and link usage', () => {
+    const usage = {
+      last_run: linkRun,
+      run_count: 1,
+      total_input_tokens: 1200,
+      total_output_tokens: 300,
+      total_cost_usd: null,
+    }
+
+    expect( Job.safeParse( {
+      ...validJob,
+      link_state: 'failed',
+      link_error: 'Timed out',
+      link_usage: usage,
+    } ).success ).toBe( true )
+  } )
+} )
+
+describe( 'LinkRun and LinkUsageSummary', () => {
+  it( 'accepts a succeeded run without a price', () => {
+    expect( LinkRun.safeParse( linkRun ).success ).toBe( true )
+  } )
+
+  it( 'accepts a priced run', () => {
+    expect( LinkRun.safeParse( { ...linkRun, cost_usd: 0.002 } ).success ).toBe( true )
+  } )
+
+  it( 'rejects an unknown outcome and a prompt version below 1', () => {
+    expect( LinkRun.safeParse( { ...linkRun, outcome: 'pending' } ).success ).toBe( false )
+    expect( LinkRun.safeParse( { ...linkRun, prompt_version: 0 } ).success ).toBe( false )
+  } )
+
+  it( 'rejects negative token counts', () => {
+    expect( LinkRun.safeParse( { ...linkRun, input_tokens: -1 } ).success ).toBe( false )
+  } )
+
+  it( 'accepts usage and needs at least one run', () => {
+    const usage = {
+      last_run: linkRun,
+      run_count: 2,
+      total_input_tokens: 2400,
+      total_output_tokens: 600,
+      total_cost_usd: 0.004,
+    }
+
+    expect( LinkUsageSummary.safeParse( usage ).success ).toBe( true )
+    expect( LinkUsageSummary.safeParse( { ...usage, run_count: 0 } ).success ).toBe( false )
   } )
 } )

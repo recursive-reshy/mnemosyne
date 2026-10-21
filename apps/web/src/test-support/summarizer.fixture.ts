@@ -7,6 +7,7 @@ import type {
 } from '@mnemosyne/shared'
 
 export const BUSINESS_ID = '0b7c1c3e-5d4a-4e6f-9a7b-1c2d3e4f5a01'
+export const LINKER_ID = '0b7c1c3e-5d4a-4e6f-9a7b-1c2d3e4f5a09'
 export const CODING_ID = '0b7c1c3e-5d4a-4e6f-9a7b-1c2d3e4f5a02'
 export const GENERAL_ID = '0b7c1c3e-5d4a-4e6f-9a7b-1c2d3e4f5a03'
 
@@ -77,11 +78,16 @@ export const settingsFixture = (
       extraction_model: 'claude-haiku-5-5',
       default_profile_id: BUSINESS_ID,
       feed_check_interval_minutes: 60,
+      linking_enabled: true,
+      linking_model: 'claude-haiku-5-5',
+      linker_profile_id: LINKER_ID,
       ...overrides,
     },
     locked_instructions: {
       video: 'You summarize the transcript of a video.',
       article: 'You summarize an article.',
     },
+    linker_locked_instructions: 'You propose links.',
+    agent_status: 'ok',
   }
 }

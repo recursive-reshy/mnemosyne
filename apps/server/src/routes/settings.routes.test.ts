@@ -46,11 +46,16 @@ describe( 'GET /api/settings', () => {
         extraction_model: 'claude-sonnet-5-5',
         default_profile_id: profileId( 'Business ideas' ),
         feed_check_interval_minutes: 60,
+        linking_enabled: true,
+        linking_model: 'claude-sonnet-5-5',
+        linker_profile_id: profileId( 'Business ideas' ),
       },
       locked_instructions: {
         video: LOCKED_INSTRUCTIONS_VIDEO,
         article: LOCKED_INSTRUCTIONS_ARTICLE,
       },
+      linker_locked_instructions: null,
+      agent_status: 'not_configured',
     } )
   } )
 } )
