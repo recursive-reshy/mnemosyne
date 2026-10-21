@@ -1,3 +1,7 @@
+// React
+import type { ReactElement } from 'react'
+// Packages
+import { useNavigate } from 'react-router'
 // Shared
 import { parseNote, serializeNote } from '@mnemosyne/shared'
 // Testing Library
@@ -283,6 +287,29 @@ describe( 'ReviewScreen autosave', () => {
     expect( screen.getByRole( 'status' ) ).toHaveTextContent( 'Unsaved changes' )
   } )
 
+  it( 'asks before the user leaves the page with unsaved edits', async () => {
+    const user = userEvent.setup()
+    const Leave = (): ReactElement => {
+      const navigate = useNavigate()
+
+      return <button onClick={ () => void navigate( '/' ) }>Leave</button>
+    }
+    const { location } = renderWithClient(
+      <>
+        <Leave />
+        <ReviewScreen job={ reviewJob } { ...handlers() } />
+      </>,
+      { route: '/jobs/abc' },
+    )
+
+    await user.type( screen.getByRole( 'textbox', { name: 'Summary' } ), '!' )
+    await user.click( screen.getByRole( 'button', { name: 'Leave' } ) )
+
+    expect( await screen.findByRole( 'dialog', { name: 'Discard unsaved changes?' } ) )
+      .toBeInTheDocument()
+    expect( location().pathname ).toBe( '/jobs/abc' )
+  } )
+
   it( 'shows why a draft was not saved and keeps the text', async () => {
     mockedUpdateDraft.mockRejectedValue( new ApiError( 'front-matter invalid: bad YAML', 400 ) )
     renderWithClient( <ReviewScreen job={ reviewJob } { ...handlers() } /> )
@@ -520,6 +547,29 @@ describe( 'ReviewScreen discard', () => {
 
     expect( mockedDiscardJob ).toHaveBeenCalledExactlyOnceWith( reviewJob.id )
     await vi.waitFor( () => expect( onDiscarded ).toHaveBeenCalledTimes( 1 ) )
+  } )
+
+  it( 'leaves without asking again when the job is discarded with unsaved edits', async () => {
+    mockedDiscardJob.mockResolvedValue( undefined )
+    const user = userEvent.setup()
+    const Screen = (): ReactElement => {
+      const navigate = useNavigate()
+
+      return (
+        <ReviewScreen
+          job={ reviewJob }
+          onSaved={ vi.fn() }
+          onDiscarded={ () => void navigate( '/' ) }
+        />
+      )
+    }
+    const { location } = renderWithClient( <Screen />, { route: '/jobs/abc' } )
+
+    await user.type( screen.getByRole( 'textbox', { name: 'Summary' } ), '!' )
+    await user.click( discardButton() )
+
+    await vi.waitFor( () => expect( location().pathname ).toBe( '/' ) )
+    expect( screen.queryByRole( 'dialog' ) ).not.toBeInTheDocument()
   } )
 
   it( 'shows the server message when the discard fails and stays', async () => {

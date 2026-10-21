@@ -159,6 +159,7 @@ export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps )
           onCancel={ () => setIsRegenerating( false ) }
         />
       ) }
+      { autosave.guard }
     </Stack>
   )
 }

@@ -6,31 +6,13 @@ import { useQueryClient } from '@tanstack/react-query'
 import type { Job, UpdateDraftBody } from '@mnemosyne/shared'
 // App
 import { updateDraft } from '../api/jobs.api'
+import type { AutosaveState, AutosaveStatus, Values } from './autosaveDraft.types'
 import { jobKeys } from './queryKeys'
-import { useUnsavedChangesWarning } from './useUnsavedChangesWarning'
+import { useUnsavedChangesGuard } from './useUnsavedChangesGuard'
+
+export type { AutosaveState, AutosaveStatus } from './autosaveDraft.types'
 
 export const AUTOSAVE_DEBOUNCE_MS = 1500
-
-export type AutosaveStatus = 'saved' | 'saving' | 'unsaved' | 'error'
-
-export interface AutosaveState {
-  note: string
-  folder: string | null
-  setNote: ( note: string ) => void
-  setFolder: ( folder: string | null ) => void
-  flush: () => Promise< boolean >
-  status: AutosaveStatus
-  message: string | null
-  adoptServerNote: () => void
-  cancelPending: () => void
-  replaceNote: ( note: string ) => void
-  markSaved: ( note: string ) => void
-}
-
-interface Values {
-  note: string
-  folder: string | null
-}
 
 export function useAutosaveDraft( job: Job ): AutosaveState {
   const queryClient = useQueryClient()
@@ -179,7 +161,7 @@ export function useAutosaveDraft( job: Job ): AutosaveState {
     }
   }, [] )
 
-  useUnsavedChangesWarning( status !== 'saved' )
+  const guard = useUnsavedChangesGuard( status !== 'saved' )
 
   return {
     note: values.note,
@@ -193,5 +175,6 @@ export function useAutosaveDraft( job: Job ): AutosaveState {
     cancelPending,
     replaceNote,
     markSaved,
+    guard,
   }
 }

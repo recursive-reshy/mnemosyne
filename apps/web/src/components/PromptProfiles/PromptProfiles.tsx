@@ -10,7 +10,7 @@ import Typography from '@mui/material/Typography'
 // App
 import { usePromptProfiles } from '#src/hooks/usePromptProfiles'
 import { useSettings } from '#src/hooks/useSettings'
-import { useUnsavedChangesWarning } from '#src/hooks/useUnsavedChangesWarning'
+import { useUnsavedChangesGuard } from '#src/hooks/useUnsavedChangesGuard'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { ProfileActions } from '../ProfileActions'
 import { deleteBlockedReason } from '../ProfileActions/deleteBlockedReason'
@@ -33,7 +33,7 @@ export function PromptProfiles(): ReactElement {
     ?? profiles[ 0 ]
   const saved = profile?.current_version.guidance ?? ''
   const isDirty = draft !== null && draft.trim() !== saved.trim()
-  useUnsavedChangesWarning( isDirty )
+  const guard = useUnsavedChangesGuard( isDirty )
 
   if( state.isLoading ) {
     return <Typography role="status">Loading prompt profiles…</Typography>
@@ -153,6 +153,7 @@ export function PromptProfiles(): ReactElement {
         onConfirm={ () => select( switchTo ) }
         onCancel={ () => setDialog( null ) }
       />
+      { guard }
     </Stack>
   )
 }

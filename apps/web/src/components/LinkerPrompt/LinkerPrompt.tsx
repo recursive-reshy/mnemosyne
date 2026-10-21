@@ -9,7 +9,7 @@ import Typography from '@mui/material/Typography'
 import { usePromptProfiles } from '#src/hooks/usePromptProfiles'
 import { usePromptVersions } from '#src/hooks/usePromptVersions'
 import { useSettings } from '#src/hooks/useSettings'
-import { useUnsavedChangesWarning } from '#src/hooks/useUnsavedChangesWarning'
+import { useUnsavedChangesGuard } from '#src/hooks/useUnsavedChangesGuard'
 import { PromptEditor } from '../PromptEditor'
 import { PromptHistory } from '../PromptHistory'
 
@@ -21,7 +21,7 @@ export function LinkerPrompt(): ReactElement {
   const current = versions[ 0 ]
   const saved = current?.guidance ?? ''
   const isDirty = draft !== null && draft.trim() !== saved.trim()
-  useUnsavedChangesWarning( isDirty )
+  const guard = useUnsavedChangesGuard( isDirty )
 
   if( isLoading ) {
     return <Typography role="status">Loading the linker prompt…</Typography>
@@ -63,6 +63,7 @@ export function LinkerPrompt(): ReactElement {
           clearDraft,
         ) }
       />
+      { guard }
     </Stack>
   )
 }
