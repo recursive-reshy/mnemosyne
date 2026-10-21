@@ -46,7 +46,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 3.4 | Agent: `logging_setup.py` (JSON formatter, `job_id_var`, filter, uvicorn loggers), `LOG_LEVEL` in `config.py`, the `X-Job-Id` middleware, the no-note-text test; server: `X-Job-Id` on `requestLinks`; `LOG_LEVEL` in Compose and both `.env.example` files (TRD §3.2–3.3, §8) | 0049 | ✅ |
 
 ## Checkpoint C: Phase 4 (data router and Settings tabs)
-**Plan:** ⬜ `plans/checkpoint-c.md`
+**Plan:** ✅ [`plans/checkpoint-c.md`](plans/checkpoint-c.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
