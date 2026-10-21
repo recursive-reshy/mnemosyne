@@ -57,7 +57,7 @@ Needs Naresh's scaffold in `apps/agent` (TRD §2.1). Check it exists before plan
 | 4.7 | `Dockerfile`, `.dockerignore`, the `agent` Compose service and `AGENT_URL` on `mnemosyne`; the `docker`-marked test (health, read-only vault); `.env.example` (TRD §8, §6.1 last bullet) | 0042 | ✅ |
 
 ## Checkpoint C: Phases 5–6 (shared, data and server)
-**Plan:** ⬜ [`plans/checkpoint-c.md`](plans/checkpoint-c.md)
+**Plan:** ✅ [`plans/checkpoint-c.md`](plans/checkpoint-c.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
