@@ -14,13 +14,28 @@ import { adapterFor } from '../sources/index.js'
 // Config
 import { config } from '../config.js'
 // Worker
+import { linkJob } from './linkJob.js'
 import { summarizeJob } from './summarizeJob.js'
+
+const summarizeThenLink = async ( jobId: string ): Promise< void > => {
+  await summarizeJob( jobId )
+
+  if( findJob( jobId ).status === 'linking' ) {
+    await linkJob( jobId )
+  }
+}
 
 export const runJob = async ( jobId: string ): Promise< void > => {
   const job = findJob( jobId )
 
+  if( job.status === 'linking' ) {
+    await linkJob( jobId )
+
+    return
+  }
+
   if( job.status === 'summarizing' ) {
-    await summarizeJob( jobId )
+    await summarizeThenLink( jobId )
 
     return
   }
@@ -45,6 +60,6 @@ export const runJob = async ( jobId: string ): Promise< void > => {
   }
 
   if( findJob( jobId ).status === 'summarizing' ) {
-    await summarizeJob( jobId )
+    await summarizeThenLink( jobId )
   }
 }

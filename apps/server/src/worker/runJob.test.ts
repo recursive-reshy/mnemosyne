@@ -19,7 +19,7 @@ import {
   queueJob,
 } from '../services/jobs.service.js'
 // Repositories
-import { clearJobs, findJobById } from '../repositories/jobStore.repository.js'
+import { clearJobs, findJobById, updateJob } from '../repositories/jobStore.repository.js'
 // Sources
 import { fetchArticle } from '../sources/extractArticle.js'
 // Clients
@@ -28,6 +28,7 @@ import { convertToWav } from '../clients/ffmpeg.client.js'
 import { transcribeAudio } from '../clients/whisperServer.client.js'
 // Worker
 import { runJob } from './runJob.js'
+import { linkJob } from './linkJob.js'
 import { summarizeJob } from './summarizeJob.js'
 // Node
 import { rm } from 'node:fs/promises'
@@ -36,6 +37,7 @@ vi.mock( '../clients/ytDlp.client.js' )
 vi.mock( '../clients/ffmpeg.client.js' )
 vi.mock( '../clients/whisperServer.client.js' )
 vi.mock( './summarizeJob.js' )
+vi.mock( './linkJob.js' )
 vi.mock( '../sources/extractArticle.js' )
 vi.mock( 'node:fs/promises' )
 vi.mock( '../config.js', () => ( {
@@ -60,6 +62,7 @@ const convertMock = vi.mocked( convertToWav )
 const transcribeMock = vi.mocked( transcribeAudio )
 const rmMock = vi.mocked( rm )
 const summarizeJobMock = vi.mocked( summarizeJob )
+const linkJobMock = vi.mocked( linkJob )
 
 const queue = async (): Promise< string > => {
   return ( await queueJob( { url: 'https://www.youtube.com/watch?v=abc' } ) ).id
@@ -81,6 +84,7 @@ beforeEach( () => {
   transcribeMock.mockResolvedValue( segments )
   rmMock.mockResolvedValue( undefined )
   summarizeJobMock.mockResolvedValue( undefined )
+  linkJobMock.mockResolvedValue( undefined )
 } )
 
 afterEach( () => {
@@ -290,6 +294,87 @@ describe( 'runJob', () => {
 
       expect( findJob( id ).status ).toBe( 'summarizing' )
     } )
+
+    it( 'links the job when summarizing moved it to linking', async () => {
+      const id = await queueSummarizing()
+      summarizeJobMock.mockImplementation( () => {
+        updateJob( id, { status: 'linking', link_state: 'pending' } )
+
+        return Promise.resolve()
+      } )
+
+      await runJob( id )
+
+      expect( summarizeJobMock ).toHaveBeenCalledBefore( linkJobMock )
+      expect( linkJobMock ).toHaveBeenCalledExactlyOnceWith( id )
+    } )
+
+    it( 'does not link a job that went to review without linking', async () => {
+      const id = await queueSummarizing()
+      summarizeJobMock.mockImplementation( () => {
+        updateJob( id, { status: 'ready_for_review', link_state: 'off' } )
+
+        return Promise.resolve()
+      } )
+
+      await runJob( id )
+
+      expect( linkJobMock ).not.toHaveBeenCalled()
+    } )
+
+    it( 'does not link a job whose summary failed', async () => {
+      const id = await queueSummarizing()
+      summarizeJobMock.mockImplementation( () => {
+        updateJob( id, { status: 'summary_failed' } )
+
+        return Promise.resolve()
+      } )
+
+      await runJob( id )
+
+      expect( linkJobMock ).not.toHaveBeenCalled()
+    } )
+  } )
+
+  describe( 'when the job is already linking', () => {
+    const queueLinking = async (): Promise< string > => {
+      const id = await queue()
+      markStatus( id, 'downloading' )
+      markStatus( id, 'converting' )
+      markStatus( id, 'transcribing' )
+      completeAcquisition( id, {
+        kind: 'video',
+        meta: { ...meta, transcribed_at: NOW, model: 'test-model' },
+        segments,
+      } )
+      updateJob( id, { status: 'linking', link_state: 'pending' } )
+
+      return id
+    }
+
+    it( 'runs only the link step', async () => {
+      const id = await queueLinking()
+
+      await runJob( id )
+
+      expect( linkJobMock ).toHaveBeenCalledExactlyOnceWith( id )
+      expect( summarizeJobMock ).not.toHaveBeenCalled()
+      expectClientsNotCalled()
+      expect( rmMock ).not.toHaveBeenCalled()
+    } )
+  } )
+
+  it( 'links a job that was summarized in the same run', async () => {
+    const id = await queue()
+    summarizeJobMock.mockImplementation( () => {
+      updateJob( id, { status: 'linking', link_state: 'pending' } )
+
+      return Promise.resolve()
+    } )
+
+    await runJob( id )
+
+    expect( linkJobMock ).toHaveBeenCalledExactlyOnceWith( id )
   } )
 
   it( 'rejects with NotFoundError for an unknown id', async () => {

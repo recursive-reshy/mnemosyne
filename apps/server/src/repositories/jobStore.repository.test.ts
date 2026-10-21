@@ -28,6 +28,7 @@ import {
   insertJob,
   listActiveJobs,
   markInterruptedJobs,
+  markInterruptedLinkingJobs,
   updateJob,
 } from './jobStore.repository.js'
 
@@ -73,6 +74,29 @@ describe( 'link fields', () => {
 
     expect( findJobById( job.id ) )
       .toMatchObject( { link_state: 'failed', link_error: 'Timed out' } )
+  } )
+
+  it( 'moves linking jobs to review as failed, and only those', () => {
+    const linking = buildJob( { status: 'linking', link_state: 'pending' } )
+    const summarizing = buildJob( { status: 'summarizing' } )
+    insertJob( linking )
+    insertJob( summarizing )
+
+    const count = markInterruptedLinkingJobs(
+      'Interrupted by restart',
+      '2026-10-15T09:00:00.000Z',
+      '2026-10-16T09:00:00.000Z',
+    )
+
+    expect( count ).toBe( 1 )
+    expect( findJobById( linking.id ) ).toMatchObject( {
+      status: 'ready_for_review',
+      link_state: 'failed',
+      link_error: 'Interrupted by restart',
+      expires_at: '2026-10-16T09:00:00.000Z',
+      updated_at: '2026-10-15T09:00:00.000Z',
+    } )
+    expect( findJobById( summarizing.id )?.status ).toBe( 'summarizing' )
   } )
 
   it( 'does not touch markInterruptedJobs\' statuses: a linking job is left alone', () => {

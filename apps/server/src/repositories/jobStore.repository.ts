@@ -146,6 +146,20 @@ export const markInterruptedJobs = ( message: string, now: string ): number => {
   return changes
 }
 
+export const markInterruptedLinkingJobs = (
+  message: string,
+  now: string,
+  expiresAt: string,
+): number => {
+  const { changes } = getDatabase()
+    .prepare( `UPDATE jobs SET status = 'ready_for_review', link_state = 'failed',
+        link_error = ?, expires_at = ?, updated_at = ?
+      WHERE status = 'linking'` )
+    .run( message, expiresAt, now )
+
+  return changes
+}
+
 export const listActiveJobs = (): StoredJob[] => {
   return getDatabase()
     .prepare( `${ SELECT_JOB }

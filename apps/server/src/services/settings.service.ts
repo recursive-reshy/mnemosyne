@@ -1,3 +1,5 @@
+// Packages
+import { z } from 'zod'
 // Shared
 import {
   FeedCheckInterval,
@@ -16,9 +18,16 @@ import { assertActiveProfile, resolvePrompt } from './prompts.service.js'
 
 const DEFAULT_FEED_INTERVAL = 60
 
+export const isLinkingEnabled = (): boolean => {
+  const stored = z.boolean().safeParse( getSetting( 'linking_enabled' ) )
+
+  return stored.success ? stored.data : true
+}
+
 export const getSettings = (): Settings => {
   const model = getSetting( 'default_model' )
   const extractionModel = getSetting( 'extraction_model' )
+  const linkingModel = getSetting( 'linking_model' )
   const interval = FeedCheckInterval.safeParse( getSetting( 'feed_check_interval_minutes' ) )
 
   return {
@@ -28,9 +37,9 @@ export const getSettings = (): Settings => {
       : SHIPPED_DEFAULT_MODEL,
     default_profile_id: resolvePrompt( null ).profile.id,
     feed_check_interval_minutes: interval.success ? interval.data : DEFAULT_FEED_INTERVAL,
-    // Placeholders until task 6.4 reads the real linking settings
-    linking_enabled: true,
-    linking_model: SHIPPED_DEFAULT_MODEL,
+    // Task 6.4 replaces the model fallback and the linker profile id
+    linking_enabled: isLinkingEnabled(),
+    linking_model: typeof linkingModel === 'string' ? linkingModel : SHIPPED_DEFAULT_MODEL,
     linker_profile_id: resolvePrompt( null ).profile.id,
   }
 }

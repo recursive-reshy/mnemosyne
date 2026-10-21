@@ -10,6 +10,7 @@ import {
   countActiveProfiles,
   findLatestVersion,
   findProfileById,
+  findProfileBySeedKey,
   findVersionById,
   insertProfile,
   insertVersion,
@@ -20,7 +21,7 @@ import {
 } from '../repositories/promptProfiles.repository.js'
 import { getSetting } from '../repositories/settings.repository.js'
 // Summarizer
-import { SEEDED_PROFILES } from '../summarizer/prompts.js'
+import { LINKER_SEED_KEY, SEEDED_PROFILES } from '../summarizer/prompts.js'
 
 const NAME_TAKEN = 'A profile with that name already exists'
 
@@ -163,6 +164,18 @@ export const resolvePrompt = (
 
   if( record === undefined ) {
     throw new Error( 'The default prompt profile is missing' )
+  }
+
+  const profile = toProfile( record )
+
+  return { profile, version: profile.current_version }
+}
+
+export const resolveLinkerPrompt = (): { profile: PromptProfile, version: PromptVersion } => {
+  const record = findProfileBySeedKey( LINKER_SEED_KEY )
+
+  if( record === undefined ) {
+    throw new Error( 'The linker prompt profile is missing' )
   }
 
   const profile = toProfile( record )

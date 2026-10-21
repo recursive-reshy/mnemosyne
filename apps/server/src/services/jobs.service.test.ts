@@ -14,6 +14,8 @@ import {
   Transcript,
   parseNote,
 } from '@mnemosyne/shared'
+// Config
+import { config } from '../config.js'
 // Errors
 import { ConflictError, NotFoundError, ValidationError } from '../errors.js'
 // Repositories
@@ -23,15 +25,28 @@ import {
   insertJob,
   updateJob,
 } from '../repositories/jobStore.repository.js'
+import { insertLinkRun } from '../repositories/linkRuns.repository.js'
+import {
+  insertSuggestions,
+  listSuggestions,
+  setStatus,
+} from '../repositories/linkSuggestions.repository.js'
+import {
+  findLatestVersion,
+  findProfileBySeedKey,
+} from '../repositories/promptProfiles.repository.js'
+import { setSetting } from '../repositories/settings.repository.js'
 import { insertFeed } from '../repositories/feeds.repository.js'
 import { addStoredSource } from '../test-support/gmailSources.fixture.js'
 // Services
 import {
+  completeLinking,
   completeSummary,
   completeAcquisition,
   deleteExpiredJobs,
   discardJob,
   failJob,
+  failLinking,
   failSummary,
   findJob,
   findSource,
@@ -40,6 +55,8 @@ import {
   listJobs,
   markStatus,
   queueJob,
+  recordLinkRun,
+  recordLinkSuggestions,
   recordSummaryRun,
   recoverInterruptedJobs,
   regenerateSummary,
@@ -1659,5 +1676,319 @@ describe( 'renderTranscript for articles', () => {
 
     expect( () => renderTranscript( id, format ) )
       .toThrow( new ConflictError( 'Only Markdown is available for articles' ) )
+  } )
+} )
+
+describe( 'linking', () => {
+  const agent = { url: 'http://agent:8100', secret: 'x'.repeat( 32 ), timeoutMs: 1000 }
+  const usage = {
+    input_tokens: 1000,
+    output_tokens: 200,
+    cache_read_input_tokens: 400,
+    cache_creation_input_tokens: 50,
+    tool_calls: 5,
+    turns: 6,
+  }
+
+  beforeEach( () => {
+    config.agent = agent
+  } )
+
+  afterEach( () => {
+    config.agent = null
+  } )
+
+  const summarizing = async (): Promise< string > => {
+    const { id } = await queueJob( { url } )
+
+    markStatus( id, 'downloading' )
+    markStatus( id, 'converting' )
+    markStatus( id, 'transcribing' )
+    completeAcquisition( id, { kind: 'video', ...transcript } )
+
+    return id
+  }
+
+  const linking = async (): Promise< string > => {
+    const id = await summarizing()
+
+    completeSummary( id, '## Summary', [ 'rust' ] )
+
+    return id
+  }
+
+  const linkerVersion = (): { id: number, version: number } => {
+    const version = findLatestVersion( findProfileBySeedKey( 'linker' )?.id ?? '' )
+
+    if( version === undefined ) {
+      throw new Error( 'The linker profile has no version' )
+    }
+
+    return version
+  }
+
+  const suggestion = ( target: string ) => ( {
+    target,
+    kind: 'new_concept' as const,
+    anchor: null,
+    reason: `About ${ target }.`,
+  } )
+
+  describe( 'completeSummary', () => {
+    it( 'moves to linking, pending and without an expiry, when linking is on', async () => {
+      const id = await summarizing()
+
+      const job = completeSummary( id, '## Summary', [ 'rust' ] )
+
+      expect( job ).toMatchObject( {
+        status: 'linking',
+        link_state: 'pending',
+        link_error: null,
+        expires_at: null,
+      } )
+      expect( job.note_markdown ).toContain( '## Summary' )
+    } )
+
+    it( 'goes to review with linking off when the agent is not configured', async () => {
+      config.agent = null
+      const id = await summarizing()
+
+      expect( completeSummary( id, '## Summary', [] ) ).toMatchObject( {
+        status: 'ready_for_review',
+        link_state: 'off',
+        expires_at: new Date( startTime.getTime() + 24 * 3_600_000 ).toISOString(),
+      } )
+    } )
+
+    it( 'goes to review with linking off when the switch is off', async () => {
+      setSetting( 'linking_enabled', false )
+      const id = await summarizing()
+
+      expect( completeSummary( id, '## Summary', [] ) ).toMatchObject( {
+        status: 'ready_for_review',
+        link_state: 'off',
+      } )
+    } )
+  } )
+
+  describe( 'completeLinking', () => {
+    it( 'moves to review as linked and starts the expiry', async () => {
+      const id = await linking()
+
+      expect( completeLinking( id ) ).toMatchObject( {
+        status: 'ready_for_review',
+        link_state: 'linked',
+        link_error: null,
+        expires_at: new Date( startTime.getTime() + 24 * 3_600_000 ).toISOString(),
+      } )
+    } )
+
+    it.each( [ 'summarizing', 'ready_for_review' ] as const )(
+      'refuses a job that is %s',
+      async ( status ) => {
+        const id = await linking()
+        updateJob( id, { status } )
+
+        expect( () => completeLinking( id ) ).toThrow( ConflictError )
+      },
+    )
+  } )
+
+  describe( 'failLinking', () => {
+    it( 'moves to review as failed with the reason, never to a failed status', async () => {
+      const id = await linking()
+
+      expect( failLinking( id, 'Agent service unreachable' ) ).toMatchObject( {
+        status: 'ready_for_review',
+        link_state: 'failed',
+        link_error: 'Agent service unreachable',
+        error: null,
+        expires_at: new Date( startTime.getTime() + 24 * 3_600_000 ).toISOString(),
+      } )
+    } )
+
+    it( 'refuses a job that is not linking', async () => {
+      const id = await summarizing()
+
+      expect( () => failLinking( id, 'x' ) ).toThrow( ConflictError )
+    } )
+  } )
+
+  describe( 'recordLinkRun and link_usage', () => {
+    it( 'has no link usage before a run', async () => {
+      expect( findJob( await linking() ).link_usage ).toBeNull()
+    } )
+
+    it( 'records usage and a computed cost, and returns the run id', async () => {
+      const id = await linking()
+
+      const runId = recordLinkRun( id, {
+        model: 'claude-sonnet-5-5',
+        promptVersionId: linkerVersion().id,
+        usage,
+      } )
+
+      expect( runId ).toBeGreaterThan( 0 )
+      expect( findJob( id ).link_usage ).toEqual( {
+        last_run: {
+          model: 'claude-sonnet-5-5',
+          prompt_version: linkerVersion().version,
+          input_tokens: 1000,
+          output_tokens: 200,
+          cache_read_input_tokens: 400,
+          cache_creation_input_tokens: 50,
+          tool_calls: 5,
+          cost_usd: 0.004,
+          outcome: 'succeeded',
+          created_at: startTime.toISOString(),
+        },
+        run_count: 1,
+        total_input_tokens: 1000,
+        total_output_tokens: 200,
+        total_cost_usd: 0.004,
+      } )
+    } )
+
+    it( 'shows tokens only for a model without a single price', async () => {
+      const id = await linking()
+
+      recordLinkRun( id, {
+        model: 'claude-haiku-5-5',
+        promptVersionId: linkerVersion().id,
+        usage,
+      } )
+
+      expect( findJob( id ).link_usage ).toMatchObject( {
+        last_run: { cost_usd: null, input_tokens: 1000 },
+        total_cost_usd: null,
+      } )
+    } )
+
+    it( 'records a failed run without usage', async () => {
+      const id = await linking()
+
+      recordLinkRun( id, {
+        model: 'claude-haiku-5-5',
+        promptVersionId: linkerVersion().id,
+        usage: undefined,
+        error: 'Agent service unreachable',
+      } )
+
+      expect( findJob( id ).link_usage?.last_run ).toMatchObject( {
+        outcome: 'failed',
+        input_tokens: null,
+        output_tokens: null,
+        tool_calls: null,
+        cost_usd: null,
+      } )
+    } )
+
+    it( 'records a failed run that still has usage', async () => {
+      const id = await linking()
+
+      recordLinkRun( id, {
+        model: 'claude-sonnet-5-5',
+        promptVersionId: linkerVersion().id,
+        usage,
+        error: 'Timed out after 90 s',
+      } )
+
+      expect( findJob( id ).link_usage?.last_run )
+        .toMatchObject( { outcome: 'failed', input_tokens: 1000, cost_usd: 0.004 } )
+    } )
+  } )
+
+  describe( 'recordLinkSuggestions', () => {
+    it( 'stores the suggestions as pending under the run', async () => {
+      const id = await linking()
+      const runId = recordLinkRun( id, {
+        model: 'claude-haiku-5-5',
+        promptVersionId: linkerVersion().id,
+        usage,
+      } )
+
+      recordLinkSuggestions( id, runId, [ suggestion( 'Alpha' ), suggestion( 'Beta' ) ] )
+
+      expect( listSuggestions( id ).map( ( { target, status, position } ) => ( {
+        target,
+        status,
+        position,
+      } ) ) ).toEqual( [
+        { target: 'Alpha', status: 'pending', position: 0 },
+        { target: 'Beta', status: 'pending', position: 1 },
+      ] )
+    } )
+  } )
+
+  describe( 'findNextRunnableJob', () => {
+    it( 'returns a job that is linking', async () => {
+      const id = await linking()
+
+      expect( findNextRunnableJob()?.id ).toBe( id )
+    } )
+  } )
+
+  describe( 'recoverInterruptedJobs', () => {
+    it( 'moves a linking job to review as failed, and counts it with the step jobs', async () => {
+      const id = await linking()
+      const { id: downloading } = await queueJob( { url } )
+      markStatus( downloading, 'downloading' )
+      const stillSummarizing = await summarizing()
+
+      expect( recoverInterruptedJobs() ).toBe( 2 )
+      expect( findJob( id ) ).toMatchObject( {
+        status: 'ready_for_review',
+        link_state: 'failed',
+        link_error: 'Interrupted by restart',
+        expires_at: new Date( startTime.getTime() + 24 * 3_600_000 ).toISOString(),
+      } )
+      expect( findJob( downloading ).status ).toBe( 'failed' )
+      expect( findJob( stillSummarizing ).status ).toBe( 'summarizing' )
+    } )
+  } )
+
+  describe( 'regenerateSummary', () => {
+    it( 'supersedes pending suggestions, keeps decided ones, clears the link state', async () => {
+      const id = await linking()
+      completeLinking( id )
+      const runId = recordLinkRun( id, {
+        model: 'claude-haiku-5-5',
+        promptVersionId: linkerVersion().id,
+        usage,
+      } )
+      const [ accepted ] = insertSuggestions( runId, id, [ suggestion( 'Alpha' ) ] )
+      insertSuggestions( runId, id, [ suggestion( 'Beta' ) ] )
+      setStatus( [ accepted?.id ?? '' ], 'accepted', startTime.toISOString() )
+
+      const job = await regenerateSummary( id, {} )
+
+      expect( job ).toMatchObject( { status: 'summarizing', link_state: null, link_error: null } )
+      expect( listSuggestions( id ).map( ( { target, status } ) => ( { target, status } ) ) )
+        .toEqual( [ { target: 'Alpha', status: 'accepted' } ] )
+    } )
+
+    it( 'supersedes nothing when the choices are refused', async () => {
+      const id = await linking()
+      completeLinking( id )
+      const runId = insertLinkRun( {
+        job_id: id,
+        model: 'claude-haiku-5-5',
+        prompt_version_id: linkerVersion().id,
+        input_tokens: null,
+        output_tokens: null,
+        cache_read_input_tokens: null,
+        cache_creation_input_tokens: null,
+        tool_calls: null,
+        cost_usd: null,
+        outcome: 'succeeded',
+        error: null,
+        created_at: startTime.toISOString(),
+      } )
+      insertSuggestions( runId, id, [ suggestion( 'Alpha' ) ] )
+      assertKnownModelMock.mockRejectedValue( new ValidationError( 'Unknown model: nope' ) )
+
+      await expect( regenerateSummary( id, { model: 'nope' } ) ).rejects.toThrow( ValidationError )
+      expect( listSuggestions( id ).map( ( { status } ) => status ) ).toEqual( [ 'pending' ] )
+    } )
   } )
 } )

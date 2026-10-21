@@ -16,7 +16,7 @@ import {
 // Repositories
 import { getSetting, setSetting } from '../repositories/settings.repository.js'
 // Summarizer
-import { SEEDED_PROFILES } from '../summarizer/prompts.js'
+import { DEFAULT_LINKER_GUIDANCE, SEEDED_PROFILES } from '../summarizer/prompts.js'
 // Services
 import {
   assertActiveProfile,
@@ -27,6 +27,7 @@ import {
   listVersions,
   renameProfile,
   resetProfile,
+  resolveLinkerPrompt,
   resolvePrompt,
   restoreVersion,
   saveVersion,
@@ -293,5 +294,26 @@ describe( 'assertActiveProfile', () => {
 
     expect( () => assertActiveProfile( id ) ).toThrow( ValidationError )
     expect( () => assertActiveProfile( crypto.randomUUID() ) ).toThrow( ValidationError )
+  } )
+} )
+
+describe( 'resolveLinkerPrompt', () => {
+  it( 'returns the linker profile and its current version', () => {
+    const { profile, version } = resolveLinkerPrompt()
+
+    expect( profile.name ).toBe( 'Linker' )
+    expect( version.guidance ).toBe( DEFAULT_LINKER_GUIDANCE )
+    expect( version.id ).toBe( profile.current_version.id )
+  } )
+
+  it( 'follows a newer version of the linker prompt', () => {
+    const { profile } = resolveLinkerPrompt()
+
+    saveVersion( profile.id, 'Link fewer things.' )
+
+    expect( resolveLinkerPrompt().version ).toMatchObject( {
+      version: 2,
+      guidance: 'Link fewer things.',
+    } )
   } )
 } )

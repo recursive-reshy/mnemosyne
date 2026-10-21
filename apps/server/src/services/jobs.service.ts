@@ -4,6 +4,8 @@ import {
   DownloadFormat,
   Job,
   JobStatus,
+  LinkSuggestion,
+  LinkUsage,
   SummaryUsage,
   NoteParseError,
   ArticleSource,
@@ -42,8 +44,11 @@ import {
   insertJob,
   listActiveJobs,
   markInterruptedJobs,
+  markInterruptedLinkingJobs,
   updateJob,
 } from '../repositories/jobStore.repository.js'
+import { insertLinkRun, summarizeLinkUsage } from '../repositories/linkRuns.repository.js'
+import { insertSuggestions, supersedePending } from '../repositories/linkSuggestions.repository.js'
 import { findFeedById } from '../repositories/feeds.repository.js'
 import { findSourceById } from '../repositories/gmailSources.repository.js'
 import { findProfileById, findVersionById } from '../repositories/promptProfiles.repository.js'
@@ -55,6 +60,7 @@ import { estimateCostUsd } from '../summarizer/pricing.js'
 // Services
 import { assertKnownModel } from './models.service.js'
 import { assertActiveProfile } from './prompts.service.js'
+import { isLinkingEnabled } from './settings.service.js'
 
 export type StepStatus = 'fetching' | 'downloading' | 'converting' | 'transcribing'
 
@@ -150,7 +156,7 @@ const toPublicJob = ( job: StoredJob ): Job => {
     summary_usage: toSummaryUsage( job.id ),
     link_state: job.link_state,
     link_error: job.link_error,
-    link_usage: null,
+    link_usage: summarizeLinkUsage( job.id ) ?? null,
     source_type: job.source_type,
     feed_id: job.feed_id,
     feed_name: job.feed_name,
@@ -314,7 +320,9 @@ export const completeSummary = (
 
   const document = getSource( id )
 
-  return moveTo( job, 'ready_for_review', {
+  const linking = config.agent !== null && isLinkingEnabled()
+
+  return moveTo( job, linking ? 'linking' : 'ready_for_review', {
     note_markdown: formatNote( {
       title: job.title ?? document.meta.title,
       tags: suggestedTags,
@@ -323,8 +331,74 @@ export const completeSummary = (
       created: new Date().toISOString().slice( 0, 10 ),
     } ),
     error: null,
+    link_state: linking ? 'pending' : 'off',
+    link_error: null,
+    expires_at: linking ? null : expiryFromNow(),
+  } )
+}
+
+export const completeLinking = ( id: string ): Job => {
+  const job = requireJob( id )
+
+  if( job.status !== 'linking' ) {
+    throw conflict( job.status, 'ready_for_review' )
+  }
+
+  return moveTo( job, 'ready_for_review', {
+    link_state: 'linked',
+    link_error: null,
     expires_at: expiryFromNow(),
   } )
+}
+
+export const failLinking = ( id: string, message: string ): Job => {
+  const job = requireJob( id )
+
+  if( job.status !== 'linking' ) {
+    throw conflict( job.status, 'ready_for_review' )
+  }
+
+  return moveTo( job, 'ready_for_review', {
+    link_state: 'failed',
+    link_error: message,
+    expires_at: expiryFromNow(),
+  } )
+}
+
+export const recordLinkRun = (
+  jobId: string,
+  run: {
+    model: string
+    promptVersionId: number
+    usage: LinkUsage | undefined
+    error?: string
+  },
+): number => {
+  const inputTokens = run.usage?.input_tokens ?? null
+  const outputTokens = run.usage?.output_tokens ?? null
+
+  return insertLinkRun( {
+    job_id: jobId,
+    model: run.model,
+    prompt_version_id: run.promptVersionId,
+    input_tokens: inputTokens,
+    output_tokens: outputTokens,
+    cache_read_input_tokens: run.usage?.cache_read_input_tokens ?? null,
+    cache_creation_input_tokens: run.usage?.cache_creation_input_tokens ?? null,
+    tool_calls: run.usage?.tool_calls ?? null,
+    cost_usd: estimateCostUsd( run.model, inputTokens, outputTokens ),
+    outcome: run.error === undefined ? 'succeeded' : 'failed',
+    error: run.error ?? null,
+    created_at: new Date().toISOString(),
+  } )
+}
+
+export const recordLinkSuggestions = (
+  jobId: string,
+  runId: number,
+  suggestions: LinkSuggestion[],
+): void => {
+  insertSuggestions( runId, jobId, suggestions )
 }
 
 export const recordSummaryRun = (
@@ -384,10 +458,14 @@ export const regenerateSummary = async (
 
   await validateChoices( choices )
 
+  supersedePending( id )
+
   return moveTo( job, 'summarizing', {
     summary_model: choices.model ?? job.summary_model,
     prompt_profile_id: choices.profile_id ?? job.prompt_profile_id,
     error: null,
+    link_state: null,
+    link_error: null,
     expires_at: null,
   } )
 }
@@ -452,7 +530,11 @@ export const failJob = ( id: string, message: string ): Job => {
 }
 
 export const recoverInterruptedJobs = (): number => {
-  return markInterruptedJobs( 'Interrupted by restart', new Date().toISOString() )
+  const message = 'Interrupted by restart'
+  const now = new Date().toISOString()
+
+  return markInterruptedJobs( message, now )
+    + markInterruptedLinkingJobs( message, now, expiryFromNow() )
 }
 
 export const findSource = ( id: string ): SourceDocument => {
