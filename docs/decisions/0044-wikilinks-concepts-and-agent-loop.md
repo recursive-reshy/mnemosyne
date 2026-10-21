@@ -1,6 +1,6 @@
 # 0044. Wikilinks: links only from the new note, concept links, text-tool search and computed kinds
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-21
 
 ## Context

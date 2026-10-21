@@ -1,6 +1,6 @@
 # 0045. Per-link review: shared insertion functions and one transaction per accept
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-21
 
 ## Context

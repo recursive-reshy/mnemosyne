@@ -1,6 +1,6 @@
 # 0046. Linker prompt as a prompt profile with a purpose; locked instructions owned by the agent service
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-21
 
 ## Context

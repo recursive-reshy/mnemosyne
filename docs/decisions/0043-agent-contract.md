@@ -1,6 +1,6 @@
 # 0043. Agent contract: Pydantic is the source, Zod mirrors it, shared examples catch drift
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-21
 
 ## Context

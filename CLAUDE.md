@@ -10,6 +10,7 @@ This file holds only what is true everywhere. Each app has its own `CLAUDE.md` w
 | --- | --- |
 | `apps/server` | Express API: jobs, worker, yt-dlp / ffmpeg / Whisper clients, formatters |
 | `apps/web` | React UI (screens only) |
+| `apps/agent` | Python vault agent service: stateless, read-only vault tools and Claude tool-use agents; linking is its first endpoint (ADR 0042) |
 | `packages/shared` | Cross-app contracts: Zod schemas and their inferred types |
 | `ops/` | launchd plist for the native whisper-server |
 | `docs/` | Versioned plans in `docs/v<version>/` (PRD, TRD, tasks, checkpoint plans) and ADRs in `docs/decisions/`, indexed in `docs/README.md` |
@@ -22,12 +23,12 @@ The reasons behind each part are in `docs/decisions/`. Read the ADRs a task list
 
 ## Workflow
 
-Work is planned in versioned docs: `docs/v<version>/prd.md` (what and why), `trd.md` (how) and `tasks.md` (ordered tasks grouped into checkpoints). The current version is **0.6.0**. Only Naresh edits the PRD and TRD; `tasks.md` is the only planning doc you edit, and you also write ADRs and checkpoint plans.
+Work is planned in versioned docs: `docs/v<version>/prd.md` (what and why), `trd.md` (how) and `tasks.md` (ordered tasks grouped into checkpoints). The current version is **0.7.0**. Only Naresh edits the PRD and TRD; `tasks.md` is the only planning doc you edit, and you also write ADRs and checkpoint plans.
 
 At the start of every session:
-1. Read `docs/v0.6.0/prd.md`, `trd.md` and `tasks.md`, and the ADRs listed against the next unticked task.
+1. Read `docs/v0.7.0/prd.md`, `trd.md` and `tasks.md`, and the ADRs listed against the next unticked task.
 2. Say which checkpoint and task is next, in one line.
-3. If that checkpoint's Plan cell is ⬜: enter plan mode and write one plan for every task in the checkpoint (files to touch, tests to write first, expected red → green path). Stop. When Naresh approves it, save it to `docs/v0.6.0/plans/checkpoint-<x>.md`, tick the Plan cell, commit, push, then start the first task.
+3. If that checkpoint's Plan cell is ⬜: enter plan mode and write one plan for every task in the checkpoint (files to touch, tests to write first, expected red → green path). Stop. When Naresh approves it, save it to `docs/v0.7.0/plans/checkpoint-<x>.md`, tick the Plan cell, commit, push, then start the first task.
 4. If the Plan cell is ✅: read the saved plan and continue from the first unticked task.
 
 Within a checkpoint, work through its tasks without stopping. For each task: failing tests first and watch them fail → least code to pass → refactor while green → tick Status and add a log line in `tasks.md` → commit → push. At the end of the checkpoint, stop and report (see "Before you stop").
@@ -43,7 +44,7 @@ If something isn't covered by the PRD, TRD, ADRs or the approved plan (a new dep
 ## Rules that span apps
 
 - **TDD, always.** Write the failing test first, run it and watch it fail for the right reason, write the least code that passes, then refactor while green. Each app's `CLAUDE.md` says how this runs there.
-- **Contracts live in `packages/shared`** as Zod schemas, imported by package name (`@mnemosyne/shared`). Neither app redefines a shape the other one uses.
+- **Contracts live in `packages/shared`** as Zod schemas, imported by package name (`@mnemosyne/shared`). Neither app redefines a shape the other one uses. One exception (ADR 0043): the agent service's contract is Pydantic-first (`apps/agent/src/mnemosyne_agent/contract/`), mirrored by hand in `packages/shared/src/agent.ts`, and a contract change is one commit covering the models, the committed JSON Schema export, the golden examples and the Zod mirror.
 - **The server never spawns Whisper.** It calls whisper-server over HTTP at `WHISPER_URL`.
 - **The stored transcript is the source of truth.** Markdown, SRT and TXT are rendered from it by pure formatters; Markdown is never stored as the canonical data.
 - **No secrets in the repo.** Environment files stay out of git; `.env.example` lists the variable names only.

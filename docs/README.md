@@ -60,11 +60,11 @@ Each significant decision is recorded as a short ADR (Architecture Decision Reco
 | [0039](decisions/0039-feed-item-schemas-server-local.md) | Feed-item schemas stay server-local until the unified inbox routes land | Superseded (by the 0038 routes, tasks 8.4–8.5) |
 | [0040](decisions/0040-newsletters-whole-body.md) | Newsletters: convert the whole cleaned body, not Readability's best block | Accepted |
 | [0041](decisions/0041-defer-job-alert-intake.md) | Defer job-alert intake and the Freelance jobs page to a later version | Accepted |
-| [0042](decisions/0042-vault-agent-service.md) | A stateless Python vault agent service, with the vault mounted read-only | Proposed |
-| [0043](decisions/0043-agent-contract.md) | Agent contract: Pydantic is the source, Zod mirrors it, shared examples catch drift | Proposed |
-| [0044](decisions/0044-wikilinks-concepts-and-agent-loop.md) | Wikilinks: links only from the new note, concept links, text-tool search and computed kinds | Proposed |
-| [0045](decisions/0045-per-link-review.md) | Per-link review: shared insertion functions and one transaction per accept | Proposed |
-| [0046](decisions/0046-linker-prompt-and-settings.md) | Linker prompt as a prompt profile with a purpose; locked instructions owned by the agent service | Proposed |
+| [0042](decisions/0042-vault-agent-service.md) | A stateless Python vault agent service, with the vault mounted read-only | Accepted |
+| [0043](decisions/0043-agent-contract.md) | Agent contract: Pydantic is the source, Zod mirrors it, shared examples catch drift | Accepted |
+| [0044](decisions/0044-wikilinks-concepts-and-agent-loop.md) | Wikilinks: links only from the new note, concept links, text-tool search and computed kinds | Accepted |
+| [0045](decisions/0045-per-link-review.md) | Per-link review: shared insertion functions and one transaction per accept | Accepted |
+| [0046](decisions/0046-linker-prompt-and-settings.md) | Linker prompt as a prompt profile with a purpose; locked instructions owned by the agent service | Accepted |
 
 ## Template for new ADRs
 

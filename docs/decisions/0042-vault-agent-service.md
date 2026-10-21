@@ -1,6 +1,6 @@
 # 0042. A stateless Python vault agent service, with the vault mounted read-only
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-21
 
 ## Context
