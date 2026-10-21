@@ -6,12 +6,20 @@ from collections.abc import Awaitable, Callable
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Request, Response
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from mnemosyne_agent.claude import AnthropicClaude, ClaudeClient
 from mnemosyne_agent.config import Settings, load_settings
-from mnemosyne_agent.contract.link import InstructionsResponse
+from mnemosyne_agent.contract.link import (
+    InstructionsResponse,
+    LinkOutcome,
+    LinkRequest,
+    LinkResponse,
+    LinkUsage
+)
 from mnemosyne_agent.linker.instructions import build_instructions
+from mnemosyne_agent.linker.loop import run_linker
 
 logger = logging.getLogger( "mnemosyne_agent" )
 
@@ -33,7 +41,17 @@ def create_app( settings: Settings, claude: ClaudeClient ) -> FastAPI:
         started = time.perf_counter()
         response = await call_next( request )
         duration = ( time.perf_counter() - started ) * 1000
-        logger.info( f"{request.method} {request.url.path} {response.status_code} {duration:.0f}ms" )
+        line = f"{request.method} {request.url.path} {response.status_code} {duration:.0f}ms"
+        link_response: LinkResponse | None = getattr( request.state, "link_response", None )
+
+        if link_response is not None:
+            usage = link_response.usage
+            line = (
+                f"{line} outcome={link_response.outcome.value} tool_calls={usage.tool_calls} "
+                f"input_tokens={usage.input_tokens} output_tokens={usage.output_tokens}"
+            )
+
+        logger.info( line )
 
         return response
 
@@ -52,7 +70,43 @@ def create_app( settings: Settings, claude: ClaudeClient ) -> FastAPI:
     def read_instructions() -> InstructionsResponse:
         return InstructionsResponse( instructions = build_instructions( settings.max_suggestions ) )
 
+    @v1.post( "/link" )
+    async def create_links( link_request: LinkRequest, request: Request ) -> LinkResponse:
+        link_response = await run_linker( link_request, settings, claude )
+        request.state.link_response = link_response
+
+        return link_response
+
     app.include_router( v1 )
+
+    @app.exception_handler( RequestValidationError )
+    async def reject_invalid_request( request: Request, exception: RequestValidationError ) -> JSONResponse:
+        errors = exception.errors()
+        first = errors[ 0 ]
+
+        if first[ "type" ] == "json_invalid":
+            reason = "Invalid request: body is not valid JSON"
+        else:
+            location = ".".join( str( part ) for part in first[ "loc" ][ 1 : ] ) or "body"
+            plural = "" if len( errors ) == 1 else "s"
+            reason = f"Invalid request: {len( errors )} error{plural}, first at {location}"
+
+        link_response = LinkResponse(
+            outcome = LinkOutcome.FAILED,
+            reason = reason,
+            suggestions = [],
+            usage = LinkUsage(
+                input_tokens = 0,
+                output_tokens = 0,
+                cache_read_input_tokens = 0,
+                cache_creation_input_tokens = 0,
+                tool_calls = 0,
+                turns = 0
+            )
+        )
+        request.state.link_response = link_response
+
+        return JSONResponse( content = link_response.model_dump( mode = "json" ) )
 
     return app
 
