@@ -275,3 +275,34 @@ async def test_every_response_is_a_valid_link_response( settings: Settings ) -> 
     response = await run_linker( make_request(), settings, claude )
 
     assert LinkResponse.model_validate( json.loads( response.model_dump_json() ) ) == response
+
+async def test_computes_kinds_and_rewrites_targets_against_the_vault( settings: Settings ) -> None:
+    claude = ScriptedClaude(
+        [
+            submit_reply(
+                [
+                    { "target": "pricing playbook", "anchor": "Usage-based pricing", "reason": "Same topic." },
+                    { "target": "customer discovery", "anchor": None, "reason": "Talk to users." },
+                    { "target": "Free Tier", "anchor": "not in the note", "reason": "Mentioned." }
+                ]
+            )
+        ]
+    )
+
+    response = await run_linker( make_request(), settings, claude )
+
+    assert [ ( suggestion.target, suggestion.kind.value, suggestion.anchor ) for suggestion in response.suggestions ] == [
+        ( "Pricing Playbook", "existing_note", "Usage-based pricing" ),
+        ( "Customer Discovery", "existing_concept", None ),
+        ( "Free Tier", "new_concept", None )
+    ]
+
+async def test_caps_and_deduplicates_the_submitted_suggestions( settings: Settings ) -> None:
+    limited = settings.model_copy( update = { "max_suggestions": 2 } )
+    claude = ScriptedClaude(
+        [ submit_reply( [ good_suggestion( "A" ), good_suggestion( "a" ), good_suggestion( "B" ), good_suggestion( "C" ) ] ) ]
+    )
+
+    response = await run_linker( make_request(), limited, claude )
+
+    assert [ suggestion.target for suggestion in response.suggestions ] == [ "A", "B" ]

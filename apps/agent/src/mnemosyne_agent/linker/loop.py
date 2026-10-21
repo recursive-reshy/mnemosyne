@@ -18,12 +18,13 @@ from mnemosyne_agent.contract.link import (
     LinkOutcome,
     LinkRequest,
     LinkResponse,
-    LinkSuggestion,
-    LinkUsage,
-    SuggestionKind
+    LinkUsage
 )
+from mnemosyne_agent.linker.checks import apply_checks
 from mnemosyne_agent.linker.instructions import build_instructions
 from mnemosyne_agent.linker.tools import SubmitSuggestions, ToolResult, build_tool_definitions, run_vault_tool
+from mnemosyne_agent.vault.links import collect_link_targets
+from mnemosyne_agent.vault.notes import list_all_notes
 
 SUBMIT_TOOL_NAME = "submit_suggestions"
 
@@ -131,15 +132,13 @@ async def converse( request: LinkRequest, settings: Settings, claude: ClaudeClie
                 messages.append( Message( role = "user", content = [ correction ] ) )
                 continue
 
-            suggestions = [
-                LinkSuggestion(
-                    target = suggestion.target,
-                    kind = SuggestionKind.NEW_CONCEPT,
-                    anchor = suggestion.anchor,
-                    reason = suggestion.reason
-                )
-                for suggestion in submitted.suggestions
-            ]
+            suggestions = apply_checks(
+                submitted.suggestions,
+                note,
+                list_all_notes( settings.vault_path ),
+                collect_link_targets( settings.vault_path ),
+                settings
+            )
 
             return LinkResponse(
                 outcome = LinkOutcome.LINKED,
