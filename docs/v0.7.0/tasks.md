@@ -73,7 +73,7 @@ Needs Naresh's scaffold in `apps/agent` (TRD §2.1). Check it exists before plan
 | 6.4 | Settings (`linking_enabled`, `linking_model` with its fallback, `linker_profile_id`, `linker_locked_instructions`, `agent_status`); `DEFAULT_LINKER_GUIDANCE`; profile routes by purpose, the linker profile's 409s and 400s, `resolveLinkerPrompt`, reset; `apps/server/CLAUDE.md` (TRD §6.5–6.6) | 0046, 0047 | ✅ |
 
 ## Checkpoint D: Phase 7 (web)
-**Plan:** ⬜ [`plans/checkpoint-d.md`](plans/checkpoint-d.md)
+**Plan:** ✅ [`plans/checkpoint-d.md`](plans/checkpoint-d.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
