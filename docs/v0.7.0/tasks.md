@@ -38,7 +38,7 @@ Needs Naresh's scaffold in `apps/agent` (TRD §2.1). Check it exists before plan
 | 2.4 | `packages/shared/src/agent.ts` Zod mirror, exported from `index.ts`, with `agent.examples.test.ts` over the same examples (TRD §3.3) | 0043 | ✅ |
 
 ## Checkpoint B: Phases 3–4 (vault tools and the agent)
-**Plan:** ⬜ [`plans/checkpoint-b.md`](plans/checkpoint-b.md)
+**Plan:** ✅ [`plans/checkpoint-b.md`](plans/checkpoint-b.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
