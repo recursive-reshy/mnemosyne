@@ -43,7 +43,7 @@ Needs Naresh's scaffold in `apps/agent` (TRD §2.1). Check it exists before plan
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
 | **Phase 3** | **Vault tools** | | |
-| 3.1 | The fixture vault (TRD §9.1) and `vault/paths.py`: inside-root resolution, symlink escapes, dot-folders, `.md` only (TRD §2.4) | 0042 | ⬜ |
+| 3.1 | The fixture vault (TRD §9.1) and `vault/paths.py`: inside-root resolution, symlink escapes, dot-folders, `.md` only (TRD §2.4) | 0042 | ✅ |
 | 3.2 | `vault/notes.py`: `list_notes` (front-matter title and tags, stem fallback, cap with `omitted`) and `read_note` (cap with `truncated`) (TRD §2.4) | 0044 | ⬜ |
 | 3.3 | `vault/search.py`: terms and quoted phrases, case-insensitive, ordering, snippets, cap (TRD §2.4) | 0044 | ⬜ |
 | 3.4 | `vault/links.py`: wikilink parsing (aliases, headings, embeds and code skipped), grouping with kept casing, `has_note`, ordering, cap (TRD §2.4) | 0044 | ⬜ |
@@ -106,3 +106,4 @@ Needs Naresh's scaffold in `apps/agent` (TRD §2.1). Check it exists before plan
 - 2.2 ✅ `contract/export.py` (`build_schema()`, `__main__` writes `schema/link_contract.json`) and `tests/contract/test_export.py` (drift, format, eight `$defs`, required keys). Red: module missing, then file missing.
 - 2.3 ✅ Six valid and six invalid golden examples in `apps/agent/schema/examples/` (TRD minimum plus failed-with-suggestions and linked-with-reason) and `tests/contract/test_examples.py`. Red: the minimum-files test failed with no examples.
 - 2.4 ✅ `packages/shared/src/agent.ts` Zod mirror (exported from `index.ts`), `agent.test.ts` (43 cases mirroring 2.1) and `agent.examples.test.ts` over the same example files. Red: `./agent.js` missing. 411 → 454 shared tests; no existing test changed.
+- 3.1 ✅ Fixture vault (8 notes in 3 folders, `.obsidian/`, `.trash/`, a `.txt`), `conftest.py` (`fixture_vault`, `vault_copy`), `vault/paths.py` (`resolve_note`, `iter_note_paths`, typed outcomes). 12 tests incl. symlink escapes. Red: module missing.
