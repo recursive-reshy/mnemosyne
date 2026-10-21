@@ -35,7 +35,7 @@ Needs Naresh's scaffold in `apps/agent` (TRD §2.1). Check it exists before plan
 | 2.1 | `contract/` Pydantic models with tests (limits, `failed` needs a reason and no suggestions, `linked` has no reason) (TRD §3.1) | 0043 | ✅ |
 | 2.2 | `contract/export.py`, the committed `schema/link_contract.json`, and the drift test (TRD §3.2) | 0043 | ✅ |
 | 2.3 | Golden examples (valid and invalid) and `tests/contract/test_examples.py` (TRD §3.2) | 0043 | ✅ |
-| 2.4 | `packages/shared/src/agent.ts` Zod mirror, exported from `index.ts`, with `agent.examples.test.ts` over the same examples (TRD §3.3) | 0043 | ⬜ |
+| 2.4 | `packages/shared/src/agent.ts` Zod mirror, exported from `index.ts`, with `agent.examples.test.ts` over the same examples (TRD §3.3) | 0043 | ✅ |
 
 ## Checkpoint B: Phases 3–4 (vault tools and the agent)
 **Plan:** ⬜ [`plans/checkpoint-b.md`](plans/checkpoint-b.md)
@@ -105,3 +105,4 @@ Needs Naresh's scaffold in `apps/agent` (TRD §2.1). Check it exists before plan
 - 2.1 ✅ `contract/link.py`: eight models, every key required, `LinkResponse` validator for linked/failed. 39 tests (limits at both edges, missing keys, outcome rules). `LinkUsage` counts have no `ge=0` (TRD doesn't specify). Red: module missing.
 - 2.2 ✅ `contract/export.py` (`build_schema()`, `__main__` writes `schema/link_contract.json`) and `tests/contract/test_export.py` (drift, format, eight `$defs`, required keys). Red: module missing, then file missing.
 - 2.3 ✅ Six valid and six invalid golden examples in `apps/agent/schema/examples/` (TRD minimum plus failed-with-suggestions and linked-with-reason) and `tests/contract/test_examples.py`. Red: the minimum-files test failed with no examples.
+- 2.4 ✅ `packages/shared/src/agent.ts` Zod mirror (exported from `index.ts`), `agent.test.ts` (43 cases mirroring 2.1) and `agent.examples.test.ts` over the same example files. Red: `./agent.js` missing. 411 → 454 shared tests; no existing test changed.
