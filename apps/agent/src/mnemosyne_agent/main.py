@@ -5,11 +5,13 @@ import time
 from collections.abc import Awaitable, Callable
 from typing import Annotated
 
-from fastapi import FastAPI, Header, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 
 from mnemosyne_agent.claude import AnthropicClaude, ClaudeClient
 from mnemosyne_agent.config import Settings, load_settings
+from mnemosyne_agent.contract.link import InstructionsResponse
+from mnemosyne_agent.linker.instructions import build_instructions
 
 logger = logging.getLogger( "mnemosyne_agent" )
 
@@ -43,6 +45,14 @@ def create_app( settings: Settings, claude: ClaudeClient ) -> FastAPI:
             return JSONResponse( status_code = 503, content = { "status": "error", "vault": "unreadable" } )
 
         return JSONResponse( content = { "status": "ok", "vault": "readable" } )
+
+    v1 = APIRouter( prefix = "/v1", dependencies = [ Depends( create_secret_check( settings ) ) ] )
+
+    @v1.get( "/link/instructions" )
+    def read_instructions() -> InstructionsResponse:
+        return InstructionsResponse( instructions = build_instructions( settings.max_suggestions ) )
+
+    app.include_router( v1 )
 
     return app
 
