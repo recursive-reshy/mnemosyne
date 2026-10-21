@@ -55,7 +55,7 @@ export function LinkingNotice(
         ? (
           <Typography variant="body2" color="text.secondary">
             { 'Linking isn\'t set up. Add the agent service in ' }
-            <Link component={ RouterLink } to="/settings">Settings</Link>
+            <Link component={ RouterLink } to="/settings/models">Settings</Link>
             { '.' }
           </Typography>
         )

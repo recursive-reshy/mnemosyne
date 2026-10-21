@@ -13,8 +13,6 @@ import type { AgentStatus } from '@mnemosyne/shared'
 // App
 import { useModels } from '#src/hooks/useModels'
 import { useSettings } from '#src/hooks/useSettings'
-import { LinkerPrompt } from '../LinkerPrompt'
-import { LockedInstructions } from '../LockedInstructions'
 
 const NOT_CONFIGURED = 'Linking isn\'t set up. Set AGENT_SECRET in .env (generate one with '
   + 'openssl rand -hex 32), start the agent service and restart the app.'
@@ -25,7 +23,7 @@ const STATUS_NOTICES = {
 } as const satisfies Partial< Record< AgentStatus, string > >
 
 export function LinkingSettings(): ReactElement {
-  const { settings, agentStatus, linkerLockedInstructions, updateSettings } = useSettings()
+  const { settings, agentStatus, updateSettings } = useSettings()
   const { models, source, isLoading: isLoadingModels } = useModels()
   const modelId = settings?.linking_model ?? ''
   const isListed = models.some( ( { id } ) => id === modelId )
@@ -82,19 +80,6 @@ export function LinkingSettings(): ReactElement {
       { updateSettings.isError && (
         <Alert severity="error">{ updateSettings.error?.message ?? 'Could not save' }</Alert>
       ) }
-      <LinkerPrompt />
-      { linkerLockedInstructions === null
-        ? (
-          <Typography variant="body2" color="text.secondary">
-            Unavailable while the agent service is down.
-          </Typography>
-        )
-        : (
-          <LockedInstructions
-            title="Instructions the app always sends when linking"
-            text={ linkerLockedInstructions }
-          />
-        ) }
     </Stack>
   )
 }

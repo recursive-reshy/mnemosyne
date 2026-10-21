@@ -20,12 +20,6 @@ import { LinkingSettings } from './LinkingSettings'
 
 vi.mock( '#src/hooks/useSettings' )
 vi.mock( '#src/hooks/useModels' )
-vi.mock( '../LinkerPrompt', () => ( { LinkerPrompt: () => <p>linker prompt</p> } ) )
-vi.mock( '../LockedInstructions', () => ( {
-  LockedInstructions: ( { title, text }: { title?: string, text: string } ) => (
-    <p>{ `${ title ?? 'locked' }: ${ text }` }</p>
-  ),
-} ) )
 
 const modelPicker = (): HTMLElement => screen.getByRole( 'combobox', { name: 'Linking model' } )
 
@@ -151,32 +145,5 @@ describe( 'LinkingSettings model', () => {
 
     expect( screen.getByRole( 'alert' ) ).toHaveTextContent( 'Unknown model: x' )
     expect( screen.queryByText( 'Saved' ) ).not.toBeInTheDocument()
-  } )
-} )
-
-describe( 'LinkingSettings prompt', () => {
-  it( 'shows the linker prompt', () => {
-    renderWithClient( <LinkingSettings /> )
-
-    expect( screen.getByText( 'linker prompt' ) ).toBeInTheDocument()
-  } )
-
-  it( 'shows the locked instructions from the agent service', () => {
-    renderWithClient( <LinkingSettings /> )
-
-    expect( screen.getByText(
-      'Instructions the app always sends when linking: You propose links.',
-    ) ).toBeInTheDocument()
-  } )
-
-  it( 'says the locked instructions are unavailable while the agent service is down', () => {
-    vi.mocked( useSettings ).mockReturnValue( settingsState( {
-      agentStatus: 'unavailable',
-      linkerLockedInstructions: null,
-    } ) )
-    renderWithClient( <LinkingSettings /> )
-
-    expect( screen.getByText( 'Unavailable while the agent service is down.' ) )
-      .toBeInTheDocument()
   } )
 } )

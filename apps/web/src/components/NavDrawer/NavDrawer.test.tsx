@@ -105,6 +105,16 @@ describe( 'NavDrawer, Settings item', () => {
       .not.toHaveAttribute( 'aria-current' )
   } )
 
+  it.each( [ '/settings/prompts', '/settings/models', '/settings/sources' ] )(
+    'is current on %s',
+    ( route ) => {
+      renderWithClient( <NavDrawer { ...defaults } />, { route } )
+
+      expect( screen.getByRole( 'link', { name: 'Settings' } ) )
+        .toHaveAttribute( 'aria-current', 'page' )
+    },
+  )
+
   it( 'is not current elsewhere', () => {
     renderWithClient( <NavDrawer { ...defaults } />, { route: '/' } )
 

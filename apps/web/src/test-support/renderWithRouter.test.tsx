@@ -11,8 +11,8 @@ import {
 import { renderWithRouter } from './renderWithRouter'
 
 vi.mock( '#src/api/gmail.api' )
-vi.mock( '#src/components/SettingsPage', () => ( {
-  SettingsPage: () => <h2>Settings</h2>,
+vi.mock( '#src/components/SettingsLayout', () => ( {
+  SettingsLayout: () => <h2>Settings</h2>,
 } ) )
 
 describe( 'renderWithRouter', () => {

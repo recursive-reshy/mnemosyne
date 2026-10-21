@@ -78,7 +78,7 @@ describe( 'LinkingNotice', () => {
 
     expect( screen.queryByRole( 'button', { name: 'Run linking' } ) ).not.toBeInTheDocument()
     expect( screen.getByRole( 'link', { name: 'Settings' } ) )
-      .toHaveAttribute( 'href', '/settings' )
+      .toHaveAttribute( 'href', '/settings/models' )
   } )
 
   it( 'shows nothing about linking while the agent status is unknown', () => {

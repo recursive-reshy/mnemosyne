@@ -114,7 +114,7 @@ export function NavDrawer(
             label="Settings"
             to="/settings"
             icon={ <SettingsIcon /> }
-            isSelected={ pathname === '/settings' }
+            isSelected={ pathname === '/settings' || pathname.startsWith( '/settings/' ) }
             isMini={ isMini }
             onNavigate={ onNavigate }
             warning={ account?.status === 'reconnect_needed' ? RECONNECT_WARNING : undefined }

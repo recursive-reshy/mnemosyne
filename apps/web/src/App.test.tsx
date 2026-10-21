@@ -17,8 +17,8 @@ import { renderWithRouter } from '#src/test-support/renderWithRouter'
 
 vi.mock( './api/gmail.api' )
 vi.mock( './hooks/useJob' )
-vi.mock( './components/SettingsPage', () => ( {
-  SettingsPage: () => <h2>Settings</h2>,
+vi.mock( './components/SettingsLayout', () => ( {
+  SettingsLayout: () => <h2>Settings</h2>,
 } ) )
 
 const mockedUseJob = vi.mocked( useJob )

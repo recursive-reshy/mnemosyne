@@ -5,7 +5,11 @@ import type { RouteObject } from 'react-router'
 import { App } from './App'
 import { HomePage } from './components/HomePage'
 import { JobPage } from './components/JobPage'
-import { SettingsPage } from './components/SettingsPage'
+import { ModelsTab } from './components/ModelsTab'
+import { PromptsTab } from './components/PromptsTab'
+import { SettingsIndexRedirect } from './components/SettingsIndexRedirect'
+import { SettingsLayout } from './components/SettingsLayout'
+import { SourcesTab } from './components/SourcesTab'
 
 export const routes: RouteObject[] = [
   {
@@ -14,7 +18,17 @@ export const routes: RouteObject[] = [
     children: [
       { index: true, element: <HomePage /> },
       { path: 'jobs/:id', element: <JobPage /> },
-      { path: 'settings/*', element: <SettingsPage /> },
+      {
+        path: 'settings',
+        element: <SettingsLayout />,
+        children: [
+          { index: true, element: <SettingsIndexRedirect /> },
+          { path: 'prompts', element: <PromptsTab /> },
+          { path: 'models', element: <ModelsTab /> },
+          { path: 'sources', element: <SourcesTab /> },
+          { path: '*', element: <Navigate to="/settings/prompts" replace /> },
+        ],
+      },
       { path: '*', element: <Navigate to="/" replace /> },
     ],
   },
