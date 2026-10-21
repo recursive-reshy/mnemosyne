@@ -1,0 +1,213 @@
+{
+  "$defs": {
+    "InstructionsResponse": {
+      "properties": {
+        "instructions": {
+          "title": "Instructions",
+          "type": "string"
+        }
+      },
+      "required": [
+        "instructions"
+      ],
+      "title": "InstructionsResponse",
+      "type": "object"
+    },
+    "LinkNote": {
+      "properties": {
+        "body": {
+          "maxLength": 200000,
+          "minLength": 1,
+          "title": "Body",
+          "type": "string"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Folder"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 50,
+          "title": "Tags",
+          "type": "array"
+        },
+        "title": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "tags",
+        "folder",
+        "body"
+      ],
+      "title": "LinkNote",
+      "type": "object"
+    },
+    "LinkOutcome": {
+      "enum": [
+        "linked",
+        "failed"
+      ],
+      "title": "LinkOutcome",
+      "type": "string"
+    },
+    "LinkRequest": {
+      "properties": {
+        "guidance": {
+          "maxLength": 20000,
+          "title": "Guidance",
+          "type": "string"
+        },
+        "model": {
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "note": {
+          "$ref": "#/$defs/LinkNote"
+        }
+      },
+      "required": [
+        "note",
+        "model",
+        "guidance"
+      ],
+      "title": "LinkRequest",
+      "type": "object"
+    },
+    "LinkResponse": {
+      "properties": {
+        "outcome": {
+          "$ref": "#/$defs/LinkOutcome"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reason"
+        },
+        "suggestions": {
+          "items": {
+            "$ref": "#/$defs/LinkSuggestion"
+          },
+          "title": "Suggestions",
+          "type": "array"
+        },
+        "usage": {
+          "$ref": "#/$defs/LinkUsage"
+        }
+      },
+      "required": [
+        "outcome",
+        "reason",
+        "suggestions",
+        "usage"
+      ],
+      "title": "LinkResponse",
+      "type": "object"
+    },
+    "LinkSuggestion": {
+      "properties": {
+        "anchor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Anchor"
+        },
+        "kind": {
+          "$ref": "#/$defs/SuggestionKind"
+        },
+        "reason": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "target": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Target",
+          "type": "string"
+        }
+      },
+      "required": [
+        "target",
+        "kind",
+        "anchor",
+        "reason"
+      ],
+      "title": "LinkSuggestion",
+      "type": "object"
+    },
+    "LinkUsage": {
+      "properties": {
+        "cache_creation_input_tokens": {
+          "title": "Cache Creation Input Tokens",
+          "type": "integer"
+        },
+        "cache_read_input_tokens": {
+          "title": "Cache Read Input Tokens",
+          "type": "integer"
+        },
+        "input_tokens": {
+          "title": "Input Tokens",
+          "type": "integer"
+        },
+        "output_tokens": {
+          "title": "Output Tokens",
+          "type": "integer"
+        },
+        "tool_calls": {
+          "title": "Tool Calls",
+          "type": "integer"
+        },
+        "turns": {
+          "title": "Turns",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "input_tokens",
+        "output_tokens",
+        "cache_read_input_tokens",
+        "cache_creation_input_tokens",
+        "tool_calls",
+        "turns"
+      ],
+      "title": "LinkUsage",
+      "type": "object"
+    },
+    "SuggestionKind": {
+      "enum": [
+        "existing_note",
+        "existing_concept",
+        "new_concept"
+      ],
+      "title": "SuggestionKind",
+      "type": "string"
+    }
+  }
+}
