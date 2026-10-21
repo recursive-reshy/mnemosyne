@@ -45,7 +45,7 @@ Needs Naresh's scaffold in `apps/agent` (TRD §2.1). Check it exists before plan
 | **Phase 3** | **Vault tools** | | |
 | 3.1 | The fixture vault (TRD §9.1) and `vault/paths.py`: inside-root resolution, symlink escapes, dot-folders, `.md` only (TRD §2.4) | 0042 | ✅ |
 | 3.2 | `vault/notes.py`: `list_notes` (front-matter title and tags, stem fallback, cap with `omitted`) and `read_note` (cap with `truncated`) (TRD §2.4) | 0044 | ✅ |
-| 3.3 | `vault/search.py`: terms and quoted phrases, case-insensitive, ordering, snippets, cap (TRD §2.4) | 0044 | ⬜ |
+| 3.3 | `vault/search.py`: terms and quoted phrases, case-insensitive, ordering, snippets, cap (TRD §2.4) | 0044 | ✅ |
 | 3.4 | `vault/links.py`: wikilink parsing (aliases, headings, embeds and code skipped), grouping with kept casing, `has_note`, ordering, cap (TRD §2.4) | 0044 | ⬜ |
 | **Phase 4** | **Agent service** | | |
 | 4.1 | `config.py` and `main.py`: `create_app`, bearer auth with `hmac.compare_digest`, `/health` (200 / 503), docs routes off, request logging without content (TRD §2.2–2.3) | 0042 | ⬜ |
@@ -108,3 +108,4 @@ Needs Naresh's scaffold in `apps/agent` (TRD §2.1). Check it exists before plan
 - 2.4 ✅ `packages/shared/src/agent.ts` Zod mirror (exported from `index.ts`), `agent.test.ts` (43 cases mirroring 2.1) and `agent.examples.test.ts` over the same example files. Red: `./agent.js` missing. 411 → 454 shared tests; no existing test changed.
 - 3.1 ✅ Fixture vault (8 notes in 3 folders, `.obsidian/`, `.trash/`, a `.txt`), `conftest.py` (`fixture_vault`, `vault_copy`), `vault/paths.py` (`resolve_note`, `iter_note_paths`, typed outcomes). 12 tests incl. symlink escapes. Red: module missing.
 - 3.2 ✅ `vault/notes.py`: `list_notes` (capped, `omitted`), `list_all_notes` (uncapped), `read_note` (`truncated`), YAML-subset front-matter reader. Functions take root and limits as arguments (checkpoint plan decision 1). 13 tests. Red: module missing.
+- 3.3 ✅ `vault/search.py`: terms and quoted phrases, case-insensitive, ordering by matching lines then path, centred snippets, cap with `omitted`. 9 tests. Red: module missing.
