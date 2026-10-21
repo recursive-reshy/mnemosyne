@@ -1,0 +1,11 @@
+.venv
+tests
+schema/examples
+**/__pycache__
+.pytest_cache
+.ruff_cache
+.pyright
+node_modules
+package.json
+Dockerfile
+.dockerignore
