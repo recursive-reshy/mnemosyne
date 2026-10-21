@@ -31,6 +31,10 @@ Follow the guidance below on what to focus on and how to frame it. If it conflic
 
 export type SeedKey = 'business' | 'coding' | 'general'
 
+export const LINKER_SEED_KEY = 'linker'
+
+export const DEFAULT_LINKER_GUIDANCE = `Link this note to what it is genuinely about, not to every noun it mentions. Prefer a few strong links over many weak ones. Link to existing notes first, then to existing concepts, and only then propose a new concept. Good concepts are ideas, methods, fields, tools, companies or people that are likely to come up again in other notes (for example Pricing Strategy, Customer Discovery, TypeScript). Avoid concepts that are too broad to be useful (Business, Technology) or too narrow to recur (a single statistic or anecdote). When the note discusses a business idea, link the market, the customer problem and the business model concepts it touches.`
+
 export const SEEDED_PROFILES: { seedKey: SeedKey, name: string, guidance: string }[] = [
   {
     seedKey: 'business',

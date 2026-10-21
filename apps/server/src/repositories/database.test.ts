@@ -17,7 +17,7 @@ import { SourceDocument, parseNote } from '@mnemosyne/shared'
 // Test support
 import { transcriptFixture } from '../test-support/transcript.fixture.js'
 // Summarizer
-import { SEEDED_PROFILES } from '../summarizer/prompts.js'
+import { DEFAULT_LINKER_GUIDANCE, SEEDED_PROFILES } from '../summarizer/prompts.js'
 // Repositories
 import {
   closeDatabase,
@@ -77,6 +77,8 @@ describe( 'openDatabase and closeDatabase', () => {
       'source_type',
       'feed_id',
       'gmail_source_id',
+      'link_state',
+      'link_error',
     ] )
   } )
 
@@ -795,7 +797,7 @@ describe( 'migration 6', () => {
 
     runMigrations( database, migrations.slice( 0, 5 ) )
     setup( database )
-    runMigrations( database, migrations )
+    runMigrations( database, migrations.slice( 0, 6 ) )
 
     return database
   }
@@ -862,14 +864,14 @@ describe( 'migration 6', () => {
   it( 'adds migration 6 and records user_version 6', () => {
     const database = upgrade( () => undefined )
 
-    expect( migrations ).toHaveLength( 6 )
+    expect( migrations.length ).toBeGreaterThanOrEqual( 6 )
     expect( database.pragma( 'user_version', { simple: true } ) ).toBe( 6 )
   } )
 
   it( 'runs from an empty database and creates every table, column and index', () => {
     const database = new Database( ':memory:' )
 
-    runMigrations( database, migrations )
+    runMigrations( database, migrations.slice( 0, 6 ) )
 
     expect( database.pragma( 'user_version', { simple: true } ) ).toBe( 6 )
     expect( names( database, 'table' ) ).toEqual( expect.arrayContaining( tables ) )
@@ -1074,10 +1076,278 @@ describe( 'migration 6', () => {
     runMigrations( database, migrations.slice( 0, 5 ) )
     database.exec( 'CREATE TABLE extraction_runs ( blocker TEXT )' )
 
-    expect( () => runMigrations( database, migrations ) ).toThrow()
+    expect( () => runMigrations( database, migrations.slice( 0, 6 ) ) ).toThrow()
     expect( database.pragma( 'user_version', { simple: true } ) ).toBe( 5 )
     expect( names( database, 'table' ) ).not.toContain( 'gmail_account' )
     expect( columnNames( database, 'jobs' ) ).not.toContain( 'gmail_source_id' )
+  } )
+} )
+
+describe( 'migration 7', () => {
+  const upgrade = ( setup: ( database: Database.Database ) => void ): Database.Database => {
+    const database = new Database( ':memory:' )
+
+    runMigrations( database, migrations.slice( 0, 6 ) )
+    setup( database )
+    runMigrations( database, migrations )
+
+    return database
+  }
+
+  const names = ( database: Database.Database, type: string ): string[] => {
+    return ( database
+      .prepare( 'SELECT name FROM sqlite_master WHERE type = ? ORDER BY name' )
+      .all( type ) as { name: string }[] ).map( ( { name } ) => name )
+  }
+
+  const columnNames = ( database: Database.Database, table: string ): string[] => {
+    return ( database.pragma( `table_info(${ table })` ) as { name: string }[] )
+      .map( ( { name } ) => name )
+  }
+
+  const insertProfile = (
+    database: Database.Database,
+    { id, name, purpose = 'summary' }: { id: string, name: string, purpose?: string },
+  ): void => {
+    database.prepare( `INSERT INTO prompt_profiles ( id, name, purpose, created_at )
+      VALUES ( ?, ?, ?, 'now' )` ).run( id, name, purpose )
+  }
+
+  const insertV6 = ( database: Database.Database ): void => {
+    database.prepare( `INSERT INTO prompt_profiles ( id, name, seed_key, created_at )
+      VALUES ( 'p-custom', 'Custom', NULL, '2026-10-01T10:00:00.000Z' ),
+        ( 'p-second', 'Second', NULL, '2026-10-02T10:00:00.000Z' )` ).run()
+    database.prepare( `INSERT INTO prompt_versions
+      ( profile_id, version, guidance, source, created_at )
+      VALUES ( 'p-custom', 1, 'Custom guidance', 'edit', '2026-10-01T10:00:00.000Z' ),
+        ( 'p-second', 1, 'Second guidance', 'edit', '2026-10-02T10:00:00.000Z' )` ).run()
+    database.prepare( `INSERT INTO jobs (
+        id, url, status, title, source_document, note_markdown, target_folder, expires_at,
+        summary_model, prompt_profile_id, source_type, created_at, updated_at
+      ) VALUES ( 'review', 'https://example.com/a', 'ready_for_review', 'A post', ?,
+        '---\ntitle: "T"\n---\n\nBody\n', 'Learning', '2026-10-19T10:00:00.000Z',
+        'claude-sonnet-5-5', 'p-custom', 'video', '2026-10-18T10:00:00.000Z',
+        '2026-10-18T10:00:00.000Z' )` ).run( JSON.stringify( transcriptFixture ) )
+
+    const version = database
+      .prepare( 'SELECT id FROM prompt_versions WHERE profile_id = ?' )
+      .get( 'p-custom' ) as { id: number }
+
+    database.prepare( `INSERT INTO summary_runs (
+        job_id, model, prompt_version_id, input_tokens, output_tokens, cost_usd, outcome,
+        created_at
+      ) VALUES ( 'review', 'claude-sonnet-5-5', ?, 1000, 200, 0.01, 'succeeded',
+        '2026-10-18T10:01:00.000Z' )` ).run( version.id )
+  }
+
+  const snapshot = ( database: Database.Database ): unknown => ( {
+    jobs: database.prepare( 'SELECT * FROM jobs' ).all(),
+    versions: database
+      .prepare( 'SELECT * FROM prompt_versions WHERE profile_id LIKE \'p-%\'' )
+      .all(),
+    runs: database.prepare( 'SELECT * FROM summary_runs' ).all(),
+  } )
+
+  it( 'adds migration 7 and records user_version 7', () => {
+    const database = upgrade( () => undefined )
+
+    expect( migrations ).toHaveLength( 7 )
+    expect( database.pragma( 'user_version', { simple: true } ) ).toBe( 7 )
+  } )
+
+  it( 'runs from an empty database to the same tables, columns and indexes', () => {
+    const database = new Database( ':memory:' )
+
+    runMigrations( database, migrations )
+
+    expect( database.pragma( 'user_version', { simple: true } ) ).toBe( 7 )
+    expect( columnNames( database, 'prompt_profiles' ) ).toContain( 'purpose' )
+    expect( columnNames( database, 'jobs' ) ).toEqual( expect.arrayContaining( [
+      'link_state',
+      'link_error',
+    ] ) )
+    expect( names( database, 'table' ) ).toEqual( expect.arrayContaining( [
+      'link_runs',
+      'link_suggestions',
+    ] ) )
+    expect( names( database, 'index' ) ).toEqual( expect.arrayContaining( [
+      'link_runs_job',
+      'link_suggestions_job',
+      'prompt_profiles_active_name',
+    ] ) )
+  } )
+
+  it( 'lists the columns of the new tables as the TRD defines them', () => {
+    const database = upgrade( () => undefined )
+
+    expect( columnNames( database, 'link_runs' ) ).toEqual( [
+      'id',
+      'job_id',
+      'model',
+      'prompt_version_id',
+      'input_tokens',
+      'output_tokens',
+      'cache_read_input_tokens',
+      'cache_creation_input_tokens',
+      'tool_calls',
+      'cost_usd',
+      'outcome',
+      'error',
+      'created_at',
+    ] )
+    expect( columnNames( database, 'link_suggestions' ) ).toEqual( [
+      'id',
+      'job_id',
+      'run_id',
+      'position',
+      'target',
+      'kind',
+      'anchor',
+      'reason',
+      'status',
+      'decided_at',
+    ] )
+  } )
+
+  it( 'gives existing profiles the summary purpose and keeps their versions', () => {
+    const database = upgrade( insertV6 )
+
+    expect( database
+      .prepare( 'SELECT id, purpose FROM prompt_profiles WHERE id LIKE \'p-%\' ORDER BY id' )
+      .all() ).toEqual( [
+      { id: 'p-custom', purpose: 'summary' },
+      { id: 'p-second', purpose: 'summary' },
+    ] )
+    expect( database
+      .prepare( 'SELECT COUNT(*) AS count FROM prompt_profiles WHERE purpose = \'summary\'' )
+      .get() ).toEqual( { count: SEEDED_PROFILES.length + 2 } )
+  } )
+
+  it( 'leaves a job in review, its versions and its summary run untouched', () => {
+    let before: unknown
+    const database = upgrade( ( v6 ) => {
+      insertV6( v6 )
+      before = snapshot( v6 )
+    } )
+
+    const after = snapshot( database ) as { jobs: Record< string, unknown >[] }
+    const jobs = after.jobs.map( ( { link_state, link_error, ...job } ) => {
+      expect( link_state ).toBeNull()
+      expect( link_error ).toBeNull()
+
+      return job
+    } )
+
+    expect( { ...after, jobs } ).toEqual( before )
+  } )
+
+  it( 'seeds one linker profile with version 1 from the default guidance', () => {
+    const database = upgrade( insertV6 )
+    const profiles = database
+      .prepare( 'SELECT * FROM prompt_profiles WHERE purpose = \'linker\'' )
+      .all() as { id: string, name: string, seed_key: string, created_at: string }[]
+
+    expect( profiles ).toHaveLength( 1 )
+    expect( profiles[ 0 ] ).toMatchObject( { name: 'Linker', seed_key: 'linker' } )
+    expect( profiles[ 0 ]?.id ).toMatch( /^[0-9a-f-]{36}$/ )
+    expect( () => new Date( profiles[ 0 ]?.created_at ?? '' ).toISOString() ).not.toThrow()
+    expect( database
+      .prepare( 'SELECT version, guidance, source FROM prompt_versions WHERE profile_id = ?' )
+      .all( profiles[ 0 ]?.id ) ).toEqual( [
+      { version: 1, guidance: DEFAULT_LINKER_GUIDANCE, source: 'seed' },
+    ] )
+  } )
+
+  it( 'does not change which profile is the default', () => {
+    const database = upgrade( () => undefined )
+    const stored = database.prepare( 'SELECT value FROM settings WHERE key = ?' )
+      .get( 'default_profile_id' ) as { value: string }
+    const defaultProfile = database
+      .prepare( 'SELECT name, purpose FROM prompt_profiles WHERE id = ?' )
+      .get( JSON.parse( stored.value ) as string )
+
+    expect( defaultProfile ).toEqual( { name: 'Business ideas', purpose: 'summary' } )
+  } )
+
+  it( 'creates the linker profile once, even when migrating again', () => {
+    const database = upgrade( () => undefined )
+
+    runMigrations( database, migrations )
+
+    expect( database
+      .prepare( 'SELECT COUNT(*) AS count FROM prompt_profiles WHERE purpose = \'linker\'' )
+      .get() ).toEqual( { count: 1 } )
+  } )
+
+  describe( 'the profile name index', () => {
+    it( 'lets a summary profile be called Linker beside the linker profile', () => {
+      const database = upgrade( () => undefined )
+
+      expect( () => insertProfile( database, { id: 'p-linker-name', name: 'Linker' } ) )
+        .not.toThrow()
+    } )
+
+    it( 'still rejects two active summary profiles whose names differ only in case', () => {
+      const database = upgrade( () => undefined )
+
+      insertProfile( database, { id: 'p-a', name: 'Research' } )
+
+      expect( () => insertProfile( database, { id: 'p-b', name: 'research' } ) ).toThrow()
+    } )
+
+    it( 'allows a name to be reused once its profile is deleted', () => {
+      const database = upgrade( () => undefined )
+
+      insertProfile( database, { id: 'p-a', name: 'Research' } )
+      database.prepare( 'UPDATE prompt_profiles SET deleted_at = \'now\' WHERE id = ?' )
+        .run( 'p-a' )
+
+      expect( () => insertProfile( database, { id: 'p-b', name: 'Research' } ) ).not.toThrow()
+    } )
+  } )
+
+  it( 'numbers link runs automatically and allows missing usage', () => {
+    const database = upgrade( () => undefined )
+    const version = database
+      .prepare( 'SELECT id FROM prompt_versions LIMIT 1' )
+      .get() as { id: number }
+    const insert = (): void => {
+      database.prepare( `INSERT INTO link_runs (
+          job_id, model, prompt_version_id, outcome, created_at
+        ) VALUES ( 'j1', 'claude-haiku-5-5', ?, 'failed', 'now' )` ).run( version.id )
+    }
+
+    insert()
+    insert()
+
+    expect( database
+      .prepare( 'SELECT id, input_tokens, cost_usd, error FROM link_runs ORDER BY id' )
+      .all() ).toEqual( [
+      {
+        id: 1,
+        input_tokens: null,
+        cost_usd: null,
+        error: null,
+      },
+      {
+        id: 2,
+        input_tokens: null,
+        cost_usd: null,
+        error: null,
+      },
+    ] )
+  } )
+
+  it( 'rolls back completely when a later step fails', () => {
+    const database = new Database( ':memory:' )
+
+    runMigrations( database, migrations.slice( 0, 6 ) )
+    database.exec( 'CREATE TABLE link_suggestions ( blocker TEXT )' )
+
+    expect( () => runMigrations( database, migrations ) ).toThrow()
+    expect( database.pragma( 'user_version', { simple: true } ) ).toBe( 6 )
+    expect( columnNames( database, 'prompt_profiles' ) ).not.toContain( 'purpose' )
+    expect( columnNames( database, 'jobs' ) ).not.toContain( 'link_state' )
   } )
 } )
 

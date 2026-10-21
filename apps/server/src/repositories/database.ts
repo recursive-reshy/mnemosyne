@@ -9,7 +9,11 @@ import {
   serializeNote,
 } from '@mnemosyne/shared'
 // Summarizer
-import { SEEDED_PROFILES } from '../summarizer/prompts.js'
+import {
+  DEFAULT_LINKER_GUIDANCE,
+  LINKER_SEED_KEY,
+  SEEDED_PROFILES,
+} from '../summarizer/prompts.js'
 
 const addNoteColumns = ( db: Database.Database ): void => {
   db.exec( 'ALTER TABLE jobs ADD COLUMN note_markdown TEXT' )
@@ -245,6 +249,56 @@ const addGmailAndPostings = ( db: Database.Database ): void => {
   ALTER TABLE jobs ADD COLUMN gmail_source_id TEXT;` )
 }
 
+const addLinking = ( db: Database.Database ): void => {
+  db.exec( `ALTER TABLE prompt_profiles ADD COLUMN purpose TEXT NOT NULL DEFAULT 'summary';
+  DROP INDEX prompt_profiles_active_name;
+  CREATE UNIQUE INDEX prompt_profiles_active_name
+    ON prompt_profiles ( purpose, lower( name ) ) WHERE deleted_at IS NULL;
+
+  CREATE TABLE link_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    job_id TEXT NOT NULL,
+    model TEXT NOT NULL,
+    prompt_version_id INTEGER NOT NULL REFERENCES prompt_versions ( id ),
+    input_tokens INTEGER,
+    output_tokens INTEGER,
+    cache_read_input_tokens INTEGER,
+    cache_creation_input_tokens INTEGER,
+    tool_calls INTEGER,
+    cost_usd REAL,
+    outcome TEXT NOT NULL,
+    error TEXT,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX link_runs_job ON link_runs ( job_id, id );
+
+  CREATE TABLE link_suggestions (
+    id TEXT PRIMARY KEY,
+    job_id TEXT NOT NULL,
+    run_id INTEGER NOT NULL REFERENCES link_runs ( id ),
+    position INTEGER NOT NULL,
+    target TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    anchor TEXT,
+    reason TEXT NOT NULL,
+    status TEXT NOT NULL,
+    decided_at TEXT
+  );
+  CREATE INDEX link_suggestions_job ON link_suggestions ( job_id, status, position );
+
+  ALTER TABLE jobs ADD COLUMN link_state TEXT;
+  ALTER TABLE jobs ADD COLUMN link_error TEXT;` )
+
+  const id = crypto.randomUUID()
+  const now = new Date().toISOString()
+
+  db.prepare( `INSERT INTO prompt_profiles ( id, name, seed_key, purpose, created_at )
+    VALUES ( ?, 'Linker', ?, 'linker', ? )` ).run( id, LINKER_SEED_KEY, now )
+  db.prepare( `INSERT INTO prompt_versions
+    ( profile_id, version, guidance, source, created_at ) VALUES ( ?, 1, ?, 'seed', ? )` )
+    .run( id, DEFAULT_LINKER_GUIDANCE, now )
+}
+
 export type Migration = string | ( ( db: Database.Database ) => void )
 
 export const migrations: Migration[] = [
@@ -268,6 +322,7 @@ export const migrations: Migration[] = [
   addSummarizerTables,
   addSourcesAndFeeds,
   addGmailAndPostings,
+  addLinking,
 ]
 
 let database: Database.Database | undefined

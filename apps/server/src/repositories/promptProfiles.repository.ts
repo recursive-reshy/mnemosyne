@@ -39,7 +39,7 @@ const writeProfile = ( write: () => void ): WriteResult => {
 
 export const listActiveProfiles = (): ProfileRecord[] => {
   return z.array( ProfileRecord ).parse( getDatabase()
-    .prepare( `SELECT * FROM prompt_profiles WHERE deleted_at IS NULL
+    .prepare( `SELECT * FROM prompt_profiles WHERE deleted_at IS NULL AND purpose = 'summary'
       ORDER BY lower( name ), rowid` )
     .all() )
 }
@@ -73,7 +73,8 @@ export const markProfileDeleted = ( id: string, deletedAt: string ): void => {
 
 export const countActiveProfiles = (): number => {
   const row = getDatabase()
-    .prepare( 'SELECT COUNT(*) AS count FROM prompt_profiles WHERE deleted_at IS NULL' )
+    .prepare( `SELECT COUNT(*) AS count FROM prompt_profiles
+      WHERE deleted_at IS NULL AND purpose = 'summary'` )
     .get() as { count: number }
 
   return row.count
