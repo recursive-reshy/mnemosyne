@@ -22,7 +22,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 ---
 
 ## Checkpoint A: Phases 1–2 (kick-off and contract)
-**Plan:** ⬜ [`plans/checkpoint-a.md`](plans/checkpoint-a.md)
+**Plan:** ✅ [`plans/checkpoint-a.md`](plans/checkpoint-a.md)
 
 Needs Naresh's scaffold in `apps/agent` (TRD §2.1). Check it exists before planning; if not, stop and ask.
 
