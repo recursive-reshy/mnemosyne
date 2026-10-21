@@ -20,6 +20,7 @@ vi.mock( '../SummarizerDefaults', () => ( { SummarizerDefaults: () => <p>default
 vi.mock( '../PromptProfiles', () => ( { PromptProfiles: () => <p>profiles</p> } ) )
 vi.mock( '../FeedSettings', () => ( { FeedSettings: () => <p>feeds</p> } ) )
 vi.mock( '../GmailSettings', () => ( { GmailSettings: () => <p>gmail</p> } ) )
+vi.mock( '../LinkingSettings', () => ( { LinkingSettings: () => <p>linking</p> } ) )
 vi.mock( '../LockedInstructions', () => ( {
   LockedInstructions: ( { title, text }: { title?: string, text: string } ) => (
     <p>{ `${ title ?? 'locked' }: ${ text }` }</p>
@@ -63,6 +64,17 @@ describe( 'SettingsPage', () => {
       .toBeInTheDocument()
   } )
 
+  it( 'has a Linking section after the summarizer instructions', () => {
+    renderWithClient( <SettingsPage /> )
+
+    const heading = screen.getByRole( 'heading', { level: 3, name: 'Linking' } )
+    const articles = screen.getByText( /for articles:/ )
+    const after = heading.compareDocumentPosition( articles )
+
+    expect( screen.getByText( 'linking' ) ).toBeInTheDocument()
+    expect( after & Node.DOCUMENT_POSITION_PRECEDING ).toBeTruthy()
+  } )
+
   it( 'announces loading and holds back the sections', () => {
     mockedSettings.mockReturnValue(
       state( { settings: null, lockedInstructions: null, isLoading: true } ),
@@ -72,6 +84,7 @@ describe( 'SettingsPage', () => {
     expect( screen.getByRole( 'status' ) ).toHaveTextContent( 'Loading settings…' )
     expect( screen.queryByText( 'defaults' ) ).not.toBeInTheDocument()
     expect( screen.queryByText( 'gmail' ) ).not.toBeInTheDocument()
+    expect( screen.queryByText( 'linking' ) ).not.toBeInTheDocument()
   } )
 
   it( 'shows an error when the settings cannot be loaded', () => {

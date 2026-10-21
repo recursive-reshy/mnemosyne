@@ -8,6 +8,7 @@ import Typography from '@mui/material/Typography'
 import { useSettings } from '#src/hooks/useSettings'
 import { FeedSettings } from '../FeedSettings'
 import { GmailSettings } from '../GmailSettings'
+import { LinkingSettings } from '../LinkingSettings'
 import { LockedInstructions } from '../LockedInstructions'
 import { PromptProfiles } from '../PromptProfiles'
 import { SummarizerDefaults } from '../SummarizerDefaults'
@@ -39,6 +40,8 @@ export function SettingsPage(): ReactElement {
               />
             </>
           ) }
+          <Typography variant="h6" component="h3">Linking</Typography>
+          <LinkingSettings />
         </>
       ) }
     </Stack>
