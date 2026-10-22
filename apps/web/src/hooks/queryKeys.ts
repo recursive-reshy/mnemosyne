@@ -38,3 +38,8 @@ export const gmailKeys = {
   labels: [ 'gmail', 'labels' ] as const,
   sources: [ 'gmail', 'sources' ] as const,
 }
+
+export const statusKeys = {
+  all: [ 'status' ] as const,
+  errors: ( kind: string, id: string ) => [ 'status', 'errors', kind, id ] as const,
+}
