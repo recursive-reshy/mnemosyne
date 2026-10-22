@@ -25,6 +25,7 @@ import {
 import {
   assertVaultWritable,
   listFolderTree,
+  resolveExistingFolder,
   resolveFolder,
   writeNote,
 } from './vault.client.js'
@@ -282,5 +283,49 @@ describe( 'assertVaultWritable', () => {
     await chmod( vault, 0o555 )
 
     await expect( assertVaultWritable( vault ) ).rejects.toThrow( 'is not writable' )
+  } )
+} )
+
+describe( 'resolveExistingFolder', () => {
+  it( 'returns the real path of a folder that exists', async () => {
+    await mkdir( join( vault, 'Learning/TypeScript' ), { recursive: true } )
+
+    expect( await resolveExistingFolder( vault, 'Learning/TypeScript' ) )
+      .toBe( join( await realpath( vault ), 'Learning/TypeScript' ) )
+  } )
+
+  it( 'refuses a missing folder and creates nothing', async () => {
+    await expect( resolveExistingFolder( vault, 'Learning/Missing' ) )
+      .rejects.toThrow( new ValidationError( 'Folder doesn\'t exist in the vault' ) )
+
+    expect( await readdir( vault ) ).toEqual( [] )
+  } )
+
+  it( 'refuses a file where a folder is expected', async () => {
+    await writeFile( join( vault, 'note.md' ), 'x' )
+
+    await expect( resolveExistingFolder( vault, 'note.md' ) ).rejects.toThrow( ValidationError )
+  } )
+
+  it( 'refuses a path that escapes the vault', async () => {
+    await expect( resolveExistingFolder( vault, '../elsewhere' ) )
+      .rejects.toThrow( ValidationError )
+  } )
+
+  it( 'refuses a link that leads out of the vault', async () => {
+    const outside = await mkdtemp( join( tmpdir(), 'mnemosyne-outside-' ) )
+
+    try {
+      await symlink( outside, join( vault, 'Escape' ) )
+
+      await expect( resolveExistingFolder( vault, 'Escape' ) )
+        .rejects.toThrow( new ValidationError( 'Folder "Escape" is outside the vault' ) )
+    } finally {
+      await rm( outside, { recursive: true, force: true } )
+    }
+  } )
+
+  it( 'accepts the vault root', async () => {
+    expect( await resolveExistingFolder( vault, '' ) ).toBe( await realpath( vault ) )
   } )
 } )

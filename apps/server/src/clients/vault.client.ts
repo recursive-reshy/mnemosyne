@@ -21,7 +21,7 @@ import { ValidationError } from '../errors.js'
 
 const MAX_ATTEMPTS = 1000
 
-const isInside = ( root: string, candidate: string ): boolean => {
+export const isInside = ( root: string, candidate: string ): boolean => {
   return candidate === root || candidate.startsWith( `${ root }${ sep }` )
 }
 
@@ -69,6 +69,46 @@ export const resolveFolder = async (
   }
 
   return created
+}
+
+// Unlike resolveFolder this never creates anything, so Melete can check the vault read-only
+export const resolveExistingFolder = async (
+  vaultPath: string,
+  relativeFolder: string,
+): Promise< string > => {
+  let segments: string[]
+
+  try {
+    segments = parseFolderPath( relativeFolder )
+  } catch( error ) {
+    throw new ValidationError( error instanceof Error ? error.message : 'Invalid folder' )
+  }
+
+  const root = await realpath( vaultPath )
+  let target: string
+
+  try {
+    target = await realpath( resolve( root, ...segments ) )
+  } catch( error ) {
+    const isMissing = error instanceof Error && 'code' in error
+      && ( error.code === 'ENOENT' || error.code === 'ENOTDIR' )
+
+    if( isMissing ) {
+      throw new ValidationError( 'Folder doesn\'t exist in the vault' )
+    }
+
+    throw error
+  }
+
+  if( !isInside( root, target ) ) {
+    throw new ValidationError( `Folder "${ relativeFolder }" is outside the vault` )
+  }
+
+  if( !( await stat( target ) ).isDirectory() ) {
+    throw new ValidationError( 'Folder doesn\'t exist in the vault' )
+  }
+
+  return target
 }
 
 export const listFolderTree = async (
