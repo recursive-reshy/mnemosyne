@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "target": "ES2023",
+    "strict": true,
+    "noEmit": true,
+    "isolatedModules": true,
+    "erasableSyntaxOnly": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "types": [ "node" ]
+  },
+  "include": [ "playwright.config.ts", "tests" ]
+}

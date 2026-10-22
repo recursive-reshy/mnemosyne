@@ -16,6 +16,7 @@
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
     "build": "pnpm -r build",
-    "dev": "pnpm -r --parallel dev"
+    "dev": "pnpm -r --parallel dev",
+    "e2e": "pnpm --filter @mnemosyne/e2e e2e"
   }
 }

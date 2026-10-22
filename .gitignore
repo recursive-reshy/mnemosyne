@@ -6,6 +6,8 @@ coverage/
 
 .DS_Store
 .vitest/
+test-results/
+playwright-report/
 
 .venv/
 __pycache__/

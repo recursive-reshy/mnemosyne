@@ -1,0 +1,25 @@
+{
+  "name": "@mnemosyne/e2e",
+  "version": "0.7.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "node -e \"process.exit(0)\"",
+    "test:fakes": "node --test fakes/server.test.mjs",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "e2e": "./run.sh"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "1.64.1",
+    "@stylistic/eslint-plugin": "^5.10.0",
+    "@types/node": "^24",
+    "eslint": "^10.12.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.71.2"
+  }
+}
