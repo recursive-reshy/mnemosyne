@@ -75,7 +75,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
 | **Phase 6** | **Study profile and folder memory** | | |
-| 6.1 | Study in `SEEDED_PROFILES` for fresh databases (migration 9 covers existing ones); the seeded-profile tests (TRD §8) | 0059 | ⬜ |
+| 6.1 | Study in `SEEDED_PROFILES` (migration 9 already seeds it everywhere; this makes reset-to-default and the seeded-profile code treat it like the other three); the seeded-profile tests (TRD §8) | 0059 | ⬜ |
 | 6.2 | Server: `defaultFolderFor`, `Job.default_folder` for review jobs, `saveJob` remembers the folder after a successful write (TRD §8) | 0059 | ⬜ |
 | 6.3 | Web: `NoteDestination` and `FilenamePreview` on `job.default_folder` (TRD §8) | 0059 | ⬜ |
 

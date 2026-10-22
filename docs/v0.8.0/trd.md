@@ -81,7 +81,8 @@ Exported from `index.ts`. Schema tests for each, including the refine on `Update
 - `Settings` gains `melete_learning_root: string | null`, `melete_question_model: string`, `melete_grading_model: string`, `melete_review_mode: MeleteReviewMode`, `melete_question_profile_id: uuid`, `melete_grading_profile_id: uuid`.
 - `UpdateSettingsBody` accepts `melete_learning_root` (a folder path validated with `parseFolderPath`, or null), `melete_question_model` and `melete_grading_model` (`assertKnownModel`), `melete_review_mode`. The profile ids are read-only. The refine message lists the new keys.
 - `GetSettingsResponse.locked_instructions` gains `melete_questions` and `melete_grading` (server constants, so never null).
-- `SeedKey` gains `'study'`. The prompt-profile `purpose` values (server-side) gain `melete_questions` and `melete_grading`; `PromptProfile` gains `purpose` in the response so the Prompts tab can group the list (ADR 0052's list already groups summary profiles and the linker).
+- A shared `PromptPurpose` (`summary`, `linker`, `melete_questions`, `melete_grading`); `PromptProfile` gains `purpose` in the response so the Prompts tab can group the list (ADR 0052's list already groups summary profiles and the linker). The server's `ProfilePurpose` is this type.
+- The server's `SeedKey` (`summarizer/prompts.ts`; there is no shared one) gains `'study'`.
 
 ### 2.3 Jobs (`job.ts`)
 - `Job` gains `default_folder: string`: the folder the picker starts on and the save uses when `target_folder` is null (§8).
@@ -174,7 +175,7 @@ CREATE INDEX melete_runs_note ON melete_runs ( note_id, id );
 
 ALTER TABLE prompt_profiles ADD COLUMN last_folder TEXT;
 ```
-Then, in code: insert the **Study** summary profile (`purpose 'summary'`, `seed_key 'study'`, name "Study") unless a profile with seed key `study` exists, and the two Melete profiles (`purpose 'melete_questions'` / `'melete_grading'`, seed keys of the same names, names "Melete questions" / "Melete grading"), each with version 1 (`source 'seed'`, the defaults in §6.1 and §9.1). A user profile already named "Study" keeps its name; the seeded one is then named "Study (seeded)". Settings keys aren't seeded (defaults in §9.2).
+Then, in code: insert the **Study** summary profile (`purpose 'summary'`, `seed_key 'study'`, name "Study") unless a profile with seed key `study` exists, and the two Melete profiles (`purpose 'melete_questions'` / `'melete_grading'`, seed keys of the same names, names "Melete questions" / "Melete grading"), each with version 1 (`source 'seed'`, the defaults in §6.1 and §9.1). Profile names are unique per purpose (migration 7), so only Study can clash with a user's profile: a user profile already named "Study" keeps its name and the seeded one is named "Study (seeded)". The Melete profiles never clash. Settings keys aren't seeded (defaults in §9.2).
 
 Tested from version 8 (with two summary profiles, the linker profile and a review job) and from empty.
 
@@ -299,7 +300,7 @@ Scan, then per subject: note counts, `due_count`, `new_available`, `new_remainin
 ## 8. Study profile and folder memory (ADR 0059)
 - `SEEDED_PROFILES` gains Study (`seedKey 'study'`), guidance:
   > Summarize this for someone learning the subject, so the note can be studied and quizzed on later. Lead with the key concepts, each with a plain definition. Explain how things work and why, not just what. Capture any steps or procedures in order, with what each step is for. Keep the examples that make an idea click. Call out common mistakes, misconceptions and limits. Leave out anecdotes, sponsor segments, calls to action and anything about the presenter. Use precise terms and define jargon the first time it appears.
-- Migration 9 seeds it for existing databases (§3.1); a fresh database gets it through the existing seeding.
+- Migration 9 seeds it on every database, fresh or existing (§3.1), so it is listed from checkpoint A on. Task 6.1 adds it to `SEEDED_PROFILES` so reset-to-default and the seeded-profile code treat it like the other three; migration 9 then skips it on a fresh database because the seed key exists.
 - **Folder memory:** `saveJob` resolves the folder as `job.target_folder ?? defaultFolderFor( job )`, writes the note, then `setLastFolder( job.prompt_profile_id, folder )` when the job has a profile. Write first, then remember: a failed write remembers nothing.
 - `defaultFolderFor( job )`: the profile's `last_folder` when it is set and the folder exists in the vault (`stat` through `resolveFolder`), else `config.defaultNoteFolder`. Computed only when assembling jobs in `ready_for_review` (other statuses use `config.defaultNoteFolder`), so polling stays cheap.
 - `Job.default_folder` carries it. `NoteDestination` and `FilenamePreview` use `job.default_folder` instead of `useFolders().defaultFolder`; the folder tree still comes from `useFolders`.
