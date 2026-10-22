@@ -1,6 +1,6 @@
 # 0055. Melete's Claude calls run in Express, not the agent service
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-22
 
 ## Context

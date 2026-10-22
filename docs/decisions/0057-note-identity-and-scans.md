@@ -1,6 +1,6 @@
 # 0057. Note identity: path plus body hash, on-demand scans
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-22
 
 ## Context

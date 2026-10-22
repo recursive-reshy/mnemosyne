@@ -1,6 +1,6 @@
 # 0059. Study profile and per-profile folder memory
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-22
 
 ## Context

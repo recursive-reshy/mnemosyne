@@ -1,6 +1,6 @@
 # 0058. Melete's data model and generator loop
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-22
 
 ## Context

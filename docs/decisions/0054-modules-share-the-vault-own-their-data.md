@@ -1,6 +1,6 @@
 # 0054. Modules share the vault and own their data
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-22
 
 ## Context

@@ -26,7 +26,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
 | **Phase 1** | **Kick-off** | | |
-| 1.1 | Set ADRs 0054–0060 to Accepted (Status lines and the `docs/README.md` index); `docs/README.md` current version 0.8.0 and the v0.8.0 entry "in progress". The root `CLAUDE.md` already points at 0.8.0 (updated with these docs) | 0054–0060 | ⬜ |
+| 1.1 | Set ADRs 0054–0060 to Accepted (Status lines and the `docs/README.md` index); `docs/README.md` current version 0.8.0 and the v0.8.0 entry "in progress". The root `CLAUDE.md` already points at 0.8.0 (updated with these docs) | 0054–0060 | ✅ |
 | **Phase 2** | **Contracts and data** | | |
 | 2.1 | Shared `melete.ts` (TRD §2.1) with schema tests; exported from `index.ts` | 0054, 0056, 0058 | ⬜ |
 | 2.2 | Shared `summarizer.ts` and `job.ts` additions: Melete settings keys and `UpdateSettingsBody`, `locked_instructions.melete_*`, `SeedKey` `study`, `PromptProfile.purpose`, `Job.default_folder` (TRD §2.2–2.3); fixtures and tests that list every key updated | 0058, 0059 | ⬜ |
@@ -128,3 +128,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 
 ## Log
 
+- 1.1 ✅ ADRs 0054–0060 set to Accepted (Status lines and the `docs/README.md` index); `docs/README.md` current version 0.8.0 and the v0.8.0 entry "in progress". Root `CLAUDE.md` already pointed at 0.8.0. Docs only: no code, so no test run.
