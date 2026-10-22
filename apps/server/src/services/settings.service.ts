@@ -78,6 +78,10 @@ export const resolveLinkingModel = async (): Promise< string > => {
   }
 }
 
+export const getLearningRoot = (): string | null => {
+  return z.string().min( 1 ).nullable().catch( null ).parse( getSetting( 'melete_learning_root' ) )
+}
+
 const meleteProfileId = ( seedKey: string ): string => {
   const record = findProfileBySeedKey( seedKey )
 
@@ -97,8 +101,7 @@ export const getSettings = async (): Promise< Settings > => {
     linking_enabled: isLinkingEnabled(),
     linking_model: await resolveLinkingModel(),
     linker_profile_id: resolveLinkerPrompt().profile.id,
-    melete_learning_root: z.string().nullable().catch( null )
-      .parse( getSetting( 'melete_learning_root' ) ),
+    melete_learning_root: getLearningRoot(),
     melete_question_model: storedModel( 'melete_question_model' ) ?? SHIPPED_DEFAULT_MODEL,
     melete_grading_model: storedModel( 'melete_grading_model' ) ?? SHIPPED_DEFAULT_MODEL,
     melete_review_mode: MeleteReviewMode.catch( 'typed' )
