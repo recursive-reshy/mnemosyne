@@ -51,7 +51,7 @@ src/
   config.ts          env parsed with Zod
   shutdown.ts        signal handling: stop the sweeper, the worker, the intake poller, the service monitor and the server, close the store, exit; with a timeout
   errors.ts          typed errors and the error middleware
-  logger.ts          the pino logger (ADR 0049); logContext.ts holds the job, feed or Gmail source ID for every line written inside `withLogContext`
+  logger.ts          the pino logger (ADR 0049); logContext.ts holds the job, feed, Gmail source or Melete note ID for every line written inside `withLogContext`
   middleware/        requestLog.ts: one log line per request (method, route pattern, status, duration; health and status skipped)
   jobs/              lifecycle.ts (ADR 0048): the pure table of job statuses, their properties and allowed moves, `canMove`, `assertMove`, `statusesWhere` and the link-state moves; no imports from services or repositories
   routes/            <name>.routes.ts: an Express Router wiring paths to controller functions, nothing else
@@ -87,7 +87,7 @@ The order is routes → controllers → services → repositories, and every req
 
 - Log through `logger` from `logger.ts` (pino, JSON per line; `pino-pretty` only in `pnpm dev`), never `console` (`no-console` is an ESLint error in `src/`; `config.ts` is the one exception because it runs before the logger exists).
 - A fixed message and the variable parts as fields: `logger.error( { err: error, feed_id }, 'Feed check failed' )`. Pass errors as `err`.
-- `logContext.ts` holds `job_id`, `feed_id` or `gmail_source_id` in an `AsyncLocalStorage`; wrap each unit of work in `withLogContext( { … }, fn )` and every line written inside carries it. `requestLinks` sends the job ID to the agent as `X-Job-Id`.
+- `logContext.ts` holds `job_id`, `feed_id`, `gmail_source_id` or `melete_note_id` in an `AsyncLocalStorage`; wrap each unit of work in `withLogContext( { … }, fn )` and every line written inside carries it. `requestLinks` sends the job ID to the agent as `X-Job-Id`.
 - Never log bodies, note or transcript text, prompts, email content, tokens or keys. `redact` covers fields named like secrets one level down; don't rely on it for anything else.
 - Tests spy on the logger (`vi.spyOn( logger, 'error' )`); a test that mocks `config.js` must include `logLevel`.
 
@@ -98,6 +98,7 @@ The order is routes → controllers → services → repositories, and every req
   - `NotFoundError` → 404
   - `BadGatewayError` → 502, a site that can't be read while previewing or adding a feed
   - `BackupError` → 500 with its message, the one 500 whose text is shown (a failed backup)
+  - `MeleteError`: not an HTTP error; a Melete Claude call that gave nothing usable, with the billed tokens when there were any. Services store it as a note's failure or a `failed` grading response
   - `ConflictError` → 409, e.g. downloading a transcript before the job is `ready_for_review` or `summary_failed`
 - One error middleware in `errors.ts` maps those errors to status codes, and maps a `ZodError` from a controller's parse to 400.
 - Anything else is logged with the error and returns 500 `{ error: 'Internal Server Error' }`.

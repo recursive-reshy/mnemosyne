@@ -12,8 +12,11 @@ import {
   ArticleSummaryResult,
   SummaryError,
   SummaryResult,
+  generateQuestions,
   summarizeSource,
 } from './claude.client.js'
+// Errors
+import { MeleteError } from '../errors.js'
 // Summarizer
 import { buildSystemPrompt } from '../summarizer/prompts.js'
 // Fixtures
@@ -42,8 +45,13 @@ vi.mock( '@anthropic-ai/sdk', () => {
 
   return { default: MockAnthropic }
 } )
+vi.mock( '../logger.js', () => ( { logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } } ) )
 vi.mock( '../config.js', () => ( {
-  config: { anthropicApiKey: 'sk-test', summaryTimeoutMs: 12_345 },
+  config: {
+    anthropicApiKey: 'sk-test',
+    summaryTimeoutMs: 12_345,
+    melete: { generationTimeoutMs: 54_321 },
+  },
 } ) )
 
 const summary: SummaryResult = {
@@ -278,5 +286,78 @@ describe( 'summarizeSource for an article', () => {
     parse.mockResolvedValue( reply( { parsed_output: summary } ) )
 
     await expect( summarizeSource( articleInput ) ).rejects.toThrow( SummaryError )
+  } )
+} )
+
+describe( 'generateQuestions', () => {
+  const questions = {
+    questions: [ {
+      prompt: 'What is a pure function?',
+      answer: 'One without side effects.',
+      passage: 'No I/O.',
+    } ],
+  }
+  const request = { model: 'claude-haiku-5-5', system: 'Write questions.', user: 'Subject: TS' }
+
+  beforeEach( () => {
+    parse.mockResolvedValue( reply( { parsed_output: questions } ) )
+  } )
+
+  it( 'returns the parsed questions with the tokens it used', async () => {
+    expect( await generateQuestions( request ) ).toEqual( {
+      output: questions,
+      usage: { input_tokens: 1234, output_tokens: 56 },
+    } )
+  } )
+
+  it( 'builds the client with the key, the generation timeout and one retry', async () => {
+    await generateQuestions( request )
+
+    expect( constructed ).toEqual( [ { apiKey: 'sk-test', timeout: 54_321, maxRetries: 1 } ] )
+  } )
+
+  it( 'asks for structured output at medium effort with the given prompts', async () => {
+    await generateQuestions( request )
+
+    const [ sent ] = parse.mock.calls[ 0 ] as [ Record< string, unknown > ]
+
+    expect( sent ).toMatchObject( {
+      model: 'claude-haiku-5-5',
+      max_tokens: 4096,
+      system: 'Write questions.',
+      messages: [ { role: 'user', content: 'Subject: TS' } ],
+      output_config: { effort: 'medium', format: expect.anything() as unknown },
+    } )
+  } )
+
+  it.each( [
+    [ { parsed_output: null }, 'Question response did not match the expected format' ],
+    [ { parsed_output: { questions: [] } }, 'Question response did not match' ],
+    [ { stop_reason: 'max_tokens' }, 'Question generation was cut off' ],
+    [ { stop_reason: 'refusal' }, 'Question generation was declined' ],
+  ] )( 'throws a MeleteError carrying the billed tokens (%j)', async ( overrides, message ) => {
+    parse.mockResolvedValue( reply( overrides ) )
+
+    const error: unknown = await generateQuestions( request ).catch( ( caught: unknown ) => caught )
+
+    expect( error ).toBeInstanceOf( MeleteError )
+    expect( ( error as MeleteError ).message ).toContain( message )
+    expect( ( error as MeleteError ).usage ).toEqual( { input_tokens: 1234, output_tokens: 56 } )
+  } )
+
+  it( 'wraps API errors in a MeleteError without usage', async () => {
+    parse.mockRejectedValue( new Anthropic.APIError( 429, undefined, 'Rate limited', undefined ) )
+
+    const error: unknown = await generateQuestions( request ).catch( ( caught: unknown ) => caught )
+
+    expect( error ).toBeInstanceOf( MeleteError )
+    expect( ( error as MeleteError ).message ).toBe( 'Question generation failed: Rate limited' )
+    expect( ( error as MeleteError ).usage ).toBeUndefined()
+  } )
+
+  it( 'lets other errors through unchanged', async () => {
+    parse.mockRejectedValue( new TypeError( 'boom' ) )
+
+    await expect( generateQuestions( request ) ).rejects.toThrow( TypeError )
   } )
 } )

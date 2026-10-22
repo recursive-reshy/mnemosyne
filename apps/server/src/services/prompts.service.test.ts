@@ -33,6 +33,7 @@ import {
   renameProfile,
   resetProfile,
   resolveLinkerPrompt,
+  resolveMeletePrompt,
   resolvePrompt,
   restoreVersion,
   saveVersion,
@@ -323,6 +324,28 @@ describe( 'resolveLinkerPrompt', () => {
     expect( resolveLinkerPrompt().version ).toMatchObject( {
       version: 2,
       guidance: 'Link fewer things.',
+    } )
+  } )
+} )
+
+describe( 'resolveMeletePrompt', () => {
+  it( 'returns each Melete profile with its current version', () => {
+    const questions = resolveMeletePrompt( 'melete_questions' )
+    const grading = resolveMeletePrompt( 'melete_grading' )
+
+    expect( questions.profile.purpose ).toBe( 'melete_questions' )
+    expect( questions.version.guidance ).toBe( DEFAULT_MELETE_QUESTIONS_GUIDANCE )
+    expect( questions.version.id ).toBe( questions.profile.current_version.id )
+    expect( grading.profile.purpose ).toBe( 'melete_grading' )
+    expect( grading.version.guidance ).toBe( DEFAULT_MELETE_GRADING_GUIDANCE )
+  } )
+
+  it( 'follows a newer version', () => {
+    saveVersion( resolveMeletePrompt( 'melete_questions' ).profile.id, 'Ask less.' )
+
+    expect( resolveMeletePrompt( 'melete_questions' ).version ).toMatchObject( {
+      version: 2,
+      guidance: 'Ask less.',
     } )
   } )
 } )

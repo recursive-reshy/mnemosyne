@@ -5,6 +5,7 @@ export type LogContext = {
   job_id?: string
   feed_id?: string
   gmail_source_id?: string
+  melete_note_id?: string
 }
 
 const storage = new AsyncLocalStorage< LogContext >()

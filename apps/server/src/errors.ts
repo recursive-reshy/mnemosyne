@@ -43,6 +43,20 @@ export class BackupError extends Error {
   }
 }
 
+// A Melete Claude call that produced nothing usable; services store it as a failure
+export class MeleteError extends Error {
+  readonly usage: { input_tokens: number, output_tokens: number } | undefined
+
+  constructor(
+    message: string,
+    options: { usage?: { input_tokens: number, output_tokens: number }, cause?: unknown } = {},
+  ) {
+    super( message, { cause: options.cause } )
+    this.name = 'MeleteError'
+    this.usage = options.usage
+  }
+}
+
 export class BadGatewayError extends Error {
   constructor( message: string ) {
     super( message )

@@ -35,3 +35,38 @@ describe.skipIf( !hasApiKey )( 'claude.client (real Claude API)', () => {
     }
   } )
 } )
+
+describe.skipIf( !hasApiKey )( 'generateQuestions (real Claude API)', () => {
+  it( 'writes questions from a short note', async () => {
+    const { generateQuestions } = await import( './claude.client.js' )
+    const {
+      DEFAULT_MELETE_QUESTIONS_GUIDANCE,
+      LOCKED_INSTRUCTIONS_MELETE_QUESTIONS,
+      buildMeleteSystemPrompt,
+    } = await import( '../melete/prompts.js' )
+
+    const { output, usage } = await generateQuestions( {
+      model: 'claude-haiku-5-5',
+      system: buildMeleteSystemPrompt(
+        LOCKED_INSTRUCTIONS_MELETE_QUESTIONS,
+        DEFAULT_MELETE_QUESTIONS_GUIDANCE,
+      ),
+      user: [
+        'Subject: TypeScript',
+        'Title: Narrowing',
+        '',
+        'Narrowing is how TypeScript refines a union type inside a branch.',
+        'A typeof check narrows a string | number to string in the true branch.',
+      ].join( '\n' ),
+    } )
+
+    expect( usage.input_tokens ).toBeGreaterThan( 0 )
+    expect( output.questions.length ).toBeGreaterThanOrEqual( 1 )
+    expect( output.questions.length ).toBeLessThanOrEqual( 10 )
+
+    for( const { prompt, answer } of output.questions ) {
+      expect( prompt.trim() ).not.toBe( '' )
+      expect( answer.trim() ).not.toBe( '' )
+    }
+  } )
+} )

@@ -8,6 +8,8 @@ import { ConflictError, NotFoundError, ValidationError } from '../errors.js'
 import {
   DEFAULT_MELETE_GRADING_GUIDANCE,
   DEFAULT_MELETE_QUESTIONS_GUIDANCE,
+  MELETE_GRADING_SEED_KEY,
+  MELETE_QUESTIONS_SEED_KEY,
 } from '../melete/prompts.js'
 // Repositories
 import {
@@ -233,6 +235,23 @@ export const resolveLinkerPrompt = (): { profile: PromptProfile, version: Prompt
 
   if( record === undefined ) {
     throw new Error( 'The linker prompt profile is missing' )
+  }
+
+  const profile = toProfile( record )
+
+  return { profile, version: profile.current_version }
+}
+
+export const resolveMeletePrompt = (
+  purpose: 'melete_questions' | 'melete_grading',
+): { profile: PromptProfile, version: PromptVersion } => {
+  const seedKey = purpose === 'melete_questions'
+    ? MELETE_QUESTIONS_SEED_KEY
+    : MELETE_GRADING_SEED_KEY
+  const record = findProfileBySeedKey( seedKey )
+
+  if( record === undefined ) {
+    throw new Error( `The ${ purpose } prompt profile is missing` )
   }
 
   const profile = toProfile( record )
