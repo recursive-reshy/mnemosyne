@@ -2,7 +2,7 @@
 
 FROM python:3.14-slim
 
-COPY --from=ghcr.io/astral-sh/uv:0.12.13 /uv /bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.13.5 /uv /bin/uv
 
 ENV UV_NO_CACHE=1 \
     UV_PYTHON_DOWNLOADS=never \
