@@ -73,7 +73,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 6.3 | `NavDrawer` Settings badge with the failing count and accessible name, collapsed and expanded (TRD §5.6) | 0050 | ✅ |
 
 ## Checkpoint E: Phase 7 (backups)
-**Plan:** ⬜ `plans/checkpoint-e.md`
+**Plan:** ✅ [`plans/checkpoint-e.md`](plans/checkpoint-e.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
