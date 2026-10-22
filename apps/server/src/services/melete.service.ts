@@ -13,6 +13,7 @@ import { config } from '../config.js'
 // Errors
 import { ConflictError, NotFoundError } from '../errors.js'
 // Melete
+import { newRemaining, reviewCounts } from '../melete/queue.js'
 import { listSubjectFolders } from '../melete/scan.js'
 // Repositories
 import { getDatabase } from '../repositories/database.js'
@@ -61,7 +62,7 @@ const requireSubject = ( id: string ): SubjectRecord => {
   return subject
 }
 
-const toMeleteQuestion = ( question: QuestionRecord ): MeleteQuestion => ( {
+export const toMeleteQuestion = ( question: QuestionRecord ): MeleteQuestion => ( {
   id: question.id,
   note_id: question.note_id,
   position: question.position,
@@ -99,7 +100,8 @@ const noteView = ( note: NoteRecord ): GetMeleteNoteResponse => {
   return { note: toMeleteNote( note, questions ), questions: questions.map( toMeleteQuestion ) }
 }
 
-// Until the review queue exists (task 5.3), the day's allowance is only capped by what is new
+export const subjectName = ( folder: string ): string => folder.split( '/' ).at( -1 ) ?? folder
+
 const toMeleteSubject = ( subject: SubjectRecord, now: Date ): MeleteSubject => {
   const notes = listNotesBySubject( subject.id ).filter( ( { missing_at } ) => missing_at === null )
   const counts = countBySubject( now.toISOString() ).find( ( { subject_id } ) => {
@@ -109,7 +111,7 @@ const toMeleteSubject = ( subject: SubjectRecord, now: Date ): MeleteSubject => 
 
   return {
     id: subject.id,
-    name: subject.folder.split( '/' ).at( -1 ) ?? subject.folder,
+    name: subjectName( subject.folder ),
     folder: subject.folder,
     auto_enroll: subject.auto_enroll,
     new_per_day: subject.new_per_day,
@@ -117,7 +119,7 @@ const toMeleteSubject = ( subject: SubjectRecord, now: Date ): MeleteSubject => 
     enrolled_count: notes.filter( ( { enrolled } ) => enrolled ).length,
     due_count: counts?.due ?? 0,
     new_available: newAvailable,
-    new_remaining_today: Math.min( subject.new_per_day, newAvailable ),
+    new_remaining_today: Math.min( newRemaining( subject, now ), newAvailable ),
   }
 }
 
@@ -129,7 +131,7 @@ const subjectView = ( subject: SubjectRecord, now: Date ): GetMeleteSubjectRespo
 } )
 
 // A subject belongs to the learning root only while it is a direct child folder of it
-const requireSubjectInRoot = ( id: string, learningRoot: string ): SubjectRecord => {
+export const requireSubjectInRoot = ( id: string, learningRoot: string ): SubjectRecord => {
   const subject = requireSubject( id )
 
   if( subject.folder.split( '/' ).slice( 0, -1 ).join( '/' ) !== learningRoot ) {
@@ -280,6 +282,13 @@ export const updateSubject = (
   return toMeleteSubject( updated, now )
 }
 
+// The subjects whose folder is still a direct child of the learning root
+export const listSubjectsInRoot = async ( learningRoot: string ): Promise< SubjectRecord[] > => {
+  const folders = new Set( await listSubjectFolders( config.vaultPath, learningRoot ) )
+
+  return listSubjects().filter( ( { folder } ) => folders.has( folder ) )
+}
+
 export const getToday = async ( now = new Date() ): Promise< GetMeleteTodayResponse > => {
   const learningRoot = getLearningRoot()
 
@@ -293,23 +302,12 @@ export const getToday = async ( now = new Date() ): Promise< GetMeleteTodayRespo
 
   await scanLearningRoot( { now } )
 
-  const folders = new Set( await listSubjectFolders( config.vaultPath, learningRoot ) )
-  const subjects = listSubjects()
-    .filter( ( { folder } ) => folders.has( folder ) )
+  const records = await listSubjectsInRoot( learningRoot )
+  const subjects = records
     .map( ( subject ) => toMeleteSubject( subject, now ) )
     .sort( ( a, b ) => a.name.localeCompare( b.name, undefined, { sensitivity: 'base' } ) )
 
-  return {
-    learning_root: learningRoot,
-    subjects,
-    totals: {
-      due: subjects.reduce( ( sum, { due_count } ) => sum + due_count, 0 ),
-      new_remaining: subjects.reduce( ( sum, { new_remaining_today } ) => {
-        return sum + new_remaining_today
-      }, 0 ),
-      learning_soon: 0,
-    },
-  }
+  return { learning_root: learningRoot, subjects, totals: reviewCounts( records, now ) }
 }
 
 export const getSubject = async (

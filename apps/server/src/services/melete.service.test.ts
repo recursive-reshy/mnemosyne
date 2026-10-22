@@ -22,6 +22,7 @@ import {
   updateNote,
 } from '../repositories/meleteNotes.repository.js'
 import { findQuestion } from '../repositories/meleteQuestions.repository.js'
+import { insertReview } from '../repositories/meleteReviews.repository.js'
 import { listSubjects } from '../repositories/meleteSubjects.repository.js'
 import { setSetting } from '../repositories/settings.repository.js'
 // Services
@@ -41,7 +42,12 @@ import { resetScanClock, scanLearningRoot } from './meleteScan.service.js'
 import { addQuestion } from '../test-support/meleteData.fixture.js'
 import { MeleteVault, createMeleteVault } from '../test-support/meleteVault.fixture.js'
 
-const configMock = vi.hoisted( () => ( { logLevel: 'silent', vaultPath: '' } ) )
+const configMock = vi.hoisted( () => ( {
+  logLevel: 'silent',
+  vaultPath: '',
+  timeZone: 'Asia/Singapore',
+  melete: { requestRetention: 0.9, dayStartHour: 4 },
+} ) )
 
 vi.mock( '../config.js', () => ( { config: configMock } ) )
 
@@ -348,6 +354,49 @@ describe( 'getToday', () => {
       new_available: 0,
     } )
     expect( today.totals ).toEqual( { due: 1, new_remaining: 1, learning_soon: 0 } )
+  } )
+
+  it( 'takes the day\'s new questions already reviewed off what is remaining', async () => {
+    const generics = noteId( GENERICS )
+    await setSubjectEnrolled( subjectId( 'TypeScript' ), true, at( 1 ) )
+    const reviewed = addQuestion( generics, {
+      fsrsState: 'review',
+      due: at( 86_400 ).toISOString(),
+    } )
+    addQuestion( generics, { position: 2 } )
+    addQuestion( generics, { position: 3 } )
+    insertReview( {
+      question_id: reviewed,
+      reviewed_at: at( 1 ).toISOString(),
+      mode: 'quick',
+      rating: 'good',
+      suggested_rating: null,
+      answer: null,
+      grade_run_id: null,
+      was_new: true,
+      before_state: '{}',
+    } )
+    updateSubject( subjectId( 'TypeScript' ), { new_per_day: 2 } )
+
+    const { subjects, totals } = await getToday( at( 2 ) )
+
+    expect( subjects[ 1 ] ).toMatchObject( { new_available: 2, new_remaining_today: 1 } )
+    expect( totals.new_remaining ).toBe( 1 )
+  } )
+
+  it( 'counts learning questions coming up within 20 minutes', async () => {
+    const generics = noteId( GENERICS )
+    await setSubjectEnrolled( subjectId( 'TypeScript' ), true, at( 1 ) )
+    addQuestion( generics, { fsrsState: 'learning', due: at( 10 * 60 ).toISOString() } )
+    addQuestion( generics, {
+      position: 2,
+      fsrsState: 'learning',
+      due: at( 40 * 60 ).toISOString(),
+    } )
+
+    const { totals } = await getToday( at( 2 ) )
+
+    expect( totals ).toEqual( { due: 0, new_remaining: 0, learning_soon: 1 } )
   } )
 
   it( 'drops a subject whose folder is gone', async () => {
