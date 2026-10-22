@@ -10,6 +10,7 @@ import {
 } from '@mnemosyne/shared'
 // Clients
 import { AgentError, checkHealth, fetchInstructions } from '../clients/agent.client.js'
+import { resolveExistingFolder } from '../clients/vault.client.js'
 // Config
 import { config } from '../config.js'
 // Repositories
@@ -22,6 +23,7 @@ import {
   MELETE_GRADING_SEED_KEY,
   MELETE_QUESTIONS_SEED_KEY,
 } from '../melete/prompts.js'
+import { resetScanClock } from '../melete/scanClock.js'
 // Summarizer
 import { SHIPPED_DEFAULT_MODEL } from '../summarizer/models.js'
 import { LOCKED_INSTRUCTIONS_ARTICLE, LOCKED_INSTRUCTIONS_VIDEO } from '../summarizer/prompts.js'
@@ -60,8 +62,8 @@ export const isLinkingEnabled = (): boolean => {
 }
 
 // The model list comes newest first, so the first Haiku is the newest one (ADR 0047)
-export const resolveLinkingModel = async (): Promise< string > => {
-  const stored = storedModel( 'linking_model' )
+const resolveHaikuModel = async ( key: string ): Promise< string > => {
+  const stored = storedModel( key )
 
   if( stored !== undefined ) {
     return stored
@@ -72,10 +74,20 @@ export const resolveLinkingModel = async (): Promise< string > => {
 
     return models.find( ( { id } ) => id.includes( 'haiku' ) )?.id ?? SHIPPED_DEFAULT_MODEL
   } catch( error ) {
-    logger.error( { err: error }, 'Could not pick a linking model' )
+    logger.error( { err: error, setting: key }, 'Could not pick a default model' )
 
     return SHIPPED_DEFAULT_MODEL
   }
+}
+
+export const resolveLinkingModel = (): Promise< string > => resolveHaikuModel( 'linking_model' )
+
+export const resolveMeleteQuestionModel = (): Promise< string > => {
+  return resolveHaikuModel( 'melete_question_model' )
+}
+
+export const resolveMeleteGradingModel = (): Promise< string > => {
+  return resolveHaikuModel( 'melete_grading_model' )
 }
 
 export const getLearningRoot = (): string | null => {
@@ -102,8 +114,8 @@ export const getSettings = async (): Promise< Settings > => {
     linking_model: await resolveLinkingModel(),
     linker_profile_id: resolveLinkerPrompt().profile.id,
     melete_learning_root: getLearningRoot(),
-    melete_question_model: storedModel( 'melete_question_model' ) ?? SHIPPED_DEFAULT_MODEL,
-    melete_grading_model: storedModel( 'melete_grading_model' ) ?? SHIPPED_DEFAULT_MODEL,
+    melete_question_model: await resolveMeleteQuestionModel(),
+    melete_grading_model: await resolveMeleteGradingModel(),
     melete_review_mode: MeleteReviewMode.catch( 'typed' )
       .parse( getSetting( 'melete_review_mode' ) ),
     melete_question_profile_id: meleteProfileId( MELETE_QUESTIONS_SEED_KEY ),
@@ -162,8 +174,20 @@ export const updateSettings = async ( body: UpdateSettingsBody ): Promise< Setti
     await assertKnownModel( body.linking_model )
   }
 
+  if( body.melete_question_model !== undefined ) {
+    await assertKnownModel( body.melete_question_model )
+  }
+
+  if( body.melete_grading_model !== undefined ) {
+    await assertKnownModel( body.melete_grading_model )
+  }
+
   if( body.default_profile_id !== undefined ) {
     assertActiveProfile( body.default_profile_id )
+  }
+
+  if( typeof body.melete_learning_root === 'string' ) {
+    await resolveExistingFolder( config.vaultPath, body.melete_learning_root )
   }
 
   if( body.default_model !== undefined ) {
@@ -188,6 +212,23 @@ export const updateSettings = async ( body: UpdateSettingsBody ): Promise< Setti
 
   if( body.feed_check_interval_minutes !== undefined ) {
     setSetting( 'feed_check_interval_minutes', body.feed_check_interval_minutes )
+  }
+
+  if( body.melete_question_model !== undefined ) {
+    setSetting( 'melete_question_model', body.melete_question_model )
+  }
+
+  if( body.melete_grading_model !== undefined ) {
+    setSetting( 'melete_grading_model', body.melete_grading_model )
+  }
+
+  if( body.melete_review_mode !== undefined ) {
+    setSetting( 'melete_review_mode', body.melete_review_mode )
+  }
+
+  if( body.melete_learning_root !== undefined ) {
+    setSetting( 'melete_learning_root', body.melete_learning_root )
+    resetScanClock()
   }
 
   return getSettings()

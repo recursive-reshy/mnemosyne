@@ -1,3 +1,11 @@
+// Node
+import {
+  mkdir,
+  mkdtemp,
+  rm,
+} from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 // Packages
 import {
   describe,
@@ -143,6 +151,67 @@ describe( 'GET /api/settings with an agent service', () => {
     )
 
     expect( settings.linking_model ).toBe( 'claude-haiku-5-5' )
+  } )
+} )
+
+describe( 'PATCH /api/settings for Melete', () => {
+  let vaultDir: string
+  let originalVaultPath: string
+
+  beforeEach( async () => {
+    vaultDir = await mkdtemp( join( tmpdir(), 'mnemosyne-settings-routes-' ) )
+    originalVaultPath = config.vaultPath
+    config.vaultPath = vaultDir
+  } )
+
+  afterEach( async () => {
+    config.vaultPath = originalVaultPath
+    await rm( vaultDir, { recursive: true, force: true } )
+  } )
+
+  it( 'saves the learning root, the models and the review mode', async () => {
+    await mkdir( join( vaultDir, 'Learning' ) )
+
+    const response = await request( app ).patch( '/api/settings' ).send( {
+      melete_learning_root: 'Learning',
+      melete_question_model: 'claude-opus-5-5',
+      melete_grading_model: 'claude-sonnet-5-5',
+      melete_review_mode: 'quick',
+    } )
+
+    expect( response.status ).toBe( 200 )
+    expect( GetSettingsResponse.parse( response.body ).settings ).toMatchObject( {
+      melete_learning_root: 'Learning',
+      melete_question_model: 'claude-opus-5-5',
+      melete_grading_model: 'claude-sonnet-5-5',
+      melete_review_mode: 'quick',
+    } )
+  } )
+
+  it( 'returns 400 for a learning root that is not in the vault', async () => {
+    const response = await request( app )
+      .patch( '/api/settings' )
+      .send( { melete_learning_root: 'Learning' } )
+
+    expect( response.status ).toBe( 400 )
+    expect( response.body ).toEqual( { error: 'Folder doesn\'t exist in the vault' } )
+  } )
+
+  it( 'returns 400 for an unknown Melete model', async () => {
+    const response = await request( app )
+      .patch( '/api/settings' )
+      .send( { melete_question_model: 'claude-nope' } )
+
+    expect( response.status ).toBe( 400 )
+    expect( response.body ).toEqual( { error: 'Unknown model: claude-nope' } )
+  } )
+
+  it( 'does not accept the Melete profile ids', async () => {
+    const response = await request( app )
+      .patch( '/api/settings' )
+      .send( { melete_question_profile_id: crypto.randomUUID() } )
+
+    expect( response.status ).toBe( 400 )
   } )
 } )
 

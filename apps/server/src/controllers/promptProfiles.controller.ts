@@ -8,6 +8,7 @@ import {
   ListPromptProfilesResponse,
   ListPromptVersionsResponse,
   PromptProfileResponse,
+  PromptPurpose,
   RenamePromptProfileBody,
   SavePromptVersionBody,
 } from '@mnemosyne/shared'
@@ -24,9 +25,13 @@ import {
 } from '../services/prompts.service.js'
 
 const VersionId = z.coerce.number().int().positive()
+const ListPurpose = z.enum( [ ...PromptPurpose.options, 'all' ] ).default( 'summary' )
 
-export const getProfiles = ( _req: Request, res: Response< ListPromptProfilesResponse > ): void => {
-  res.status( 200 ).json( { profiles: listProfiles() } )
+export const getProfiles = (
+  { query }: Request,
+  res: Response< ListPromptProfilesResponse >,
+): void => {
+  res.status( 200 ).json( { profiles: listProfiles( ListPurpose.parse( query.purpose ) ) } )
 }
 
 export const postProfile = (

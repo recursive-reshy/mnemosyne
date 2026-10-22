@@ -14,6 +14,7 @@ import {
   splitFrontMatter,
   walkSubject,
 } from '../melete/scan.js'
+import { isScanFresh, markScanned, resetScanClock } from '../melete/scanClock.js'
 // Repositories
 import { getDatabase } from '../repositories/database.js'
 import {
@@ -27,19 +28,13 @@ import { SubjectRecord, upsertSubject } from '../repositories/meleteSubjects.rep
 // Services
 import { getLearningRoot } from './settings.service.js'
 
-const SCAN_INTERVAL_MS = 30_000
-
 type ScanOptions = { force?: boolean, now?: Date }
 
 type ReadFile = ScannedFile & { subjectFolder: string, hash: string, title: string }
 
-let lastScanAt: number | null = null
 let running: Promise< void > | null = null
 
-// The learning root changed, so what the last scan saw no longer applies
-export const resetScanClock = (): void => {
-  lastScanAt = null
-}
+export { resetScanClock }
 
 const isGone = ( error: unknown ): boolean => {
   return error instanceof Error && 'code' in error && error.code === 'ENOENT'
@@ -213,7 +208,7 @@ const runScan = async ( learningRoot: string, now: Date ): Promise< void > => {
     applyScan( learningRoot, subjectFolders, seen, changed, now.toISOString() )
   } )()
 
-  lastScanAt = now.getTime()
+  markScanned( now )
 }
 
 // Scans at most every 30 seconds unless forced, and one at a time (ADR 0057)
@@ -230,7 +225,7 @@ export const scanLearningRoot = async (
     return running
   }
 
-  if( !force && lastScanAt !== null && now.getTime() - lastScanAt < SCAN_INTERVAL_MS ) {
+  if( !force && isScanFresh( now ) ) {
     return undefined
   }
 

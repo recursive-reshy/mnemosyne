@@ -17,6 +17,11 @@ import {
 import { getSetting, setSetting } from '../repositories/settings.repository.js'
 // Summarizer
 import { DEFAULT_LINKER_GUIDANCE, SEEDED_PROFILES } from '../summarizer/prompts.js'
+// Melete
+import {
+  DEFAULT_MELETE_GRADING_GUIDANCE,
+  DEFAULT_MELETE_QUESTIONS_GUIDANCE,
+} from '../melete/prompts.js'
 // Services
 import {
   assertActiveProfile,
@@ -375,5 +380,74 @@ describe( 'the linker profile', () => {
     vi.spyOn( logger, 'error' ).mockImplementation( () => undefined )
 
     expect( resolvePrompt( linkerId() ).profile.id ).toBe( defaultId() )
+  } )
+} )
+
+describe( 'listProfiles by purpose', () => {
+  it( 'lists summary profiles unless told otherwise', () => {
+    expect( listProfiles().every( ( { purpose } ) => purpose === 'summary' ) ).toBe( true )
+    expect( listProfiles( 'summary' ) ).toEqual( listProfiles() )
+  } )
+
+  it( 'lists one other purpose', () => {
+    expect( listProfiles( 'melete_grading' ).map( ( { name } ) => name ) )
+      .toEqual( [ 'Melete grading' ] )
+    expect( listProfiles( 'linker' ).map( ( { name } ) => name ) ).toEqual( [ 'Linker' ] )
+  } )
+
+  it( 'lists every purpose, summary first, with the purpose on each', () => {
+    expect( listProfiles( 'all' ).map( ( { name, purpose } ) => [ name, purpose ] ) ).toEqual( [
+      [ 'Business ideas', 'summary' ],
+      [ 'Coding', 'summary' ],
+      [ 'General', 'summary' ],
+      [ 'Study', 'summary' ],
+      [ 'Linker', 'linker' ],
+      [ 'Melete questions', 'melete_questions' ],
+      [ 'Melete grading', 'melete_grading' ],
+    ] )
+  } )
+} )
+
+describe( 'the Melete profiles', () => {
+  const questionsId = (): string => listProfiles( 'melete_questions' )[ 0 ]?.id ?? ''
+  const gradingId = (): string => listProfiles( 'melete_grading' )[ 0 ]?.id ?? ''
+  const message = 'The Melete prompts can\'t be renamed or deleted'
+
+  it( 'cannot be renamed or deleted', () => {
+    expect( () => renameProfile( questionsId(), 'Other' ) )
+      .toThrow( new ConflictError( message ) )
+    expect( () => deleteProfile( gradingId() ) ).toThrow( new ConflictError( message ) )
+    expect( findProfile( gradingId() ).name ).toBe( 'Melete grading' )
+  } )
+
+  it( 'save, restore and reset like any profile', () => {
+    const id = questionsId()
+    const first = findProfile( id ).current_version
+
+    saveVersion( id, 'Ask about trade-offs.' )
+    restoreVersion( id, first.id )
+
+    expect( findProfile( id ).current_version )
+      .toMatchObject( { source: 'restore', guidance: DEFAULT_MELETE_QUESTIONS_GUIDANCE } )
+
+    saveVersion( id, 'Ask about trade-offs.' )
+
+    expect( resetProfile( id ).current_version )
+      .toMatchObject( { source: 'reset', guidance: DEFAULT_MELETE_QUESTIONS_GUIDANCE } )
+    expect( resetProfile( gradingId() ).current_version )
+      .toMatchObject( { source: 'reset', guidance: DEFAULT_MELETE_GRADING_GUIDANCE } )
+    expect( listVersions( id ) ).toHaveLength( 5 )
+  } )
+
+  it( 'are not summary profiles', () => {
+    expect( () => assertActiveProfile( questionsId() ) )
+      .toThrow( new ValidationError( 'Unknown prompt profile' ) )
+  } )
+
+  it( 'are not used as a summary prompt, which falls back to the default', () => {
+    const error = vi.spyOn( logger, 'error' ).mockImplementation( () => undefined )
+
+    expect( resolvePrompt( gradingId() ).profile.id ).toBe( defaultId() )
+    expect( error ).toHaveBeenCalled()
   } )
 } )

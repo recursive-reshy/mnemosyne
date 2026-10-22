@@ -1,3 +1,13 @@
+// Node
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  rm,
+  symlink,
+} from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 // Packages
 import {
   describe,
@@ -17,6 +27,7 @@ import {
   LOCKED_INSTRUCTIONS_MELETE_GRADING,
   LOCKED_INSTRUCTIONS_MELETE_QUESTIONS,
 } from '../melete/prompts.js'
+import { isScanFresh, markScanned, resetScanClock } from '../melete/scanClock.js'
 // Summarizer
 import { LOCKED_INSTRUCTIONS_ARTICLE, LOCKED_INSTRUCTIONS_VIDEO } from '../summarizer/prompts.js'
 // Clients
@@ -29,10 +40,13 @@ import { deleteProfile, listProfiles, resolveLinkerPrompt } from './prompts.serv
 import {
   getDefaultModel,
   getFeedCheckInterval,
+  getLearningRoot,
   getLockedInstructions,
   getSettings,
   getSettingsResponse,
   resolveLinkingModel,
+  resolveMeleteGradingModel,
+  resolveMeleteQuestionModel,
   updateSettings,
 } from './settings.service.js'
 
@@ -120,6 +134,8 @@ describe( 'getSettings', () => {
 
   it( 'reads the linking model from the stored setting without asking for models', async () => {
     setSetting( 'linking_model', 'claude-opus-5-5' )
+    setSetting( 'melete_question_model', 'claude-opus-5-5' )
+    setSetting( 'melete_grading_model', 'claude-opus-5-5' )
 
     expect( ( await getSettings() ).linking_model ).toBe( 'claude-opus-5-5' )
     expect( listModelsMock ).not.toHaveBeenCalled()
@@ -165,6 +181,134 @@ describe( 'resolveLinkingModel', () => {
     listModelsMock.mockResolvedValue( modelList( 'claude-haiku-5-5', 'claude-sonnet-5-5' ) )
 
     expect( ( await getSettings() ).linking_model ).toBe( 'claude-haiku-5-5' )
+  } )
+} )
+
+describe( 'the Melete models', () => {
+  it( 'default to the first Haiku the model list gives', async () => {
+    listModelsMock.mockResolvedValue( modelList( 'claude-opus-5-5', 'claude-haiku-5-5' ) )
+
+    expect( await getSettings() ).toMatchObject( {
+      melete_question_model: 'claude-haiku-5-5',
+      melete_grading_model: 'claude-haiku-5-5',
+    } )
+    expect( await resolveMeleteQuestionModel() ).toBe( 'claude-haiku-5-5' )
+    expect( await resolveMeleteGradingModel() ).toBe( 'claude-haiku-5-5' )
+  } )
+
+  it( 'prefer the stored model, each on its own', async () => {
+    listModelsMock.mockResolvedValue( modelList( 'claude-haiku-5-5' ) )
+    setSetting( 'melete_grading_model', 'claude-opus-5-5' )
+
+    expect( await resolveMeleteQuestionModel() ).toBe( 'claude-haiku-5-5' )
+    expect( await resolveMeleteGradingModel() ).toBe( 'claude-opus-5-5' )
+  } )
+
+  it( 'fall back to the shipped default when the models cannot be listed', async () => {
+    listModelsMock.mockRejectedValue( new Error( 'offline' ) )
+
+    expect( await resolveMeleteQuestionModel() ).toBe( 'claude-sonnet-5-5' )
+    expect( await resolveMeleteGradingModel() ).toBe( 'claude-sonnet-5-5' )
+  } )
+} )
+
+describe( 'updateSettings for Melete', () => {
+  let vaultDir: string
+  let originalVaultPath: string
+
+  beforeEach( async () => {
+    vaultDir = await mkdtemp( join( tmpdir(), 'mnemosyne-settings-' ) )
+    originalVaultPath = config.vaultPath
+    config.vaultPath = vaultDir
+    resetScanClock()
+  } )
+
+  afterEach( async () => {
+    config.vaultPath = originalVaultPath
+    await rm( vaultDir, { recursive: true, force: true } )
+  } )
+
+  it( 'saves a learning root that exists in the vault and forgets the last scan', async () => {
+    await mkdir( join( vaultDir, 'Notes/Learning' ), { recursive: true } )
+    markScanned( new Date() )
+
+    const settings = await updateSettings( { melete_learning_root: 'Notes/Learning' } )
+
+    expect( settings.melete_learning_root ).toBe( 'Notes/Learning' )
+    expect( getSetting( 'melete_learning_root' ) ).toBe( 'Notes/Learning' )
+    expect( isScanFresh( new Date() ) ).toBe( false )
+  } )
+
+  it( 'refuses a folder that is not in the vault, and does not create it', async () => {
+    await expect( updateSettings( { melete_learning_root: 'Learning' } ) )
+      .rejects.toThrow( new ValidationError( 'Folder doesn\'t exist in the vault' ) )
+
+    expect( await readdir( vaultDir ) ).toEqual( [] )
+    expect( getSetting( 'melete_learning_root' ) ).toBeUndefined()
+  } )
+
+  it( 'refuses a folder that leads out of the vault', async () => {
+    const outside = await mkdtemp( join( tmpdir(), 'mnemosyne-outside-' ) )
+
+    try {
+      await symlink( outside, join( vaultDir, 'Learning' ) )
+
+      await expect( updateSettings( { melete_learning_root: 'Learning' } ) )
+        .rejects.toThrow( ValidationError )
+    } finally {
+      await rm( outside, { recursive: true, force: true } )
+    }
+  } )
+
+  it( 'clears the learning root with null', async () => {
+    await mkdir( join( vaultDir, 'Learning' ) )
+    await updateSettings( { melete_learning_root: 'Learning' } )
+
+    const settings = await updateSettings( { melete_learning_root: null } )
+
+    expect( settings.melete_learning_root ).toBeNull()
+    expect( getLearningRoot() ).toBeNull()
+  } )
+
+  it( 'saves known models and the review mode', async () => {
+    const settings = await updateSettings( {
+      melete_question_model: 'claude-opus-5-5',
+      melete_grading_model: 'claude-sonnet-5-5',
+      melete_review_mode: 'quick',
+    } )
+
+    expect( assertMock ).toHaveBeenCalledWith( 'claude-opus-5-5' )
+    expect( assertMock ).toHaveBeenCalledWith( 'claude-sonnet-5-5' )
+    expect( settings ).toMatchObject( {
+      melete_question_model: 'claude-opus-5-5',
+      melete_grading_model: 'claude-sonnet-5-5',
+      melete_review_mode: 'quick',
+    } )
+    expect( getSetting( 'melete_review_mode' ) ).toBe( 'quick' )
+  } )
+
+  it( 'rejects an unknown model and saves nothing, not even the other keys', async () => {
+    assertMock.mockRejectedValue( new ValidationError( 'Unknown model: nope' ) )
+    await mkdir( join( vaultDir, 'Learning' ) )
+
+    await expect( updateSettings( {
+      melete_grading_model: 'nope',
+      melete_review_mode: 'quick',
+      melete_learning_root: 'Learning',
+    } ) ).rejects.toThrow( 'Unknown model: nope' )
+
+    expect( getSetting( 'melete_grading_model' ) ).toBeUndefined()
+    expect( getSetting( 'melete_review_mode' ) ).toBeUndefined()
+    expect( getSetting( 'melete_learning_root' ) ).toBeUndefined()
+  } )
+
+  it( 'saves nothing when the learning root is refused', async () => {
+    await expect( updateSettings( {
+      melete_review_mode: 'quick',
+      melete_learning_root: 'Nowhere',
+    } ) ).rejects.toThrow( ValidationError )
+
+    expect( getSetting( 'melete_review_mode' ) ).toBeUndefined()
   } )
 } )
 

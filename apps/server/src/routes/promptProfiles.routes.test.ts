@@ -12,6 +12,8 @@ import {
 import { app } from '../app.js'
 // Summarizer
 import { DEFAULT_LINKER_GUIDANCE, SEEDED_PROFILES } from '../summarizer/prompts.js'
+// Melete
+import { DEFAULT_MELETE_QUESTIONS_GUIDANCE } from '../melete/prompts.js'
 
 const list = async (): Promise< PromptProfile[] > => {
   const response = await request( app ).get( '/api/prompt-profiles' )
@@ -347,6 +349,94 @@ describe( 'the linker prompt', () => {
 
   it( 'cannot be chosen as a summary profile', async () => {
     const id = await linkerId()
+
+    expect( ( await request( app ).patch( '/api/settings' ).send( { default_profile_id: id } ) )
+      .status ).toBe( 400 )
+    expect( ( await request( app ).post( '/api/jobs' )
+      .send( { url: 'https://www.youtube.com/watch?v=abc', profile_id: id } ) ).status )
+      .toBe( 400 )
+    expect( ( await request( app ).post( '/api/feeds' )
+      .send( { url: 'https://blog.example.com/feed.xml', profile_id: id } ) ).status )
+      .toBe( 400 )
+  } )
+} )
+
+describe( 'GET /api/prompt-profiles with a purpose', () => {
+  const listBy = async ( purpose: string ) => {
+    const response = await request( app ).get( `/api/prompt-profiles?purpose=${ purpose }` )
+
+    return { status: response.status, body: response.body as unknown }
+  }
+
+  it( 'lists every purpose with all', async () => {
+    const { status, body } = await listBy( 'all' )
+
+    expect( status ).toBe( 200 )
+    expect( ListPromptProfilesResponse.parse( body ).profiles.map( ( { purpose } ) => purpose ) )
+      .toEqual( [
+        'summary',
+        'summary',
+        'summary',
+        'summary',
+        'linker',
+        'melete_questions',
+        'melete_grading',
+      ] )
+  } )
+
+  it( 'lists one purpose', async () => {
+    const { body } = await listBy( 'melete_questions' )
+
+    expect( ListPromptProfilesResponse.parse( body ).profiles.map( ( { name } ) => name ) )
+      .toEqual( [ 'Melete questions' ] )
+  } )
+
+  it( 'keeps the summary list as the default', async () => {
+    expect( ( await list() ).map( ( { purpose } ) => purpose ) )
+      .toEqual( [ 'summary', 'summary', 'summary', 'summary' ] )
+    expect( ( await listBy( 'summary' ) ).body ).toEqual( { profiles: await list() } )
+  } )
+
+  it( 'returns 400 for an unknown purpose', async () => {
+    expect( ( await listBy( 'nonsense' ) ).status ).toBe( 400 )
+  } )
+} )
+
+describe( 'the Melete prompts', () => {
+  const meleteId = async ( purpose: string ): Promise< string > => {
+    const response = await request( app ).get( `/api/prompt-profiles?purpose=${ purpose }` )
+
+    return ListPromptProfilesResponse.parse( response.body ).profiles[ 0 ]?.id ?? ''
+  }
+
+  it( 'cannot be renamed or deleted', async () => {
+    const id = await meleteId( 'melete_grading' )
+
+    const renamed = await request( app ).patch( url( id ) ).send( { name: 'Other' } )
+    const deleted = await request( app ).delete( url( id ) )
+
+    expect( renamed.status ).toBe( 409 )
+    expect( renamed.body ).toEqual( { error: 'The Melete prompts can\'t be renamed or deleted' } )
+    expect( deleted.status ).toBe( 409 )
+  } )
+
+  it( 'have versions, save new ones and reset to the default guidance', async () => {
+    const id = await meleteId( 'melete_questions' )
+
+    const saved = await request( app )
+      .post( url( id, '/versions' ) )
+      .send( { guidance: 'Be brief.' } )
+    const versions = await request( app ).get( url( id, '/versions' ) )
+    const reset = await request( app ).post( url( id, '/reset' ) )
+
+    expect( saved.status ).toBe( 200 )
+    expect( ListPromptVersionsResponse.parse( versions.body ).versions ).toHaveLength( 2 )
+    expect( PromptProfileResponse.parse( reset.body ).profile.current_version )
+      .toMatchObject( { source: 'reset', guidance: DEFAULT_MELETE_QUESTIONS_GUIDANCE } )
+  } )
+
+  it( 'cannot be chosen as a summary profile', async () => {
+    const id = await meleteId( 'melete_grading' )
 
     expect( ( await request( app ).patch( '/api/settings' ).send( { default_profile_id: id } ) )
       .status ).toBe( 400 )

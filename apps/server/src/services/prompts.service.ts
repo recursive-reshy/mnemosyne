@@ -1,9 +1,14 @@
 // Packages
 import { z } from 'zod'
 // Shared
-import { PromptProfile, PromptVersion } from '@mnemosyne/shared'
+import { PromptProfile, PromptPurpose, PromptVersion } from '@mnemosyne/shared'
 // Errors
 import { ConflictError, NotFoundError, ValidationError } from '../errors.js'
+// Melete
+import {
+  DEFAULT_MELETE_GRADING_GUIDANCE,
+  DEFAULT_MELETE_QUESTIONS_GUIDANCE,
+} from '../melete/prompts.js'
 // Repositories
 import {
   ProfileRecord,
@@ -31,6 +36,7 @@ import { logger } from '../logger.js'
 
 const NAME_TAKEN = 'A profile with that name already exists'
 const LINKER_LOCKED = 'The linker prompt can\'t be renamed or deleted'
+const MELETE_LOCKED = 'The Melete prompts can\'t be renamed or deleted'
 
 const toProfile = ( record: ProfileRecord ): PromptProfile => {
   const current = findLatestVersion( record.id )
@@ -61,7 +67,19 @@ const requireActive = ( id: string ): ProfileRecord => {
 
 const defaultProfileId = (): string => z.string().parse( getSetting( 'default_profile_id' ) )
 
-export const listProfiles = (): PromptProfile[] => listActiveProfiles().map( toProfile )
+const PURPOSE_ORDER: PromptPurpose[] = [
+  'summary',
+  'linker',
+  'melete_questions',
+  'melete_grading',
+]
+
+// Summary profiles unless asked: the pickers use this list and know no other purpose
+export const listProfiles = ( purpose: PromptPurpose | 'all' = 'summary' ): PromptProfile[] => {
+  const purposes = purpose === 'all' ? PURPOSE_ORDER : [ purpose ]
+
+  return purposes.flatMap( ( each ) => listActiveProfiles( each ).map( toProfile ) )
+}
 
 export const findProfile = ( id: string ): PromptProfile => toProfile( requireActive( id ) )
 
@@ -91,14 +109,18 @@ export const createProfile = (
   return findProfile( id )
 }
 
-const requireNotLinker = ( record: ProfileRecord ): void => {
+const requireRenamable = ( record: ProfileRecord ): void => {
   if( record.purpose === 'linker' ) {
     throw new ConflictError( LINKER_LOCKED )
+  }
+
+  if( record.purpose !== 'summary' ) {
+    throw new ConflictError( MELETE_LOCKED )
   }
 }
 
 export const renameProfile = ( id: string, name: string ): PromptProfile => {
-  requireNotLinker( requireActive( id ) )
+  requireRenamable( requireActive( id ) )
 
   if( !renameStoredProfile( id, name ).ok ) {
     throw new ConflictError( NAME_TAKEN )
@@ -108,7 +130,7 @@ export const renameProfile = ( id: string, name: string ): PromptProfile => {
 }
 
 export const deleteProfile = ( id: string ): void => {
-  requireNotLinker( requireActive( id ) )
+  requireRenamable( requireActive( id ) )
 
   if( id === defaultProfileId() ) {
     throw new ConflictError( 'The default profile cannot be deleted' )
@@ -146,11 +168,22 @@ export const restoreVersion = ( id: string, versionId: number ): PromptProfile =
   return findProfile( id )
 }
 
+const resetGuidance = ( { purpose, seed_key }: ProfileRecord ): string | undefined => {
+  switch( purpose ) {
+    case 'linker':
+      return DEFAULT_LINKER_GUIDANCE
+    case 'melete_questions':
+      return DEFAULT_MELETE_QUESTIONS_GUIDANCE
+    case 'melete_grading':
+      return DEFAULT_MELETE_GRADING_GUIDANCE
+    case 'summary':
+      return SEEDED_PROFILES.find( ( { seedKey } ) => seedKey === seed_key )?.guidance
+  }
+}
+
 export const resetProfile = ( id: string ): PromptProfile => {
   const record = requireActive( id )
-  const guidance = record.purpose === 'linker'
-    ? DEFAULT_LINKER_GUIDANCE
-    : SEEDED_PROFILES.find( ( { seedKey } ) => seedKey === record.seed_key )?.guidance
+  const guidance = resetGuidance( record )
 
   if( guidance === undefined ) {
     throw new ConflictError( 'Only the profiles the app ships can be reset' )
@@ -172,8 +205,8 @@ export const resolvePrompt = (
 ): { profile: PromptProfile, version: PromptVersion } => {
   let record = profileId === null ? undefined : findProfileById( profileId )
 
-  // The linker prompt is never a summary prompt
-  if( record?.purpose === 'linker' ) {
+  // The linker and Melete prompts are never summary prompts
+  if( record !== undefined && record.purpose !== 'summary' ) {
     record = undefined
   }
 
