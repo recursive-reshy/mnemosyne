@@ -35,6 +35,14 @@ export class UnprocessableError extends Error {
   }
 }
 
+// A failed backup is the one 500 whose message the user needs to read (ADR 0051).
+export class BackupError extends Error {
+  constructor( message: string ) {
+    super( message )
+    this.name = 'BackupError'
+  }
+}
+
 export class BadGatewayError extends Error {
   constructor( message: string ) {
     super( message )
@@ -83,6 +91,8 @@ export const errorMiddleware = (
     sendError( res, 409, { error: error.message } )
   } else if( error instanceof UnprocessableError ) {
     sendError( res, 422, { error: error.message } )
+  } else if( error instanceof BackupError ) {
+    sendError( res, 500, { error: error.message } )
   } else if( error instanceof BadGatewayError ) {
     sendError( res, 502, { error: error.message } )
   } else if( isTooLarge( error ) ) {

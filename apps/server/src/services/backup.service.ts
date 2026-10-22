@@ -1,0 +1,133 @@
+// Node
+import {
+  mkdir,
+  rename,
+  rm,
+  stat,
+} from 'node:fs/promises'
+import { join } from 'node:path'
+// Packages
+import Database from 'better-sqlite3'
+// Shared
+import type { BackupResult } from '@mnemosyne/shared'
+// Config
+import { config } from '../config.js'
+// Errors
+import { BackupError, ConflictError } from '../errors.js'
+// Logging
+import { logger } from '../logger.js'
+// Repositories
+import { getDatabase } from '../repositories/database.js'
+// Services
+import { recordCheck } from './health.service.js'
+
+// Returns null when the file passes SQLite's quick_check, else what it found.
+type QuickCheck = ( path: string ) => string | null
+
+type BackupOptions = { dir?: string, check?: QuickCheck }
+
+const SUBJECT = { kind: 'backup', id: 'default' } as const
+
+const quickCheck: QuickCheck = ( path ) => {
+  const copy = new Database( path, { readonly: true } )
+
+  try {
+    const answer = String( copy.pragma( 'quick_check', { simple: true } ) )
+
+    return answer === 'ok' ? null : answer
+  } finally {
+    copy.close()
+  }
+}
+
+// The copy inherits WAL mode; a restore expects one file, with no -wal or -shm beside it.
+const makeSelfContained = ( path: string ): void => {
+  const copy = new Database( path )
+
+  try {
+    copy.pragma( 'journal_mode = DELETE' )
+  } finally {
+    copy.close()
+  }
+}
+
+// Singapore time from Intl parts, so the container's TZ doesn't matter.
+export const backupName = ( date: Date ): string => {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat( 'en-GB', {
+      timeZone: 'Asia/Singapore',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23',
+    } ).formatToParts( date ).map( ( part ) => [ part.type, part.value ] ),
+  )
+
+  return `mnemosyne-${ parts.year }${ parts.month }${ parts.day }`
+    + `-${ parts.hour }${ parts.minute }${ parts.second }.db`
+}
+
+let running = false
+
+const writeBackup = async ( dir: string, check: QuickCheck ): Promise< BackupResult > => {
+  const now = new Date()
+  const file = backupName( now )
+  const partial = join( dir, `${ file }.partial` )
+
+  try {
+    await mkdir( dir, { recursive: true } )
+    await getDatabase().backup( partial )
+
+    makeSelfContained( partial )
+
+    const problem = check( partial )
+
+    if( problem !== null ) {
+      throw new Error( `The copy failed its integrity check: ${ problem }` )
+    }
+
+    await rename( partial, join( dir, file ) )
+
+    const { size } = await stat( join( dir, file ) )
+
+    return { file, bytes: size, at: now.toISOString() }
+  } catch( error ) {
+    await rm( partial, { force: true } )
+    throw error
+  }
+}
+
+export const runBackup = async (
+  { dir = config.backupDir, check = quickCheck }: BackupOptions = {},
+): Promise< BackupResult > => {
+  if( running ) {
+    throw new ConflictError( 'A backup is already running' )
+  }
+
+  running = true
+
+  try {
+    const result = await writeBackup( dir, check )
+
+    recordCheck(
+      SUBJECT,
+      { ok: true, detail: JSON.stringify( { file: result.file, bytes: result.bytes } ) },
+    )
+    logger.info( { file: result.file, bytes: result.bytes }, 'Backup written' )
+
+    return result
+  } catch( error ) {
+    const reason = error instanceof Error ? error.message : 'Unknown error'
+    const message = `Backup failed: ${ reason }`
+
+    recordCheck( SUBJECT, { ok: false, message } )
+    logger.error( { err: error }, 'Backup failed' )
+
+    throw new BackupError( message )
+  } finally {
+    running = false
+  }
+}

@@ -7,6 +7,7 @@ import { errorMiddleware, notFoundHandler } from './errors.js'
 // Middleware
 import { requestLog } from './middleware/requestLog.js'
 // Routes
+import { backupsRoutes } from './routes/backups.routes.js'
 import { feedsRoutes } from './routes/feeds.routes.js'
 import { gmailRoutes } from './routes/gmail.routes.js'
 import { gmailSourcesRoutes } from './routes/gmailSources.routes.js'
@@ -35,6 +36,7 @@ app.use( '/api', settingsRoutes )
 app.use( '/api', modelsRoutes )
 app.use( '/api', promptProfilesRoutes )
 app.use( '/api', statusRoutes )
+app.use( '/api', backupsRoutes )
 app.use( '/api', notFoundHandler )
 
 if( config.webDir !== undefined ) {
