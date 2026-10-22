@@ -2,6 +2,7 @@ export const SHUTDOWN_TIMEOUT_MS = 60_000
 
 interface ShutdownOptions {
   stopWorker: () => Promise< void >
+  stopMeleteGenerator: () => Promise< void >
   closeServer: () => Promise< void >
   closeStore: () => void
   stopSweeper: () => void
@@ -15,7 +16,8 @@ interface ShutdownOptions {
 export const createShutdown = (
   options: ShutdownOptions,
 ): ( ( signal: string ) => Promise< void > ) => {
-  const { stopWorker, closeServer, closeStore, stopSweeper } = options
+  const { stopWorker, stopMeleteGenerator, closeServer } = options
+  const { closeStore, stopSweeper } = options
   const { stopIntakePoller, stopServiceMonitor, timeoutMs, exit, log } = options
   let shuttingDown = false
 
@@ -38,6 +40,7 @@ export const createShutdown = (
     const stopped = Promise.all( [
       closeServer(),
       stopWorker(),
+      stopMeleteGenerator(),
       stopIntakePoller(),
       stopServiceMonitor(),
     ] ).then( () => 'stopped' as const )

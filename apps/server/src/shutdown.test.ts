@@ -17,12 +17,14 @@ let exit: ReturnType< typeof vi.fn< ( code: number ) => void > >
 let stopWorker: ReturnType< typeof vi.fn< () => Promise< void > > >
 let closeServer: ReturnType< typeof vi.fn< () => Promise< void > > >
 let closeStore: ReturnType< typeof vi.fn< () => void > >
+let stopMeleteGenerator: ReturnType< typeof vi.fn< () => Promise< void > > >
 let stopSweeper: ReturnType< typeof vi.fn< () => void > >
 let stopIntakePoller: ReturnType< typeof vi.fn< () => Promise< void > > >
 let stopServiceMonitor: ReturnType< typeof vi.fn< () => Promise< void > > >
 
 const build = (): ( signal: string ) => Promise< void > => createShutdown( {
   stopWorker,
+  stopMeleteGenerator,
   closeServer,
   closeStore,
   stopSweeper,
@@ -40,6 +42,7 @@ beforeEach( () => {
     events.push( `exit:${ code }` )
   } )
   stopWorker = vi.fn( () => Promise.resolve() )
+  stopMeleteGenerator = vi.fn( () => Promise.resolve() )
   closeServer = vi.fn( () => Promise.resolve() )
   stopSweeper = vi.fn()
   stopIntakePoller = vi.fn( () => Promise.resolve() )
@@ -100,6 +103,37 @@ describe( 'createShutdown', () => {
     expect( closeStore ).not.toHaveBeenCalled()
 
     finishWorker()
+    await done
+
+    expect( closeStore ).toHaveBeenCalledTimes( 1 )
+  } )
+
+  it( 'stops the sweeper, then the Melete generator, and closes the store last', async () => {
+    const shutdown = build()
+
+    await shutdown( 'SIGTERM' )
+
+    expect( stopMeleteGenerator ).toHaveBeenCalledTimes( 1 )
+    expect( stopSweeper.mock.invocationCallOrder[ 0 ] ).toBeLessThan(
+      stopMeleteGenerator.mock.invocationCallOrder[ 0 ] ?? 0,
+    )
+    expect( stopMeleteGenerator.mock.invocationCallOrder[ 0 ] ).toBeLessThan(
+      closeStore.mock.invocationCallOrder[ 0 ] ?? 0,
+    )
+  } )
+
+  it( 'closes the store only after the Melete generator has stopped', async () => {
+    let finishGenerator: () => void = () => undefined
+    stopMeleteGenerator.mockReturnValue( new Promise< void >( ( resolve ) => {
+      finishGenerator = resolve
+    } ) )
+    const shutdown = build()
+
+    const done = shutdown( 'SIGTERM' )
+    await vi.advanceTimersByTimeAsync( 10 )
+    expect( closeStore ).not.toHaveBeenCalled()
+
+    finishGenerator()
     await done
 
     expect( closeStore ).toHaveBeenCalledTimes( 1 )

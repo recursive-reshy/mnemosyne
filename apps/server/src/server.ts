@@ -17,6 +17,7 @@ import { recoverInterruptedJobs } from './services/jobs.service.js'
 import { SHUTDOWN_TIMEOUT_MS, createShutdown } from './shutdown.js'
 // Worker
 import { startIntakePoller } from './worker/intakePoller.js'
+import { startMeleteGenerator } from './worker/meleteGenerator.js'
 import { startServiceMonitor } from './worker/serviceMonitor.js'
 import { startSweeper } from './worker/sweeper.js'
 import { startWorker } from './worker/worker.js'
@@ -49,6 +50,7 @@ if( interrupted > 0 ) {
 
 const stopSweeper = startSweeper()
 const stopWorker = startWorker()
+const stopMeleteGenerator = startMeleteGenerator()
 const stopIntakePoller = startIntakePoller()
 const stopServiceMonitor = startServiceMonitor()
 
@@ -63,6 +65,7 @@ const closeServer = (): Promise< void > => new Promise( ( resolve, reject ) => {
 
 const shutdown = createShutdown( {
   stopWorker,
+  stopMeleteGenerator,
   closeServer,
   closeStore: closeDatabase,
   stopSweeper,
