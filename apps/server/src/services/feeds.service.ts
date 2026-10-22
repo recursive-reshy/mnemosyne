@@ -29,7 +29,7 @@ import {
   listDueFeeds,
   listFeeds as listStoredFeeds,
   markFeedDeleted,
-  recordCheck,
+  recordFeedFetch,
   updateFeed as updateStoredFeed,
 } from '../repositories/feeds.repository.js'
 import type { StoredFeed } from '../repositories/feeds.repository.js'
@@ -42,6 +42,7 @@ import {
 } from '../sources/feeds.js'
 import type { FeedItemData, ParsedFeed } from '../sources/feeds.js'
 // Services
+import { recordCheck } from './health.service.js'
 import { queueFeedItem } from './inbox.service.js'
 import { assertActiveProfile } from './prompts.service.js'
 import { getFeedCheckInterval } from './settings.service.js'
@@ -200,6 +201,7 @@ export const createFeed = async ( body: CreateFeedBody ): Promise< Feed > => {
 
   inTransaction( () => {
     insertFeed( feed )
+    recordCheck( { kind: 'feed', id: feed.id }, { ok: true }, now )
     stored.forEach( insertItemIfNew )
   } )
 
@@ -295,13 +297,11 @@ export const checkFeed = async ( id: string ): Promise< Feed > => {
   try {
     outcome = await fetchAndParse( feed )
   } catch( error ) {
-    recordCheck( id, {
-      etag: feed.etag,
-      last_modified: feed.last_modified,
-      last_checked_at: now,
-      last_error: error instanceof Error ? error.message : 'Unknown error',
-      last_skipped_count: feed.last_skipped_count,
-    } )
+    recordCheck(
+      { kind: 'feed', id },
+      { ok: false, message: error instanceof Error ? error.message : 'Unknown error' },
+      now,
+    )
 
     return toPublicFeed( requireActiveFeed( id ) )
   }
@@ -335,11 +335,9 @@ export const checkFeed = async ( id: string ): Promise< Feed > => {
     } )
   }
 
-  recordCheck( id, {
-    ...outcome.check,
-    last_checked_at: now,
-    last_error: null,
-    last_skipped_count: skipped,
+  inTransaction( () => {
+    recordFeedFetch( id, { ...outcome.check, last_skipped_count: skipped } )
+    recordCheck( { kind: 'feed', id }, { ok: true }, now )
   } )
 
   await queueAutomatically( feed, added.filter( ( { status } ) => status === 'inbox' ) )

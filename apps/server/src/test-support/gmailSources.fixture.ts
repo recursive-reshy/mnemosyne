@@ -2,6 +2,7 @@
 import { saveAccount } from '../repositories/gmailAccount.repository.js'
 import { insertSource } from '../repositories/gmailSources.repository.js'
 import type { StoredGmailSource } from '../repositories/gmailSources.repository.js'
+import { seedCheck } from './health.fixture.js'
 
 export const DAY_MS = 86_400_000
 
@@ -54,6 +55,7 @@ export const addStoredSource = (
   const source = buildStoredSource( overrides )
 
   insertSource( source )
+  seedCheck( 'gmail_source', source.id, source.last_checked_at, source.last_error )
 
   return source
 }

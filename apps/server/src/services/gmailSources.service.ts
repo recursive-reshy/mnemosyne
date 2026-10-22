@@ -38,12 +38,13 @@ import {
   listDueSources,
   listSources as listStoredSources,
   markSourceDeleted,
-  recordSourceCheck,
+  recordSourceFetch,
   updateSource as updateStoredSource,
 } from '../repositories/gmailSources.repository.js'
 import type { StoredGmailSource } from '../repositories/gmailSources.repository.js'
 import { countPostingsForSource } from '../repositories/postings.repository.js'
 // Services
+import { recordCheck } from './health.service.js'
 import { queueNewsletterMessage } from './inbox.service.js'
 import { assertActiveProfile } from './prompts.service.js'
 import { getFeedCheckInterval } from './settings.service.js'
@@ -516,15 +517,21 @@ const runCheck = async ( source: StoredGmailSource ): Promise< StoredGmailMessag
       }
     } )
 
-    recordSourceCheck( source.id, {
-      last_checked_at: now.toISOString(),
-      last_error: failure ?? ( missingLabelIds.length === 0
-        ? null
-        : `Label not found in Gmail: ${ missingLabelIds.join( ', ' ) }` ),
+    recordSourceFetch( source.id, {
       last_skipped_count: source.destination === 'newsletter' && messages.length > 0
         ? overflow
         : source.last_skipped_count,
     } )
+
+    const problem = failure ?? ( missingLabelIds.length === 0
+      ? null
+      : `Label not found in Gmail: ${ missingLabelIds.join( ', ' ) }` )
+
+    recordCheck(
+      { kind: 'gmail_source', id: source.id },
+      problem === null ? { ok: true } : { ok: false, message: problem },
+      now.toISOString(),
+    )
   } )
 
   await queueAutomatically( source, added )

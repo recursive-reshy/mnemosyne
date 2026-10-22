@@ -21,6 +21,7 @@ import {
   listNewsletterInbox,
 } from '../repositories/gmailMessages.repository.js'
 import { findSourceById } from '../repositories/gmailSources.repository.js'
+import { getHealth, listErrors } from '../repositories/health.repository.js'
 import { setSetting } from '../repositories/settings.repository.js'
 import { listJobs } from './jobs.service.js'
 // Test support
@@ -417,6 +418,31 @@ describe( 'checkSource: when something goes wrong', () => {
 
     expect( checked.last_error ).toBe( 'Label not found in Gmail: Label_9' )
     expect( rowsOf( source.id ) ).toHaveLength( 1 )
+  } )
+
+  it( 'records a missing label as a failure, then a clean check as a success', async () => {
+    const source = addStoredSource( { match: { kind: 'labels', label_ids: [ 'Label_9' ] } } )
+
+    vi.mocked( listMatchingIds ).mockResolvedValue( { ...idsOf(), missingLabelIds: [ 'Label_9' ] } )
+    await checkSource( source.id )
+
+    expect( getHealth( 'gmail_source', source.id ) ).toMatchObject( {
+      last_checked_at: NOW.toISOString(),
+      last_success_at: null,
+      last_error: 'Label not found in Gmail: Label_9',
+      failing_since: NOW.toISOString(),
+    } )
+    expect( listErrors( 'gmail_source', source.id ) )
+      .toEqual( [ { at: NOW.toISOString(), message: 'Label not found in Gmail: Label_9' } ] )
+
+    vi.mocked( listMatchingIds ).mockResolvedValue( idsOf() )
+    await checkSource( source.id )
+
+    expect( getHealth( 'gmail_source', source.id ) ).toMatchObject( {
+      last_success_at: NOW.toISOString(),
+      last_error: null,
+      failing_since: null,
+    } )
   } )
 
   it( 'lists every missing label', async () => {

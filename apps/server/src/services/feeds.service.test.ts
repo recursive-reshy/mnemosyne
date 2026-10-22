@@ -43,6 +43,9 @@ import {
 import { queueFeedItem } from './inbox.service.js'
 import { listJobs } from './jobs.service.js'
 import { listProfiles } from './prompts.service.js'
+import { getHealth, listErrors } from '../repositories/health.repository.js'
+// Test support
+import { seedCheck } from '../test-support/health.fixture.js'
 // Logging
 import { logger } from '../logger.js'
 import { getLogContext } from '../logContext.js'
@@ -181,6 +184,17 @@ describe( 'previewFeed', () => {
 } )
 
 describe( 'createFeed', () => {
+  it( 'records the first read as a success in health_status', async () => {
+    serve( { [ feedUrl ]: { body: rssWith( 2 ) } } )
+    const feed = await createFeed( { url: feedUrl } )
+
+    expect( getHealth( 'feed', feed.id ) ).toMatchObject( {
+      last_checked_at: NOW.toISOString(),
+      last_success_at: NOW.toISOString(),
+      last_error: null,
+    } )
+  } )
+
   it( 'stores the feed with its title as the name and the check recorded', async () => {
     const feed = await createFeed( { url: feedUrl } )
 
@@ -478,6 +492,36 @@ describe( 'checkFeed', () => {
     expect( statusesOf( feed.id ) ).toEqual( { baseline: 2, inbox: 1 } )
   } )
 
+  it( 'keeps the failure history and the success time of the first check', async () => {
+    const feed = await afterBaseline( 3 )
+    serve( { [ feedUrl ]: { error: new HttpStatusError( 500 ) } } )
+
+    await checkFeed( feed.id )
+
+    expect( getHealth( 'feed', feed.id ) ).toMatchObject( {
+      last_success_at: NOW.toISOString(),
+      last_error: 'The site answered 500',
+      failing_since: new Date( NOW.getTime() + 3_600_000 ).toISOString(),
+    } )
+    expect( listErrors( 'feed', feed.id ).map( ( { message } ) => message ) )
+      .toEqual( [ 'The site answered 500' ] )
+  } )
+
+  it( 'records a success in the health row after a good check', async () => {
+    const feed = await afterBaseline( 3 )
+    serve( { [ feedUrl ]: { body: rssWith( 3 ), etag: '"v2"' } } )
+
+    await checkFeed( feed.id )
+
+    expect( getHealth( 'feed', feed.id ) ).toMatchObject( {
+      last_checked_at: new Date( NOW.getTime() + 3_600_000 ).toISOString(),
+      last_success_at: new Date( NOW.getTime() + 3_600_000 ).toISOString(),
+      last_error: null,
+      failing_since: null,
+    } )
+    expect( findFeedById( feed.id )?.etag ).toBe( '"v2"' )
+  } )
+
   it( 'records an error when the body is no longer a feed', async () => {
     const feed = await afterBaseline( 3 )
     serve( { [ feedUrl ]: { body: '<html>moved</html>' } } )
@@ -509,7 +553,7 @@ describe( 'checkFeed', () => {
 
 describe( 'checkAllFeeds and checkDueFeeds', () => {
   const addFeed = ( id: string, url: string, overrides = {} ): void => {
-    insertFeed( {
+    const feed = {
       id,
       url,
       feed_url: url,
@@ -525,7 +569,10 @@ describe( 'checkAllFeeds and checkDueFeeds', () => {
       created_at: NOW.toISOString(),
       deleted_at: null,
       ...overrides,
-    } )
+    }
+
+    insertFeed( feed )
+    seedCheck( 'feed', id, feed.last_checked_at, feed.last_error )
   }
 
   beforeEach( () => {

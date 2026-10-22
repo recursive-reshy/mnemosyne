@@ -8,14 +8,28 @@ import {
 import {
   findActiveFeedByFeedUrl,
   findFeedById,
-  insertFeed,
+  insertFeed as insertFeedRow,
   listDueFeeds,
   listFeeds,
   markFeedDeleted,
-  recordCheck,
+  recordFeedFetch,
   updateFeed,
 } from './feeds.repository.js'
 import type { StoredFeed } from './feeds.repository.js'
+import {
+  getHealth,
+  listErrors,
+  recordFailure,
+  recordSuccess,
+} from './health.repository.js'
+// Test support
+import { seedCheck } from '../test-support/health.fixture.js'
+
+// Check data lives in health_status; the stored feed shows it through a join.
+const insertFeed = ( feed: StoredFeed ): void => {
+  insertFeedRow( feed )
+  seedCheck( 'feed', feed.id, feed.last_checked_at, feed.last_error )
+}
 
 const buildFeed = ( overrides: Partial< StoredFeed > = {} ): StoredFeed => {
   const id = overrides.id ?? crypto.randomUUID()
@@ -172,16 +186,70 @@ describe( 'listDueFeeds', () => {
   } )
 } )
 
-describe( 'recordCheck', () => {
-  it( 'stores the validators, the time, the error and the skipped count', () => {
-    const feed = buildFeed( { last_error: 'old error' } )
+describe( 'check data from health_status', () => {
+  it( 'shows the last check and error of the health row', () => {
+    const feed = buildFeed()
+    insertFeedRow( feed )
+    recordFailure( 'feed', feed.id, '2026-10-19T10:00:00.000Z', 'The site answered 500' )
+
+    expect( findFeedById( feed.id ) ).toMatchObject( {
+      last_checked_at: '2026-10-19T10:00:00.000Z',
+      last_error: 'The site answered 500',
+    } )
+    expect( listFeeds()[ 0 ] ).toMatchObject( { last_error: 'The site answered 500' } )
+  } )
+
+  it( 'shows nulls for a feed that was never checked', () => {
+    const feed = buildFeed()
+    insertFeedRow( feed )
+
+    expect( findActiveFeedByFeedUrl( feed.feed_url ) ).toMatchObject( {
+      last_checked_at: null,
+      last_error: null,
+    } )
+  } )
+
+  it( 'does not mix up a source and a feed with the same id', () => {
+    const feed = buildFeed()
+    insertFeedRow( feed )
+    recordSuccess( 'gmail_source', feed.id, '2026-10-19T10:00:00.000Z' )
+
+    expect( findFeedById( feed.id )?.last_checked_at ).toBeNull()
+  } )
+
+  it( 'does not write the check fields when a feed is inserted or updated', () => {
+    const feed = buildFeed( { last_checked_at: '2026-10-19T10:00:00.000Z', last_error: 'x' } )
+    insertFeedRow( feed )
+    updateFeed( feed.id, { name: 'Renamed', last_error: 'y' } )
+
+    expect( getHealth( 'feed', feed.id ) ).toBeUndefined()
+    expect( findFeedById( feed.id ) ).toMatchObject( {
+      name: 'Renamed',
+      last_checked_at: null,
+      last_error: null,
+    } )
+  } )
+
+  it( 'removes the health row and its errors when a feed is deleted', () => {
+    const feed = buildFeed()
+    insertFeedRow( feed )
+    recordFailure( 'feed', feed.id, '2026-10-19T10:00:00.000Z', 'x' )
+
+    markFeedDeleted( feed.id, '2026-10-20T10:00:00.000Z' )
+
+    expect( getHealth( 'feed', feed.id ) ).toBeUndefined()
+    expect( listErrors( 'feed', feed.id ) ).toEqual( [] )
+  } )
+} )
+
+describe( 'recordFeedFetch', () => {
+  it( 'stores the validators and the skipped count and touches nothing else', () => {
+    const feed = buildFeed( { name: 'Kept' } )
     insertFeed( feed )
 
-    recordCheck( feed.id, {
+    recordFeedFetch( feed.id, {
       etag: '"v2"',
       last_modified: 'Sun, 19 Oct 2026 10:00:00 GMT',
-      last_checked_at: '2026-10-19T10:00:00.000Z',
-      last_error: null,
       last_skipped_count: 3,
     } )
 
@@ -189,27 +257,7 @@ describe( 'recordCheck', () => {
       ...feed,
       etag: '"v2"',
       last_modified: 'Sun, 19 Oct 2026 10:00:00 GMT',
-      last_checked_at: '2026-10-19T10:00:00.000Z',
-      last_error: null,
       last_skipped_count: 3,
-    } )
-  } )
-
-  it( 'records an error without touching the other fields', () => {
-    const feed = buildFeed( { name: 'Kept', etag: '"v1"' } )
-    insertFeed( feed )
-
-    recordCheck( feed.id, {
-      etag: '"v1"',
-      last_modified: null,
-      last_checked_at: '2026-10-19T10:00:00.000Z',
-      last_error: 'The site answered 500',
-      last_skipped_count: 0,
-    } )
-
-    expect( findFeedById( feed.id ) ).toMatchObject( {
-      name: 'Kept',
-      last_error: 'The site answered 500',
     } )
   } )
 } )

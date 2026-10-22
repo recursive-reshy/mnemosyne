@@ -299,6 +299,54 @@ const addLinking = ( db: Database.Database ): void => {
     .run( id, DEFAULT_LINKER_GUIDANCE, now )
 }
 
+const carryOverChecks = ( db: Database.Database, table: string, kind: string ): void => {
+  db.prepare( `INSERT INTO health_status (
+      kind, subject_id, last_checked_at, last_success_at, last_error, failing_since
+    )
+    SELECT ?, id, last_checked_at,
+      CASE WHEN last_error IS NULL THEN last_checked_at END,
+      last_error,
+      CASE WHEN last_error IS NOT NULL THEN last_checked_at END
+    FROM ${ table }
+    WHERE deleted_at IS NULL AND ( last_checked_at IS NOT NULL OR last_error IS NOT NULL )` )
+    .run( kind )
+
+  db.prepare( `INSERT INTO health_errors ( kind, subject_id, at, message )
+    SELECT ?, id, COALESCE( last_checked_at, '' ), last_error
+    FROM ${ table }
+    WHERE deleted_at IS NULL AND last_error IS NOT NULL` )
+    .run( kind )
+}
+
+const addHealth = ( db: Database.Database ): void => {
+  db.exec( `CREATE TABLE health_status (
+    kind TEXT NOT NULL,
+    subject_id TEXT NOT NULL,
+    last_checked_at TEXT,
+    last_success_at TEXT,
+    last_error TEXT,
+    failing_since TEXT,
+    detail TEXT,
+    PRIMARY KEY ( kind, subject_id )
+  );
+  CREATE TABLE health_errors (
+    id INTEGER PRIMARY KEY,
+    kind TEXT NOT NULL,
+    subject_id TEXT NOT NULL,
+    at TEXT NOT NULL,
+    message TEXT NOT NULL
+  );
+  CREATE INDEX health_errors_subject ON health_errors ( kind, subject_id, at );` )
+
+  carryOverChecks( db, 'feeds', 'feed' )
+  carryOverChecks( db, 'gmail_sources', 'gmail_source' )
+
+  db.exec( `ALTER TABLE feeds DROP COLUMN last_checked_at;
+  ALTER TABLE feeds DROP COLUMN last_error;
+  ALTER TABLE gmail_sources DROP COLUMN last_checked_at;
+  ALTER TABLE gmail_sources DROP COLUMN last_error;` )
+}
+
 export type Migration = string | ( ( db: Database.Database ) => void )
 
 export const migrations: Migration[] = [
@@ -323,6 +371,7 @@ export const migrations: Migration[] = [
   addSourcesAndFeeds,
   addGmailAndPostings,
   addLinking,
+  addHealth,
 ]
 
 let database: Database.Database | undefined

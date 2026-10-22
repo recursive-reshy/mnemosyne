@@ -3,15 +3,29 @@ import { describe, it, expect } from 'vitest'
 // Repositories
 import {
   findSourceById,
-  insertSource,
+  insertSource as insertSourceRow,
   listActiveSourcesByMatch,
   listDueSources,
   listSources,
   markSourceDeleted,
-  recordSourceCheck,
+  recordSourceFetch,
   updateSource,
 } from './gmailSources.repository.js'
 import type { StoredGmailSource } from './gmailSources.repository.js'
+import {
+  getHealth,
+  listErrors,
+  recordFailure,
+  recordSuccess,
+} from './health.repository.js'
+// Test support
+import { seedCheck } from '../test-support/health.fixture.js'
+
+// Check data lives in health_status; the stored source shows it through a join.
+const insertSource = ( source: StoredGmailSource ): void => {
+  insertSourceRow( source )
+  seedCheck( 'gmail_source', source.id, source.last_checked_at, source.last_error )
+}
 
 const buildSource = ( overrides: Partial< StoredGmailSource > = {} ): StoredGmailSource => {
   return {
@@ -159,36 +173,70 @@ describe( 'listDueSources', () => {
   } )
 } )
 
-describe( 'recordSourceCheck', () => {
-  it( 'stores the check result and touches nothing else', () => {
+describe( 'check data from health_status', () => {
+  it( 'shows the last check and error of the health row', () => {
     const source = buildSource()
-    insertSource( source )
+    insertSourceRow( source )
+    recordFailure( 'gmail_source', source.id, '2026-10-19T12:00:00.000Z', 'Label not found' )
 
-    recordSourceCheck( source.id, {
+    expect( findSourceById( source.id ) ).toMatchObject( {
       last_checked_at: '2026-10-19T12:00:00.000Z',
-      last_error: 'Label not found in Gmail: Label_9',
-      last_skipped_count: 3,
+      last_error: 'Label not found',
     } )
+    expect( listSources()[ 0 ] ).toMatchObject( { last_error: 'Label not found' } )
+  } )
 
-    expect( findSourceById( source.id ) ).toEqual( {
-      ...source,
-      last_checked_at: '2026-10-19T12:00:00.000Z',
-      last_error: 'Label not found in Gmail: Label_9',
-      last_skipped_count: 3,
+  it( 'shows nulls for a source that was never checked', () => {
+    const source = buildSource()
+    insertSourceRow( source )
+
+    expect( findSourceById( source.id ) ).toMatchObject( {
+      last_checked_at: null,
+      last_error: null,
     } )
   } )
 
-  it( 'clears the error with null', () => {
-    const source = buildSource( { last_error: 'old' } )
+  it( 'does not mix up a source and a feed with the same id', () => {
+    const source = buildSource()
+    insertSourceRow( source )
+    recordSuccess( 'feed', source.id, '2026-10-19T12:00:00.000Z' )
+
+    expect( findSourceById( source.id )?.last_checked_at ).toBeNull()
+  } )
+
+  it( 'does not write the check fields when a source is inserted or updated', () => {
+    const source = buildSource( { last_checked_at: '2026-10-19T12:00:00.000Z', last_error: 'x' } )
+    insertSourceRow( source )
+    updateSource( source.id, { name: 'Renamed', last_error: 'y' } )
+
+    expect( getHealth( 'gmail_source', source.id ) ).toBeUndefined()
+    expect( findSourceById( source.id ) ).toMatchObject( {
+      name: 'Renamed',
+      last_checked_at: null,
+      last_error: null,
+    } )
+  } )
+
+  it( 'removes the health row and its errors when a source is deleted', () => {
+    const source = buildSource()
+    insertSourceRow( source )
+    recordFailure( 'gmail_source', source.id, '2026-10-19T12:00:00.000Z', 'x' )
+
+    markSourceDeleted( source.id, '2026-10-20T10:00:00.000Z' )
+
+    expect( getHealth( 'gmail_source', source.id ) ).toBeUndefined()
+    expect( listErrors( 'gmail_source', source.id ) ).toEqual( [] )
+  } )
+} )
+
+describe( 'recordSourceFetch', () => {
+  it( 'stores the skipped count and touches nothing else', () => {
+    const source = buildSource()
     insertSource( source )
 
-    recordSourceCheck( source.id, {
-      last_checked_at: '2026-10-19T12:00:00.000Z',
-      last_error: null,
-      last_skipped_count: 0,
-    } )
+    recordSourceFetch( source.id, { last_skipped_count: 3 } )
 
-    expect( findSourceById( source.id )?.last_error ).toBeNull()
+    expect( findSourceById( source.id ) ).toEqual( { ...source, last_skipped_count: 3 } )
   } )
 } )
 

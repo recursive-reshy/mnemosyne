@@ -1089,7 +1089,7 @@ describe( 'migration 7', () => {
 
     runMigrations( database, migrations.slice( 0, 6 ) )
     setup( database )
-    runMigrations( database, migrations )
+    runMigrations( database, migrations.slice( 0, 7 ) )
 
     return database
   }
@@ -1151,14 +1151,14 @@ describe( 'migration 7', () => {
   it( 'adds migration 7 and records user_version 7', () => {
     const database = upgrade( () => undefined )
 
-    expect( migrations ).toHaveLength( 7 )
+    expect( migrations.length ).toBeGreaterThanOrEqual( 7 )
     expect( database.pragma( 'user_version', { simple: true } ) ).toBe( 7 )
   } )
 
   it( 'runs from an empty database to the same tables, columns and indexes', () => {
     const database = new Database( ':memory:' )
 
-    runMigrations( database, migrations )
+    runMigrations( database, migrations.slice( 0, 7 ) )
 
     expect( database.pragma( 'user_version', { simple: true } ) ).toBe( 7 )
     expect( columnNames( database, 'prompt_profiles' ) ).toContain( 'purpose' )
@@ -1348,6 +1348,173 @@ describe( 'migration 7', () => {
     expect( database.pragma( 'user_version', { simple: true } ) ).toBe( 6 )
     expect( columnNames( database, 'prompt_profiles' ) ).not.toContain( 'purpose' )
     expect( columnNames( database, 'jobs' ) ).not.toContain( 'link_state' )
+  } )
+} )
+
+describe( 'migration 8 (health)', () => {
+  type HealthRow = {
+    kind: string
+    subject_id: string
+    last_checked_at: string | null
+    last_success_at: string | null
+    last_error: string | null
+    failing_since: string | null
+    detail: string | null
+  }
+
+  const columnNames = ( database: Database.Database, table: string ): string[] => {
+    return ( database.pragma( `table_info(${ table })` ) as { name: string }[] )
+      .map( ( { name } ) => name )
+  }
+
+  const insertFeed = (
+    database: Database.Database,
+    id: string,
+    { checked = null, error = null, deleted = null }: {
+      checked?: string | null
+      error?: string | null
+      deleted?: string | null
+    } = {},
+  ): void => {
+    database.prepare( `INSERT INTO feeds (
+        id, url, feed_url, name, last_checked_at, last_error, created_at, deleted_at
+      ) VALUES ( ?, 'https://a.test', ?, 'Feed', ?, ?, 'now', ? )` )
+      .run( id, `https://a.test/${ id }.xml`, checked, error, deleted )
+  }
+
+  const insertSource = (
+    database: Database.Database,
+    id: string,
+    { checked = null, error = null }: { checked?: string | null, error?: string | null } = {},
+  ): void => {
+    database.prepare( `INSERT INTO gmail_sources (
+        id, name, match_kind, label_ids, destination, sync_from,
+        last_checked_at, last_error, created_at
+      ) VALUES ( ?, 'Alerts', 'labels', '["L1"]', 'jobs', 'now', ?, ?, 'now' )` )
+      .run( id, checked, error )
+  }
+
+  const healthRows = ( database: Database.Database ): HealthRow[] => {
+    return database.prepare( `SELECT * FROM health_status ORDER BY kind, subject_id` )
+      .all() as HealthRow[]
+  }
+
+  const upgraded = ( seed: ( database: Database.Database ) => void ): Database.Database => {
+    const database = new Database( ':memory:' )
+
+    runMigrations( database, migrations.slice( 0, 7 ) )
+    seed( database )
+    runMigrations( database, migrations )
+
+    return database
+  }
+
+  it( 'creates empty health tables and the errors index on an empty database', () => {
+    const database = new Database( ':memory:' )
+
+    runMigrations( database, migrations )
+
+    expect( database.pragma( 'user_version', { simple: true } ) ).toBe( 8 )
+    expect( healthRows( database ) ).toEqual( [] )
+    expect( database.prepare( 'SELECT COUNT(*) AS n FROM health_errors' ).get() )
+      .toEqual( { n: 0 } )
+    expect( database.prepare( `SELECT name FROM sqlite_master
+      WHERE type = 'index' AND name = 'health_errors_subject'` ).all() )
+      .toEqual( [ { name: 'health_errors_subject' } ] )
+  } )
+
+  it( 'carries a successful feed check over', () => {
+    const database = upgraded( ( db ) => {
+      insertFeed( db, 'f1', { checked: '2026-10-20T10:00:00Z' } )
+    } )
+
+    expect( healthRows( database ) ).toEqual( [ {
+      kind: 'feed',
+      subject_id: 'f1',
+      last_checked_at: '2026-10-20T10:00:00Z',
+      last_success_at: '2026-10-20T10:00:00Z',
+      last_error: null,
+      failing_since: null,
+      detail: null,
+    } ] )
+    expect( database.prepare( 'SELECT COUNT(*) AS n FROM health_errors' ).get() )
+      .toEqual( { n: 0 } )
+  } )
+
+  it( 'carries a failing feed and source over with one error each', () => {
+    const database = upgraded( ( db ) => {
+      insertFeed( db, 'f1', { checked: '2026-10-20T10:00:00Z', error: 'HTTP 500' } )
+      insertSource( db, 's1', { checked: '2026-10-21T10:00:00Z', error: 'Label not found' } )
+    } )
+
+    expect( healthRows( database ) ).toEqual( [
+      {
+        kind: 'feed',
+        subject_id: 'f1',
+        last_checked_at: '2026-10-20T10:00:00Z',
+        last_success_at: null,
+        last_error: 'HTTP 500',
+        failing_since: '2026-10-20T10:00:00Z',
+        detail: null,
+      },
+      {
+        kind: 'gmail_source',
+        subject_id: 's1',
+        last_checked_at: '2026-10-21T10:00:00Z',
+        last_success_at: null,
+        last_error: 'Label not found',
+        failing_since: '2026-10-21T10:00:00Z',
+        detail: null,
+      },
+    ] )
+    expect( database.prepare( `SELECT kind, subject_id, at, message FROM health_errors
+      ORDER BY kind` ).all() ).toEqual( [
+      { kind: 'feed', subject_id: 'f1', at: '2026-10-20T10:00:00Z', message: 'HTTP 500' },
+      {
+        kind: 'gmail_source',
+        subject_id: 's1',
+        at: '2026-10-21T10:00:00Z',
+        message: 'Label not found',
+      },
+    ] )
+  } )
+
+  it( 'gives a never-checked source no health row', () => {
+    const database = upgraded( ( db ) => insertSource( db, 's1' ) )
+
+    expect( healthRows( database ) ).toEqual( [] )
+  } )
+
+  it( 'skips soft-deleted feeds', () => {
+    const database = upgraded( ( db ) => {
+      insertFeed( db, 'f1', { checked: '2026-10-20T10:00:00Z', deleted: '2026-10-21T10:00:00Z' } )
+    } )
+
+    expect( healthRows( database ) ).toEqual( [] )
+  } )
+
+  it( 'drops the check columns from feeds and gmail_sources and keeps the rest', () => {
+    const database = upgraded( ( db ) => insertFeed( db, 'f1', { checked: 'x' } ) )
+
+    for( const table of [ 'feeds', 'gmail_sources' ] ) {
+      expect( columnNames( database, table ) ).not.toContain( 'last_checked_at' )
+      expect( columnNames( database, table ) ).not.toContain( 'last_error' )
+      expect( columnNames( database, table ) ).toContain( 'last_skipped_count' )
+    }
+
+    expect( database.prepare( 'SELECT id, name FROM feeds' ).all() )
+      .toEqual( [ { id: 'f1', name: 'Feed' } ] )
+  } )
+
+  it( 'rolls back completely when a later step fails', () => {
+    const database = new Database( ':memory:' )
+
+    runMigrations( database, migrations.slice( 0, 7 ) )
+    database.exec( 'CREATE TABLE health_errors ( blocker TEXT )' )
+
+    expect( () => runMigrations( database, migrations ) ).toThrow()
+    expect( database.pragma( 'user_version', { simple: true } ) ).toBe( 7 )
+    expect( columnNames( database, 'feeds' ) ).toContain( 'last_checked_at' )
   } )
 } )
 
