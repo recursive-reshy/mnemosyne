@@ -41,6 +41,7 @@ describe( 'useStatus', () => {
     await vi.waitFor( () => expect( result.current.isLoading ).toBe( false ) )
     expect( result.current.rows ).toEqual( [ failingRowFixture() ] )
     expect( result.current.failingCount ).toBe( 1 )
+    expect( result.current.updatedAt ).toBeGreaterThan( 0 )
     expect( result.current.error ).toBeNull()
   } )
 

@@ -2,24 +2,22 @@ const MINUTE_MS = 60_000
 const HOUR_MINUTES = 60
 const DAY_HOURS = 24
 
-export const formatChecked = ( checkedAt: string | null, now: number ): string => {
-  if( checkedAt === null ) {
-    return 'Not checked yet'
-  }
-
-  const minutes = Math.floor( ( now - Date.parse( checkedAt ) ) / MINUTE_MS )
+export const formatAgo = ( at: string, now: number ): string => {
+  const minutes = Math.floor( ( now - Date.parse( at ) ) / MINUTE_MS )
 
   if( minutes < 1 ) {
-    return 'Checked just now'
+    return 'just now'
   }
 
   if( minutes < HOUR_MINUTES ) {
-    return `Checked ${ minutes }m ago`
+    return `${ minutes }m ago`
   }
 
   const hours = Math.floor( minutes / HOUR_MINUTES )
 
-  return hours < DAY_HOURS
-    ? `Checked ${ hours }h ago`
-    : `Checked ${ Math.floor( hours / DAY_HOURS ) }d ago`
+  return hours < DAY_HOURS ? `${ hours }h ago` : `${ Math.floor( hours / DAY_HOURS ) }d ago`
+}
+
+export const formatChecked = ( checkedAt: string | null, now: number ): string => {
+  return checkedAt === null ? 'Not checked yet' : `Checked ${ formatAgo( checkedAt, now ) }`
 }

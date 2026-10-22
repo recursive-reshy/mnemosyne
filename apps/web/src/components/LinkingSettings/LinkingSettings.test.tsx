@@ -29,28 +29,16 @@ beforeEach( () => {
 } )
 
 describe( 'LinkingSettings agent status', () => {
-  it( 'says the agent service is reachable', () => {
-    renderWithClient( <LinkingSettings /> )
+  it.each( [ 'ok', 'unavailable', 'not_configured' ] as const )(
+    'says nothing about the agent service when it is %s (the Status panel does)',
+    ( agentStatus ) => {
+      vi.mocked( useSettings ).mockReturnValue( settingsState( { agentStatus } ) )
+      renderWithClient( <LinkingSettings /> )
 
-    expect( screen.getByText( 'The agent service is reachable.' ) ).toBeInTheDocument()
-  } )
-
-  it( 'says linking is skipped while the agent service is down', () => {
-    vi.mocked( useSettings ).mockReturnValue( settingsState( { agentStatus: 'unavailable' } ) )
-    renderWithClient( <LinkingSettings /> )
-
-    expect( screen.getByRole( 'alert' ) ).toHaveTextContent(
-      'The agent service is unavailable. Linking is skipped until it\'s back.',
-    )
-  } )
-
-  it( 'explains how to set linking up when it is not configured', () => {
-    vi.mocked( useSettings ).mockReturnValue( settingsState( { agentStatus: 'not_configured' } ) )
-    renderWithClient( <LinkingSettings /> )
-
-    expect( screen.getByRole( 'alert' ) ).toHaveTextContent( 'AGENT_SECRET' )
-    expect( screen.getByRole( 'alert' ) ).toHaveTextContent( 'openssl rand -hex 32' )
-  } )
+      expect( screen.queryByText( /agent service/i ) ).not.toBeInTheDocument()
+      expect( screen.queryByRole( 'alert' ) ).not.toBeInTheDocument()
+    },
+  )
 } )
 
 describe( 'LinkingSettings switch', () => {

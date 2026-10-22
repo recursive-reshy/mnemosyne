@@ -8,22 +8,12 @@ import Stack from '@mui/material/Stack'
 import Switch from '@mui/material/Switch'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
-// Shared
-import type { AgentStatus } from '@mnemosyne/shared'
 // App
 import { useModels } from '#src/hooks/useModels'
 import { useSettings } from '#src/hooks/useSettings'
 
-const NOT_CONFIGURED = 'Linking isn\'t set up. Set AGENT_SECRET in .env (generate one with '
-  + 'openssl rand -hex 32), start the agent service and restart the app.'
-
-const STATUS_NOTICES = {
-  unavailable: 'The agent service is unavailable. Linking is skipped until it\'s back.',
-  not_configured: NOT_CONFIGURED,
-} as const satisfies Partial< Record< AgentStatus, string > >
-
 export function LinkingSettings(): ReactElement {
-  const { settings, agentStatus, updateSettings } = useSettings()
+  const { settings, updateSettings } = useSettings()
   const { models, source, isLoading: isLoadingModels } = useModels()
   const modelId = settings?.linking_model ?? ''
   const isListed = models.some( ( { id } ) => id === modelId )
@@ -41,12 +31,6 @@ export function LinkingSettings(): ReactElement {
 
   return (
     <Stack spacing={ 2 }>
-      { agentStatus === 'ok' && <Typography>The agent service is reachable.</Typography> }
-      { agentStatus !== null && agentStatus !== 'ok' && (
-        <Alert severity={ agentStatus === 'unavailable' ? 'warning' : 'info' }>
-          { STATUS_NOTICES[ agentStatus ] }
-        </Alert>
-      ) }
       { source === 'fallback' && (
         <Alert severity="info">
           The model list is offline, so only the current linking model is shown.

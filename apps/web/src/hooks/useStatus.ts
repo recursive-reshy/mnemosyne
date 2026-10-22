@@ -11,12 +11,18 @@ const REFRESH_MS = 60_000
 export interface StatusState {
   rows: StatusRow[]
   failingCount: number
+  updatedAt: number
   isLoading: boolean
   error: string | null
 }
 
 export function useStatus(): StatusState {
-  const { data, error, isPending } = useQuery( {
+  const {
+    data,
+    dataUpdatedAt,
+    error,
+    isPending,
+  } = useQuery( {
     queryKey: statusKeys.all,
     queryFn: getStatus,
     refetchInterval: REFRESH_MS,
@@ -26,6 +32,7 @@ export function useStatus(): StatusState {
   return {
     rows: data?.rows ?? [],
     failingCount: data?.failing_count ?? 0,
+    updatedAt: dataUpdatedAt,
     isLoading: isPending,
     error: error === null ? null : error.message,
   }
