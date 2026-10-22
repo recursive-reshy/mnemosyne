@@ -58,7 +58,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 4.4 | `worker/meleteGenerator.ts`: the loop, restart requeue, log context; started in `server.ts`, stopped in `shutdown.ts` (TRD §7.5) | 0058 | ✅ |
 
 ## Checkpoint D: Phase 5 (scheduling and review)
-**Plan:** ⬜ [`plans/checkpoint-d.md`](plans/checkpoint-d.md)
+**Plan:** ✅ [`plans/checkpoint-d.md`](plans/checkpoint-d.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
