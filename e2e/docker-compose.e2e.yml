@@ -1,0 +1,39 @@
+# Layered over docker-compose.yml by e2e/run.sh under the project name mnemosyne-e2e.
+# The vault, the backups folder and the secrets come from run.sh; nothing here touches the real instance.
+services:
+  fakes:
+    build: e2e/fakes
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://localhost:4000/health').then((r) => process.exit(r.status === 200 ? 0 : 1), () => process.exit(1))"
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  mnemosyne:
+    # Own image names, so a run never retags the images of the real instance.
+    image: mnemosyne-e2e:local
+    # The base file reads the real .env; here every value is set below.
+    env_file: !override []
+    ports: !override
+      - "3101:3100"
+    environment:
+      ANTHROPIC_BASE_URL: http://fakes:4000
+      ANTHROPIC_API_KEY: e2e
+      AGENT_SECRET: ${AGENT_SECRET:?run e2e/run.sh}
+      WHISPER_URL: http://fakes:4000
+    depends_on:
+      fakes:
+        condition: service_healthy
+
+  agent:
+    image: mnemosyne-agent-e2e:local
+    environment:
+      ANTHROPIC_BASE_URL: http://fakes:4000
+      ANTHROPIC_API_KEY: e2e
+    depends_on:
+      fakes:
+        condition: service_healthy
