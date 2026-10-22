@@ -124,12 +124,14 @@ const probe = async ( url: string ): Promise< AgentHealth > => {
   }
 }
 
-export const checkHealth = async (): Promise< AgentHealth > => {
+export const checkHealth = async (
+  { fresh = false }: { fresh?: boolean } = {},
+): Promise< AgentHealth > => {
   if( config.agent === null ) {
     return 'unavailable'
   }
 
-  if( health !== undefined && health.expiresAt > Date.now() ) {
+  if( !fresh && health !== undefined && health.expiresAt > Date.now() ) {
     return health.status
   }
 

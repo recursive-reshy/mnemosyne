@@ -17,6 +17,7 @@ import { recoverInterruptedJobs } from './services/jobs.service.js'
 import { SHUTDOWN_TIMEOUT_MS, createShutdown } from './shutdown.js'
 // Worker
 import { startIntakePoller } from './worker/intakePoller.js'
+import { startServiceMonitor } from './worker/serviceMonitor.js'
 import { startSweeper } from './worker/sweeper.js'
 import { startWorker } from './worker/worker.js'
 
@@ -43,6 +44,7 @@ if( interrupted > 0 ) {
 const stopSweeper = startSweeper()
 const stopWorker = startWorker()
 const stopIntakePoller = startIntakePoller()
+const stopServiceMonitor = startServiceMonitor()
 
 const server = app.listen( config.port, () => {
   logger.info( { port: config.port }, 'Server listening' )
@@ -59,6 +61,7 @@ const shutdown = createShutdown( {
   closeStore: closeDatabase,
   stopSweeper,
   stopIntakePoller,
+  stopServiceMonitor,
   timeoutMs: SHUTDOWN_TIMEOUT_MS,
   exit: ( code ) => process.exit( code ),
   log: ( message ) => logger.info( message ),

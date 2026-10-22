@@ -10,7 +10,7 @@ import {
 } from 'vitest'
 import { readFile } from 'node:fs/promises'
 // Clients
-import { transcribeAudio } from './whisperServer.client.js'
+import { checkWhisperHealth, transcribeAudio } from './whisperServer.client.js'
 // Fixtures
 import { whisperResponseFixture } from '../test-support/whisperResponse.fixture.js'
 
@@ -147,5 +147,40 @@ describe( 'transcribeAudio', () => {
 
     await expect( transcribeAudio( audioPath, whisperUrl ) ).rejects.toThrow( audioPath )
     expect( fetchMock ).not.toHaveBeenCalled()
+  } )
+} )
+
+describe( 'checkWhisperHealth', () => {
+  it( 'resolves when /health answers 200, asking with a timeout', async () => {
+    fetchMock.mockResolvedValue( new Response( '{"status":"ok"}', { status: 200 } ) )
+
+    await expect( checkWhisperHealth( whisperUrl ) ).resolves.toBeUndefined()
+
+    const [ url, init ] = fetchMock.mock.calls[ 0 ] as [ URL | string, RequestInit ]
+
+    expect( String( url ) ).toBe( 'http://localhost:8178/health' )
+    expect( init.signal ).toBeInstanceOf( AbortSignal )
+  } )
+
+  it( 'throws what it answered when the status is not a success', async () => {
+    fetchMock.mockResolvedValue( new Response( 'loading', { status: 503 } ) )
+
+    await expect( checkWhisperHealth( whisperUrl ) )
+      .rejects.toThrow( 'whisper-server answered 503' )
+  } )
+
+  it( 'throws naming the address when it cannot connect', async () => {
+    fetchMock.mockRejectedValue( new TypeError( 'fetch failed' ) )
+
+    await expect( checkWhisperHealth( whisperUrl ) ).rejects.toThrow(
+      'Could not reach whisper-server at http://localhost:8178: fetch failed',
+    )
+  } )
+
+  it( 'throws when it does not answer within 3 seconds', async () => {
+    fetchMock.mockRejectedValue( new DOMException( 'timed out', 'TimeoutError' ) )
+
+    await expect( checkWhisperHealth( whisperUrl ) )
+      .rejects.toThrow( 'whisper-server did not answer within 3 seconds' )
   } )
 } )

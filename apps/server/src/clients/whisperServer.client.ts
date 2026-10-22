@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { Segment } from '@mnemosyne/shared'
 
 const REQUEST_TIMEOUT_MS = 3_600_000
+const HEALTH_TIMEOUT_MS = 3_000
 const UNEXPECTED_RESPONSE = 'Unexpected response from whisper-server'
 
 const ErrorBody = z.object( { error: z.string() } )
@@ -84,4 +85,32 @@ export const transcribeAudio = async (
   }
 
   return segments.data
+}
+
+// Any 2xx from /health means the server is up (the real whisper.cpp build answers 200).
+export const checkWhisperHealth = async ( whisperUrl: string ): Promise< void > => {
+  let response: Response
+
+  try {
+    response = await fetch( new URL( '/health', whisperUrl ), {
+      signal: AbortSignal.timeout( HEALTH_TIMEOUT_MS ),
+    } )
+  } catch( error ) {
+    if( error instanceof Error && error.name === 'TimeoutError' ) {
+      throw new Error( 'whisper-server did not answer within 3 seconds', { cause: error } )
+    }
+
+    const reason = error instanceof Error ? error.message : String( error )
+
+    throw new Error(
+      `Could not reach whisper-server at ${ whisperUrl }: ${ reason }`,
+      { cause: error },
+    )
+  }
+
+  await response.body?.cancel()
+
+  if( !response.ok ) {
+    throw new Error( `whisper-server answered ${ response.status }` )
+  }
 }

@@ -257,6 +257,18 @@ describe( 'checkHealth', () => {
     expect( fetchMock ).not.toHaveBeenCalled()
   } )
 
+  it( 'asks again with fresh, and a plain call then reuses that answer', async () => {
+    fetchMock.mockImplementation( () => Promise.resolve( json( { status: 'ok' } ) ) )
+    expect( await checkHealth() ).toBe( 'ok' )
+
+    fetchMock.mockImplementation( () => Promise.resolve( json( { status: 'error' }, 503 ) ) )
+
+    expect( await checkHealth() ).toBe( 'ok' )
+    expect( await checkHealth( { fresh: true } ) ).toBe( 'unavailable' )
+    expect( await checkHealth() ).toBe( 'unavailable' )
+    expect( fetchMock ).toHaveBeenCalledTimes( 2 )
+  } )
+
   it( 'caches the answer for 30 seconds, then asks again', async () => {
     vi.useFakeTimers()
     fetchMock.mockImplementation( () => Promise.resolve( json( { status: 'ok' } ) ) )

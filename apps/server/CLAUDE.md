@@ -37,28 +37,29 @@ Parsed once with Zod in `config.ts`; nothing else reads `process.env`. `.env.exa
 - Gmail (ADR 0035) is optional: `config.gmail` is `null` unless `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `TOKEN_ENCRYPTION_KEY` (32 bytes, base64) are all set. A key that is set but isn't 32 bytes stops startup. `GOOGLE_REDIRECT_URI` defaults to the callback on `PORT`.
 - The vault agent service (ADR 0042) is optional: `config.agent` is `null` unless `AGENT_SECRET` (at least 32 characters) is set, and then jobs skip linking. `AGENT_URL` defaults to `http://localhost:8100`, `AGENT_TIMEOUT_MS` to 120000.
 - `LOG_LEVEL` (ADR 0049): `fatal`, `error`, `warn`, `info` (default), `debug`, `trace` or `silent`; vitest runs with `silent`.
+- `STATUS_CHECK_INTERVAL_MINUTES` (ADR 0050, default 2): how often the service monitor checks the agent and whisper-server in the background.
 - `WEB_DIR`: empty in development (Vite serves the web app). When set, Express serves it, with an `index.html` fallback for paths without an extension.
 
 ## Folder structure
 
 ```
 src/
-  server.ts          boot only: load config → check the vault → open the store → recover interrupted jobs → start sweeper, worker and intake poller → listen
+  server.ts          boot only: load config → check the vault → open the store → recover interrupted jobs → start sweeper, worker, intake poller and service monitor → listen
   app.ts             builds the Express app and mounts routes and the error middleware; tests import this, not server.ts
   config.ts          env parsed with Zod
-  shutdown.ts        signal handling: stop the sweeper, the worker, the intake poller and the server, close the store, exit; with a timeout
+  shutdown.ts        signal handling: stop the sweeper, the worker, the intake poller, the service monitor and the server, close the store, exit; with a timeout
   errors.ts          typed errors and the error middleware
   logger.ts          the pino logger (ADR 0049); logContext.ts holds the job, feed or Gmail source ID for every line written inside `withLogContext`
   middleware/        requestLog.ts: one log line per request (method, route pattern, status, duration; health and status skipped)
   jobs/              lifecycle.ts (ADR 0048): the pure table of job statuses, their properties and allowed moves, `canMove`, `assertMove`, `statusesWhere` and the link-state moves; no imports from services or repositories
   routes/            <name>.routes.ts: an Express Router wiring paths to controller functions, nothing else
   controllers/       <name>.controller.ts: HTTP only (parse the request with Zod, call a service, send the response)
-  services/          <name>.service.ts: business rules and job state changes (jobs, vault, settings, prompts, models, feeds, inbox, gmail, gmailSources: the sources, their sync and checks)
-  repositories/      <name>.repository.ts: the SQLite database and nothing else; database.ts holds the connection and the migrations; jobStore, summaryRuns, settings, promptProfiles, feeds, feedItems, and for Gmail (ADRs 0035, 0037): gmailAccount, gmailSources, gmailMessages, postings, extractionRuns, and for linking (ADRs 0045, 0046): linkRuns, linkSuggestions (promptProfiles also holds the hidden linker profile, told apart by `purpose`)
+  services/          <name>.service.ts: business rules and job state changes (jobs, vault, settings, prompts, models, feeds, inbox, gmail, gmailSources: the sources, their sync and checks, and health: `recordCheck` is the one way a check reports, and `runServiceChecks` checks the agent and whisper-server)
+  repositories/      <name>.repository.ts: the SQLite database and nothing else; database.ts holds the connection and the migrations; jobStore, summaryRuns, settings, promptProfiles, feeds, feedItems, health (ADR 0050: `health_status` and `health_errors`, one row per feed, Gmail source, Gmail connection, agent, whisper-server and backup; the feed and source repositories read their last check and error from it by a join), and for Gmail (ADRs 0035, 0037): gmailAccount, gmailSources, gmailMessages, postings, extractionRuns, and for linking (ADRs 0045, 0046): linkRuns, linkSuggestions (promptProfiles also holds the hidden linker profile, told apart by `purpose`)
   gmail/             Gmail intake (ADR 0035): tokenCipher (AES-256-GCM for the refresh token), auth (OAuth consent, the cached Gmail client, `withGmail` and the reconnect rule), gmail.client (labels, message ids by label or search, messages; the only module that calls the Gmail API, always through `withGmail`) parseMessage (a Gmail message to subject, sender, date and bodies; pure), links (the Gmail web link to a message) and stripFixture (removes what could identify a mailbox from a saved fixture)
   clients/           <name>.client.ts: one external tool each (ytDlp, ffmpeg, whisperServer, claude, anthropicModels, vault, http, and the vault agent service, ADR 0042: `agent.client.ts` with `requestLinks`, `fetchInstructions`, a cached `checkHealth` and `AgentError`); the vault client resolves every folder inside the vault (`resolveFolder`)
   sources/           adapters that turn a job into a `SourceDocument` (ADR 0030): video and article adapters, article extraction (ADR 0031), feed parsing and discovery (ADR 0032), pasted text, `emailToMarkdown` (a newsletter email to Markdown, ADR 0040), `adapterFor( sourceType )`; they use clients and report steps through the context, never touch repositories
-  worker/            worker, runJob, summarizeJob, linkJob, sweeper, intakePoller: runs the next runnable job; deletes expired jobs; every minute, one pass at a time, checks due feeds and then due Gmail sources (each on its own, so one failing doesn't stop the other)
+  worker/            worker, runJob, summarizeJob, linkJob, sweeper, intakePoller, serviceMonitor: runs the next runnable job; deletes expired jobs; every minute, one pass at a time, checks due feeds and then due Gmail sources (each on its own, so one failing doesn't stop the other); every `STATUS_CHECK_INTERVAL_MINUTES`, checks the agent and whisper-server
   summarizer/        pure constants and functions: locked prompts, seeded profiles, prices
   formatters/        markdown, srt, txt, summary, note: pure data → string; summary.cleanup.ts filters the model's output
 ```

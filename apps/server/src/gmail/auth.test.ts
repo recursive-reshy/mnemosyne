@@ -30,6 +30,7 @@ import {
   saveAccount,
   setAccountStatus,
 } from '../repositories/gmailAccount.repository.js'
+import { getHealth } from '../repositories/health.repository.js'
 // Logging
 import { logger } from '../logger.js'
 
@@ -203,6 +204,22 @@ describe( 'completeConsent', () => {
     expect( decryptToken( account?.refresh_token_enc ?? '', key ) ).toBe( refreshToken )
   } )
 
+  it( 'clears an earlier connection failure when consent completes', async () => {
+    connectAccount()
+    await expect( withGmail( () => Promise.reject(
+      Object.assign( new Error( 'Unauthorized' ), { code: 401 } ),
+    ) ) ).rejects.toThrow( GmailAuthError )
+
+    createConsentUrl()
+    grantOnce( { refresh_token: refreshToken, scope: SCOPE } )
+    await completeConsent( { code: authCode, state: stateFromLastUrl() } )
+
+    expect( getHealth( 'gmail_connection', 'default' ) ).toMatchObject( {
+      last_error: null,
+      failing_since: null,
+    } )
+  } )
+
   it( 'replaces an account that needed a reconnect', async () => {
     connectAccount()
     setAccountStatus( 'reconnect_needed', 'revoked' )
@@ -337,6 +354,21 @@ describe( 'getGmailClient', () => {
     expect( logged( spies ) ).not.toContain( refreshToken )
   } )
 
+  it( 'records the connection as failing when the token cannot be decrypted', () => {
+    saveAccount( {
+      email: 'naresh@example.com',
+      refresh_token_enc: encryptToken( refreshToken, Buffer.alloc( 32, 9 ) ),
+      scope: SCOPE,
+      status: 'connected',
+      error: null,
+      connected_at: '2026-10-19T10:00:00.000Z',
+    } )
+
+    expect( () => getGmailClient() ).toThrow( GmailNotConnectedError )
+    expect( getHealth( 'gmail_connection', 'default' )?.last_error )
+      .toBe( 'The stored Gmail access can\'t be read; reconnect' )
+  } )
+
   it( 'throws GmailAuthError while the account needs a reconnect', () => {
     connectAccount()
     setAccountStatus( 'reconnect_needed', 'revoked' )
@@ -378,6 +410,35 @@ describe( 'withGmail', () => {
     expect( logged( spies ) ).not.toContain( refreshToken )
   } )
 
+  it( 'records the connection as ok after a call that works', async () => {
+    connectAccount()
+
+    await withGmail( () => Promise.resolve( 'fine' ) )
+
+    expect( getHealth( 'gmail_connection', 'default' ) ).toMatchObject( { last_error: null } )
+    expect( getHealth( 'gmail_connection', 'default' )?.last_success_at ).not.toBeNull()
+  } )
+
+  it( 'records the connection as failing when Google rejects the access', async () => {
+    connectAccount()
+
+    await expect( withGmail( () => Promise.reject(
+      Object.assign( new Error( 'Unauthorized' ), { code: 401 } ),
+    ) ) ).rejects.toThrow( GmailAuthError )
+
+    expect( getHealth( 'gmail_connection', 'default' )?.last_error ).toBe( reason )
+  } )
+
+  it( 'does not touch the connection health on another kind of error', async () => {
+    connectAccount()
+
+    await expect( withGmail( () => Promise.reject(
+      Object.assign( new Error( 'Backend Error' ), { code: 500 } ),
+    ) ) ).rejects.toThrow( 'Backend Error' )
+
+    expect( getHealth( 'gmail_connection', 'default' ) ).toBeUndefined()
+  } )
+
   it( 'passes other errors through and leaves the status alone', async () => {
     connectAccount()
     const failure = Object.assign( new Error( 'Backend Error' ), { code: 500 } )
@@ -400,6 +461,15 @@ describe( 'disconnect', () => {
     connectAccount()
 
     expect( getGmailClient() ).not.toBe( first )
+  } )
+
+  it( 'removes the connection health row', async () => {
+    connectAccount()
+    await withGmail( () => Promise.resolve( 'fine' ) )
+
+    await disconnect()
+
+    expect( getHealth( 'gmail_connection', 'default' ) ).toBeUndefined()
   } )
 
   it( 'still deletes the account when the revoke fails, without logging the token', async () => {

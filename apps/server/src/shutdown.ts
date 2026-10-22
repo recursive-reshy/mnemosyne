@@ -6,6 +6,7 @@ interface ShutdownOptions {
   closeStore: () => void
   stopSweeper: () => void
   stopIntakePoller: () => Promise< void >
+  stopServiceMonitor: () => Promise< void >
   timeoutMs: number
   exit: ( code: number ) => void
   log: ( message: string ) => void
@@ -15,7 +16,7 @@ export const createShutdown = (
   options: ShutdownOptions,
 ): ( ( signal: string ) => Promise< void > ) => {
   const { stopWorker, closeServer, closeStore, stopSweeper } = options
-  const { stopIntakePoller, timeoutMs, exit, log } = options
+  const { stopIntakePoller, stopServiceMonitor, timeoutMs, exit, log } = options
   let shuttingDown = false
 
   return async ( signal ) => {
@@ -34,8 +35,12 @@ export const createShutdown = (
     const timeout = new Promise< 'timeout' >( ( resolve ) => {
       timer = setTimeout( () => resolve( 'timeout' ), timeoutMs )
     } )
-    const stopped = Promise.all( [ closeServer(), stopWorker(), stopIntakePoller() ] )
-      .then( () => 'stopped' as const )
+    const stopped = Promise.all( [
+      closeServer(),
+      stopWorker(),
+      stopIntakePoller(),
+      stopServiceMonitor(),
+    ] ).then( () => 'stopped' as const )
 
     try {
       const outcome = await Promise.race( [ stopped, timeout ] )

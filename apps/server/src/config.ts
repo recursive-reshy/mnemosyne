@@ -14,6 +14,7 @@ const portSchema = z.coerce.number().int().min( 1 ).max( 65535 ).default( 3100 )
 const summaryTimeoutSchema = z.coerce.number().int().positive().default( 300_000 )
 const reviewTtlSchema = z.coerce.number().positive().default( 24 )
 const cleanupIntervalSchema = z.coerce.number().positive().default( 15 )
+const statusIntervalSchema = z.coerce.number().positive().default( 2 )
 const logLevelSchema = z
   .enum( [ 'fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent' ] )
   .default( 'info' )
@@ -54,6 +55,7 @@ const EnvSchema = z
     SUMMARY_TIMEOUT_MS: z.preprocess( emptyAsUnset, summaryTimeoutSchema ),
     REVIEW_TTL_HOURS: z.preprocess( emptyAsUnset, reviewTtlSchema ),
     CLEANUP_INTERVAL_MINUTES: z.preprocess( emptyAsUnset, cleanupIntervalSchema ),
+    STATUS_CHECK_INTERVAL_MINUTES: z.preprocess( emptyAsUnset, statusIntervalSchema ),
     GOOGLE_CLIENT_ID: z.preprocess( emptyAsUnset, z.string().min( 1 ).optional() ),
     GOOGLE_CLIENT_SECRET: z.preprocess( emptyAsUnset, z.string().min( 1 ).optional() ),
     GOOGLE_REDIRECT_URI: z.preprocess( emptyAsUnset, z.url().optional() ),
@@ -75,6 +77,7 @@ const EnvSchema = z
     summaryTimeoutMs: env.SUMMARY_TIMEOUT_MS,
     reviewTtlHours: env.REVIEW_TTL_HOURS,
     cleanupIntervalMinutes: env.CLEANUP_INTERVAL_MINUTES,
+    statusCheckIntervalMinutes: env.STATUS_CHECK_INTERVAL_MINUTES,
     logLevel: env.LOG_LEVEL,
     gmail: env.GOOGLE_CLIENT_ID !== undefined
       && env.GOOGLE_CLIENT_SECRET !== undefined

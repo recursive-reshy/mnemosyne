@@ -23,6 +23,7 @@ describe( 'loadConfig', () => {
       summaryTimeoutMs: 300_000,
       reviewTtlHours: 24,
       cleanupIntervalMinutes: 15,
+      statusCheckIntervalMinutes: 2,
       logLevel: 'info',
       gmail: null,
       agent: null,
@@ -43,6 +44,7 @@ describe( 'loadConfig', () => {
       SUMMARY_TIMEOUT_MS: '60000',
       REVIEW_TTL_HOURS: '48',
       CLEANUP_INTERVAL_MINUTES: '5',
+      STATUS_CHECK_INTERVAL_MINUTES: '3',
     } )
 
     expect( config ).toEqual( {
@@ -58,6 +60,7 @@ describe( 'loadConfig', () => {
       summaryTimeoutMs: 60_000,
       reviewTtlHours: 48,
       cleanupIntervalMinutes: 5,
+      statusCheckIntervalMinutes: 3,
       logLevel: 'info',
       gmail: null,
       agent: null,
@@ -153,6 +156,26 @@ describe( 'loadConfig', () => {
   it.each( [ 'abc', '0', '-1' ] )( 'throws naming REVIEW_TTL_HOURS for %s', ( value ) => {
     expect( () => loadConfig( { ...base, REVIEW_TTL_HOURS: value } ) ).toThrow( /REVIEW_TTL_HOURS/ )
   } )
+
+  it( 'defaults STATUS_CHECK_INTERVAL_MINUTES to 2, also when it is empty', () => {
+    const empty = loadConfig( { ...base, STATUS_CHECK_INTERVAL_MINUTES: '' } )
+
+    expect( loadConfig( base ).statusCheckIntervalMinutes ).toBe( 2 )
+    expect( empty.statusCheckIntervalMinutes ).toBe( 2 )
+  } )
+
+  it( 'reads STATUS_CHECK_INTERVAL_MINUTES as a number', () => {
+    expect( loadConfig( { ...base, STATUS_CHECK_INTERVAL_MINUTES: '0.5' } )
+      .statusCheckIntervalMinutes ).toBe( 0.5 )
+  } )
+
+  it.each( [ 'abc', '0', '-1' ] )(
+    'throws naming STATUS_CHECK_INTERVAL_MINUTES for %s',
+    ( value ) => {
+      expect( () => loadConfig( { ...base, STATUS_CHECK_INTERVAL_MINUTES: value } ) )
+        .toThrow( /STATUS_CHECK_INTERVAL_MINUTES/ )
+    },
+  )
 
   it.each( [ 'abc', '0', '-1' ] )( 'throws naming CLEANUP_INTERVAL_MINUTES for %s', ( value ) => {
     expect( () => loadConfig( { ...base, CLEANUP_INTERVAL_MINUTES: value } ) ).toThrow(

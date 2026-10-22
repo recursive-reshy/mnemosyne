@@ -19,6 +19,7 @@ let closeServer: ReturnType< typeof vi.fn< () => Promise< void > > >
 let closeStore: ReturnType< typeof vi.fn< () => void > >
 let stopSweeper: ReturnType< typeof vi.fn< () => void > >
 let stopIntakePoller: ReturnType< typeof vi.fn< () => Promise< void > > >
+let stopServiceMonitor: ReturnType< typeof vi.fn< () => Promise< void > > >
 
 const build = (): ( signal: string ) => Promise< void > => createShutdown( {
   stopWorker,
@@ -26,6 +27,7 @@ const build = (): ( signal: string ) => Promise< void > => createShutdown( {
   closeStore,
   stopSweeper,
   stopIntakePoller,
+  stopServiceMonitor,
   timeoutMs: TIMEOUT_MS,
   exit,
   log: ( message ) => events.push( `log:${ message }` ),
@@ -41,6 +43,7 @@ beforeEach( () => {
   closeServer = vi.fn( () => Promise.resolve() )
   stopSweeper = vi.fn()
   stopIntakePoller = vi.fn( () => Promise.resolve() )
+  stopServiceMonitor = vi.fn( () => Promise.resolve() )
   closeStore = vi.fn( () => {
     events.push( 'closeStore' )
   } )
@@ -108,6 +111,24 @@ describe( 'createShutdown', () => {
     await shutdown( 'SIGTERM' )
 
     expect( stopIntakePoller ).toHaveBeenCalledTimes( 1 )
+  } )
+
+  it( 'stops the service monitor and closes the store only after it has stopped', async () => {
+    let finishMonitor: () => void = () => undefined
+    stopServiceMonitor.mockReturnValue( new Promise< void >( ( resolve ) => {
+      finishMonitor = resolve
+    } ) )
+
+    const done = build()( 'SIGTERM' )
+
+    await vi.advanceTimersByTimeAsync( 10 )
+    expect( stopServiceMonitor ).toHaveBeenCalledTimes( 1 )
+    expect( closeStore ).not.toHaveBeenCalled()
+
+    finishMonitor()
+    await done
+
+    expect( closeStore ).toHaveBeenCalledTimes( 1 )
   } )
 
   it( 'closes the store only after the intake poller has stopped', async () => {

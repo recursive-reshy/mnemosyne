@@ -10,6 +10,7 @@ services:
       WHISPER_MODEL: ${WHISPER_MODEL:-large-v3-turbo}
       AGENT_URL: http://agent:8100
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      STATUS_CHECK_INTERVAL_MINUTES: ${STATUS_CHECK_INTERVAL_MINUTES:-2}
     volumes:
       - mnemosyne-data:/data
       - ${VAULT_HOST_PATH:?Set VAULT_HOST_PATH in .env to your Obsidian vault folder}:/vault

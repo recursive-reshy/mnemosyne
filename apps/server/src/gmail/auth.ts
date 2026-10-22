@@ -13,6 +13,9 @@ import {
   setAccountStatus,
 } from '../repositories/gmailAccount.repository.js'
 import type { StoredGmailAccount } from '../repositories/gmailAccount.repository.js'
+import { deleteHealth } from '../repositories/health.repository.js'
+// Services
+import { recordCheck } from '../services/health.service.js'
 // Gmail
 import { TokenDecryptError, decryptToken, encryptToken } from './tokenCipher.js'
 // Logging
@@ -20,6 +23,7 @@ import { logger } from '../logger.js'
 
 export const SCOPE = 'https://www.googleapis.com/auth/gmail.readonly'
 
+const CONNECTION = { kind: 'gmail_connection', id: 'default' } as const
 const STATE_TTL_MS = 10 * 60 * 1000
 const MAX_STATES = 20
 const UNREADABLE_REASON = 'The stored Gmail access can\'t be read; reconnect'
@@ -147,6 +151,7 @@ export const completeConsent = async (
     error: null,
     connected_at: new Date().toISOString(),
   } )
+  recordCheck( CONNECTION, { ok: true } )
   cached = null
 }
 
@@ -160,6 +165,7 @@ const readToken = ( account: StoredGmailAccount, settings: GmailConfig ): string
 
     logger.error( 'Gmail: the stored refresh token could not be decrypted' )
     setAccountStatus( 'reconnect_needed', UNREADABLE_REASON )
+    recordCheck( CONNECTION, { ok: false, message: UNREADABLE_REASON } )
     throw new GmailNotConnectedError( UNREADABLE_REASON )
   }
 }
@@ -213,7 +219,11 @@ export const withGmail = async < T >(
   const client = getGmailClient()
 
   try {
-    return await run( client )
+    const result = await run( client )
+
+    recordCheck( CONNECTION, { ok: true } )
+
+    return result
   } catch( error ) {
     if( !isAuthFailure( error ) ) {
       throw error
@@ -221,6 +231,7 @@ export const withGmail = async < T >(
 
     logger.warn( 'Gmail: Google rejected the stored access' )
     setAccountStatus( 'reconnect_needed', REVOKED_REASON )
+    recordCheck( CONNECTION, { ok: false, message: REVOKED_REASON } )
     cached = null
     throw new GmailAuthError( REVOKED_REASON )
   }
@@ -242,5 +253,6 @@ export const disconnect = async (): Promise< void > => {
   }
 
   deleteAccount()
+  deleteHealth( 'gmail_connection', 'default' )
   cached = null
 }
