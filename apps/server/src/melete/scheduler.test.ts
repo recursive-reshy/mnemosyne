@@ -144,9 +144,9 @@ describe( 'toRow and fromRow', () => {
 
 describe( 'appScheduler', () => {
   it( 'has fuzz on and the configured target recall', () => {
-    expect( appScheduler.parameters.enable_fuzz ).toBe( true )
-    expect( appScheduler.parameters.enable_short_term ).toBe( true )
-    expect( appScheduler.parameters.request_retention ).toBe( config.melete.requestRetention )
+    expect( appScheduler().parameters.enable_fuzz ).toBe( true )
+    expect( appScheduler().parameters.enable_short_term ).toBe( true )
+    expect( appScheduler().parameters.request_retention ).toBe( config.melete.requestRetention )
   } )
 
   it( 'is exact when fuzz is turned off', () => {

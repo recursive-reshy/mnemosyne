@@ -22,7 +22,14 @@ export const createScheduler = ( { fuzz }: { fuzz: boolean } ): FSRS => {
   } ) )
 }
 
-export const appScheduler: FSRS = createScheduler( { fuzz: true } )
+let shared: FSRS | undefined
+
+// Built on first use, so importing this module doesn't read the config
+export const appScheduler = (): FSRS => {
+  shared ??= createScheduler( { fuzz: true } )
+
+  return shared
+}
 
 const RATINGS: Record< MeleteRating, Grade > = {
   again: Rating.Again,
@@ -53,7 +60,7 @@ export const nextCard = (
   card: Card,
   rating: MeleteRating,
   now: Date,
-  scheduler: FSRS = appScheduler,
+  scheduler: FSRS = appScheduler(),
 ): Card => scheduler.next( card, now, toFsrsRating( rating ) ).card
 
 export const toRow = ( card: Card ): CardRow => ( {

@@ -5,9 +5,12 @@ import {
   getMeleteNote,
   getMeleteSubject,
   getMeleteToday,
+  getReviewNext,
   patchMeleteNote,
   patchMeleteSubject,
+  postGradeAnswer,
   postDropQuestion,
+  postRecordReview,
   postRegenerateNote,
   postRetryGeneration,
   postSubjectEnrollment,
@@ -24,3 +27,6 @@ meleteRoutes.patch( '/melete/notes/:id', patchMeleteNote )
 meleteRoutes.post( '/melete/notes/:id/regenerate', postRegenerateNote )
 meleteRoutes.post( '/melete/notes/:id/retry', postRetryGeneration )
 meleteRoutes.post( '/melete/questions/:id/drop', postDropQuestion )
+meleteRoutes.get( '/melete/review/next', getReviewNext )
+meleteRoutes.post( '/melete/questions/:id/grade', postGradeAnswer )
+meleteRoutes.post( '/melete/questions/:id/review', postRecordReview )

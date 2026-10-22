@@ -1,3 +1,6 @@
+// Node
+import { readdir, stat } from 'node:fs/promises'
+import { join } from 'node:path'
 // Packages
 import {
   afterEach,
@@ -5,18 +8,26 @@ import {
   describe,
   expect,
   it,
+  vi,
 } from 'vitest'
 import request from 'supertest'
+// Clients
+import { gradeAnswer } from '../clients/claude.client.js'
 // Shared
 import {
   GetMeleteNoteResponse,
   GetMeleteSubjectResponse,
   GetMeleteTodayResponse,
+  GetNextReviewResponse,
+  GradeAnswerResponse,
   MeleteQuestion,
+  RecordReviewResponse,
 } from '@mnemosyne/shared'
 // App
 import { app } from '../app.js'
 import { config } from '../config.js'
+// Errors
+import { MeleteError } from '../errors.js'
 // Melete
 import { resetScanClock } from '../melete/scanClock.js'
 // Repositories
@@ -27,6 +38,10 @@ import { setSetting } from '../repositories/settings.repository.js'
 // Test support
 import { addQuestion } from '../test-support/meleteData.fixture.js'
 import { MeleteVault, createMeleteVault } from '../test-support/meleteVault.fixture.js'
+
+vi.mock( '../clients/claude.client.js' )
+
+const grade = vi.mocked( gradeAnswer )
 
 let vault: MeleteVault
 let originalVaultPath: string
@@ -64,6 +79,8 @@ beforeEach( async () => {
   originalVaultPath = config.vaultPath
   config.vaultPath = vault.vaultPath
   setSetting( 'melete_learning_root', 'Learning' )
+  setSetting( 'melete_grading_model', 'claude-haiku-5-5' )
+  grade.mockReset()
   resetScanClock()
 } )
 
@@ -327,5 +344,234 @@ describe( 'POST /api/melete/questions/:id/drop', () => {
       .status ).toBe( 404 )
     expect( ( await request( app ).post( '/api/melete/questions/nope/drop' ) ).status )
       .toBe( 400 )
+  } )
+} )
+
+const treeOf = async ( root: string ): Promise< string[] > => {
+  const names = await readdir( root, { recursive: true } )
+  const lines = await Promise.all( names.map( async ( name ) => {
+    const { mtimeMs, size } = await stat( join( root, name ) )
+
+    return `${ name }:${ mtimeMs }:${ size }`
+  } ) )
+
+  return lines.sort()
+}
+
+const PAST = '2026-01-01T00:00:00.000Z'
+
+// A question in an enrolled note that is already due
+const dueQuestion = async (): Promise< string > => {
+  await scanned()
+  await request( app )
+    .post( `/api/melete/subjects/${ subject( 'TypeScript' ).id }/enrollment` )
+    .send( { enrolled: true } )
+
+  return addQuestion( note( GENERICS ).id, { fsrsState: 'review', due: PAST } )
+}
+
+describe( 'GET /api/melete/review/next', () => {
+  it( 'answers 409 until a learning root is chosen', async () => {
+    setSetting( 'melete_learning_root', null )
+
+    const response = await request( app ).get( '/api/melete/review/next' )
+
+    expect( response.status ).toBe( 409 )
+    expect( response.body ).toEqual( { error: 'Choose a learning root first' } )
+  } )
+
+  it( 'returns the next due question with the counts', async () => {
+    const id = await dueQuestion()
+
+    const response = await request( app ).get( '/api/melete/review/next' )
+    const body = GetNextReviewResponse.parse( response.body )
+
+    expect( response.status ).toBe( 200 )
+    expect( body.item?.question.id ).toBe( id )
+    expect( body.item?.note ).toMatchObject( { path: 'Learning/TypeScript/Generics.md' } )
+    expect( body.counts ).toEqual( { due: 1, new_remaining: 0, learning_soon: 0 } )
+  } )
+
+  it( 'returns a null item when nothing is due', async () => {
+    await scanned()
+
+    const response = await request( app ).get( '/api/melete/review/next' )
+
+    expect( response.status ).toBe( 200 )
+    expect( GetNextReviewResponse.parse( response.body ).item ).toBeNull()
+  } )
+
+  it( 'limits the queue to one subject', async () => {
+    await dueQuestion()
+
+    const next = ( name: string ) => {
+      return request( app ).get( `/api/melete/review/next?subject=${ subject( name ).id }` )
+    }
+    const rust = await next( 'Rust' )
+    const typescript = await next( 'TypeScript' )
+
+    expect( GetNextReviewResponse.parse( rust.body ).item ).toBeNull()
+    expect( GetNextReviewResponse.parse( typescript.body ).item ).not.toBeNull()
+  } )
+
+  it( 'links to the note in Obsidian when the vault is named', async () => {
+    await dueQuestion()
+    const original = config.obsidianVaultName
+    config.obsidianVaultName = 'Brain'
+
+    try {
+      const response = await request( app ).get( '/api/melete/review/next' )
+
+      expect( GetNextReviewResponse.parse( response.body ).item?.obsidian_url )
+        .toBe( 'obsidian://open?vault=Brain&file=Learning%2FTypeScript%2FGenerics' )
+    } finally {
+      config.obsidianVaultName = original
+    }
+  } )
+
+  it( 'answers 400 for a subject that is not a uuid and 404 for an unknown one', async () => {
+    await scanned()
+
+    expect( ( await request( app ).get( '/api/melete/review/next?subject=nope' ) ).status )
+      .toBe( 400 )
+    expect( ( await request( app )
+      .get( `/api/melete/review/next?subject=${ crypto.randomUUID() }` ) ).status ).toBe( 404 )
+  } )
+
+  it( 'leaves the vault untouched', async () => {
+    await dueQuestion()
+    const before = await treeOf( vault.vaultPath )
+
+    await request( app ).get( '/api/melete/review/next' )
+
+    expect( await treeOf( vault.vaultPath ) ).toEqual( before )
+  } )
+} )
+
+describe( 'POST /api/melete/questions/:id/grade', () => {
+  const usage = { input_tokens: 10, output_tokens: 5 }
+  const output = {
+    verdict: 'partial' as const,
+    right: [ 'The idea' ],
+    missed: [ 'The detail' ],
+    feedback: 'Close.',
+    suggested_rating: 'hard' as const,
+  }
+
+  it( 'grades an answer', async () => {
+    const id = await dueQuestion()
+    grade.mockResolvedValue( { output, usage } )
+
+    const response = await request( app )
+      .post( `/api/melete/questions/${ id }/grade` )
+      .send( { answer: 'Some answer' } )
+    const body = GradeAnswerResponse.parse( response.body )
+
+    expect( response.status ).toBe( 200 )
+    expect( body ).toMatchObject( { outcome: 'graded', grade: output } )
+  } )
+
+  it( 'skips a blank answer', async () => {
+    const id = await dueQuestion()
+
+    const response = await request( app )
+      .post( `/api/melete/questions/${ id }/grade` )
+      .send( { answer: '  ' } )
+
+    expect( response.status ).toBe( 200 )
+    expect( response.body ).toEqual( { outcome: 'skipped', reason: 'blank' } )
+    expect( grade ).not.toHaveBeenCalled()
+  } )
+
+  it( 'still answers 200 when Claude fails', async () => {
+    const id = await dueQuestion()
+    grade.mockRejectedValue( new MeleteError( 'Grading failed: Rate limited' ) )
+
+    const response = await request( app )
+      .post( `/api/melete/questions/${ id }/grade` )
+      .send( { answer: 'Some answer' } )
+
+    expect( response.status ).toBe( 200 )
+    expect( response.body ).toMatchObject( {
+      outcome: 'failed',
+      reason: 'Grading failed: Rate limited',
+    } )
+  } )
+
+  it( 'answers 400 for a missing, non-text or too long answer and for a bad id', async () => {
+    const id = await dueQuestion()
+    const post = ( target: string, body: object ) => {
+      return request( app ).post( `/api/melete/questions/${ target }/grade` ).send( body )
+    }
+
+    expect( ( await post( id, {} ) ).status ).toBe( 400 )
+    expect( ( await post( id, { answer: 5 } ) ).status ).toBe( 400 )
+    expect( ( await post( id, { answer: 'x'.repeat( 4001 ) } ) ).status ).toBe( 400 )
+    expect( ( await post( 'nope', { answer: 'x' } ) ).status ).toBe( 400 )
+  } )
+
+  it( 'answers 404 for an unknown question and 409 for a dropped one', async () => {
+    const id = await dueQuestion()
+
+    expect( ( await request( app )
+      .post( `/api/melete/questions/${ crypto.randomUUID() }/grade` )
+      .send( { answer: 'x' } ) ).status ).toBe( 404 )
+
+    await request( app ).post( `/api/melete/questions/${ id }/drop` )
+
+    expect( ( await request( app )
+      .post( `/api/melete/questions/${ id }/grade` )
+      .send( { answer: 'x' } ) ).status ).toBe( 409 )
+  } )
+} )
+
+describe( 'POST /api/melete/questions/:id/review', () => {
+  const rate = ( id: string, body: object ) => {
+    return request( app ).post( `/api/melete/questions/${ id }/review` ).send( body )
+  }
+
+  it( 'records the rating, moves the question on and returns fresh counts', async () => {
+    const id = await dueQuestion()
+
+    const response = await rate( id, { rating: 'good', mode: 'quick' } )
+    const body = RecordReviewResponse.parse( response.body )
+
+    expect( response.status ).toBe( 200 )
+    expect( body.question ).toMatchObject( { id, reps: 1 } )
+    expect( body.question.due !== PAST ).toBe( true )
+    expect( body.counts.due ).toBe( 0 )
+    expect( findQuestion( id )?.reps ).toBe( 1 )
+  } )
+
+  it( 'answers 400 for a bad rating, mode, grade run or id, changing nothing', async () => {
+    const id = await dueQuestion()
+
+    expect( ( await rate( id, { rating: 'perfect', mode: 'quick' } ) ).status ).toBe( 400 )
+    expect( ( await rate( id, { rating: 'good', mode: 'slow' } ) ).status ).toBe( 400 )
+    expect( ( await rate( id, { rating: 'good' } ) ).status ).toBe( 400 )
+    expect( ( await rate( id, { rating: 'good', mode: 'typed', grade_run_id: 9999 } ) ).status )
+      .toBe( 400 )
+    expect( ( await rate( 'nope', { rating: 'good', mode: 'quick' } ) ).status ).toBe( 400 )
+    expect( findQuestion( id )?.reps ).toBe( 0 )
+  } )
+
+  it( 'answers 404 for an unknown question and 409 for a dropped one', async () => {
+    const id = await dueQuestion()
+
+    expect( ( await rate( crypto.randomUUID(), { rating: 'good', mode: 'quick' } ) ).status )
+      .toBe( 404 )
+
+    await request( app ).post( `/api/melete/questions/${ id }/drop` )
+
+    expect( ( await rate( id, { rating: 'good', mode: 'quick' } ) ).status ).toBe( 409 )
+  } )
+
+  it( 'leaves the vault untouched', async () => {
+    const id = await dueQuestion()
+    const before = await treeOf( vault.vaultPath )
+
+    await rate( id, { rating: 'easy', mode: 'quick' } )
+
+    expect( await treeOf( vault.vaultPath ) ).toEqual( before )
   } )
 } )

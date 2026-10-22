@@ -223,7 +223,7 @@ export const recordReview = async (
   questionId: string,
   body: RecordReviewBody,
   now = new Date(),
-  scheduler = appScheduler,
+  scheduler = appScheduler(),
 ): Promise< RecordReviewResponse > => {
   const question = requireReviewable( questionId )
 
