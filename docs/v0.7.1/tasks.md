@@ -110,7 +110,7 @@ The plan for this checkpoint is written after 9.1 has run: 9.1's table decides w
 | 9.6 | Major: `anthropic` 1.17.0 → 2.x in `apps/agent` (added by 9.1; stop and ask if it needs more than about 30 lines) | | ✅ |
 
 ## Checkpoint H: Phase 10 (clean-up and release)
-**Plan:** ⬜ `plans/checkpoint-h.md`
+**Plan:** ✅ [`plans/checkpoint-h.md`](plans/checkpoint-h.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
