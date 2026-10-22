@@ -1,0 +1,73 @@
+// Repositories
+import { getDatabase } from '../repositories/database.js'
+
+// Plain inserts for repository tests, so each test states only what it cares about
+
+export const addSubject = ( folder = 'Learning/TypeScript', newPerDay = 10 ): string => {
+  const id = crypto.randomUUID()
+
+  getDatabase()
+    .prepare( `INSERT INTO melete_subjects ( id, folder, new_per_day, created_at )
+      VALUES ( ?, ?, ?, '2026-10-01T00:00:00.000Z' )` )
+    .run( id, folder, newPerDay )
+
+  return id
+}
+
+type NoteOptions = {
+  path?: string
+  hash?: string
+  enrolled?: boolean
+  enrolledAt?: string | null
+  generation?: string
+  missingAt?: string | null
+}
+
+export const addNote = ( subjectId: string, options: NoteOptions = {} ): string => {
+  const id = crypto.randomUUID()
+  const {
+    path = `Learning/TypeScript/${ id }.md`,
+    hash = `hash-${ id }`,
+    enrolled = true,
+    enrolledAt = enrolled ? '2026-10-01T00:00:00.000Z' : null,
+    generation = 'idle',
+    missingAt = null,
+  } = options
+
+  getDatabase()
+    .prepare( `INSERT INTO melete_notes (
+        id, subject_id, path, title, body_hash, mtime_ms, size, enrolled, enrolled_at,
+        generation, missing_at, created_at
+      ) VALUES ( ?, ?, ?, 'Title', ?, 1, 1, ?, ?, ?, ?, '2026-10-01T00:00:00.000Z' )` )
+    .run( id, subjectId, path, hash, enrolled ? 1 : 0, enrolledAt, generation, missingAt )
+
+  return id
+}
+
+type QuestionOptions = {
+  position?: number
+  state?: string
+  fsrsState?: string
+  due?: string | null
+  hash?: string
+}
+
+export const addQuestion = ( noteId: string, options: QuestionOptions = {} ): string => {
+  const id = crypto.randomUUID()
+  const {
+    position = 1,
+    state = 'active',
+    fsrsState = 'new',
+    due = null,
+    hash = 'h',
+  } = options
+
+  getDatabase()
+    .prepare( `INSERT INTO melete_questions (
+        id, note_id, position, prompt, answer, passage, body_hash, state, run_id, due,
+        fsrs_state, created_at
+      ) VALUES ( ?, ?, ?, 'Prompt', 'Answer', '', ?, ?, 1, ?, ?, '2026-10-01T00:00:00.000Z' )` )
+    .run( id, noteId, position, hash, state, due, fsrsState )
+
+  return id
+}

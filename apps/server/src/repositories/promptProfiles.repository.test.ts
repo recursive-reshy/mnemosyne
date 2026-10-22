@@ -13,6 +13,7 @@ import {
   listVersions,
   markProfileDeleted,
   renameProfile,
+  setLastFolder,
 } from './promptProfiles.repository.js'
 
 const now = '2026-10-17T10:00:00.000Z'
@@ -69,6 +70,7 @@ describe( 'findProfileById', () => {
       name: 'Mine',
       seed_key: null,
       purpose: 'summary',
+      last_folder: null,
       created_at: now,
       deleted_at: null,
     } )
@@ -262,5 +264,55 @@ describe( 'profile purposes', () => {
     expect( countActiveProfiles() ).toBe( 4 )
     expect( countActiveProfiles( 'summary' ) ).toBe( 4 )
     expect( countActiveProfiles( 'linker' ) ).toBe( 1 )
+  } )
+} )
+
+describe( 'last_folder', () => {
+  it( 'starts empty on every profile', () => {
+    expect( listActiveProfiles().map( ( { last_folder } ) => last_folder ) )
+      .toEqual( [ null, null, null, null ] )
+    expect( findProfileBySeedKey( 'linker' )?.last_folder ).toBeNull()
+  } )
+
+  it( 'is remembered per profile and replaced by the next save', () => {
+    const coding = seededId( 'Coding' )
+    const general = seededId( 'General' )
+
+    setLastFolder( coding, 'Learning/TypeScript' )
+
+    expect( findProfileById( coding )?.last_folder ).toBe( 'Learning/TypeScript' )
+    expect( findProfileById( general )?.last_folder ).toBeNull()
+
+    setLastFolder( coding, 'Learning/React' )
+
+    expect( findProfileById( coding )?.last_folder ).toBe( 'Learning/React' )
+  } )
+
+  it( 'does nothing for an unknown profile', () => {
+    expect( () => setLastFolder( crypto.randomUUID(), 'Learning' ) ).not.toThrow()
+  } )
+
+  it( 'stays null for a profile added later', () => {
+    expect( findProfileById( addProfile( 'Mine' ) )?.last_folder ).toBeNull()
+  } )
+} )
+
+describe( 'the Melete profiles', () => {
+  it( 'are listed by their own purpose and not with the summary profiles', () => {
+    expect( listActiveProfiles( 'melete_questions' ).map( ( { name } ) => name ) )
+      .toEqual( [ 'Melete questions' ] )
+    expect( listActiveProfiles( 'melete_grading' ).map( ( { name } ) => name ) )
+      .toEqual( [ 'Melete grading' ] )
+    expect( listActiveProfiles().map( ( { name } ) => name ) )
+      .not.toContain( 'Melete questions' )
+  } )
+
+  it( 'are counted per purpose', () => {
+    expect( countActiveProfiles( 'melete_questions' ) ).toBe( 1 )
+    expect( countActiveProfiles( 'melete_grading' ) ).toBe( 1 )
+  } )
+
+  it( 'let a summary profile carry the same name', () => {
+    expect( () => addProfile( 'Melete questions' ) ).not.toThrow()
   } )
 } )

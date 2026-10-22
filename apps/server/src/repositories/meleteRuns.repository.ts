@@ -1,0 +1,42 @@
+// Packages
+import { z } from 'zod'
+// Repositories
+import { getDatabase } from './database.js'
+
+export const NewMeleteRun = z.object( {
+  kind: z.enum( [ 'generate', 'grade' ] ),
+  note_id: z.string().nullable(),
+  question_id: z.string().nullable(),
+  model: z.string(),
+  prompt_version_id: z.int(),
+  input_tokens: z.int().nullable(),
+  output_tokens: z.int().nullable(),
+  cost_usd: z.number().nullable(),
+  outcome: z.enum( [ 'succeeded', 'failed' ] ),
+  error: z.string().nullable(),
+  created_at: z.string(),
+} )
+export type NewMeleteRun = z.infer< typeof NewMeleteRun >
+
+export const MeleteRunRecord = NewMeleteRun.extend( { id: z.int() } )
+export type MeleteRunRecord = z.infer< typeof MeleteRunRecord >
+
+export const insertRun = ( run: NewMeleteRun ): number => {
+  const { lastInsertRowid } = getDatabase()
+    .prepare( `INSERT INTO melete_runs (
+        kind, note_id, question_id, model, prompt_version_id, input_tokens, output_tokens,
+        cost_usd, outcome, error, created_at
+      ) VALUES (
+        @kind, @note_id, @question_id, @model, @prompt_version_id, @input_tokens, @output_tokens,
+        @cost_usd, @outcome, @error, @created_at
+      )` )
+    .run( run )
+
+  return Number( lastInsertRowid )
+}
+
+export const findRun = ( id: number ): MeleteRunRecord | undefined => {
+  const row = getDatabase().prepare( 'SELECT * FROM melete_runs WHERE id = ?' ).get( id )
+
+  return row === undefined ? undefined : MeleteRunRecord.parse( row )
+}

@@ -13,12 +13,13 @@ export const ProfileRecord = z.object( {
   name: z.string(),
   seed_key: z.string().nullable(),
   purpose: ProfilePurpose,
+  last_folder: z.string().nullable(),
   created_at: z.string(),
   deleted_at: z.string().nullable(),
 } )
 export type ProfileRecord = z.infer< typeof ProfileRecord >
 
-export type NewProfile = Omit< ProfileRecord, 'deleted_at' | 'purpose' > & {
+export type NewProfile = Omit< ProfileRecord, 'deleted_at' | 'purpose' | 'last_folder' > & {
   purpose?: ProfilePurpose
 }
 export type WriteResult = { ok: true } | { ok: false, reason: 'name_taken' }
@@ -77,6 +78,12 @@ export const renameProfile = ( id: string, name: string ): WriteResult => {
   return writeProfile( () => {
     getDatabase().prepare( 'UPDATE prompt_profiles SET name = ? WHERE id = ?' ).run( name, id )
   } )
+}
+
+export const setLastFolder = ( profileId: string, folder: string ): void => {
+  getDatabase()
+    .prepare( 'UPDATE prompt_profiles SET last_folder = ? WHERE id = ?' )
+    .run( folder, profileId )
 }
 
 export const markProfileDeleted = ( id: string, deletedAt: string ): void => {
