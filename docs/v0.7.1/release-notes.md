@@ -1,7 +1,4 @@
 # Mnemosyne v0.7.1 — Release notes
-
-Not yet released. Set the date and tag `v0.7.1` when you are ready.
-
 v0.7.1 is a consolidation release. Settings is split into tabs, a Status panel shows whether every source and service is working, **Back up now** copies the database to a folder on your Mac, and the internals behind the seven feature releases are tightened: one enforced job lifecycle, JSON logs that follow a job across both services, an end-to-end smoke test and a dependency refresh. Transcribing, summarizing, linking, reviewing and saving behave as in 0.7.0.
 
 ## New
