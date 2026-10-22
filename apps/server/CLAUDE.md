@@ -39,6 +39,7 @@ Parsed once with Zod in `config.ts`; nothing else reads `process.env`. `.env.exa
 - `LOG_LEVEL` (ADR 0049): `fatal`, `error`, `warn`, `info` (default), `debug`, `trace` or `silent`; vitest runs with `silent`.
 - `STATUS_CHECK_INTERVAL_MINUTES` (ADR 0050, default 2): how often the service monitor checks the agent and whisper-server in the background.
 - `BACKUP_DIR` (ADR 0051): where `POST /api/backups` writes database copies; `/backups` in Docker (bind-mounted from `BACKUP_HOST_PATH`, the app container only).
+- Melete (ADRs 0056, 0060): `APP_TIME_ZONE` (an IANA name checked with `Intl.DateTimeFormat`, default `Asia/Singapore`) and `MELETE_DAY_START_HOUR` (0–23, default 4) set when Melete's day starts; `MELETE_REQUEST_RETENTION` (above 0.7, up to 0.99, default 0.9) is FSRS's target recall; `MELETE_GRADING_TIMEOUT_MS` (20000) and `MELETE_GENERATION_TIMEOUT_MS` (120000) bound the two Claude calls; `OBSIDIAN_VAULT_NAME` is optional and turns on "Open in Obsidian" links. They are `config.timeZone`, `config.melete` and `config.obsidianVaultName`.
 - `WEB_DIR`: empty in development (Vite serves the web app). When set, Express serves it, with an `index.html` fallback for paths without an extension.
 
 ## Folder structure

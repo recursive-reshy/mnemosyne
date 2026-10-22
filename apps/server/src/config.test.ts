@@ -28,6 +28,14 @@ describe( 'loadConfig', () => {
       logLevel: 'info',
       gmail: null,
       agent: null,
+      timeZone: 'Asia/Singapore',
+      obsidianVaultName: undefined,
+      melete: {
+        requestRetention: 0.9,
+        dayStartHour: 4,
+        gradingTimeoutMs: 20_000,
+        generationTimeoutMs: 120_000,
+      },
     } )
   } )
 
@@ -47,6 +55,12 @@ describe( 'loadConfig', () => {
       REVIEW_TTL_HOURS: '48',
       CLEANUP_INTERVAL_MINUTES: '5',
       STATUS_CHECK_INTERVAL_MINUTES: '3',
+      APP_TIME_ZONE: 'Europe/London',
+      OBSIDIAN_VAULT_NAME: 'My Vault',
+      MELETE_DAY_START_HOUR: '0',
+      MELETE_REQUEST_RETENTION: '0.85',
+      MELETE_GRADING_TIMEOUT_MS: '10000',
+      MELETE_GENERATION_TIMEOUT_MS: '90000',
     } )
 
     expect( config ).toEqual( {
@@ -67,6 +81,14 @@ describe( 'loadConfig', () => {
       logLevel: 'info',
       gmail: null,
       agent: null,
+      timeZone: 'Europe/London',
+      obsidianVaultName: 'My Vault',
+      melete: {
+        requestRetention: 0.85,
+        dayStartHour: 0,
+        gradingTimeoutMs: 10_000,
+        generationTimeoutMs: 90_000,
+      },
     } )
   } )
 
@@ -245,6 +267,78 @@ describe( 'loadConfig', () => {
       expect( () => loadConfig( { ...base, AGENT_SECRET: secret, AGENT_TIMEOUT_MS: '0' } ) )
         .toThrow( /AGENT_TIMEOUT_MS/ )
     } )
+  } )
+
+  describe( 'melete', () => {
+    it( 'treats empty values as unset', () => {
+      const config = loadConfig( {
+        ...base,
+        APP_TIME_ZONE: '',
+        OBSIDIAN_VAULT_NAME: '',
+        MELETE_DAY_START_HOUR: '',
+        MELETE_REQUEST_RETENTION: '',
+        MELETE_GRADING_TIMEOUT_MS: '',
+        MELETE_GENERATION_TIMEOUT_MS: '',
+      } )
+
+      expect( config.timeZone ).toBe( 'Asia/Singapore' )
+      expect( config.obsidianVaultName ).toBeUndefined()
+      expect( config.melete ).toEqual( {
+        requestRetention: 0.9,
+        dayStartHour: 4,
+        gradingTimeoutMs: 20_000,
+        generationTimeoutMs: 120_000,
+      } )
+    } )
+
+    it.each( [ 'Mars/Base', 'nonsense', 'UTC+8 please' ] )(
+      'throws naming APP_TIME_ZONE for %j',
+      ( zone ) => {
+        expect( () => loadConfig( { ...base, APP_TIME_ZONE: zone } ) ).toThrow( /APP_TIME_ZONE/ )
+      },
+    )
+
+    it.each( [ 'UTC', 'America/New_York', 'Asia/Singapore' ] )(
+      'accepts APP_TIME_ZONE %s',
+      ( zone ) => {
+        expect( loadConfig( { ...base, APP_TIME_ZONE: zone } ).timeZone ).toBe( zone )
+      },
+    )
+
+    it.each( [ '0.7', '0.5', '1', '1.5', 'abc' ] )(
+      'throws naming MELETE_REQUEST_RETENTION for %s',
+      ( value ) => {
+        expect( () => loadConfig( { ...base, MELETE_REQUEST_RETENTION: value } ) )
+          .toThrow( /MELETE_REQUEST_RETENTION/ )
+      },
+    )
+
+    it.each( [ '0.71', '0.9', '0.99' ] )( 'accepts MELETE_REQUEST_RETENTION %s', ( value ) => {
+      expect( loadConfig( { ...base, MELETE_REQUEST_RETENTION: value } ).melete.requestRetention )
+        .toBe( Number( value ) )
+    } )
+
+    it.each( [ '-1', '24', '1.5', 'abc' ] )(
+      'throws naming MELETE_DAY_START_HOUR for %s',
+      ( value ) => {
+        expect( () => loadConfig( { ...base, MELETE_DAY_START_HOUR: value } ) )
+          .toThrow( /MELETE_DAY_START_HOUR/ )
+      },
+    )
+
+    it.each( [ '0', '4', '23' ] )( 'accepts MELETE_DAY_START_HOUR %s', ( value ) => {
+      expect( loadConfig( { ...base, MELETE_DAY_START_HOUR: value } ).melete.dayStartHour )
+        .toBe( Number( value ) )
+    } )
+
+    it.each( [ 'MELETE_GRADING_TIMEOUT_MS', 'MELETE_GENERATION_TIMEOUT_MS' ] )(
+      'throws naming %s for zero, negative and fractional values',
+      ( name ) => {
+        for( const value of [ '0', '-5', '1.5', 'abc' ] ) {
+          expect( () => loadConfig( { ...base, [ name ]: value } ) ).toThrow( name )
+        }
+      },
+    )
   } )
 
   describe( 'gmail', () => {

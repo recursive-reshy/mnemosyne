@@ -21,6 +21,25 @@ const logLevelSchema = z
   .default( 'info' )
 const agentTimeoutSchema = z.coerce.number().int().positive().default( 120_000 )
 
+const isTimeZone = ( value: string ): boolean => {
+  try {
+    new Intl.DateTimeFormat( 'en', { timeZone: value } )
+
+    return true
+  } catch{
+    return false
+  }
+}
+
+const timeZoneSchema = z
+  .string()
+  .refine( isTimeZone, 'must be an IANA time zone, like Asia/Singapore' )
+  .default( 'Asia/Singapore' )
+const requestRetentionSchema = z.coerce.number().gt( 0.7 ).lte( 0.99 ).default( 0.9 )
+const dayStartHourSchema = z.coerce.number().int().min( 0 ).max( 23 ).default( 4 )
+const gradingTimeoutSchema = z.coerce.number().int().positive().default( 20_000 )
+const generationTimeoutSchema = z.coerce.number().int().positive().default( 120_000 )
+
 const isFolderPath = ( value: string ): boolean => {
   return value.split( '/' ).every( isValidFolderName )
 }
@@ -65,6 +84,12 @@ const EnvSchema = z
     AGENT_URL: z.preprocess( emptyAsUnset, z.url().default( 'http://localhost:8100' ) ),
     AGENT_SECRET: z.preprocess( emptyAsUnset, z.string().min( 32 ).optional() ),
     AGENT_TIMEOUT_MS: z.preprocess( emptyAsUnset, agentTimeoutSchema ),
+    APP_TIME_ZONE: z.preprocess( emptyAsUnset, timeZoneSchema ),
+    OBSIDIAN_VAULT_NAME: z.preprocess( emptyAsUnset, z.string().min( 1 ).optional() ),
+    MELETE_DAY_START_HOUR: z.preprocess( emptyAsUnset, dayStartHourSchema ),
+    MELETE_REQUEST_RETENTION: z.preprocess( emptyAsUnset, requestRetentionSchema ),
+    MELETE_GRADING_TIMEOUT_MS: z.preprocess( emptyAsUnset, gradingTimeoutSchema ),
+    MELETE_GENERATION_TIMEOUT_MS: z.preprocess( emptyAsUnset, generationTimeoutSchema ),
   } )
   .transform( ( env ) => ( {
     port: env.PORT,
@@ -96,6 +121,14 @@ const EnvSchema = z
     agent: env.AGENT_SECRET === undefined
       ? null
       : { url: env.AGENT_URL, secret: env.AGENT_SECRET, timeoutMs: env.AGENT_TIMEOUT_MS },
+    timeZone: env.APP_TIME_ZONE,
+    obsidianVaultName: env.OBSIDIAN_VAULT_NAME,
+    melete: {
+      requestRetention: env.MELETE_REQUEST_RETENTION,
+      dayStartHour: env.MELETE_DAY_START_HOUR,
+      gradingTimeoutMs: env.MELETE_GRADING_TIMEOUT_MS,
+      generationTimeoutMs: env.MELETE_GENERATION_TIMEOUT_MS,
+    },
   } ) )
 
 export type Config = z.infer< typeof EnvSchema >
