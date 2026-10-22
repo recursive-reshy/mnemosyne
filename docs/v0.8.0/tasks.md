@@ -34,7 +34,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 2.4 | Repositories `meleteSubjects`, `meleteNotes`, `meleteQuestions`, `meleteReviews`, `meleteRuns`; `promptProfiles` `last_folder` and `setLastFolder`; `apps/server/CLAUDE.md` (TRD §3.2) | 0058 | ✅ |
 
 ## Checkpoint B: Phase 3 (scanning and enrollment)
-**Plan:** ⬜ [`plans/checkpoint-b.md`](plans/checkpoint-b.md)
+**Plan:** ✅ [`plans/checkpoint-b.md`](plans/checkpoint-b.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
