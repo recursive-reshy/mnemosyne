@@ -61,7 +61,7 @@ pnpm --filter web exec playwright install chromium webkit
 
    Logs are in `~/Library/Logs/whisper-server.log`. `ops/README.md` has the check, stop and remove commands.
 
-2. Copy `.env.example` to `.env` and fill in `ANTHROPIC_API_KEY`, `VAULT_HOST_PATH` (the absolute path of your vault) and `AGENT_SECRET` (the secret the app and the vault agent service share; make one with `openssl rand -hex 32`). Compose refuses to start without it. Then start the app, which builds two images, the app and the agent:
+2. Copy `.env.example` to `.env` and fill in `ANTHROPIC_API_KEY`, `VAULT_HOST_PATH` (the absolute path of your vault), `BACKUP_HOST_PATH` (the absolute path of a folder for database backups; see [`docs/backups.md`](docs/backups.md)) and `AGENT_SECRET` (the secret the app and the vault agent service share; make one with `openssl rand -hex 32`). Compose refuses to start without it. Then start the app, which builds two images, the app and the agent:
 
    ```sh
    docker compose up -d --build
@@ -152,6 +152,7 @@ The server reads these environment variables. Empty values count as unset.
 | `WHISPER_URL` | `http://localhost:8178` | `http://host.docker.internal:8178` |
 | `WORK_DIR` | `<OS temp dir>/mnemosyne` | `/tmp/mnemosyne` |
 | `DATA_DIR` | `<OS temp dir>/mnemosyne-data` | `/data` (volume `mnemosyne-data`) |
+| `BACKUP_DIR` | `<OS temp dir>/mnemosyne-backups` | `/backups` (bind mount of `BACKUP_HOST_PATH`) |
 | `VAULT_PATH` | required | `/vault` (bind mount of `VAULT_HOST_PATH`) |
 | `DEFAULT_NOTE_FOLDER` | `Mnemosyne` | from `.env`, default `Mnemosyne` |
 | `ANTHROPIC_API_KEY` | required | from `.env` |
@@ -171,7 +172,7 @@ The server reads these environment variables. Empty values count as unset.
 - `WORK_DIR` holds audio files while a job runs; the folder is emptied when the server starts.
 - `WHISPER_MODEL` is only the label stored on each transcript (whisper-server doesn't report its model). Keep it in step with the model the agent runs.
 - `WEB_DIR` is the folder with the built web app; when set, Express serves it.
-- `DATA_DIR` holds `mnemosyne.db`. `VAULT_PATH` must exist and be writable at startup, or the server exits with a message.
+- `DATA_DIR` holds `mnemosyne.db`; **Back up now** (Settings → Sources) writes a consistent copy to `BACKUP_DIR`, and [`docs/backups.md`](docs/backups.md) says what is backed up and how to restore. `VAULT_PATH` must exist and be writable at startup, or the server exits with a message.
 - `DEFAULT_NOTE_FOLDER` is the vault folder notes go to unless you pick another in the review screen. It is relative to the vault, is created at startup if missing, and must be a plain path such as `Notes/Videos` (no `..`, no leading `/`, no folder starting with a dot). The server never writes outside the vault, whatever folder is asked for.
 - The four Google variables are optional. Gmail is off (Settings says so) unless the client ID, the secret and the key are all set; the rest of the app works without them. `TOKEN_ENCRYPTION_KEY` must be 32 bytes in base64 (`openssl rand -base64 32`); any other value stops the server at startup with a message. `GOOGLE_REDIRECT_URI` must match one of the redirect URIs in the Google client exactly.
 - `AGENT_SECRET` (at least 32 characters; `openssl rand -hex 32`) must be the same for the app and the agent service; in Docker one `.env` value feeds both. Without it the server starts with linking off and Settings says how to set it up. `AGENT_TIMEOUT_MS` is how long the server waits for one linking run; the agent's own run limit is 90 seconds. The agent service reads `ANTHROPIC_API_KEY`, `AGENT_SECRET` and `VAULT_PATH` (its vault mount is read-only), plus optional limits named `AGENT_MAX_TURNS`, `AGENT_MAX_TOOL_CALLS`, `AGENT_MAX_OUTPUT_TOKENS`, `AGENT_RUN_TIMEOUT_SECONDS`, `AGENT_MAX_SUGGESTIONS`, `AGENT_LIST_NOTES_LIMIT`, `AGENT_SEARCH_HITS_LIMIT`, `AGENT_SEARCH_SNIPPET_CHARS`, `AGENT_READ_NOTE_CHARS` and `AGENT_LINK_TARGETS_LIMIT` (the defaults are in `apps/agent/src/mnemosyne_agent/config.py`).
