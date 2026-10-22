@@ -13,6 +13,7 @@ import {
   SummaryError,
   SummaryResult,
   generateQuestions,
+  gradeAnswer,
   summarizeSource,
 } from './claude.client.js'
 // Errors
@@ -50,7 +51,7 @@ vi.mock( '../config.js', () => ( {
   config: {
     anthropicApiKey: 'sk-test',
     summaryTimeoutMs: 12_345,
-    melete: { generationTimeoutMs: 54_321 },
+    melete: { generationTimeoutMs: 54_321, gradingTimeoutMs: 7_654 },
   },
 } ) )
 
@@ -359,5 +360,79 @@ describe( 'generateQuestions', () => {
     parse.mockRejectedValue( new TypeError( 'boom' ) )
 
     await expect( generateQuestions( request ) ).rejects.toThrow( TypeError )
+  } )
+} )
+
+describe( 'gradeAnswer', () => {
+  const grade = {
+    verdict: 'partial',
+    right: [ 'Named the main idea' ],
+    missed: [ 'The side effects part' ],
+    feedback: 'You have the gist; say what makes it pure.',
+    suggested_rating: 'hard',
+  }
+  const request = { model: 'claude-haiku-5-5', system: 'Grade it.', user: '## Question\nWhy?' }
+
+  beforeEach( () => {
+    constructed.length = 0
+    parse.mockResolvedValue( reply( { parsed_output: grade } ) )
+  } )
+
+  it( 'returns the parsed grade with the tokens it used', async () => {
+    expect( await gradeAnswer( request ) ).toEqual( {
+      output: grade,
+      usage: { input_tokens: 1234, output_tokens: 56 },
+    } )
+  } )
+
+  it( 'builds the client with the key, the grading timeout and no retries', async () => {
+    await gradeAnswer( request )
+
+    expect( constructed ).toEqual( [ { apiKey: 'sk-test', timeout: 7_654, maxRetries: 0 } ] )
+  } )
+
+  it( 'asks for structured output at low effort with the given prompts', async () => {
+    await gradeAnswer( request )
+
+    const [ sent ] = parse.mock.calls.at( -1 ) as [ Record< string, unknown > ]
+
+    expect( sent ).toMatchObject( {
+      model: 'claude-haiku-5-5',
+      max_tokens: 1024,
+      system: 'Grade it.',
+      messages: [ { role: 'user', content: '## Question\nWhy?' } ],
+      output_config: { effort: 'low', format: expect.anything() as unknown },
+    } )
+  } )
+
+  it.each( [
+    [ { parsed_output: null }, 'Grading response did not match the expected format' ],
+    [ { parsed_output: { ...grade, suggested_rating: 'easy' } }, 'Grading response did not match' ],
+    [ { stop_reason: 'max_tokens' }, 'Grading was cut off' ],
+    [ { stop_reason: 'refusal' }, 'Grading was declined' ],
+  ] )( 'throws a MeleteError carrying the billed tokens (%j)', async ( overrides, message ) => {
+    parse.mockResolvedValue( reply( { parsed_output: grade, ...overrides } ) )
+
+    const error: unknown = await gradeAnswer( request ).catch( ( caught: unknown ) => caught )
+
+    expect( error ).toBeInstanceOf( MeleteError )
+    expect( ( error as MeleteError ).message ).toContain( message )
+    expect( ( error as MeleteError ).usage ).toEqual( { input_tokens: 1234, output_tokens: 56 } )
+  } )
+
+  it( 'wraps API errors in a MeleteError without usage', async () => {
+    parse.mockRejectedValue( new Anthropic.APIError( 429, undefined, 'Rate limited', undefined ) )
+
+    const error: unknown = await gradeAnswer( request ).catch( ( caught: unknown ) => caught )
+
+    expect( error ).toBeInstanceOf( MeleteError )
+    expect( ( error as MeleteError ).message ).toBe( 'Grading failed: Rate limited' )
+    expect( ( error as MeleteError ).usage ).toBeUndefined()
+  } )
+
+  it( 'lets other errors through unchanged', async () => {
+    parse.mockRejectedValue( new TypeError( 'boom' ) )
+
+    await expect( gradeAnswer( request ) ).rejects.toThrow( TypeError )
   } )
 } )

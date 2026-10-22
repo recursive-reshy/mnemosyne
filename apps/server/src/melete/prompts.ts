@@ -37,3 +37,16 @@ export const DEFAULT_MELETE_GRADING_GUIDANCE = 'Be strict about the core idea an
 export const buildMeleteSystemPrompt = ( locked: string, guidance: string ): string => {
   return `${ locked }\n\n## Guidance\n${ guidance }`
 }
+
+type GradingInput = { question: string, answer: string, passage: string, learnerAnswer: string }
+
+export const buildMeleteGradingUser = (
+  { question, answer, passage, learnerAnswer }: GradingInput,
+): string => {
+  return [
+    `## Question\n${ question }`,
+    `## Reference answer\n${ answer }`,
+    ...passage === '' ? [] : [ `## Passage\n${ passage }` ],
+    `## Learner's answer\n${ learnerAnswer }`,
+  ].join( '\n\n' )
+}

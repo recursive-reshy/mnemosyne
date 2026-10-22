@@ -10,31 +10,27 @@ import { MeleteError } from '../errors.js'
 // Melete
 import { LOCKED_INSTRUCTIONS_MELETE_QUESTIONS, buildMeleteSystemPrompt } from '../melete/prompts.js'
 import { processQuestions } from '../melete/questions.js'
+import { recordMeleteRun } from '../melete/runs.js'
 import { bodyHash, noteTitle, splitFrontMatter } from '../melete/scan.js'
 // Repositories
 import { getDatabase } from '../repositories/database.js'
 import { NoteRecord, findNote, updateNote } from '../repositories/meleteNotes.repository.js'
 import { insertQuestions, listForNote } from '../repositories/meleteQuestions.repository.js'
-import { insertRun } from '../repositories/meleteRuns.repository.js'
 import { findSubject } from '../repositories/meleteSubjects.repository.js'
 // Services
 import { scanLearningRoot } from './meleteScan.service.js'
 import { resolveMeletePrompt } from './prompts.service.js'
 import { resolveMeleteQuestionModel } from './settings.service.js'
-// Summarizer
-import { estimateCostUsd } from '../summarizer/pricing.js'
 // Logging
 import { logger } from '../logger.js'
 
 const MAX_BODY_CHARACTERS = 60_000
 
-type Usage = { input_tokens: number, output_tokens: number }
-
 type RunDetails = {
   noteId: string
   model: string
   promptVersionId: number
-  usage: Usage | undefined
+  usage: { input_tokens: number, output_tokens: number } | undefined
   error?: string
   now: Date
 }
@@ -48,23 +44,7 @@ const messageOf = ( error: unknown ): string => {
 }
 
 const recordRun = ( details: RunDetails ): number => {
-  const { noteId, model, promptVersionId, usage, error, now } = details
-  const inputTokens = usage?.input_tokens ?? null
-  const outputTokens = usage?.output_tokens ?? null
-
-  return insertRun( {
-    kind: 'generate',
-    note_id: noteId,
-    question_id: null,
-    model,
-    prompt_version_id: promptVersionId,
-    input_tokens: inputTokens,
-    output_tokens: outputTokens,
-    cost_usd: estimateCostUsd( model, inputTokens, outputTokens ),
-    outcome: error === undefined ? 'succeeded' : 'failed',
-    error: error ?? null,
-    created_at: now.toISOString(),
-  } )
+  return recordMeleteRun( { ...details, kind: 'generate' } )
 }
 
 const failNote = ( noteId: string, message: string, run?: RunDetails ): void => {

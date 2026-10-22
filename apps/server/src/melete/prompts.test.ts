@@ -11,6 +11,7 @@ import {
   LOCKED_INSTRUCTIONS_MELETE_QUESTIONS,
   MELETE_GRADING_SEED_KEY,
   MELETE_QUESTIONS_SEED_KEY,
+  buildMeleteGradingUser,
   buildMeleteSystemPrompt,
 } from './prompts.js'
 
@@ -89,5 +90,37 @@ describe( 'buildMeleteSystemPrompt', () => {
 
     expect( prompt.startsWith( LOCKED_INSTRUCTIONS_MELETE_QUESTIONS ) ).toBe( true )
     expect( prompt.endsWith( DEFAULT_MELETE_QUESTIONS_GUIDANCE ) ).toBe( true )
+  } )
+} )
+
+describe( 'buildMeleteGradingUser', () => {
+  const input = {
+    question: 'What is narrowing?',
+    answer: 'Refining a union type inside a branch.',
+    passage: 'Narrowing refines a union type.',
+    learnerAnswer: 'Making a type smaller.',
+  }
+
+  it( 'puts each part under its own heading', () => {
+    expect( buildMeleteGradingUser( input ) ).toBe( [
+      '## Question',
+      'What is narrowing?',
+      '',
+      '## Reference answer',
+      'Refining a union type inside a branch.',
+      '',
+      '## Passage',
+      'Narrowing refines a union type.',
+      '',
+      '## Learner\'s answer',
+      'Making a type smaller.',
+    ].join( '\n' ) )
+  } )
+
+  it( 'leaves out the passage when there is none', () => {
+    const user = buildMeleteGradingUser( { ...input, passage: '' } )
+
+    expect( user ).not.toContain( 'Passage' )
+    expect( user ).toContain( '## Reference answer\nRefining a union type inside a branch.\n\n## Learner' )
   } )
 } )

@@ -70,3 +70,34 @@ describe.skipIf( !hasApiKey )( 'generateQuestions (real Claude API)', () => {
     }
   } )
 } )
+
+describe.skipIf( !hasApiKey )( 'gradeAnswer (real Claude API)', () => {
+  it( 'grades a partly right answer without suggesting easy', async () => {
+    const { gradeAnswer } = await import( './claude.client.js' )
+    const {
+      DEFAULT_MELETE_GRADING_GUIDANCE,
+      LOCKED_INSTRUCTIONS_MELETE_GRADING,
+      buildMeleteGradingUser,
+      buildMeleteSystemPrompt,
+    } = await import( '../melete/prompts.js' )
+
+    const { output, usage } = await gradeAnswer( {
+      model: 'claude-haiku-5-5',
+      system: buildMeleteSystemPrompt(
+        LOCKED_INSTRUCTIONS_MELETE_GRADING,
+        DEFAULT_MELETE_GRADING_GUIDANCE,
+      ),
+      user: buildMeleteGradingUser( {
+        question: 'What does narrowing do?',
+        answer: 'It refines a union type inside a branch, for example after a typeof check.',
+        passage: 'Narrowing is how TypeScript refines a union type inside a branch.',
+        learnerAnswer: 'It makes a type smaller.',
+      } ),
+    } )
+
+    expect( usage.input_tokens ).toBeGreaterThan( 0 )
+    expect( [ 'again', 'hard', 'good' ] ).toContain( output.suggested_rating )
+    expect( output.feedback.trim() ).not.toBe( '' )
+  } )
+} )
+

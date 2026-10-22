@@ -7,20 +7,52 @@ import {
   it,
   vi,
 } from 'vitest'
+// Clients
+import { gradeAnswer as gradeWithClaude } from '../clients/claude.client.js'
 // Shared
-import { GetNextReviewResponse } from '@mnemosyne/shared'
+import {
+  GetNextReviewResponse,
+  GradeAnswerResponse,
+  RecordReviewResponse,
+} from '@mnemosyne/shared'
 // Errors
-import { ConflictError, NotFoundError } from '../errors.js'
+import {
+  ConflictError,
+  MeleteError,
+  NotFoundError,
+  ValidationError,
+} from '../errors.js'
+// Melete
+import {
+  LOCKED_INSTRUCTIONS_MELETE_GRADING,
+  buildMeleteGradingUser,
+  buildMeleteSystemPrompt,
+} from '../melete/prompts.js'
+import {
+  createScheduler,
+  fromRow,
+  nextCard,
+  toRow,
+} from '../melete/scheduler.js'
 // Repositories
+import { getDatabase } from '../repositories/database.js'
 import { listNotesUnder } from '../repositories/meleteNotes.repository.js'
-import { findQuestion } from '../repositories/meleteQuestions.repository.js'
+import { CardRow, findQuestion } from '../repositories/meleteQuestions.repository.js'
 import { insertReview } from '../repositories/meleteReviews.repository.js'
+import { insertRun } from '../repositories/meleteRuns.repository.js'
 import { listSubjects } from '../repositories/meleteSubjects.repository.js'
-import { setSetting } from '../repositories/settings.repository.js'
+import { getSetting, setSetting } from '../repositories/settings.repository.js'
 // Services
 import { setNoteEnrolled, setSubjectEnrolled, updateSubject } from './melete.service.js'
-import { getNextReview } from './meleteReview.service.js'
+import {
+  getNextReview,
+  gradeAnswer,
+  recordReview,
+} from './meleteReview.service.js'
 import { resetScanClock, scanLearningRoot } from './meleteScan.service.js'
+import { resolveMeletePrompt } from './prompts.service.js'
+// Logging
+import { logger } from '../logger.js'
 // Test support
 import { addQuestion } from '../test-support/meleteData.fixture.js'
 import { MeleteVault, createMeleteVault } from '../test-support/meleteVault.fixture.js'
@@ -34,6 +66,9 @@ const configMock = vi.hoisted( () => ( {
 } ) )
 
 vi.mock( '../config.js', () => ( { config: configMock } ) )
+vi.mock( '../clients/claude.client.js' )
+
+const grade = vi.mocked( gradeWithClaude )
 
 // 18:00 in Singapore, so the day started at 2026-10-21T20:00Z
 const NOW = new Date( '2026-10-22T10:00:00.000Z' )
@@ -88,6 +123,8 @@ beforeEach( async () => {
   configMock.obsidianVaultName = undefined
   configMock.melete.dayStartHour = 4
   setSetting( 'melete_learning_root', 'Learning' )
+  setSetting( 'melete_grading_model', 'claude-haiku-5-5' )
+  grade.mockReset()
   resetScanClock()
   await scanLearningRoot( { force: true, now: at( -60 ) } )
   await setSubjectEnrolled( subjectId( 'TypeScript' ), true, at( -50 ) )
@@ -315,5 +352,312 @@ describe( 'getNextReview', () => {
 
     expect( listNotesUnder( 'Learning' ).find( ( { id } ) => id === generics )?.generation )
       .toBe( 'queued' )
+  } )
+} )
+
+const usage = { input_tokens: 800, output_tokens: 120 }
+const graded = {
+  verdict: 'partial' as const,
+  right: [ 'Named the idea' ],
+  missed: [ 'The detail' ],
+  feedback: 'Close; add the detail.',
+  suggested_rating: 'hard' as const,
+}
+
+const runs = () => getDatabase().prepare( 'SELECT * FROM melete_runs ORDER BY id' ).all()
+const reviews = () => getDatabase().prepare( 'SELECT * FROM melete_reviews ORDER BY id' ).all()
+
+const reviewable = ( options: Parameters< typeof addQuestion >[ 1 ] = {} ): string => {
+  return addQuestion( noteId( GENERICS ), { fsrsState: 'review', due: iso( -60 ), ...options } )
+}
+
+describe( 'gradeAnswer', () => {
+  it( 'grades the answer against the reference and records the run', async () => {
+    const id = reviewable()
+    getDatabase().prepare( 'UPDATE melete_questions SET passage = ? WHERE id = ?' )
+      .run( 'The passage.', id )
+    setSetting( 'melete_grading_model', 'claude-sonnet-5-5' )
+    grade.mockResolvedValue( { output: graded, usage } )
+
+    const response = await gradeAnswer( id, { answer: 'My answer' }, at( 0 ) )
+
+    const { version } = resolveMeletePrompt( 'melete_grading' )
+    const [ run ] = runs()
+
+    expect( GradeAnswerResponse.parse( response ) ).toEqual( {
+      outcome: 'graded',
+      grade: graded,
+      run_id: ( run as { id: number } ).id,
+    } )
+    expect( grade ).toHaveBeenCalledWith( {
+      model: 'claude-sonnet-5-5',
+      system: buildMeleteSystemPrompt( LOCKED_INSTRUCTIONS_MELETE_GRADING, version.guidance ),
+      user: buildMeleteGradingUser( {
+        question: 'Prompt',
+        answer: 'Answer',
+        passage: 'The passage.',
+        learnerAnswer: 'My answer',
+      } ),
+    } )
+    expect( run ).toMatchObject( {
+      kind: 'grade',
+      note_id: null,
+      question_id: id,
+      model: 'claude-sonnet-5-5',
+      prompt_version_id: version.id,
+      input_tokens: 800,
+      output_tokens: 120,
+      outcome: 'succeeded',
+      error: null,
+      created_at: iso( 0 ),
+    } )
+    expect( ( run as { cost_usd: number } ).cost_usd ).toBeGreaterThan( 0 )
+  } )
+
+  it.each( [ '', '   ', 'idk', 'I don\'t know.', '???' ] )(
+    'skips grading a blank answer (%j) without a call or a run',
+    async ( answer ) => {
+      const id = reviewable()
+
+      expect( await gradeAnswer( id, { answer }, at( 0 ) ) )
+        .toEqual( { outcome: 'skipped', reason: 'blank' } )
+      expect( grade ).not.toHaveBeenCalled()
+      expect( runs() ).toHaveLength( 0 )
+    },
+  )
+
+  it( 'answers failed, with the run, when Claude gives nothing usable', async () => {
+    const id = reviewable()
+    grade.mockRejectedValue(
+      new MeleteError( 'Grading was cut off before it finished', { usage } ),
+    )
+
+    const response = await gradeAnswer( id, { answer: 'Something' }, at( 0 ) )
+    const [ run ] = runs()
+
+    expect( response ).toEqual( {
+      outcome: 'failed',
+      reason: 'Grading was cut off before it finished',
+      run_id: ( run as { id: number } ).id,
+    } )
+    expect( run ).toMatchObject( {
+      outcome: 'failed',
+      error: 'Grading was cut off before it finished',
+      input_tokens: 800,
+      output_tokens: 120,
+    } )
+  } )
+
+  it( 'records a failed run with no tokens when the call never produced any', async () => {
+    const id = reviewable()
+    grade.mockRejectedValue( new MeleteError( 'Grading failed: Rate limited' ) )
+
+    await gradeAnswer( id, { answer: 'Something' }, at( 0 ) )
+
+    expect( runs()[ 0 ] ).toMatchObject( {
+      outcome: 'failed',
+      input_tokens: null,
+      output_tokens: null,
+      cost_usd: null,
+    } )
+  } )
+
+  it( 'answers failed with no run for an unexpected error, and does not throw', async () => {
+    const id = reviewable()
+    grade.mockRejectedValue( new TypeError( 'boom' ) )
+
+    expect( await gradeAnswer( id, { answer: 'Something' }, at( 0 ) ) )
+      .toEqual( { outcome: 'failed', reason: 'Grading failed', run_id: null } )
+    expect( runs() ).toHaveLength( 0 )
+  } )
+
+  it( 'refuses an unknown question', async () => {
+    await expect( gradeAnswer( crypto.randomUUID(), { answer: 'x' }, at( 0 ) ) )
+      .rejects.toThrow( NotFoundError )
+  } )
+
+  it.each( [ 'dropped', 'retired' ] )( 'refuses a %s question', async ( state ) => {
+    const id = reviewable( { state } )
+
+    await expect( gradeAnswer( id, { answer: 'x' }, at( 0 ) ) ).rejects.toThrow( ConflictError )
+    expect( grade ).not.toHaveBeenCalled()
+  } )
+
+  it( 'refuses a question in an unenrolled note', async () => {
+    const id = reviewable()
+
+    setNoteEnrolled( noteId( GENERICS ), false, at( 0 ) )
+
+    await expect( gradeAnswer( id, { answer: 'x' }, at( 0 ) ) ).rejects.toThrow( ConflictError )
+  } )
+
+  it( 'does not log the answer', async () => {
+    const id = reviewable()
+    const spies = [ 'info', 'warn', 'error', 'debug' ].map( ( level ) => {
+      return vi.spyOn( logger, level as 'info' )
+    } )
+    grade.mockRejectedValue( new TypeError( 'boom' ) )
+
+    await gradeAnswer( id, { answer: 'a very private answer' }, at( 0 ) )
+
+    expect( JSON.stringify( spies.flatMap( ( spy ) => spy.mock.calls ) ) )
+      .not.toContain( 'a very private answer' )
+  } )
+} )
+
+describe( 'recordReview', () => {
+  const exact = createScheduler( { fuzz: false } )
+  const body = { rating: 'good', mode: 'quick' } as const
+
+  const cardOf = ( id: string ): CardRow => CardRow.parse( findQuestion( id ) )
+
+  it( 'moves the card on and stores the review with the card as it was', async () => {
+    const id = reviewable()
+    const before = cardOf( id )
+
+    const response = await recordReview(
+      id,
+      { ...body, answer: 'mine', suggested_rating: 'hard' },
+      at( 0 ),
+      exact,
+    )
+
+    const expected = toRow( nextCard( fromRow( before ), 'good', at( 0 ), exact ) )
+
+    expect( cardOf( id ) ).toEqual( expected )
+    expect( RecordReviewResponse.parse( response ).question ).toMatchObject( {
+      id,
+      fsrs_state: expected.fsrs_state,
+      due: expected.due,
+      reps: expected.reps,
+    } )
+    expect( reviews() ).toEqual( [ {
+      id: 1,
+      question_id: id,
+      reviewed_at: iso( 0 ),
+      mode: 'quick',
+      rating: 'good',
+      suggested_rating: 'hard',
+      answer: 'mine',
+      grade_run_id: null,
+      was_new: 0,
+      before_state: JSON.stringify( before ),
+    } ] )
+  } )
+
+  it( 'marks a review of a new question as new', async () => {
+    const id = addQuestion( noteId( GENERICS ) )
+
+    await recordReview( id, body, at( 0 ), exact )
+
+    expect( reviews()[ 0 ] ).toMatchObject( { was_new: 1 } )
+    expect( findQuestion( id )?.fsrs_state ).toBe( 'learning' )
+  } )
+
+  it( 'counts a new question served and then rated against the day\'s limit', async () => {
+    updateSubject( subjectId( 'TypeScript' ), { new_per_day: 1 } )
+    addQuestion( noteId( GENERICS ), { position: 1 } )
+    addQuestion( noteId( GENERICS ), { position: 2 } )
+
+    const served = await getNextReview( { now: at( 0 ) } )
+    const { counts } = await recordReview(
+      served.item?.question.id ?? '',
+      { rating: 'easy', mode: 'quick' },
+      at( 5 ),
+      exact,
+    )
+
+    expect( counts ).toEqual( { due: 0, new_remaining: 0, learning_soon: 0 } )
+    expect( ( await getNextReview( { now: at( 10 ) } ) ).item ).toBeNull()
+  } )
+
+  it( 'brings an Again on a new question back within the session', async () => {
+    const id = addQuestion( noteId( GENERICS ) )
+
+    const { counts } = await recordReview( id, { rating: 'again', mode: 'quick' }, at( 0 ), exact )
+
+    expect( counts.learning_soon ).toBe( 1 )
+    expect( ( await getNextReview( { now: at( 120 ) } ) ).item?.question.id ).toBe( id )
+  } )
+
+  it( 'remembers the mode only when it changes', async () => {
+    const id = reviewable()
+    setSetting( 'melete_review_mode', 'typed' )
+
+    await recordReview( id, { ...body, mode: 'typed' }, at( 0 ), exact )
+    expect( getSetting( 'melete_review_mode' ) ).toBe( 'typed' )
+
+    await recordReview( id, { ...body, mode: 'quick' }, at( 1 ), exact )
+    expect( getSetting( 'melete_review_mode' ) ).toBe( 'quick' )
+  } )
+
+  it( 'accepts the grading run for this question', async () => {
+    const id = reviewable()
+    grade.mockResolvedValue( { output: graded, usage } )
+    const response = await gradeAnswer( id, { answer: 'My answer' }, at( 0 ) )
+    const runId = response.outcome === 'graded' ? response.run_id : -1
+
+    await recordReview( id, { ...body, grade_run_id: runId }, at( 1 ), exact )
+
+    expect( reviews()[ 0 ] ).toMatchObject( { grade_run_id: runId } )
+  } )
+
+  it.each( [ 'another question', 'a generation run', 'no run' ] )(
+    'refuses a grade run id that is %s, changing nothing',
+    async ( which ) => {
+      const id = reviewable()
+      const other = reviewable( { position: 2 } )
+      const { version } = resolveMeletePrompt( 'melete_grading' )
+      const run = ( kind: 'grade' | 'generate', questionId: string | null ) => insertRun( {
+        kind,
+        note_id: null,
+        question_id: questionId,
+        model: 'm',
+        prompt_version_id: version.id,
+        input_tokens: null,
+        output_tokens: null,
+        cost_usd: null,
+        outcome: 'succeeded',
+        error: null,
+        created_at: iso( 0 ),
+      } )
+      const runIds: Record< string, number > = {
+        'another question': run( 'grade', other ),
+        'a generation run': run( 'generate', id ),
+        'no run': 9999,
+      }
+      const runId = runIds[ which ] ?? 0
+      const before = cardOf( id )
+
+      await expect( recordReview( id, { ...body, grade_run_id: runId }, at( 1 ), exact ) )
+        .rejects.toThrow( ValidationError )
+      expect( cardOf( id ) ).toEqual( before )
+      expect( reviews() ).toHaveLength( 0 )
+    },
+  )
+
+  it( 'rolls the card back when the review cannot be stored', async () => {
+    const id = reviewable()
+    const before = cardOf( id )
+    getDatabase().exec( `CREATE TRIGGER refuse_review BEFORE INSERT ON melete_reviews
+      BEGIN SELECT RAISE( ABORT, 'refused' ); END` )
+
+    await expect( recordReview( id, body, at( 0 ), exact ) ).rejects.toThrow( 'refused' )
+
+    expect( cardOf( id ) ).toEqual( before )
+  } )
+
+  it( 'refuses an unknown, dropped or unenrolled question', async () => {
+    const dropped = reviewable( { state: 'dropped' } )
+    const live = reviewable( { position: 2 } )
+
+    await expect( recordReview( crypto.randomUUID(), body, at( 0 ), exact ) )
+      .rejects.toThrow( NotFoundError )
+    await expect( recordReview( dropped, body, at( 0 ), exact ) ).rejects.toThrow( ConflictError )
+
+    setNoteEnrolled( noteId( GENERICS ), false, at( 0 ) )
+
+    await expect( recordReview( live, body, at( 0 ), exact ) ).rejects.toThrow( ConflictError )
+    expect( reviews() ).toHaveLength( 0 )
   } )
 } )

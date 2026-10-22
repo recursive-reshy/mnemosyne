@@ -3,7 +3,12 @@ import Anthropic from '@anthropic-ai/sdk'
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod'
 import { z } from 'zod'
 // Shared
-import { MeleteQuestionsOutput, SourceDocument, cleanText } from '@mnemosyne/shared'
+import {
+  MeleteGradeOutput,
+  MeleteQuestionsOutput,
+  SourceDocument,
+  cleanText,
+} from '@mnemosyne/shared'
 import type { VideoSource } from '@mnemosyne/shared'
 // Config
 import { config } from '../config.js'
@@ -192,6 +197,60 @@ export const generateQuestions = async (
   } catch( error ) {
     if( error instanceof Anthropic.APIError ) {
       throw new MeleteError( `Question generation failed: ${ error.message }`, { cause: error } )
+    }
+
+    throw error
+  }
+}
+
+export interface GradeOutcome {
+  output: MeleteGradeOutput
+  usage: TokenUsage
+}
+
+const GRADE_MAX_TOKENS = 1024
+
+// A retry would double the wait on the phone, so there is none
+export const gradeAnswer = async (
+  { model, system, user }: MeleteCall,
+): Promise< GradeOutcome > => {
+  const client = new Anthropic( {
+    apiKey: config.anthropicApiKey,
+    timeout: config.melete.gradingTimeoutMs,
+    maxRetries: 0,
+  } )
+
+  try {
+    const response = await client.messages.parse( {
+      model,
+      max_tokens: GRADE_MAX_TOKENS,
+      system,
+      messages: [ { role: 'user', content: user } ],
+      output_config: { effort: 'low', format: zodOutputFormat( MeleteGradeOutput ) },
+    } )
+    const usage = {
+      input_tokens: response.usage.input_tokens,
+      output_tokens: response.usage.output_tokens,
+    }
+
+    if( response.stop_reason === 'max_tokens' ) {
+      throw new MeleteError( 'Grading was cut off before it finished', { usage } )
+    }
+
+    if( response.stop_reason === 'refusal' ) {
+      throw new MeleteError( 'Grading was declined by the model', { usage } )
+    }
+
+    const parsed = MeleteGradeOutput.safeParse( response.parsed_output )
+
+    if( !parsed.success ) {
+      throw new MeleteError( 'Grading response did not match the expected format', { usage } )
+    }
+
+    return { output: parsed.data, usage }
+  } catch( error ) {
+    if( error instanceof Anthropic.APIError ) {
+      throw new MeleteError( `Grading failed: ${ error.message }`, { cause: error } )
     }
 
     throw error
