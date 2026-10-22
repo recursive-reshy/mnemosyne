@@ -12,17 +12,21 @@ import {
 // App
 import { NavDrawer } from './NavDrawer'
 import { ApiError } from '#src/api/apiError'
-import { getGmailAccount } from '#src/api/gmail.api'
-import { gmailAccountFixture } from '#src/test-support/gmail.fixture'
+import { getStatus } from '#src/api/status.api'
 import { renderWithClient } from '#src/test-support/renderWithClient'
+import {
+  failingRowFixture,
+  statusFixture,
+  statusRowFixture,
+} from '#src/test-support/status.fixture'
 
-vi.mock( '#src/api/gmail.api' )
+vi.mock( '#src/api/status.api' )
 
-const mockedGetAccount = vi.mocked( getGmailAccount )
+const mockedGetStatus = vi.mocked( getStatus )
 
 beforeEach( () => {
-  mockedGetAccount.mockReset()
-  mockedGetAccount.mockResolvedValue( gmailAccountFixture() )
+  mockedGetStatus.mockReset()
+  mockedGetStatus.mockResolvedValue( statusFixture( [ statusRowFixture() ] ) )
 } )
 
 const defaults = {
@@ -180,64 +184,86 @@ describe( 'NavDrawer, narrow', () => {
   } )
 } )
 
-describe( 'NavDrawer, Gmail warning', () => {
-  const RECONNECT = 'Settings, Gmail needs reconnecting'
+describe( 'NavDrawer, failing badge on Settings', () => {
+  const failing = ( count: number ) => {
+    return statusFixture( Array.from( { length: count }, ( _, index ) => {
+      return failingRowFixture( { kind: 'feed', id: `f${ index }`, name: `Feed ${ index }` } )
+    } ) )
+  }
 
-  beforeEach( () => {
-    mockedGetAccount.mockResolvedValue(
-      gmailAccountFixture( { status: 'reconnect_needed', error: 'revoked' } ),
-    )
-  } )
+  const badgeOf = ( link: HTMLElement ): Element | null => {
+    return link.querySelector( '.MuiBadge-badge:not(.MuiBadge-invisible)' )
+  }
 
-  it( 'marks Settings with a warning dot when Gmail needs reconnecting', async () => {
+  it( 'shows the number of failing things and says it in the name', async () => {
+    mockedGetStatus.mockResolvedValue( failing( 3 ) )
     renderWithClient( <NavDrawer { ...defaults } /> )
 
-    const link = await screen.findByRole( 'link', { name: RECONNECT } )
+    const link = await screen.findByRole( 'link', { name: 'Settings, 3 failing' } )
 
     expect( link ).toHaveAttribute( 'href', '/settings' )
-    expect( link.querySelector( '.MuiBadge-dot' ) ).not.toBeNull()
+    expect( badgeOf( link ) ).toHaveTextContent( '3' )
     expect( link ).toHaveTextContent( 'Settings' )
   } )
 
-  it( 'still shows the dot and the name when collapsed to icons', async () => {
+  it( 'counts one failing thing too', async () => {
+    mockedGetStatus.mockResolvedValue( failing( 1 ) )
+    renderWithClient( <NavDrawer { ...defaults } /> )
+
+    expect( await screen.findByRole( 'link', { name: 'Settings, 1 failing' } ) )
+      .toBeInTheDocument()
+  } )
+
+  it( 'counts the Gmail connection when it needs a reconnect', async () => {
+    mockedGetStatus.mockResolvedValue( statusFixture( [
+      failingRowFixture( { kind: 'gmail_connection', name: 'Gmail connection' } ),
+      statusRowFixture(),
+    ] ) )
+    renderWithClient( <NavDrawer { ...defaults } /> )
+
+    expect( await screen.findByRole( 'link', { name: 'Settings, 1 failing' } ) )
+      .toBeInTheDocument()
+  } )
+
+  it( 'still shows the number and the name when collapsed to icons', async () => {
     const user = userEvent.setup()
+
+    mockedGetStatus.mockResolvedValue( failing( 2 ) )
     renderWithClient( <NavDrawer { ...defaults } isExpanded={ false } /> )
 
-    const link = await screen.findByRole( 'link', { name: RECONNECT } )
+    const link = await screen.findByRole( 'link', { name: 'Settings, 2 failing' } )
 
     await user.hover( link )
 
-    expect( link.querySelector( '.MuiBadge-dot' ) ).not.toBeNull()
-    expect( await screen.findByRole( 'tooltip' ) ).toHaveTextContent( RECONNECT )
+    expect( badgeOf( link ) ).toHaveTextContent( '2' )
+    expect( await screen.findByRole( 'tooltip' ) ).toHaveTextContent( 'Settings, 2 failing' )
   } )
 
   it( 'shows it in the narrow drawer too', async () => {
+    mockedGetStatus.mockResolvedValue( failing( 2 ) )
     renderWithClient( <NavDrawer { ...defaults } isNarrow isOpen /> )
 
-    expect( await screen.findByRole( 'link', { name: RECONNECT } ) ).toBeVisible()
+    expect( await screen.findByRole( 'link', { name: 'Settings, 2 failing' } ) ).toBeVisible()
   } )
 
-  it.each( [ 'connected', 'not_connected', 'not_configured' ] as const )(
-    'shows no dot when the account is %s',
-    async ( status ) => {
-      mockedGetAccount.mockResolvedValue( gmailAccountFixture( { status, email: null } ) )
-      renderWithClient( <NavDrawer { ...defaults } /> )
-
-      await vi.waitFor( () => expect( mockedGetAccount ).toHaveBeenCalled() )
-
-      const link = screen.getByRole( 'link', { name: 'Settings' } )
-
-      expect( link.querySelector( '.MuiBadge-dot:not(.MuiBadge-invisible)' ) ).toBeNull()
-      expect( screen.queryByRole( 'link', { name: RECONNECT } ) ).not.toBeInTheDocument()
-    },
-  )
-
-  it( 'shows no dot while loading or when the account can not be read', async () => {
-    mockedGetAccount.mockRejectedValue( new ApiError( 'Could not reach the server', null ) )
+  it( 'shows no badge and keeps the plain name when nothing is failing', async () => {
     renderWithClient( <NavDrawer { ...defaults } /> )
 
-    expect( screen.queryByRole( 'link', { name: RECONNECT } ) ).not.toBeInTheDocument()
-    await vi.waitFor( () => expect( mockedGetAccount ).toHaveBeenCalled() )
-    expect( screen.queryByRole( 'link', { name: RECONNECT } ) ).not.toBeInTheDocument()
+    await vi.waitFor( () => expect( mockedGetStatus ).toHaveBeenCalled() )
+
+    const link = screen.getByRole( 'link', { name: 'Settings' } )
+
+    expect( badgeOf( link ) ).toBeNull()
+    expect( screen.queryByRole( 'link', { name: /failing/ } ) ).not.toBeInTheDocument()
+  } )
+
+  it( 'shows no badge while loading or when the status can not be read', async () => {
+    mockedGetStatus.mockRejectedValue( new ApiError( 'Could not reach the server', null ) )
+    renderWithClient( <NavDrawer { ...defaults } /> )
+
+    expect( screen.queryByRole( 'link', { name: /failing/ } ) ).not.toBeInTheDocument()
+    await vi.waitFor( () => expect( mockedGetStatus ).toHaveBeenCalled() )
+    expect( screen.queryByRole( 'link', { name: /failing/ } ) ).not.toBeInTheDocument()
+    expect( badgeOf( screen.getByRole( 'link', { name: 'Settings' } ) ) ).toBeNull()
   } )
 } )
