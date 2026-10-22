@@ -4,6 +4,7 @@
 
 Each version has its own folder. The current version is 0.7.1.
 
+- **v0.8.0 (planned):** [PRD](v0.8.0/prd.md) · [TRD](v0.8.0/trd.md) · [Tasks](v0.8.0/tasks.md) · checkpoint plans in `v0.8.0/plans/`
 - **v0.7.1 (done):** [PRD](v0.7.1/prd.md) · [TRD](v0.7.1/trd.md) · [Tasks](v0.7.1/tasks.md) · [Release notes](v0.7.1/release-notes.md) · checkpoint plans in `v0.7.1/plans/`
 - **v0.7.0 (done):** [PRD](v0.7.0/prd.md) · [TRD](v0.7.0/trd.md) · [Tasks](v0.7.0/tasks.md) · [Release notes](v0.7.0/release-notes.md) · checkpoint plans in `v0.7.0/plans/`
 - **v0.6.0 (done):** [PRD](v0.6.0/prd.md) · [TRD](v0.6.0/trd.md) · [Tasks](v0.6.0/tasks.md) · [Release notes](v0.6.0/release-notes.md) · checkpoint plans in `v0.6.0/plans/`
@@ -73,6 +74,13 @@ Each significant decision is recorded as a short ADR (Architecture Decision Reco
 | [0051](decisions/0051-manual-database-backups.md) | Manual database backups with SQLite's online backup, to a host folder | Accepted |
 | [0052](decisions/0052-data-router-and-settings-routes.md) | A data router, Settings as routed tabs, and one unsaved-changes guard | Accepted |
 | [0053](decisions/0053-e2e-smoke-test.md) | End-to-end smoke test: the real Compose stack against local fakes, driven by Playwright | Accepted |
+| [0054](decisions/0054-modules-share-the-vault-own-their-data.md) | Modules share the vault read-only and own their data | Proposed |
+| [0055](decisions/0055-melete-in-express.md) | Melete's Claude calls run in Express, not the agent service | Proposed |
+| [0056](decisions/0056-fsrs-scheduling.md) | FSRS scheduling with ts-fsrs | Proposed |
+| [0057](decisions/0057-note-identity-and-scans.md) | Note identity: path plus body hash, on-demand scans | Proposed |
+| [0058](decisions/0058-melete-data-and-generator-loop.md) | Melete's data model and generator loop | Proposed |
+| [0059](decisions/0059-study-profile-and-folder-memory.md) | Study profile and per-profile folder memory | Proposed |
+| [0060](decisions/0060-phone-access.md) | Phone access: localhost-only port, Tailscale Serve, installable web app | Proposed |
 
 ## Template for new ADRs
 
