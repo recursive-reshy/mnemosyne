@@ -47,7 +47,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 3.6 | `melete.routes.ts` and controller for today, subjects, enrollment, notes, regenerate, retry, drop (TRD §10, first eight rows); mounted in `app.ts` | 0054 | ✅ |
 
 ## Checkpoint C: Phase 4 (question generation)
-**Plan:** ⬜ [`plans/checkpoint-c.md`](plans/checkpoint-c.md)
+**Plan:** ✅ [`plans/checkpoint-c.md`](plans/checkpoint-c.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
