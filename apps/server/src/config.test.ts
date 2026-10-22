@@ -15,6 +15,7 @@ describe( 'loadConfig', () => {
       whisperUrl: 'http://localhost:8178',
       workDir: join( tmpdir(), 'mnemosyne' ),
       dataDir: join( tmpdir(), 'mnemosyne-data' ),
+      backupDir: join( tmpdir(), 'mnemosyne-backups' ),
       whisperModel: 'large-v3-turbo',
       webDir: undefined,
       anthropicApiKey: 'sk-test',
@@ -39,6 +40,7 @@ describe( 'loadConfig', () => {
       WHISPER_URL: 'http://host.docker.internal:8178',
       WORK_DIR: '/tmp/custom',
       DATA_DIR: '/data',
+      BACKUP_DIR: '/backups',
       WHISPER_MODEL: 'large-v3',
       WEB_DIR: '/srv/web',
       SUMMARY_TIMEOUT_MS: '60000',
@@ -52,6 +54,7 @@ describe( 'loadConfig', () => {
       whisperUrl: 'http://host.docker.internal:8178',
       workDir: '/tmp/custom',
       dataDir: '/data',
+      backupDir: '/backups',
       whisperModel: 'large-v3',
       webDir: '/srv/web',
       anthropicApiKey: 'sk-test',
@@ -106,6 +109,12 @@ describe( 'loadConfig', () => {
   it( 'treats an empty DATA_DIR as unset', () => {
     expect( loadConfig( { ...base, DATA_DIR: '' } ).dataDir ).toBe(
       join( tmpdir(), 'mnemosyne-data' ),
+    )
+  } )
+
+  it( 'treats an empty BACKUP_DIR as unset', () => {
+    expect( loadConfig( { ...base, BACKUP_DIR: '' } ).backupDir ).toBe(
+      join( tmpdir(), 'mnemosyne-backups' ),
     )
   } )
 

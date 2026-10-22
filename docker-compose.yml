@@ -11,9 +11,11 @@ services:
       AGENT_URL: http://agent:8100
       LOG_LEVEL: ${LOG_LEVEL:-info}
       STATUS_CHECK_INTERVAL_MINUTES: ${STATUS_CHECK_INTERVAL_MINUTES:-2}
+      BACKUP_DIR: /backups
     volumes:
       - mnemosyne-data:/data
       - ${VAULT_HOST_PATH:?Set VAULT_HOST_PATH in .env to your Obsidian vault folder}:/vault
+      - ${BACKUP_HOST_PATH:?Set BACKUP_HOST_PATH in .env to your backups folder}:/backups
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped

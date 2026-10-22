@@ -38,6 +38,7 @@ Parsed once with Zod in `config.ts`; nothing else reads `process.env`. `.env.exa
 - The vault agent service (ADR 0042) is optional: `config.agent` is `null` unless `AGENT_SECRET` (at least 32 characters) is set, and then jobs skip linking. `AGENT_URL` defaults to `http://localhost:8100`, `AGENT_TIMEOUT_MS` to 120000.
 - `LOG_LEVEL` (ADR 0049): `fatal`, `error`, `warn`, `info` (default), `debug`, `trace` or `silent`; vitest runs with `silent`.
 - `STATUS_CHECK_INTERVAL_MINUTES` (ADR 0050, default 2): how often the service monitor checks the agent and whisper-server in the background.
+- `BACKUP_DIR` (ADR 0051): where `POST /api/backups` writes database copies; `/backups` in Docker (bind-mounted from `BACKUP_HOST_PATH`, the app container only).
 - `WEB_DIR`: empty in development (Vite serves the web app). When set, Express serves it, with an `index.html` fallback for paths without an extension.
 
 ## Folder structure
