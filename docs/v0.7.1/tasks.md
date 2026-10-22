@@ -85,7 +85,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 7.5 | `docs/backups.md` with the real volume and file names, linked from the README (TRD §6.5). The restore drill itself is done with Naresh in 10.3 | 0051 | ✅ |
 
 ## Checkpoint F: Phase 8 (end-to-end smoke test)
-**Plan:** ⬜ `plans/checkpoint-f.md`
+**Plan:** ✅ [`plans/checkpoint-f.md`](plans/checkpoint-f.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
