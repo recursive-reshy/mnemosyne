@@ -95,7 +95,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 8.3 | `article.spec.ts`, `feed.spec.ts`, `status.spec.ts`; root `CLAUDE.md` "Before you stop": `pnpm e2e` at the end of every checkpoint (TRD §7.4–7.5) | 0053 | ✅ |
 
 ## Checkpoint G: Phase 9 (dependency refresh)
-**Plan:** ⬜ `plans/checkpoint-g.md`
+**Plan:** ✅ [`plans/checkpoint-g.md`](plans/checkpoint-g.md)
 
 The plan for this checkpoint is written after 9.1 has run: 9.1's table decides which major-upgrade tasks are added after 9.4 (one per major, as 9.6, 9.7, …).
 
