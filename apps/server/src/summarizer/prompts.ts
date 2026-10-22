@@ -29,11 +29,15 @@ Use only what the article says. When you add your own judgement, label it as you
 The guidance below may talk about videos; apply it to this article the same way.
 Follow the guidance below on what to focus on and how to frame it. If it conflicts with the rules above, the rules above win.`
 
-export type SeedKey = 'business' | 'coding' | 'general'
+export type SeedKey = 'business' | 'coding' | 'general' | 'study'
+
+export const STUDY_SEED_KEY = 'study'
 
 export const LINKER_SEED_KEY = 'linker'
 
 export const DEFAULT_LINKER_GUIDANCE = `Link this note to what it is genuinely about, not to every noun it mentions. Prefer a few strong links over many weak ones. Link to existing notes first, then to existing concepts, and only then propose a new concept. Good concepts are ideas, methods, fields, tools, companies or people that are likely to come up again in other notes (for example Pricing Strategy, Customer Discovery, TypeScript). Avoid concepts that are too broad to be useful (Business, Technology) or too narrow to recur (a single statistic or anecdote). When the note discusses a business idea, link the market, the customer problem and the business model concepts it touches.`
+
+export const STUDY_GUIDANCE = `Summarize this for someone learning the subject, so the note can be studied and quizzed on later. Lead with the key concepts, each with a plain definition. Explain how things work and why, not just what. Capture any steps or procedures in order, with what each step is for. Keep the examples that make an idea click. Call out common mistakes, misconceptions and limits. Leave out anecdotes, sponsor segments, calls to action and anything about the presenter. Use precise terms and define jargon the first time it appears.`
 
 export const SEEDED_PROFILES: { seedKey: SeedKey, name: string, guidance: string }[] = [
   {

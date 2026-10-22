@@ -22,7 +22,16 @@ import { SourceDocument, parseNote } from '@mnemosyne/shared'
 // Test support
 import { transcriptFixture } from '../test-support/transcript.fixture.js'
 // Summarizer
-import { DEFAULT_LINKER_GUIDANCE, SEEDED_PROFILES } from '../summarizer/prompts.js'
+import {
+  DEFAULT_LINKER_GUIDANCE,
+  SEEDED_PROFILES,
+  STUDY_GUIDANCE,
+} from '../summarizer/prompts.js'
+// Melete
+import {
+  DEFAULT_MELETE_GRADING_GUIDANCE,
+  DEFAULT_MELETE_QUESTIONS_GUIDANCE,
+} from '../melete/prompts.js'
 // Repositories
 import {
   closeDatabase,
@@ -1444,7 +1453,7 @@ describe( 'migration 8 (health)', () => {
 
     runMigrations( database, migrations.slice( 0, 7 ) )
     seed( database )
-    runMigrations( database, migrations )
+    runMigrations( database, migrations.slice( 0, 8 ) )
 
     return database
   }
@@ -1452,7 +1461,7 @@ describe( 'migration 8 (health)', () => {
   it( 'creates empty health tables and the errors index on an empty database', () => {
     const database = new Database( ':memory:' )
 
-    runMigrations( database, migrations )
+    runMigrations( database, migrations.slice( 0, 8 ) )
 
     expect( database.pragma( 'user_version', { simple: true } ) ).toBe( 8 )
     expect( healthRows( database ) ).toEqual( [] )
@@ -1555,6 +1564,304 @@ describe( 'migration 8 (health)', () => {
     expect( () => runMigrations( database, migrations ) ).toThrow()
     expect( database.pragma( 'user_version', { simple: true } ) ).toBe( 7 )
     expect( columnNames( database, 'feeds' ) ).toContain( 'last_checked_at' )
+  } )
+} )
+
+describe( 'migration 9 (Melete)', () => {
+  type ProfileRow = {
+    id: string
+    name: string
+    seed_key: string | null
+    purpose: string
+    last_folder: string | null
+  }
+
+  const columnNames = ( database: Database.Database, table: string ): string[] => {
+    return ( database.pragma( `table_info(${ table })` ) as { name: string }[] )
+      .map( ( { name } ) => name )
+  }
+
+  const names = ( database: Database.Database, type: string ): string[] => {
+    return ( database
+      .prepare( `SELECT name FROM sqlite_master
+        WHERE type = ? AND name LIKE 'melete_%' ORDER BY name` )
+      .all( type ) as { name: string }[] ).map( ( { name } ) => name )
+  }
+
+  const profiles = ( database: Database.Database, purpose: string ): ProfileRow[] => {
+    return database
+      .prepare( 'SELECT * FROM prompt_profiles WHERE purpose = ? ORDER BY rowid' )
+      .all( purpose ) as ProfileRow[]
+  }
+
+  const versionsOf = ( database: Database.Database, profileId: string ): unknown[] => {
+    return database
+      .prepare( 'SELECT version, guidance, source FROM prompt_versions WHERE profile_id = ?' )
+      .all( profileId )
+  }
+
+  const insertV8 = ( database: Database.Database ): void => {
+    database.prepare( `INSERT INTO prompt_profiles ( id, name, seed_key, created_at )
+      VALUES ( 'p-custom', 'Custom', NULL, '2026-10-01T10:00:00.000Z' ),
+        ( 'p-second', 'Second', NULL, '2026-10-02T10:00:00.000Z' )` ).run()
+    database.prepare( `INSERT INTO prompt_versions
+      ( profile_id, version, guidance, source, created_at )
+      VALUES ( 'p-custom', 1, 'Custom guidance', 'edit', '2026-10-01T10:00:00.000Z' ),
+        ( 'p-second', 1, 'Second guidance', 'edit', '2026-10-02T10:00:00.000Z' )` ).run()
+    database.prepare( `INSERT INTO jobs (
+        id, url, status, title, source_document, note_markdown, target_folder, expires_at,
+        summary_model, prompt_profile_id, source_type, created_at, updated_at
+      ) VALUES ( 'review', 'https://example.com/a', 'ready_for_review', 'A post', ?,
+        '---\ntitle: "T"\n---\n\nBody\n', 'Learning', '2026-10-19T10:00:00.000Z',
+        'claude-sonnet-5-5', 'p-custom', 'video', '2026-10-18T10:00:00.000Z',
+        '2026-10-18T10:00:00.000Z' )` ).run( JSON.stringify( transcriptFixture ) )
+  }
+
+  const upgraded = ( seed: ( database: Database.Database ) => void ): Database.Database => {
+    const database = new Database( ':memory:' )
+
+    runMigrations( database, migrations.slice( 0, 8 ) )
+    seed( database )
+    runMigrations( database, migrations )
+
+    return database
+  }
+
+  const snapshot = ( database: Database.Database ): unknown => ( {
+    jobs: database.prepare( 'SELECT * FROM jobs' ).all(),
+    versions: database
+      .prepare( 'SELECT * FROM prompt_versions WHERE profile_id LIKE \'p-%\'' )
+      .all(),
+    settings: database.prepare( 'SELECT * FROM settings ORDER BY key' ).all(),
+  } )
+
+  it( 'adds migration 9 and records user_version 9', () => {
+    const database = upgraded( () => undefined )
+
+    expect( migrations.length ).toBeGreaterThanOrEqual( 9 )
+    expect( database.pragma( 'user_version', { simple: true } ) ).toBe( migrations.length )
+  } )
+
+  it( 'creates the five tables and their indexes', () => {
+    const database = upgraded( () => undefined )
+
+    expect( names( database, 'table' ) ).toEqual( [
+      'melete_notes',
+      'melete_questions',
+      'melete_reviews',
+      'melete_runs',
+      'melete_subjects',
+    ] )
+    expect( names( database, 'index' ).filter( ( name ) => !name.startsWith( 'sqlite_' ) ) )
+      .toEqual( [
+        'melete_notes_hash',
+        'melete_notes_path',
+        'melete_notes_queue',
+        'melete_questions_due',
+        'melete_questions_note',
+        'melete_reviews_day',
+        'melete_reviews_question',
+        'melete_runs_note',
+      ] )
+  } )
+
+  it( 'lists the columns of each new table as the TRD defines them', () => {
+    const database = upgraded( () => undefined )
+
+    expect( columnNames( database, 'melete_subjects' ) )
+      .toEqual( [ 'id', 'folder', 'auto_enroll', 'new_per_day', 'created_at' ] )
+    expect( columnNames( database, 'melete_notes' ) ).toEqual( [
+      'id', 'subject_id', 'path', 'title', 'body_hash', 'mtime_ms', 'size', 'enrolled',
+      'enrolled_at', 'generation', 'generation_error', 'missing_at', 'created_at',
+    ] )
+    expect( columnNames( database, 'melete_questions' ) ).toEqual( [
+      'id', 'note_id', 'position', 'prompt', 'answer', 'passage', 'body_hash', 'state',
+      'run_id', 'due', 'stability', 'difficulty', 'scheduled_days', 'learning_steps', 'reps',
+      'lapses', 'fsrs_state', 'last_review', 'created_at',
+    ] )
+    expect( columnNames( database, 'melete_reviews' ) ).toEqual( [
+      'id', 'question_id', 'reviewed_at', 'mode', 'rating', 'suggested_rating', 'answer',
+      'grade_run_id', 'was_new', 'before_state',
+    ] )
+    expect( columnNames( database, 'melete_runs' ) ).toEqual( [
+      'id', 'kind', 'note_id', 'question_id', 'model', 'prompt_version_id', 'input_tokens',
+      'output_tokens', 'cost_usd', 'outcome', 'error', 'created_at',
+    ] )
+    expect( columnNames( database, 'prompt_profiles' ) ).toContain( 'last_folder' )
+  } )
+
+  it( 'defaults a subject, a note and a question as the TRD says', () => {
+    const database = upgraded( () => undefined )
+
+    database.prepare( `INSERT INTO melete_subjects ( id, folder, created_at )
+      VALUES ( 's', 'Learning/TS', 'now' )` ).run()
+    database.prepare( `INSERT INTO melete_notes (
+        id, subject_id, path, title, body_hash, mtime_ms, size, created_at
+      ) VALUES ( 'n', 's', 'Learning/TS/A.md', 'A', 'h', 1, 2, 'now' )` ).run()
+    database.prepare( `INSERT INTO melete_questions (
+        id, note_id, position, prompt, answer, passage, body_hash, state, run_id, created_at
+      ) VALUES ( 'q', 'n', 1, 'P', 'A', '', 'h', 'active', 1, 'now' )` ).run()
+
+    expect( database.prepare( 'SELECT auto_enroll, new_per_day FROM melete_subjects' ).get() )
+      .toEqual( { auto_enroll: 0, new_per_day: 10 } )
+    expect( database.prepare( `SELECT enrolled, enrolled_at, generation, generation_error,
+      missing_at FROM melete_notes` ).get() )
+      .toEqual( {
+        enrolled: 0,
+        enrolled_at: null,
+        generation: 'idle',
+        generation_error: null,
+        missing_at: null,
+      } )
+    expect( database.prepare( 'SELECT * FROM melete_questions' ).get() ).toMatchObject( {
+      due: null,
+      stability: 0,
+      difficulty: 0,
+      scheduled_days: 0,
+      learning_steps: 0,
+      reps: 0,
+      lapses: 0,
+      fsrs_state: 'new',
+      last_review: null,
+    } )
+  } )
+
+  it( 'allows one subject per folder', () => {
+    const database = upgraded( () => undefined )
+    const insert = (): unknown => database.prepare( `INSERT INTO melete_subjects
+      ( id, folder, created_at ) VALUES ( ?, 'Learning/TS', 'now' )` ).run( crypto.randomUUID() )
+
+    expect( insert ).not.toThrow()
+    expect( insert ).toThrow()
+  } )
+
+  it( 'allows a path twice only when one of the notes is missing', () => {
+    const database = upgraded( () => undefined )
+
+    database.prepare( `INSERT INTO melete_subjects ( id, folder, created_at )
+      VALUES ( 's', 'Learning/TS', 'now' )` ).run()
+
+    const insert = ( id: string, missingAt: string | null ): unknown => database
+      .prepare( `INSERT INTO melete_notes (
+          id, subject_id, path, title, body_hash, mtime_ms, size, missing_at, created_at
+        ) VALUES ( ?, 's', 'Learning/TS/A.md', 'A', 'h', 1, 2, ?, 'now' )` )
+      .run( id, missingAt )
+
+    expect( () => insert( 'gone', '2026-10-22T00:00:00.000Z' ) ).not.toThrow()
+    expect( () => insert( 'live', null ) ).not.toThrow()
+    expect( () => insert( 'second-live', null ) ).toThrow()
+  } )
+
+  it( 'seeds Study, Melete questions and Melete grading with version 1', () => {
+    const database = upgraded( insertV8 )
+    const study = profiles( database, 'summary' ).filter( ( { seed_key } ) => seed_key === 'study' )
+    const questions = profiles( database, 'melete_questions' )
+    const grading = profiles( database, 'melete_grading' )
+
+    expect( study ).toHaveLength( 1 )
+    expect( study[ 0 ] ).toMatchObject( { name: 'Study', last_folder: null } )
+    expect( versionsOf( database, study[ 0 ]?.id ?? '' ) )
+      .toEqual( [ { version: 1, guidance: STUDY_GUIDANCE, source: 'seed' } ] )
+    expect( questions ).toHaveLength( 1 )
+    expect( questions[ 0 ] )
+      .toMatchObject( { name: 'Melete questions', seed_key: 'melete_questions' } )
+    expect( versionsOf( database, questions[ 0 ]?.id ?? '' ) )
+      .toEqual( [ { version: 1, guidance: DEFAULT_MELETE_QUESTIONS_GUIDANCE, source: 'seed' } ] )
+    expect( grading ).toHaveLength( 1 )
+    expect( grading[ 0 ] ).toMatchObject( { name: 'Melete grading', seed_key: 'melete_grading' } )
+    expect( versionsOf( database, grading[ 0 ]?.id ?? '' ) )
+      .toEqual( [ { version: 1, guidance: DEFAULT_MELETE_GRADING_GUIDANCE, source: 'seed' } ] )
+    expect( study[ 0 ]?.id ).toMatch( /^[0-9a-f-]{36}$/ )
+  } )
+
+  it( 'leaves existing profiles, versions, the job and the settings untouched', () => {
+    const database = new Database( ':memory:' )
+
+    runMigrations( database, migrations.slice( 0, 8 ) )
+    insertV8( database )
+
+    const expected = snapshot( database )
+
+    runMigrations( database, migrations )
+
+    expect( snapshot( database ) ).toEqual( expected )
+    expect( database.prepare( 'SELECT last_folder FROM prompt_profiles WHERE id = ?' )
+      .get( 'p-custom' ) ).toEqual( { last_folder: null } )
+  } )
+
+  it( 'seeds the same profiles from an empty database, once each', () => {
+    const database = new Database( ':memory:' )
+
+    runMigrations( database, migrations )
+
+    const seeds = database
+      .prepare( `SELECT seed_key, COUNT(*) AS count FROM prompt_profiles
+        WHERE seed_key IN ( ?, ?, ? ) GROUP BY seed_key ORDER BY seed_key` )
+      .all( 'study', 'melete_questions', 'melete_grading' )
+
+    expect( seeds ).toEqual( [
+      { seed_key: 'melete_grading', count: 1 },
+      { seed_key: 'melete_questions', count: 1 },
+      { seed_key: 'study', count: 1 },
+    ] )
+  } )
+
+  it( 'creates the profiles once, even when migrating again', () => {
+    const database = upgraded( () => undefined )
+
+    runMigrations( database, migrations )
+
+    expect( database
+      .prepare( `SELECT COUNT(*) AS count FROM prompt_profiles
+        WHERE seed_key IN ( 'study', 'melete_questions', 'melete_grading' )` )
+      .get() ).toEqual( { count: 3 } )
+  } )
+
+  it( 'does not add a second Study when a profile with the seed key already exists', () => {
+    const database = upgraded( ( db ) => {
+      db.prepare( `INSERT INTO prompt_profiles ( id, name, seed_key, created_at )
+        VALUES ( 'p-study', 'Study', 'study', 'now' )` ).run()
+      db.prepare( `INSERT INTO prompt_versions
+        ( profile_id, version, guidance, source, created_at )
+        VALUES ( 'p-study', 1, 'Mine', 'seed', 'now' )` ).run()
+    } )
+
+    expect( database
+      .prepare( 'SELECT id, name FROM prompt_profiles WHERE seed_key = \'study\'' )
+      .all() ).toEqual( [ { id: 'p-study', name: 'Study' } ] )
+  } )
+
+  it.each( [ 'Study', 'study', 'STUDY' ] )(
+    'keeps a summary profile called %s and names the seeded one Study (seeded)',
+    ( name ) => {
+      const database = upgraded( ( db ) => {
+        db.prepare( `INSERT INTO prompt_profiles ( id, name, created_at )
+          VALUES ( 'p-mine', ?, 'now' )` ).run( name )
+        db.prepare( `INSERT INTO prompt_versions
+          ( profile_id, version, guidance, source, created_at )
+          VALUES ( 'p-mine', 1, 'Mine', 'edit', 'now' )` ).run()
+      } )
+      const seeded = profiles( database, 'summary' )
+        .filter( ( { seed_key } ) => seed_key === 'study' )
+
+      expect( database.prepare( 'SELECT name FROM prompt_profiles WHERE id = \'p-mine\'' ).get() )
+        .toEqual( { name } )
+      expect( seeded ).toHaveLength( 1 )
+      expect( seeded[ 0 ]?.name ).toBe( 'Study (seeded)' )
+      expect( versionsOf( database, seeded[ 0 ]?.id ?? '' ) )
+        .toEqual( [ { version: 1, guidance: STUDY_GUIDANCE, source: 'seed' } ] )
+    },
+  )
+
+  it( 'rolls back completely when a later step fails', () => {
+    const database = new Database( ':memory:' )
+
+    runMigrations( database, migrations.slice( 0, 8 ) )
+    database.exec( 'CREATE TABLE melete_runs ( blocker TEXT )' )
+
+    expect( () => runMigrations( database, migrations ) ).toThrow()
+    expect( database.pragma( 'user_version', { simple: true } ) ).toBe( 8 )
+    expect( columnNames( database, 'prompt_profiles' ) ).not.toContain( 'last_folder' )
   } )
 } )
 

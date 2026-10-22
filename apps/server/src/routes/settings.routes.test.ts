@@ -16,6 +16,13 @@ import { config } from '../config.js'
 // Clients
 import { AgentError, checkHealth, fetchInstructions } from '../clients/agent.client.js'
 import { listSummaryModels } from '../clients/anthropicModels.client.js'
+// Melete
+import {
+  LOCKED_INSTRUCTIONS_MELETE_GRADING,
+  LOCKED_INSTRUCTIONS_MELETE_QUESTIONS,
+} from '../melete/prompts.js'
+// Repositories
+import { findProfileBySeedKey } from '../repositories/promptProfiles.repository.js'
 // Services
 import { clearModelCache } from '../services/models.service.js'
 import { listProfiles, resolveLinkerPrompt } from '../services/prompts.service.js'
@@ -63,14 +70,14 @@ describe( 'GET /api/settings', () => {
         melete_question_model: 'claude-sonnet-5-5',
         melete_grading_model: 'claude-sonnet-5-5',
         melete_review_mode: 'typed',
-        melete_question_profile_id: '00000000-0000-0000-0000-000000000000',
-        melete_grading_profile_id: '00000000-0000-0000-0000-000000000000',
+        melete_question_profile_id: findProfileBySeedKey( 'melete_questions' )?.id,
+        melete_grading_profile_id: findProfileBySeedKey( 'melete_grading' )?.id,
       },
       locked_instructions: {
         video: LOCKED_INSTRUCTIONS_VIDEO,
         article: LOCKED_INSTRUCTIONS_ARTICLE,
-        melete_questions: '',
-        melete_grading: '',
+        melete_questions: LOCKED_INSTRUCTIONS_MELETE_QUESTIONS,
+        melete_grading: LOCKED_INSTRUCTIONS_MELETE_GRADING,
       },
       linker_locked_instructions: null,
       agent_status: 'not_configured',

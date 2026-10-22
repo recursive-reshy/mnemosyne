@@ -1,11 +1,11 @@
 // Packages
 import { z } from 'zod'
 // Shared
-import { PromptVersion, PromptVersionSource } from '@mnemosyne/shared'
+import { PromptPurpose, PromptVersion, PromptVersionSource } from '@mnemosyne/shared'
 // Repositories
 import { getDatabase } from './database.js'
 
-export const ProfilePurpose = z.enum( [ 'summary', 'linker' ] )
+export const ProfilePurpose = PromptPurpose
 export type ProfilePurpose = z.infer< typeof ProfilePurpose >
 
 export const ProfileRecord = z.object( {

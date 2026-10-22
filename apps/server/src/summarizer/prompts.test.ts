@@ -8,6 +8,8 @@ import {
   LOCKED_INSTRUCTIONS_ARTICLE,
   LOCKED_INSTRUCTIONS_VIDEO,
   SEEDED_PROFILES,
+  STUDY_GUIDANCE,
+  STUDY_SEED_KEY,
   buildSystemPrompt,
 } from './prompts.js'
 
@@ -122,5 +124,23 @@ describe( 'buildSystemPrompt', () => {
     expect( buildSystemPrompt( 'Focus on pricing.', 'article' ) ).toBe(
       `${ LOCKED_INSTRUCTIONS_ARTICLE }\n\n<guidance>\nFocus on pricing.\n</guidance>`,
     )
+  } )
+} )
+
+describe( 'the Study profile text', () => {
+  it( 'uses the seed key study', () => {
+    expect( STUDY_SEED_KEY ).toBe( 'study' )
+  } )
+
+  it( 'is the text of TRD §8', () => {
+    expect( STUDY_GUIDANCE ).toBe( 'Summarize this for someone learning the subject, so the note can be studied and quizzed on later. Lead with the key concepts, each with a plain definition. Explain how things work and why, not just what. Capture any steps or procedures in order, with what each step is for. Keep the examples that make an idea click. Call out common mistakes, misconceptions and limits. Leave out anecdotes, sponsor segments, calls to action and anything about the presenter. Use precise terms and define jargon the first time it appears.' )
+  } )
+
+  it( 'passes the guidance rules for an editable prompt', () => {
+    expect( Guidance.safeParse( STUDY_GUIDANCE ).success ).toBe( true )
+  } )
+
+  it( 'is not in SEEDED_PROFILES yet (task 6.1 adds it)', () => {
+    expect( SEEDED_PROFILES.some( ( { seedKey } ) => seedKey === 'study' ) ).toBe( false )
   } )
 } )

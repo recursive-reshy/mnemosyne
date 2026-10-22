@@ -13,7 +13,15 @@ import { AgentError, checkHealth, fetchInstructions } from '../clients/agent.cli
 // Config
 import { config } from '../config.js'
 // Repositories
+import { findProfileBySeedKey } from '../repositories/promptProfiles.repository.js'
 import { getSetting, setSetting } from '../repositories/settings.repository.js'
+// Melete
+import {
+  LOCKED_INSTRUCTIONS_MELETE_GRADING,
+  LOCKED_INSTRUCTIONS_MELETE_QUESTIONS,
+  MELETE_GRADING_SEED_KEY,
+  MELETE_QUESTIONS_SEED_KEY,
+} from '../melete/prompts.js'
 // Summarizer
 import { SHIPPED_DEFAULT_MODEL } from '../summarizer/models.js'
 import { LOCKED_INSTRUCTIONS_ARTICLE, LOCKED_INSTRUCTIONS_VIDEO } from '../summarizer/prompts.js'
@@ -28,8 +36,6 @@ import {
 import { logger } from '../logger.js'
 
 const DEFAULT_FEED_INTERVAL = 60
-// Placeholder until migration 9 seeds the Melete profiles
-const NO_PROFILE = '00000000-0000-0000-0000-000000000000'
 
 const storedModel = ( key: string ): string | undefined => {
   const stored = getSetting( key )
@@ -72,6 +78,16 @@ export const resolveLinkingModel = async (): Promise< string > => {
   }
 }
 
+const meleteProfileId = ( seedKey: string ): string => {
+  const record = findProfileBySeedKey( seedKey )
+
+  if( record === undefined ) {
+    throw new Error( `The ${ seedKey } prompt profile is missing` )
+  }
+
+  return record.id
+}
+
 export const getSettings = async (): Promise< Settings > => {
   return {
     default_model: getDefaultModel(),
@@ -87,16 +103,16 @@ export const getSettings = async (): Promise< Settings > => {
     melete_grading_model: storedModel( 'melete_grading_model' ) ?? SHIPPED_DEFAULT_MODEL,
     melete_review_mode: MeleteReviewMode.catch( 'typed' )
       .parse( getSetting( 'melete_review_mode' ) ),
-    melete_question_profile_id: NO_PROFILE,
-    melete_grading_profile_id: NO_PROFILE,
+    melete_question_profile_id: meleteProfileId( MELETE_QUESTIONS_SEED_KEY ),
+    melete_grading_profile_id: meleteProfileId( MELETE_GRADING_SEED_KEY ),
   }
 }
 
 export const getLockedInstructions = (): GetSettingsResponse[ 'locked_instructions' ] => ( {
   video: LOCKED_INSTRUCTIONS_VIDEO,
   article: LOCKED_INSTRUCTIONS_ARTICLE,
-  melete_questions: '',
-  melete_grading: '',
+  melete_questions: LOCKED_INSTRUCTIONS_MELETE_QUESTIONS,
+  melete_grading: LOCKED_INSTRUCTIONS_MELETE_GRADING,
 } )
 
 const agentSection = async (): Promise<

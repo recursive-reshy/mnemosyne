@@ -13,7 +13,16 @@ import {
   DEFAULT_LINKER_GUIDANCE,
   LINKER_SEED_KEY,
   SEEDED_PROFILES,
+  STUDY_GUIDANCE,
+  STUDY_SEED_KEY,
 } from '../summarizer/prompts.js'
+// Melete
+import {
+  DEFAULT_MELETE_GRADING_GUIDANCE,
+  DEFAULT_MELETE_QUESTIONS_GUIDANCE,
+  MELETE_GRADING_SEED_KEY,
+  MELETE_QUESTIONS_SEED_KEY,
+} from '../melete/prompts.js'
 
 const addNoteColumns = ( db: Database.Database ): void => {
   db.exec( 'ALTER TABLE jobs ADD COLUMN note_markdown TEXT' )
@@ -347,6 +356,142 @@ const addHealth = ( db: Database.Database ): void => {
   ALTER TABLE gmail_sources DROP COLUMN last_error;` )
 }
 
+type SeedProfile = {
+  name: string
+  seedKey: string
+  purpose: string
+  guidance: string
+}
+
+const seedProfile = ( db: Database.Database, profile: SeedProfile ): void => {
+  const exists = db.prepare( 'SELECT 1 FROM prompt_profiles WHERE seed_key = ?' )
+    .get( profile.seedKey )
+
+  if( exists !== undefined ) {
+    return
+  }
+
+  const taken = db.prepare( `SELECT 1 FROM prompt_profiles
+    WHERE purpose = ? AND lower( name ) = lower( ? ) AND deleted_at IS NULL` )
+    .get( profile.purpose, profile.name )
+  const id = crypto.randomUUID()
+  const now = new Date().toISOString()
+
+  const name = taken === undefined ? profile.name : `${ profile.name } (seeded)`
+
+  db.prepare( `INSERT INTO prompt_profiles ( id, name, seed_key, purpose, created_at )
+    VALUES ( ?, ?, ?, ?, ? )` )
+    .run( id, name, profile.seedKey, profile.purpose, now )
+  db.prepare( `INSERT INTO prompt_versions
+    ( profile_id, version, guidance, source, created_at ) VALUES ( ?, 1, ?, 'seed', ? )` )
+    .run( id, profile.guidance, now )
+}
+
+const addMelete = ( db: Database.Database ): void => {
+  db.exec( `CREATE TABLE melete_subjects (
+    id TEXT PRIMARY KEY,
+    folder TEXT NOT NULL UNIQUE,
+    auto_enroll INTEGER NOT NULL DEFAULT 0,
+    new_per_day INTEGER NOT NULL DEFAULT 10,
+    created_at TEXT NOT NULL
+  );
+
+  CREATE TABLE melete_notes (
+    id TEXT PRIMARY KEY,
+    subject_id TEXT NOT NULL REFERENCES melete_subjects ( id ),
+    path TEXT NOT NULL,
+    title TEXT NOT NULL,
+    body_hash TEXT NOT NULL,
+    mtime_ms INTEGER NOT NULL,
+    size INTEGER NOT NULL,
+    enrolled INTEGER NOT NULL DEFAULT 0,
+    enrolled_at TEXT,
+    generation TEXT NOT NULL DEFAULT 'idle',
+    generation_error TEXT,
+    missing_at TEXT,
+    created_at TEXT NOT NULL
+  );
+  CREATE UNIQUE INDEX melete_notes_path ON melete_notes ( path ) WHERE missing_at IS NULL;
+  CREATE INDEX melete_notes_hash ON melete_notes ( body_hash );
+  CREATE INDEX melete_notes_queue ON melete_notes ( generation, enrolled_at );
+
+  CREATE TABLE melete_questions (
+    id TEXT PRIMARY KEY,
+    note_id TEXT NOT NULL REFERENCES melete_notes ( id ),
+    position INTEGER NOT NULL,
+    prompt TEXT NOT NULL,
+    answer TEXT NOT NULL,
+    passage TEXT NOT NULL,
+    body_hash TEXT NOT NULL,
+    state TEXT NOT NULL,
+    run_id INTEGER NOT NULL,
+    due TEXT,
+    stability REAL NOT NULL DEFAULT 0,
+    difficulty REAL NOT NULL DEFAULT 0,
+    scheduled_days INTEGER NOT NULL DEFAULT 0,
+    learning_steps INTEGER NOT NULL DEFAULT 0,
+    reps INTEGER NOT NULL DEFAULT 0,
+    lapses INTEGER NOT NULL DEFAULT 0,
+    fsrs_state TEXT NOT NULL DEFAULT 'new',
+    last_review TEXT,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX melete_questions_note ON melete_questions ( note_id, state, position );
+  CREATE INDEX melete_questions_due ON melete_questions ( state, due );
+
+  CREATE TABLE melete_reviews (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    question_id TEXT NOT NULL REFERENCES melete_questions ( id ),
+    reviewed_at TEXT NOT NULL,
+    mode TEXT NOT NULL,
+    rating TEXT NOT NULL,
+    suggested_rating TEXT,
+    answer TEXT,
+    grade_run_id INTEGER,
+    was_new INTEGER NOT NULL,
+    before_state TEXT NOT NULL
+  );
+  CREATE INDEX melete_reviews_question ON melete_reviews ( question_id, reviewed_at );
+  CREATE INDEX melete_reviews_day ON melete_reviews ( reviewed_at );
+
+  CREATE TABLE melete_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind TEXT NOT NULL,
+    note_id TEXT,
+    question_id TEXT,
+    model TEXT NOT NULL,
+    prompt_version_id INTEGER NOT NULL REFERENCES prompt_versions ( id ),
+    input_tokens INTEGER,
+    output_tokens INTEGER,
+    cost_usd REAL,
+    outcome TEXT NOT NULL,
+    error TEXT,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX melete_runs_note ON melete_runs ( note_id, id );
+
+  ALTER TABLE prompt_profiles ADD COLUMN last_folder TEXT;` )
+
+  seedProfile( db, {
+    name: 'Study',
+    seedKey: STUDY_SEED_KEY,
+    purpose: 'summary',
+    guidance: STUDY_GUIDANCE,
+  } )
+  seedProfile( db, {
+    name: 'Melete questions',
+    seedKey: MELETE_QUESTIONS_SEED_KEY,
+    purpose: 'melete_questions',
+    guidance: DEFAULT_MELETE_QUESTIONS_GUIDANCE,
+  } )
+  seedProfile( db, {
+    name: 'Melete grading',
+    seedKey: MELETE_GRADING_SEED_KEY,
+    purpose: 'melete_grading',
+    guidance: DEFAULT_MELETE_GRADING_GUIDANCE,
+  } )
+}
+
 export type Migration = string | ( ( db: Database.Database ) => void )
 
 export const migrations: Migration[] = [
@@ -372,6 +517,7 @@ export const migrations: Migration[] = [
   addGmailAndPostings,
   addLinking,
   addHealth,
+  addMelete,
 ]
 
 let database: Database.Database | undefined

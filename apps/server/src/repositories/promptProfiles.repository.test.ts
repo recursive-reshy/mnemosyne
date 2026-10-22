@@ -33,12 +33,13 @@ const seededId = ( name: string ): string => {
 }
 
 describe( 'listActiveProfiles', () => {
-  it( 'lists the three seeded profiles by name', () => {
+  it( 'lists the four seeded summary profiles by name', () => {
     expect( listActiveProfiles().map( ( { name, seed_key } ) => ( { name, seed_key } ) ) )
       .toEqual( [
         { name: 'Business ideas', seed_key: 'business' },
         { name: 'Coding', seed_key: 'coding' },
         { name: 'General', seed_key: 'general' },
+        { name: 'Study', seed_key: 'study' },
       ] )
   } )
 
@@ -47,7 +48,7 @@ describe( 'listActiveProfiles', () => {
     addProfile( 'Zulu' )
 
     expect( listActiveProfiles().map( ( { name } ) => name ) )
-      .toEqual( [ 'alpha', 'Business ideas', 'Coding', 'General', 'Zulu' ] )
+      .toEqual( [ 'alpha', 'Business ideas', 'Coding', 'General', 'Study', 'Zulu' ] )
   } )
 
   it( 'leaves out deleted profiles', () => {
@@ -96,7 +97,7 @@ describe( 'insertProfile and renameProfile', () => {
     } )
 
     expect( result ).toEqual( { ok: false, reason: 'name_taken' } )
-    expect( countActiveProfiles() ).toBe( 3 )
+    expect( countActiveProfiles() ).toBe( 4 )
   } )
 
   it( 'lets a deleted profile\'s name be used again', () => {
@@ -136,11 +137,11 @@ describe( 'markProfileDeleted and countActiveProfiles', () => {
   it( 'stamps deleted_at and drops the profile from the count', () => {
     const id = addProfile( 'Temp' )
 
-    expect( countActiveProfiles() ).toBe( 4 )
+    expect( countActiveProfiles() ).toBe( 5 )
 
     markProfileDeleted( id, now )
 
-    expect( countActiveProfiles() ).toBe( 3 )
+    expect( countActiveProfiles() ).toBe( 4 )
     expect( findProfileById( id )?.deleted_at ).toBe( now )
   } )
 } )
@@ -211,7 +212,7 @@ describe( 'versions', () => {
 describe( 'profile purposes', () => {
   it( 'lists only summary profiles by default', () => {
     expect( listActiveProfiles().map( ( { name } ) => name ) )
-      .toEqual( [ 'Business ideas', 'Coding', 'General' ] )
+      .toEqual( [ 'Business ideas', 'Coding', 'General', 'Study' ] )
     expect( listActiveProfiles( 'summary' ) ).toEqual( listActiveProfiles() )
   } )
 
@@ -226,6 +227,8 @@ describe( 'profile purposes', () => {
   it( 'finds a profile by its seed key, or nothing', () => {
     expect( findProfileBySeedKey( 'linker' )?.purpose ).toBe( 'linker' )
     expect( findProfileBySeedKey( 'coding' )?.name ).toBe( 'Coding' )
+    expect( findProfileBySeedKey( 'melete_questions' )?.purpose ).toBe( 'melete_questions' )
+    expect( findProfileBySeedKey( 'melete_grading' )?.purpose ).toBe( 'melete_grading' )
     expect( findProfileBySeedKey( 'nope' ) ).toBeUndefined()
   } )
 
@@ -256,8 +259,8 @@ describe( 'profile purposes', () => {
   } )
 
   it( 'counts per purpose, so the last summary profile rule ignores the linker', () => {
-    expect( countActiveProfiles() ).toBe( 3 )
-    expect( countActiveProfiles( 'summary' ) ).toBe( 3 )
+    expect( countActiveProfiles() ).toBe( 4 )
+    expect( countActiveProfiles( 'summary' ) ).toBe( 4 )
     expect( countActiveProfiles( 'linker' ) ).toBe( 1 )
   } )
 } )

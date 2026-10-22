@@ -43,6 +43,7 @@ describe( 'GET /api/prompt-profiles', () => {
       { name: 'Business ideas', can_reset: true },
       { name: 'Coding', can_reset: true },
       { name: 'General', can_reset: true },
+      { name: 'Study', can_reset: true },
     ] )
     expect( profiles[ 0 ]?.current_version.guidance ).toBe( SEEDED_PROFILES[ 0 ]?.guidance )
   } )

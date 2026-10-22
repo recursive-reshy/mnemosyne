@@ -10,7 +10,13 @@ import {
 // Errors
 import { ValidationError } from '../errors.js'
 // Repositories
+import { findProfileBySeedKey } from '../repositories/promptProfiles.repository.js'
 import { getSetting, setSetting } from '../repositories/settings.repository.js'
+// Melete
+import {
+  LOCKED_INSTRUCTIONS_MELETE_GRADING,
+  LOCKED_INSTRUCTIONS_MELETE_QUESTIONS,
+} from '../melete/prompts.js'
 // Summarizer
 import { LOCKED_INSTRUCTIONS_ARTICLE, LOCKED_INSTRUCTIONS_VIDEO } from '../summarizer/prompts.js'
 // Clients
@@ -37,8 +43,7 @@ vi.mock( '../clients/agent.client.js', async ( importOriginal ) => {
   return { ...original, checkHealth: vi.fn(), fetchInstructions: vi.fn() }
 } )
 
-// Placeholder until migration 9 seeds the Melete profiles
-const NO_PROFILE = '00000000-0000-0000-0000-000000000000'
+const profileIdOf = ( seedKey: string ): string => findProfileBySeedKey( seedKey )?.id ?? ''
 
 const assertMock = vi.mocked( assertKnownModel )
 const listModelsMock = vi.mocked( listModels )
@@ -74,8 +79,8 @@ describe( 'getSettings', () => {
       melete_question_model: 'claude-sonnet-5-5',
       melete_grading_model: 'claude-sonnet-5-5',
       melete_review_mode: 'typed',
-      melete_question_profile_id: NO_PROFILE,
-      melete_grading_profile_id: NO_PROFILE,
+      melete_question_profile_id: profileIdOf( 'melete_questions' ),
+      melete_grading_profile_id: profileIdOf( 'melete_grading' ),
     } )
   } )
 
@@ -235,8 +240,8 @@ describe( 'getLockedInstructions', () => {
     expect( getLockedInstructions() ).toEqual( {
       video: LOCKED_INSTRUCTIONS_VIDEO,
       article: LOCKED_INSTRUCTIONS_ARTICLE,
-      melete_questions: '',
-      melete_grading: '',
+      melete_questions: LOCKED_INSTRUCTIONS_MELETE_QUESTIONS,
+      melete_grading: LOCKED_INSTRUCTIONS_MELETE_GRADING,
     } )
   } )
 } )
@@ -316,8 +321,8 @@ describe( 'updateSettings', () => {
       melete_question_model: 'claude-sonnet-5-5',
       melete_grading_model: 'claude-sonnet-5-5',
       melete_review_mode: 'typed',
-      melete_question_profile_id: NO_PROFILE,
-      melete_grading_profile_id: NO_PROFILE,
+      melete_question_profile_id: profileIdOf( 'melete_questions' ),
+      melete_grading_profile_id: profileIdOf( 'melete_grading' ),
     } )
   } )
 

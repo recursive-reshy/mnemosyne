@@ -51,6 +51,7 @@ describe( 'listProfiles and findProfile', () => {
       { name: 'Business ideas', can_reset: true },
       { name: 'Coding', can_reset: true },
       { name: 'General', can_reset: true },
+      { name: 'Study', can_reset: true },
     ] )
     expect( profiles.every( ( { purpose } ) => purpose === 'summary' ) ).toBe( true )
     expect( profiles[ 0 ]?.current_version ).toMatchObject( {
@@ -93,7 +94,7 @@ describe( 'createProfile', () => {
 
     expect( create ).toThrow( ConflictError )
     expect( create ).toThrow( 'A profile with that name already exists' )
-    expect( listProfiles() ).toHaveLength( 3 )
+    expect( listProfiles() ).toHaveLength( 4 )
   } )
 
   it( 'lets a deleted profile\'s name be used again', () => {
