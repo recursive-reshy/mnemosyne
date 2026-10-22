@@ -16,6 +16,7 @@ import type { StatusRow } from '@mnemosyne/shared'
 import { GMAIL_CONNECT_URL } from '#src/api/gmail.api'
 import { useHealthErrors } from '#src/hooks/useHealthErrors'
 import { useRefreshStatus } from '#src/hooks/useRefreshStatus'
+import { useRunBackup } from '#src/hooks/useRunBackup'
 import { useStatus } from '#src/hooks/useStatus'
 import { mockMatchMedia } from '#src/test-support/matchMedia'
 import { mutationStub } from '#src/test-support/mutationStub'
@@ -26,6 +27,7 @@ import { StatusPanel } from './StatusPanel'
 vi.mock( '#src/hooks/useStatus' )
 vi.mock( '#src/hooks/useRefreshStatus' )
 vi.mock( '#src/hooks/useHealthErrors' )
+vi.mock( '#src/hooks/useRunBackup' )
 
 const NOW = new Date( '2026-10-22T10:05:00.000Z' )
 const refresh = vi.fn()
@@ -52,6 +54,7 @@ beforeEach( () => {
   refresh.mockReset()
   mockMatchMedia( { isWide: true } )
   vi.mocked( useRefreshStatus ).mockReturnValue( mutationStub( { mutate: refresh } ) )
+  vi.mocked( useRunBackup ).mockReturnValue( mutationStub() )
   vi.mocked( useHealthErrors ).mockReturnValue( { errors: [], isLoading: false, error: null } )
   show( [ feedRow() ] )
 } )
@@ -125,7 +128,30 @@ describe( 'StatusPanel', () => {
     renderWithClient( <StatusPanel /> )
 
     expect( screen.getByText( 'mnemosyne-20261022-180500.db, 1.5 MB' ) ).toBeInTheDocument()
-    expect( screen.queryByRole( 'button', { name: /Back up now/ } ) ).not.toBeInTheDocument()
+  } )
+
+  it.each( [ 'ok', 'failing', 'off' ] as const )(
+    'offers Back up now on the backup row only, when it is %s',
+    ( state ) => {
+      show( [
+        feedRow(),
+        statusRowFixture( { kind: 'backup', name: 'Backups', state, last_error: null } ),
+      ] )
+      renderWithClient( <StatusPanel /> )
+
+      const row = screen.getByRole( 'row', { name: /Backups/ } )
+
+      expect( within( row ).getByRole( 'button', { name: 'Back up now' } ) ).toBeInTheDocument()
+      expect( screen.getAllByRole( 'button', { name: 'Back up now' } ) ).toHaveLength( 1 )
+    },
+  )
+
+  it( 'offers Back up now on the backup card on a narrow window', () => {
+    mockMatchMedia( { isWide: false } )
+    show( [ statusRowFixture( { kind: 'backup', name: 'Backups' } ) ] )
+    renderWithClient( <StatusPanel /> )
+
+    expect( screen.getByRole( 'button', { name: 'Back up now' } ) ).toBeInTheDocument()
   } )
 
   it.each( [

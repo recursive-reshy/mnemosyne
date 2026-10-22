@@ -10,6 +10,7 @@ import Typography from '@mui/material/Typography'
 import type { StatusRow } from '@mnemosyne/shared'
 // App
 import { formatAgo } from '#src/checkedAt'
+import { BackupControls } from './BackupControls'
 import { ErrorHistory } from './ErrorHistory'
 import { RowControls } from './RowControls'
 import { StateCell } from './StateCell'
@@ -49,6 +50,7 @@ export function StatusTableRow( { row, now }: StatusTableRowProps ): ReactElemen
         <TableCell>
           <StateCell state={ row.state } />
           <RowControls row={ row } isOpen={ isOpen } onToggle={ () => setIsOpen( !isOpen ) } />
+          { row.kind === 'backup' && <BackupControls /> }
         </TableCell>
       </TableRow>
       { isShowingHistory && (
