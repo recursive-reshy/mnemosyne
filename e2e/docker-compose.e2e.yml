@@ -28,6 +28,10 @@ services:
     depends_on:
       fakes:
         condition: service_healthy
+      # The server checks the agent once at start; without this the Status panel starts with the
+      # agent failing for up to STATUS_CHECK_INTERVAL_MINUTES (the real stack does the same).
+      agent:
+        condition: service_healthy
 
   agent:
     image: mnemosyne-agent-e2e:local

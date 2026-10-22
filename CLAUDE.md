@@ -12,6 +12,7 @@ This file holds only what is true everywhere. Each app has its own `CLAUDE.md` w
 | `apps/web` | React UI (screens only) |
 | `apps/agent` | Python vault agent service: stateless, read-only vault tools and Claude tool-use agents; linking is its first endpoint (ADR 0042) |
 | `packages/shared` | Cross-app contracts: Zod schemas and their inferred types |
+| `e2e/` | End-to-end smoke test (ADR 0053): Playwright specs, local fakes (article, feed, Whisper health, Anthropic API) and a Compose override; run with `pnpm e2e` |
 | `ops/` | launchd plist for the native whisper-server |
 | `docs/` | Versioned plans in `docs/v<version>/` (PRD, TRD, tasks, checkpoint plans) and ADRs in `docs/decisions/`, indexed in `docs/README.md` |
 
@@ -60,8 +61,8 @@ If something isn't covered by the PRD, TRD, ADRs or the approved plan (a new dep
 
 ## Before you stop
 
-After each task, run the tests, lint and typecheck for every folder it touched; a task isn't ticked until all of them pass. At the end of a checkpoint, report:
+After each task, run the tests, lint and typecheck for every folder it touched; a task isn't ticked until all of them pass. At the end of every checkpoint from F on, also run `pnpm e2e` (it builds the Compose stack against local fakes and tears it down; needs Docker running). At the end of a checkpoint, report:
 - what was built, task by task, with commit hashes;
-- test, lint and typecheck results per folder;
+- test, lint and typecheck results per folder, and the `pnpm e2e` result;
 - any ADRs written and whether they change the TRD;
 - anything deferred or worth a follow-up.
