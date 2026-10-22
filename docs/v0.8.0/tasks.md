@@ -28,7 +28,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | **Phase 1** | **Kick-off** | | |
 | 1.1 | Set ADRs 0054–0060 to Accepted (Status lines and the `docs/README.md` index); `docs/README.md` current version 0.8.0 and the v0.8.0 entry "in progress". The root `CLAUDE.md` already points at 0.8.0 (updated with these docs) | 0054–0060 | ✅ |
 | **Phase 2** | **Contracts and data** | | |
-| 2.1 | Shared `melete.ts` (TRD §2.1) with schema tests; exported from `index.ts` | 0054, 0056, 0058 | ⬜ |
+| 2.1 | Shared `melete.ts` (TRD §2.1) with schema tests; exported from `index.ts` | 0054, 0056, 0058 | ✅ |
 | 2.2 | Shared `summarizer.ts` and `job.ts` additions: Melete settings keys and `UpdateSettingsBody`, `locked_instructions.melete_*`, `SeedKey` `study`, `PromptProfile.purpose`, `Job.default_folder` (TRD §2.2–2.3); fixtures and tests that list every key updated | 0058, 0059 | ⬜ |
 | 2.3 | Migration 9 `addMelete`: tables, indexes, `prompt_profiles.last_folder`, seeded Study and Melete profiles with version 1 (the "Study (seeded)" name clash case); tested from version 8 with data and from empty (TRD §3.1). The §6.1 and §8 default texts go in `melete/prompts.ts` and `summarizer/prompts.ts` in this task | 0058, 0059 | ⬜ |
 | 2.4 | Repositories `meleteSubjects`, `meleteNotes`, `meleteQuestions`, `meleteReviews`, `meleteRuns`; `promptProfiles` `last_folder` and `setLastFolder`; `apps/server/CLAUDE.md` (TRD §3.2) | 0058 | ⬜ |
@@ -129,3 +129,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 ## Log
 
 - 1.1 ✅ ADRs 0054–0060 set to Accepted (Status lines and the `docs/README.md` index); `docs/README.md` current version 0.8.0 and the v0.8.0 entry "in progress". Root `CLAUDE.md` already pointed at 0.8.0. Docs only: no code, so no test run.
+- 2.1 ✅ `packages/shared/src/melete.ts` per TRD §2.1 (enums, subject, note, question, review item and counts, grade, Claude output formats, all request and response bodies), exported from `index.ts`. Red first: `melete.test.ts` failed on the missing module; green after. `MeleteGradeOutput` is the same schema as `MeleteGrade`. shared 607 tests; lint and typecheck green. No existing test changed.
