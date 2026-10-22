@@ -57,7 +57,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 4.4 | `PromptsTab`, `PromptList`, `PromptPanel` (summary profiles and `linker`, history, reset, locked instructions, the guard); `PromptProfiles` dropdown and `LinkerPrompt` removed; full-width layout and the narrow-window list/editor screens; `apps/web/CLAUDE.md` (TRD §4.2–4.4) | 0052 | ✅ |
 
 ## Checkpoint D: Phases 5–6 (health data, server and Status panel)
-**Plan:** ⬜ `plans/checkpoint-d.md`
+**Plan:** ✅ [`plans/checkpoint-d.md`](plans/checkpoint-d.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
