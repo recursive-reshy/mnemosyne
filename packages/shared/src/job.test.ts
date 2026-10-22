@@ -19,6 +19,7 @@ const validJob = {
   title: null,
   note_markdown: null,
   target_folder: null,
+  default_folder: 'Inbox',
   expires_at: null,
   saved_path: null,
   summary_model: null,
@@ -145,12 +146,15 @@ describe( 'Job', () => {
     expect( Job.safeParse( drafted ).success ).toBe( true )
   } )
 
-  it.each( [ 'note_markdown', 'target_folder' ] as const )( 'rejects a missing %s', ( key ) => {
-    const without: Partial< typeof validJob > = { ...validJob }
-    delete without[ key ]
+  it.each( [ 'note_markdown', 'target_folder', 'default_folder' ] as const )(
+    'rejects a missing %s',
+    ( key ) => {
+      const without: Partial< typeof validJob > = { ...validJob }
+      delete without[ key ]
 
-    expect( Job.safeParse( without ).success ).toBe( false )
-  } )
+      expect( Job.safeParse( without ).success ).toBe( false )
+    },
+  )
 
   it( 'accepts a reviewed job with an expiry and a saved path', () => {
     const summarized = {

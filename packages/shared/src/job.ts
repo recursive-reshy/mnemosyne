@@ -56,6 +56,7 @@ export const Job = z.object( {
   title: z.string().nullable(),
   note_markdown: z.string().nullable(),
   target_folder: z.string().nullable(),
+  default_folder: z.string(),
   expires_at: z.iso.datetime().nullable(),
   saved_path: z.string().nullable(),
   summary_model: z.string().nullable(),

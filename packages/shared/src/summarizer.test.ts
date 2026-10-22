@@ -39,6 +39,7 @@ const profile = {
   id: profileId,
   name: 'Business ideas',
   can_reset: true,
+  purpose: 'summary',
   current_version: version,
   created_at: now,
 }
@@ -80,6 +81,12 @@ describe( 'Settings', () => {
     linking_enabled: true,
     linking_model: 'h',
     linker_profile_id: profileId,
+    melete_learning_root: 'Learning',
+    melete_question_model: 'h',
+    melete_grading_model: 'h',
+    melete_review_mode: 'typed',
+    melete_question_profile_id: profileId,
+    melete_grading_profile_id: profileId,
   }
 
   it( 'accepts a model, a profile id and a feed interval', () => {
@@ -123,10 +130,47 @@ describe( 'Settings', () => {
       .toBe( false )
   } )
 
+  it.each( [
+    'melete_learning_root',
+    'melete_question_model',
+    'melete_grading_model',
+    'melete_review_mode',
+    'melete_question_profile_id',
+    'melete_grading_profile_id',
+  ] )( 'rejects a missing %s', ( key ) => {
+    const without: Record< string, unknown > = { ...settings }
+    delete without[ key ]
+
+    expect( Settings.safeParse( without ).success ).toBe( false )
+  } )
+
+  it( 'accepts a null learning root and both review modes', () => {
+    expect( Settings.safeParse( { ...settings, melete_learning_root: null } ).success )
+      .toBe( true )
+    expect( Settings.safeParse( { ...settings, melete_review_mode: 'quick' } ).success )
+      .toBe( true )
+    expect( Settings.safeParse( { ...settings, melete_review_mode: 'fast' } ).success )
+      .toBe( false )
+  } )
+
+  it( 'rejects empty Melete models and Melete profile ids that are not uuids', () => {
+    expect( Settings.safeParse( { ...settings, melete_question_model: '' } ).success ).toBe( false )
+    expect( Settings.safeParse( { ...settings, melete_grading_model: '' } ).success ).toBe( false )
+    expect( Settings.safeParse( { ...settings, melete_question_profile_id: 'x' } ).success )
+      .toBe( false )
+    expect( Settings.safeParse( { ...settings, melete_grading_profile_id: 'x' } ).success )
+      .toBe( false )
+  } )
+
   it( 'GetSettingsResponse carries the locked instructions for videos and articles', () => {
     const body = {
       settings,
-      locked_instructions: { video: 'video text', article: 'article text' },
+      locked_instructions: {
+        video: 'video text',
+        article: 'article text',
+        melete_questions: 'questions text',
+        melete_grading: 'grading text',
+      },
       linker_locked_instructions: 'linker text',
       agent_status: 'ok',
     }
@@ -150,6 +194,10 @@ describe( 'Settings', () => {
     expect( GetSettingsResponse.safeParse( {
       ...body,
       locked_instructions: { video: 'only' },
+    } ).success ).toBe( false )
+    expect( GetSettingsResponse.safeParse( {
+      ...body,
+      locked_instructions: { video: 'v', article: 'a' },
     } ).success ).toBe( false )
   } )
 } )
@@ -189,6 +237,35 @@ describe( 'UpdateSettingsBody', () => {
     expect( UpdateSettingsBody.safeParse( { linker_profile_id: profileId } ).success ).toBe( false )
   } )
 
+  it( 'accepts each Melete setting alone', () => {
+    expect( UpdateSettingsBody.safeParse( { melete_learning_root: 'Learning' } ).success )
+      .toBe( true )
+    expect( UpdateSettingsBody.safeParse( { melete_learning_root: 'Learning/School' } ).success )
+      .toBe( true )
+    expect( UpdateSettingsBody.safeParse( { melete_learning_root: null } ).success ).toBe( true )
+    expect( UpdateSettingsBody.safeParse( { melete_question_model: 'h' } ).success ).toBe( true )
+    expect( UpdateSettingsBody.safeParse( { melete_grading_model: 'h' } ).success ).toBe( true )
+    expect( UpdateSettingsBody.safeParse( { melete_review_mode: 'quick' } ).success ).toBe( true )
+  } )
+
+  it( 'rejects a bad learning root, empty Melete models and an unknown review mode', () => {
+    expect( UpdateSettingsBody.safeParse( { melete_learning_root: '../x' } ).success )
+      .toBe( false )
+    expect( UpdateSettingsBody.safeParse( { melete_learning_root: '' } ).success ).toBe( false )
+    expect( UpdateSettingsBody.safeParse( { melete_learning_root: 'a//b' } ).success )
+      .toBe( false )
+    expect( UpdateSettingsBody.safeParse( { melete_question_model: '' } ).success ).toBe( false )
+    expect( UpdateSettingsBody.safeParse( { melete_grading_model: '' } ).success ).toBe( false )
+    expect( UpdateSettingsBody.safeParse( { melete_review_mode: 'fast' } ).success ).toBe( false )
+  } )
+
+  it( 'does not accept the Melete profile ids', () => {
+    expect( UpdateSettingsBody.safeParse( { melete_question_profile_id: profileId } ).success )
+      .toBe( false )
+    expect( UpdateSettingsBody.safeParse( { melete_grading_profile_id: profileId } ).success )
+      .toBe( false )
+  } )
+
   it( 'rejects an empty body, naming every key it accepts', () => {
     const result = UpdateSettingsBody.safeParse( {} )
     const message = result.error?.issues[ 0 ]?.message
@@ -197,6 +274,10 @@ describe( 'UpdateSettingsBody', () => {
     expect( message ).toContain( 'extraction_model' )
     expect( message ).toContain( 'linking_enabled' )
     expect( message ).toContain( 'linking_model' )
+    expect( message ).toContain( 'melete_learning_root' )
+    expect( message ).toContain( 'melete_question_model' )
+    expect( message ).toContain( 'melete_grading_model' )
+    expect( message ).toContain( 'melete_review_mode' )
   } )
 
   it( 'rejects an empty model', () => {
@@ -251,6 +332,21 @@ describe( 'PromptVersion', () => {
 } )
 
 describe( 'PromptProfile and its responses', () => {
+  it.each( [ 'summary', 'linker', 'melete_questions', 'melete_grading' ] )(
+    'accepts the purpose %s',
+    ( purpose ) => {
+      expect( PromptProfile.safeParse( { ...profile, purpose } ).success ).toBe( true )
+    },
+  )
+
+  it( 'needs a known purpose', () => {
+    const rest: Record< string, unknown > = { ...profile }
+    delete rest.purpose
+
+    expect( PromptProfile.safeParse( rest ).success ).toBe( false )
+    expect( PromptProfile.safeParse( { ...profile, purpose: 'other' } ).success ).toBe( false )
+  } )
+
   it( 'accepts a profile', () => {
     expect( PromptProfile.safeParse( profile ).success ).toBe( true )
   } )

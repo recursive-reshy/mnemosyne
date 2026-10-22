@@ -4,6 +4,7 @@ import { z } from 'zod'
 import {
   FeedCheckInterval,
   GetSettingsResponse,
+  MeleteReviewMode,
   Settings,
   UpdateSettingsBody,
 } from '@mnemosyne/shared'
@@ -27,6 +28,8 @@ import {
 import { logger } from '../logger.js'
 
 const DEFAULT_FEED_INTERVAL = 60
+// Placeholder until migration 9 seeds the Melete profiles
+const NO_PROFILE = '00000000-0000-0000-0000-000000000000'
 
 const storedModel = ( key: string ): string | undefined => {
   const stored = getSetting( key )
@@ -78,12 +81,22 @@ export const getSettings = async (): Promise< Settings > => {
     linking_enabled: isLinkingEnabled(),
     linking_model: await resolveLinkingModel(),
     linker_profile_id: resolveLinkerPrompt().profile.id,
+    melete_learning_root: z.string().nullable().catch( null )
+      .parse( getSetting( 'melete_learning_root' ) ),
+    melete_question_model: storedModel( 'melete_question_model' ) ?? SHIPPED_DEFAULT_MODEL,
+    melete_grading_model: storedModel( 'melete_grading_model' ) ?? SHIPPED_DEFAULT_MODEL,
+    melete_review_mode: MeleteReviewMode.catch( 'typed' )
+      .parse( getSetting( 'melete_review_mode' ) ),
+    melete_question_profile_id: NO_PROFILE,
+    melete_grading_profile_id: NO_PROFILE,
   }
 }
 
 export const getLockedInstructions = (): GetSettingsResponse[ 'locked_instructions' ] => ( {
   video: LOCKED_INSTRUCTIONS_VIDEO,
   article: LOCKED_INSTRUCTIONS_ARTICLE,
+  melete_questions: '',
+  melete_grading: '',
 } )
 
 const agentSection = async (): Promise<

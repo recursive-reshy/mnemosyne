@@ -7,7 +7,11 @@ import { statusesWhere } from '../jobs/lifecycle.js'
 // Repositories
 import { getDatabase } from './database.js'
 
-export const StoredJob = Job.omit( { summary_usage: true, link_usage: true } ).extend( {
+export const StoredJob = Job.omit( {
+  summary_usage: true,
+  link_usage: true,
+  default_folder: true,
+} ).extend( {
   source_document: SourceDocument.nullable(),
 } )
 export type StoredJob = z.infer< typeof StoredJob >

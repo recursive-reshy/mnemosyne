@@ -1,5 +1,9 @@
 // Packages
 import { z } from 'zod'
+// Folders
+import { isValidFolderName } from './folders.js'
+// Melete
+import { MeleteReviewMode } from './melete.js'
 
 export const ModelOption = z.object( {
   id: z.string().min( 1 ),
@@ -23,6 +27,11 @@ export const FeedCheckInterval = z.union( [
 ] )
 export type FeedCheckInterval = z.infer< typeof FeedCheckInterval >
 
+const LearningRoot = z.string().refine(
+  ( path ) => path.split( '/' ).every( isValidFolderName ),
+  { message: 'Invalid folder path' },
+)
+
 export const Settings = z.object( {
   default_model: z.string().min( 1 ),
   extraction_model: z.string().min( 1 ),
@@ -31,6 +40,12 @@ export const Settings = z.object( {
   linking_enabled: z.boolean(),
   linking_model: z.string().min( 1 ),
   linker_profile_id: z.uuid(),
+  melete_learning_root: z.string().nullable(),
+  melete_question_model: z.string().min( 1 ),
+  melete_grading_model: z.string().min( 1 ),
+  melete_review_mode: MeleteReviewMode,
+  melete_question_profile_id: z.uuid(),
+  melete_grading_profile_id: z.uuid(),
 } )
 export type Settings = z.infer< typeof Settings >
 
@@ -42,6 +57,8 @@ export const GetSettingsResponse = z.object( {
   locked_instructions: z.object( {
     video: z.string(),
     article: z.string(),
+    melete_questions: z.string(),
+    melete_grading: z.string(),
   } ),
   linker_locked_instructions: z.string().nullable(),
   agent_status: AgentStatus,
@@ -55,12 +72,18 @@ export const UpdateSettingsBody = z.object( {
   feed_check_interval_minutes: FeedCheckInterval.optional(),
   linking_enabled: z.boolean().optional(),
   linking_model: z.string().min( 1 ).optional(),
+  melete_learning_root: LearningRoot.nullable().optional(),
+  melete_question_model: z.string().min( 1 ).optional(),
+  melete_grading_model: z.string().min( 1 ).optional(),
+  melete_review_mode: MeleteReviewMode.optional(),
 } ).refine(
   ( body ) => Object.values( body ).some( ( value ) => value !== undefined ),
   {
     message: [
       'Provide default_model, extraction_model, default_profile_id,',
-      'feed_check_interval_minutes, linking_enabled or linking_model',
+      'feed_check_interval_minutes, linking_enabled, linking_model,',
+      'melete_learning_root, melete_question_model, melete_grading_model',
+      'or melete_review_mode',
     ].join( ' ' ),
   },
 )
@@ -79,10 +102,19 @@ export const PromptVersion = z.object( {
 } )
 export type PromptVersion = z.infer< typeof PromptVersion >
 
+export const PromptPurpose = z.enum( [
+  'summary',
+  'linker',
+  'melete_questions',
+  'melete_grading',
+] )
+export type PromptPurpose = z.infer< typeof PromptPurpose >
+
 export const PromptProfile = z.object( {
   id: z.uuid(),
   name: z.string(),
   can_reset: z.boolean(),
+  purpose: PromptPurpose,
   current_version: PromptVersion,
   created_at: z.iso.datetime(),
 } )

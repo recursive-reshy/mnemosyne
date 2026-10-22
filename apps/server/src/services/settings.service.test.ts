@@ -37,6 +37,9 @@ vi.mock( '../clients/agent.client.js', async ( importOriginal ) => {
   return { ...original, checkHealth: vi.fn(), fetchInstructions: vi.fn() }
 } )
 
+// Placeholder until migration 9 seeds the Melete profiles
+const NO_PROFILE = '00000000-0000-0000-0000-000000000000'
+
 const assertMock = vi.mocked( assertKnownModel )
 const listModelsMock = vi.mocked( listModels )
 const healthMock = vi.mocked( checkHealth )
@@ -67,6 +70,26 @@ describe( 'getSettings', () => {
       linking_enabled: true,
       linking_model: 'claude-sonnet-5-5',
       linker_profile_id: resolveLinkerPrompt().profile.id,
+      melete_learning_root: null,
+      melete_question_model: 'claude-sonnet-5-5',
+      melete_grading_model: 'claude-sonnet-5-5',
+      melete_review_mode: 'typed',
+      melete_question_profile_id: NO_PROFILE,
+      melete_grading_profile_id: NO_PROFILE,
+    } )
+  } )
+
+  it( 'reads the Melete settings from the stored values when there are any', async () => {
+    setSetting( 'melete_learning_root', 'Learning' )
+    setSetting( 'melete_question_model', 'claude-haiku-5-5' )
+    setSetting( 'melete_grading_model', 'claude-opus-5-5' )
+    setSetting( 'melete_review_mode', 'quick' )
+
+    expect( await getSettings() ).toMatchObject( {
+      melete_learning_root: 'Learning',
+      melete_question_model: 'claude-haiku-5-5',
+      melete_grading_model: 'claude-opus-5-5',
+      melete_review_mode: 'quick',
     } )
   } )
 
@@ -212,6 +235,8 @@ describe( 'getLockedInstructions', () => {
     expect( getLockedInstructions() ).toEqual( {
       video: LOCKED_INSTRUCTIONS_VIDEO,
       article: LOCKED_INSTRUCTIONS_ARTICLE,
+      melete_questions: '',
+      melete_grading: '',
     } )
   } )
 } )
@@ -287,6 +312,12 @@ describe( 'updateSettings', () => {
       linking_enabled: true,
       linking_model: 'claude-sonnet-5-5',
       linker_profile_id: resolveLinkerPrompt().profile.id,
+      melete_learning_root: null,
+      melete_question_model: 'claude-sonnet-5-5',
+      melete_grading_model: 'claude-sonnet-5-5',
+      melete_review_mode: 'typed',
+      melete_question_profile_id: NO_PROFILE,
+      melete_grading_profile_id: NO_PROFILE,
     } )
   } )
 

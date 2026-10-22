@@ -52,6 +52,7 @@ describe( 'listProfiles and findProfile', () => {
       { name: 'Coding', can_reset: true },
       { name: 'General', can_reset: true },
     ] )
+    expect( profiles.every( ( { purpose } ) => purpose === 'summary' ) ).toBe( true )
     expect( profiles[ 0 ]?.current_version ).toMatchObject( {
       version: 1,
       source: 'seed',
@@ -331,6 +332,7 @@ describe( 'the linker profile', () => {
 
   it( 'can reset, so the app can show a reset action', () => {
     expect( findProfile( linkerId() ) ).toMatchObject( { name: 'Linker', can_reset: true } )
+    expect( findProfile( linkerId() ).purpose ).toBe( 'linker' )
   } )
 
   it( 'cannot be renamed or deleted', () => {

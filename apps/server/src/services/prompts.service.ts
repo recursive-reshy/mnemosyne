@@ -43,6 +43,7 @@ const toProfile = ( record: ProfileRecord ): PromptProfile => {
     id: record.id,
     name: record.name,
     can_reset: record.seed_key !== null,
+    purpose: record.purpose,
     current_version: current,
     created_at: record.created_at,
   }

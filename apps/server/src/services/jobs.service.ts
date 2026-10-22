@@ -149,6 +149,7 @@ const toPublicJob = ( job: StoredJob ): Job => {
     title: job.title,
     note_markdown: job.note_markdown,
     target_folder: job.target_folder,
+    default_folder: config.defaultNoteFolder,
     expires_at: job.expires_at,
     saved_path: job.saved_path,
     summary_model: job.summary_model,

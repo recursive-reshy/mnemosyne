@@ -173,6 +173,7 @@ describe( 'queueJob', () => {
       title: null,
       note_markdown: null,
       target_folder: null,
+      default_folder: 'Mnemosyne',
       expires_at: null,
       saved_path: null,
       summary_model: null,

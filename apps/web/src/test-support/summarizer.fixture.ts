@@ -8,6 +8,8 @@ import type {
 
 export const BUSINESS_ID = '0b7c1c3e-5d4a-4e6f-9a7b-1c2d3e4f5a01'
 export const LINKER_ID = '0b7c1c3e-5d4a-4e6f-9a7b-1c2d3e4f5a09'
+export const MELETE_QUESTIONS_ID = '0b7c1c3e-5d4a-4e6f-9a7b-1c2d3e4f5a0a'
+export const MELETE_GRADING_ID = '0b7c1c3e-5d4a-4e6f-9a7b-1c2d3e4f5a0b'
 export const CODING_ID = '0b7c1c3e-5d4a-4e6f-9a7b-1c2d3e4f5a02'
 export const GENERAL_ID = '0b7c1c3e-5d4a-4e6f-9a7b-1c2d3e4f5a03'
 
@@ -28,6 +30,7 @@ export const profileFixture = ( overrides: Partial< PromptProfile > = {} ): Prom
     id: BUSINESS_ID,
     name: 'Business ideas',
     can_reset: true,
+    purpose: 'summary',
     current_version: versionFixture(),
     created_at: '2026-10-17T10:00:00.000Z',
     ...overrides,
@@ -81,11 +84,19 @@ export const settingsFixture = (
       linking_enabled: true,
       linking_model: 'claude-haiku-5-5',
       linker_profile_id: LINKER_ID,
+      melete_learning_root: null,
+      melete_question_model: 'claude-haiku-5-5',
+      melete_grading_model: 'claude-haiku-5-5',
+      melete_review_mode: 'typed',
+      melete_question_profile_id: MELETE_QUESTIONS_ID,
+      melete_grading_profile_id: MELETE_GRADING_ID,
       ...overrides,
     },
     locked_instructions: {
       video: 'You summarize the transcript of a video.',
       article: 'You summarize an article.',
+      melete_questions: 'You write questions.',
+      melete_grading: 'You grade answers.',
     },
     linker_locked_instructions: 'You propose links.',
     agent_status: 'ok',

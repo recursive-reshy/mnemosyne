@@ -36,6 +36,7 @@ const job = {
   title: 'T',
   note_markdown: '# T',
   target_folder: null,
+  default_folder: 'Inbox',
   expires_at: null,
   saved_path: null,
   summary_model: null,
