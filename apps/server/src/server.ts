@@ -33,7 +33,13 @@ try {
 }
 
 await mkdir( config.dataDir, { recursive: true } )
-openDatabase( join( config.dataDir, 'mnemosyne.db' ) )
+
+try {
+  openDatabase( join( config.dataDir, 'mnemosyne.db' ) )
+} catch( error ) {
+  logger.error( { err: error }, 'The database cannot be opened' )
+  process.exit( 1 )
+}
 
 const interrupted = recoverInterruptedJobs()
 

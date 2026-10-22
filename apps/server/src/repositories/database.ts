@@ -398,6 +398,19 @@ export const openDatabase = ( path: string ): void => {
   closeDatabase()
 
   const opened = new Database( path )
+  const stored = z.number().parse( opened.pragma( 'user_version', { simple: true } ) )
+
+  // Checked before anything is written, so a refused file is left exactly as it was.
+  if( stored > migrations.length ) {
+    opened.close()
+
+    throw new Error(
+      `This database is from a newer version of Mnemosyne (schema ${ stored }, `
+      + `this version knows ${ migrations.length }). `
+      + 'Restore an older backup or upgrade the app.',
+    )
+  }
+
   opened.pragma( 'journal_mode = WAL' )
 
   runMigrations( opened, migrations )

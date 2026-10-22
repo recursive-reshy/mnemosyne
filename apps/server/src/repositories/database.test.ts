@@ -1,5 +1,10 @@
 // Node
-import { mkdtempSync, rmSync } from 'node:fs'
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 // Packages
@@ -126,6 +131,41 @@ describe( 'openDatabase and closeDatabase', () => {
 
   it( 'can be closed when nothing is open', () => {
     expect( () => closeDatabase() ).not.toThrow()
+  } )
+
+  describe( 'a database from a newer version', () => {
+    const newer = migrations.length + 1
+
+    beforeEach( () => {
+      const database = new Database( databasePath )
+
+      database.pragma( `user_version = ${ newer }` )
+      database.close()
+    } )
+
+    it( 'is refused with a message naming both schema versions', () => {
+      expect( () => openDatabase( databasePath ) ).toThrow(
+        `This database is from a newer version of Mnemosyne (schema ${ newer }, `
+        + `this version knows ${ migrations.length }). `
+        + 'Restore an older backup or upgrade the app.',
+      )
+    } )
+
+    it( 'leaves no open store and does not change the file', () => {
+      const before = readFileSync( databasePath )
+
+      expect( () => openDatabase( databasePath ) ).toThrow()
+      expect( () => getDatabase() ).toThrow( 'Database is not open' )
+      expect( readFileSync( databasePath ).equals( before ) ).toBe( true )
+      expect( existsSync( `${ databasePath }-wal` ) ).toBe( false )
+    } )
+  } )
+
+  it( 'opens a database at the current version', () => {
+    openDatabase( databasePath )
+    closeDatabase()
+
+    expect( () => openDatabase( databasePath ) ).not.toThrow()
   } )
 } )
 
