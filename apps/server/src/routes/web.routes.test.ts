@@ -28,6 +28,7 @@ beforeAll( async () => {
   await mkdir( join( webDir, 'assets' ) )
   await writeFile( join( webDir, 'index.html' ), '<div id="root"></div>' )
   await writeFile( join( webDir, 'assets', 'app-abc123.js' ), 'console.log( 1 )' )
+  await writeFile( join( webDir, 'manifest.webmanifest' ), '{"name":"Mnemosyne"}' )
   await writeFile( join( webDir, 'favicon.svg' ), '<svg xmlns="http://www.w3.org/2000/svg"/>' )
 
   app.use( webRoutes( webDir ) )
@@ -60,6 +61,13 @@ describe( 'webRoutes', () => {
     const response = await request( app ).get( '/favicon.svg' )
 
     expect( response.status ).toBe( 200 )
+  } )
+
+  it( 'serves the web app manifest as application/manifest+json', async () => {
+    const response = await request( app ).get( '/manifest.webmanifest' )
+
+    expect( response.status ).toBe( 200 )
+    expect( response.headers[ 'content-type' ] ).toMatch( /^application\/manifest\+json/ )
   } )
 
   it.each( [ '/some/page', '/?job=7b7ad7a6-5f4a-4b6c-9c0e-3f0f2a6b1c11' ] )(
