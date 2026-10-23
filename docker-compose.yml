@@ -3,7 +3,7 @@ services:
     build: .
     image: mnemosyne:local
     ports:
-      - "3100:3100"
+      - "127.0.0.1:3100:3100"
     env_file: .env
     environment:
       WHISPER_URL: http://host.docker.internal:8178
