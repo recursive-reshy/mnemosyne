@@ -1,6 +1,15 @@
 import { createServer } from 'node:http'
 import { fileURLToPath } from 'node:url'
-import { ARTICLE, ARTICLE_2, FEED, MODELS, SUGGESTIONS, SUMMARY } from './fixtures.mjs'
+import {
+  ARTICLE,
+  ARTICLE_2,
+  FEED,
+  MELETE_GRADE,
+  MELETE_QUESTIONS,
+  MODELS,
+  SUGGESTIONS,
+  SUMMARY,
+} from './fixtures.mjs'
 
 const SUBMIT_TOOL = 'submit_suggestions'
 const USAGE = { input_tokens: 1200, output_tokens: 300 }
@@ -33,6 +42,21 @@ const message = ( model, content, stopReason ) => json( 200, {
   usage: USAGE,
 } )
 
+// The locked instructions start every system prompt, so their first line tells the callers apart.
+const SYSTEM_ANSWERS = [
+  [ 'You summarize ', SUMMARY ],
+  [ 'You write active-recall questions', MELETE_QUESTIONS ],
+  [ 'You grade a learner\'s answer', MELETE_GRADE ],
+]
+
+const firstLine = ( system ) => {
+  const value = Array.isArray( system )
+    ? system.map( ( block ) => block?.text ?? '' ).join( '\n' )
+    : system
+
+  return typeof value === 'string' ? value.trimStart().split( '\n' )[ 0 ] : ''
+}
+
 const answerMessages = ( rawBody ) => {
   let request
 
@@ -47,7 +71,14 @@ const answerMessages = ( rawBody ) => {
   }
 
   if( request.tools === undefined ) {
-    return message( request.model, [ { type: 'text', text: JSON.stringify( SUMMARY ) } ], 'end_turn' )
+    const line = firstLine( request.system )
+    const answer = SYSTEM_ANSWERS.find( ( [ start ] ) => line.startsWith( start ) )
+
+    if( answer === undefined ) {
+      return refuse( `the system prompt starts with an unknown line: ${ line.slice( 0, 60 ) }` )
+    }
+
+    return message( request.model, [ { type: 'text', text: JSON.stringify( answer[ 1 ] ) } ], 'end_turn' )
   }
 
   const hasSubmit = Array.isArray( request.tools )

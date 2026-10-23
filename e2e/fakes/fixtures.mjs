@@ -113,3 +113,35 @@ export const SUGGESTIONS = {
     },
   ],
 }
+
+export const RECALL_NOTE = `# Active recall
+
+Active recall means trying to remember an idea from memory instead of rereading it. The effort of retrieving the answer is what strengthens the memory.
+
+## Spacing
+
+Spaced repetition schedules each review just before you would forget the idea, so the gaps between reviews grow as the memory gets stronger.
+`
+
+export const MELETE_QUESTIONS = {
+  questions: [
+    {
+      prompt: 'What is active recall?',
+      answer: 'Trying to remember an idea from memory instead of rereading it.',
+      passage: 'Active recall means trying to remember an idea from memory instead of rereading it.',
+    },
+    {
+      prompt: 'When does spaced repetition schedule a review?',
+      answer: 'Just before you would forget the idea, with gaps that grow as the memory strengthens.',
+      passage: 'Spaced repetition schedules each review just before you would forget the idea',
+    },
+  ],
+}
+
+export const MELETE_GRADE = {
+  verdict: 'partial',
+  right: [ 'It is about remembering rather than rereading.' ],
+  missed: [ 'The effort of retrieving the answer is what strengthens the memory.' ],
+  feedback: 'You have the gist; add why the effort of retrieval matters.',
+  suggested_rating: 'hard',
+}

@@ -14,7 +14,9 @@ const vaultDir = (): string => {
 
 const newNotes = ( dir: string ): string[] => readdirSync( dir, { recursive: true } )
   .map( String )
-  .filter( ( file ) => file.endsWith( '.md' ) && !file.endsWith( 'Existing note.md' ) )
+  .filter( ( file ) => file.endsWith( '.md' )
+    && !file.endsWith( 'Existing note.md' )
+    && !file.startsWith( 'Learning/' ) )
 
 test( 'an article is summarized, linked, reviewed and saved to the vault', async ( { page } ) => {
   await page.goto( '/' )

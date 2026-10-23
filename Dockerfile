@@ -17,6 +17,7 @@ RUN pnpm install --frozen-lockfile
 
 COPY apps/server/src apps/server/src
 COPY packages/shared/src packages/shared/src
+COPY apps/web/public apps/web/public
 COPY apps/web/src apps/web/src
 RUN pnpm --filter @mnemosyne/shared --filter @mnemosyne/server build \
   && pnpm --filter @mnemosyne/web build \

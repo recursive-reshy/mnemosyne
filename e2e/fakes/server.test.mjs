@@ -1,9 +1,18 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { route } from './server.mjs'
+import { RECALL_NOTE } from './fixtures.mjs'
 
 const post = ( body ) => route( 'POST', '/v1/messages', typeof body === 'string' ? body : JSON.stringify( body ) )
-const summaryRequest = { model: 'fake-sonnet', max_tokens: 100, messages: [ { role: 'user', content: 'x' } ] }
+const request = ( system ) => ( {
+  model: 'fake-sonnet',
+  max_tokens: 100,
+  system,
+  messages: [ { role: 'user', content: 'x' } ],
+} )
+const summaryRequest = request( 'You summarize an article for a personal Obsidian vault.\n\nMore rules.' )
+const questionsRequest = request( 'You write active-recall questions from one study note.\n\nMore rules.' )
+const gradingRequest = request( 'You grade a learner\'s answer against a reference answer and passage.\n\nMore.' )
 const linkerRequest = {
   ...summaryRequest,
   tools: [ { name: 'list_notes' }, { name: 'submit_suggestions' } ],
@@ -83,6 +92,52 @@ describe( 'POST /v1/messages without tools (the summarizer)', () => {
   } )
 } )
 
+describe( 'POST /v1/messages for the summarizer, by its system prompt', () => {
+  it( 'answers the video prompt with the summary too', () => {
+    const video = request( 'You summarize the transcript of a video for a personal Obsidian vault.' )
+    const message = JSON.parse( post( video ).body )
+
+    assert.ok( JSON.parse( message.content[ 0 ].text ).overview )
+  } )
+} )
+
+describe( 'POST /v1/messages for Melete', () => {
+  it( 'writes two questions whose passages are in the fixture note', () => {
+    const response = post( questionsRequest )
+    const message = JSON.parse( response.body )
+    const { questions } = JSON.parse( message.content[ 0 ].text )
+
+    assert.equal( response.status, 200 )
+    assert.equal( message.stop_reason, 'end_turn' )
+    assert.equal( questions.length, 2 )
+
+    for( const question of questions ) {
+      assert.ok( question.prompt.length > 0 && question.answer.length > 0 )
+      assert.ok( RECALL_NOTE.includes( question.passage ), `${ question.passage } is not in the note` )
+      assert.ok( question.passage.length > 0 )
+    }
+  } )
+
+  it( 'grades an answer as partial and suggests Hard', () => {
+    const response = post( gradingRequest )
+    const grade = JSON.parse( JSON.parse( response.body ).content[ 0 ].text )
+
+    assert.equal( response.status, 200 )
+    assert.equal( grade.verdict, 'partial' )
+    assert.equal( grade.suggested_rating, 'hard' )
+    assert.ok( grade.right.length > 0 && grade.right.length <= 6 )
+    assert.ok( grade.missed.length > 0 && grade.missed.length <= 6 )
+    assert.ok( grade.feedback.length > 0 && grade.feedback.length <= 600 )
+  } )
+
+  it( 'reads a system prompt given as text blocks', () => {
+    const blocks = request( [ { type: 'text', text: 'You grade a learner\'s answer against more.' } ] )
+    const grade = JSON.parse( JSON.parse( post( blocks ).body ).content[ 0 ].text )
+
+    assert.equal( grade.verdict, 'partial' )
+  } )
+} )
+
 describe( 'POST /v1/messages with tools (the linker)', () => {
   it( 'submits two suggestions whose anchors are phrases of the summary', () => {
     const summary = JSON.parse( JSON.parse( post( summaryRequest ).body ).content[ 0 ].text )
@@ -109,6 +164,17 @@ describe( 'unexpected requests', () => {
 
     assert.equal( response.status, 400 )
     assert.equal( JSON.parse( response.body ).type, 'error' )
+  } )
+
+  it( 'answers 400 to a system prompt it does not know', () => {
+    const response = post( request( 'You are a helpful assistant.' ) )
+
+    assert.equal( response.status, 400 )
+    assert.match( JSON.parse( response.body ).error.message, /system prompt/ )
+  } )
+
+  it( 'answers 400 to a request without a system prompt', () => {
+    assert.equal( post( { model: 'm', messages: [ { role: 'user', content: 'x' } ] } ).status, 400 )
   } )
 
   it( 'answers 400 to a request without a model', () => {

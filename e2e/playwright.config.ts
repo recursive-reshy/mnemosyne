@@ -10,6 +10,15 @@ export default defineConfig( {
     trace: 'retain-on-failure',
   },
   projects: [
-    { name: 'chromium', use: { ...devices[ 'Desktop Chrome' ] } },
+    {
+      name: 'chromium',
+      testIgnore: /melete\.spec\.ts/,
+      use: { ...devices[ 'Desktop Chrome' ] },
+    },
+    {
+      name: 'melete',
+      testMatch: /melete\.spec\.ts/,
+      use: { ...devices[ 'Pixel 7' ] },
+    },
   ],
 } )
