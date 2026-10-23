@@ -4,7 +4,7 @@
 
 Each version has its own folder. The current version is 0.8.0.
 
-- **v0.8.0 (in progress):** [PRD](v0.8.0/prd.md) · [TRD](v0.8.0/trd.md) · [Tasks](v0.8.0/tasks.md) · checkpoint plans in `v0.8.0/plans/`
+- **v0.8.0 (in progress):** [PRD](v0.8.0/prd.md) · [TRD](v0.8.0/trd.md) · [Tasks](v0.8.0/tasks.md) · [Release notes](v0.8.0/release-notes.md) · checkpoint plans in `v0.8.0/plans/`
 - **v0.7.1 (done):** [PRD](v0.7.1/prd.md) · [TRD](v0.7.1/trd.md) · [Tasks](v0.7.1/tasks.md) · [Release notes](v0.7.1/release-notes.md) · checkpoint plans in `v0.7.1/plans/`
 - **v0.7.0 (done):** [PRD](v0.7.0/prd.md) · [TRD](v0.7.0/trd.md) · [Tasks](v0.7.0/tasks.md) · [Release notes](v0.7.0/release-notes.md) · checkpoint plans in `v0.7.0/plans/`
 - **v0.6.0 (done):** [PRD](v0.6.0/prd.md) · [TRD](v0.6.0/trd.md) · [Tasks](v0.6.0/tasks.md) · [Release notes](v0.6.0/release-notes.md) · checkpoint plans in `v0.6.0/plans/`
