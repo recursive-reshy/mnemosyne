@@ -359,6 +359,14 @@ describe( 'ReviewScreen destination', () => {
     expect( screen.getByText( 'Learning/How Rust Works.md' ) ).toBeInTheDocument()
   } )
 
+  it( 'starts on the job\'s default folder', () => {
+    renderWithClient(
+      <ReviewScreen job={ { ...reviewJob, default_folder: 'Learning/React' } } { ...handlers() } />,
+    )
+
+    expect( screen.getByText( 'Learning/React/How Rust Works.md' ) ).toBeInTheDocument()
+  } )
+
   it( 'tells the user when the folders cannot be loaded, and Save still works', async () => {
     mockedUseFolders.mockReturnValue(
       { defaultFolder: null, folders: [], error: 'Could not reach the server' },

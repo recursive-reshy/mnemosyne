@@ -17,6 +17,19 @@ vi.mock( '#src/hooks/useFolders' )
 
 const mockedUseFolders = vi.mocked( useFolders )
 
+const renderDestination = (
+  props: { folder?: string | null, defaultFolder?: string, onFolderChange?: () => void } = {},
+): void => {
+  render(
+    <NoteDestination
+      title="A talk"
+      defaultFolder={ props.defaultFolder ?? 'Mnemosyne' }
+      folder={ props.folder ?? null }
+      onFolderChange={ props.onFolderChange ?? vi.fn() }
+    />,
+  )
+}
+
 const tree = [
   { name: 'Learning', path: 'Learning', children: [] },
   { name: 'Mnemosyne', path: 'Mnemosyne', children: [] },
@@ -29,21 +42,67 @@ beforeEach( () => {
 
 describe( 'NoteDestination', () => {
   it( 'shows the folder picker and where the note will go', () => {
-    render( <NoteDestination title="A talk" folder={ null } onFolderChange={ vi.fn() } /> )
+    renderDestination()
 
     expect( screen.getByRole( 'button', { name: 'Change folder' } ) ).toBeInTheDocument()
     expect( screen.getByText( 'Mnemosyne/A talk.md' ) ).toBeInTheDocument()
   } )
 
   it( 'follows the stored folder', () => {
-    render( <NoteDestination title="A talk" folder="Learning" onFolderChange={ vi.fn() } /> )
+    renderDestination( { folder: 'Learning' } )
 
     expect( screen.getByText( 'Learning/A talk.md' ) ).toBeInTheDocument()
   } )
 
+  it( 'starts on the job\'s default folder, not the configured one', () => {
+    render(
+      <NoteDestination
+        defaultFolder="Learning/React"
+        title="A talk"
+        folder={ null }
+        onFolderChange={ vi.fn() }
+      />,
+    )
+
+    expect( screen.getByText( 'Learning/React/A talk.md' ) ).toBeInTheDocument()
+  } )
+
+  it( 'prefers the picked folder to the job\'s default', () => {
+    render(
+      <NoteDestination
+        defaultFolder="Learning/React"
+        title="A talk"
+        folder="Projects"
+        onFolderChange={ vi.fn() }
+      />,
+    )
+
+    expect( screen.getByText( 'Projects/A talk.md' ) ).toBeInTheDocument()
+  } )
+
+  it( 'reports null when the job\'s default folder is chosen again', async () => {
+    const onFolderChange = vi.fn()
+    render(
+      <NoteDestination
+        defaultFolder="Learning"
+        title="A talk"
+        folder="Mnemosyne"
+        onFolderChange={ onFolderChange }
+      />,
+    )
+    const user = userEvent.setup()
+
+    await user.click( screen.getByRole( 'button', { name: 'Change folder' } ) )
+    await user.click(
+      within( screen.getByRole( 'treeitem', { name: 'Learning' } ) ).getByText( 'Learning' ),
+    )
+
+    expect( onFolderChange ).toHaveBeenCalledExactlyOnceWith( null )
+  } )
+
   it( 'reports a chosen folder', async () => {
     const onFolderChange = vi.fn()
-    render( <NoteDestination title="A talk" folder={ null } onFolderChange={ onFolderChange } /> )
+    renderDestination( { onFolderChange } )
     const user = userEvent.setup()
 
     await user.click( screen.getByRole( 'button', { name: 'Change folder' } ) )
@@ -54,20 +113,20 @@ describe( 'NoteDestination', () => {
     expect( onFolderChange ).toHaveBeenCalledExactlyOnceWith( 'Learning' )
   } )
 
-  it( 'says the folders could not be loaded and falls back to the default wording', () => {
+  it( 'says the folders could not be loaded and still names the default folder', () => {
     mockedUseFolders.mockReturnValue(
       { defaultFolder: null, folders: [], error: 'Could not reach the server' },
     )
-    render( <NoteDestination title="A talk" folder={ null } onFolderChange={ vi.fn() } /> )
+    renderDestination()
 
     expect( screen.getByRole( 'alert' ) ).toHaveTextContent( 'Could not reach the server' )
     expect( screen.queryByRole( 'button', { name: 'Change folder' } ) ).not.toBeInTheDocument()
-    expect( screen.getByText( /in the default folder as/ ) ).toBeInTheDocument()
+    expect( screen.getByText( 'Mnemosyne/A talk.md' ) ).toBeInTheDocument()
   } )
 
   it( 'still shows a stored folder when the folders could not be loaded', () => {
     mockedUseFolders.mockReturnValue( { defaultFolder: null, folders: [], error: 'boom' } )
-    render( <NoteDestination title="A talk" folder="Learning" onFolderChange={ vi.fn() } /> )
+    renderDestination( { folder: 'Learning' } )
 
     expect( screen.getByText( 'Learning/A talk.md' ) ).toBeInTheDocument()
   } )

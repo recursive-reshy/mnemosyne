@@ -9,18 +9,19 @@ import { FolderPicker } from '../FolderPicker'
 
 interface NoteDestinationProps {
   title: string
+  defaultFolder: string
   folder: string | null
   onFolderChange: ( folder: string | null ) => void
 }
 
 export function NoteDestination(
-  { title, folder, onFolderChange }: NoteDestinationProps,
+  { title, defaultFolder, folder, onFolderChange }: NoteDestinationProps,
 ): ReactElement {
-  const { defaultFolder, folders, error } = useFolders()
+  const { folders, error } = useFolders()
 
   return (
     <>
-      { defaultFolder !== null && (
+      { error === null && (
         <FolderPicker
           folders={ folders }
           defaultFolder={ defaultFolder }

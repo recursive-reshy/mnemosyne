@@ -98,7 +98,7 @@ export function ReviewScreen( { job, onSaved, onDiscarded }: ReviewScreenProps )
             <PropertiesPanel note={ autosave.note } onChange={ autosave.setNote } />
           ) }
           <NoteDestination
-            title={ title ?? job.title ?? '' }
+            title={ title ?? job.title ?? '' } defaultFolder={ job.default_folder }
             folder={ autosave.folder }
             onFolderChange={ autosave.setFolder }
           />
