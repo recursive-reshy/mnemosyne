@@ -79,6 +79,49 @@ describe( 'NavDrawer, wide', () => {
   } )
 } )
 
+describe( 'NavDrawer, Melete item', () => {
+  it( 'links to Melete, after Transcriber and before Settings', () => {
+    renderWithClient( <NavDrawer { ...defaults } /> )
+
+    const transcriber = screen.getByRole( 'link', { name: 'Transcriber' } )
+    const melete = screen.getByRole( 'link', { name: 'Melete' } )
+    const settings = screen.getByRole( 'link', { name: 'Settings' } )
+
+    expect( melete ).toHaveAttribute( 'href', '/melete' )
+    expect( transcriber.compareDocumentPosition( melete ) )
+      .toBe( Node.DOCUMENT_POSITION_FOLLOWING )
+    expect( melete.compareDocumentPosition( settings ) )
+      .toBe( Node.DOCUMENT_POSITION_FOLLOWING )
+  } )
+
+  it.each( [ '/melete', '/melete/subjects/3f2b8c1e', '/melete/notes/3f2b8c1e', '/melete/review' ] )(
+    'is current on %s, and Transcriber is not',
+    ( route ) => {
+      renderWithClient( <NavDrawer { ...defaults } />, { route } )
+
+      expect( screen.getByRole( 'link', { name: 'Melete' } ) )
+        .toHaveAttribute( 'aria-current', 'page' )
+      expect( screen.getByRole( 'link', { name: 'Transcriber' } ) )
+        .not.toHaveAttribute( 'aria-current' )
+    },
+  )
+
+  it.each( [ '/', '/jobs/3f2b8c1e', '/settings/prompts' ] )( 'is not current on %s', ( route ) => {
+    renderWithClient( <NavDrawer { ...defaults } />, { route } )
+
+    expect( screen.getByRole( 'link', { name: 'Melete' } ) ).not.toHaveAttribute( 'aria-current' )
+  } )
+
+  it( 'shows a tooltip with the name on hover when collapsed', async () => {
+    const user = userEvent.setup()
+    renderWithClient( <NavDrawer { ...defaults } isExpanded={ false } /> )
+
+    await user.hover( screen.getByRole( 'link', { name: 'Melete' } ) )
+
+    expect( await screen.findByRole( 'tooltip' ) ).toHaveTextContent( 'Melete' )
+  } )
+} )
+
 describe( 'NavDrawer, Settings item', () => {
   it( 'links to the settings page', () => {
     renderWithClient( <NavDrawer { ...defaults } /> )

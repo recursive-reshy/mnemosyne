@@ -1,6 +1,7 @@
 // React
 import type { ReactElement } from 'react'
 // Packages
+import MeleteIcon from '@mui/icons-material/SchoolOutlined'
 import SettingsIcon from '@mui/icons-material/Settings'
 import TranscriberIcon from '@mui/icons-material/GraphicEq'
 import Badge from '@mui/material/Badge'
@@ -29,6 +30,14 @@ const NAV_ITEMS = [
     icon: <TranscriberIcon />,
     isCurrent: ( pathname: string ): boolean => (
       pathname === '/' || pathname.startsWith( '/jobs/' )
+    ),
+  },
+  {
+    label: 'Melete',
+    to: '/melete',
+    icon: <MeleteIcon />,
+    isCurrent: ( pathname: string ): boolean => (
+      pathname === '/melete' || pathname.startsWith( '/melete/' )
     ),
   },
 ] as const
