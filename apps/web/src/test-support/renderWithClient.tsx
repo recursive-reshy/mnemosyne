@@ -36,15 +36,19 @@ function Content( { onLocation }: { onLocation?: ( location: Location ) => void 
 interface HarnessProps {
   queryClient: QueryClient
   route: InitialEntry
+  path?: string
   onLocation?: ( location: Location ) => void
   children: ReactNode
 }
 
-// A memory data router (useBlocker needs one) that shows `children` on every path. The router is
+// A memory data router (useBlocker needs one) that shows `children` on every path, or on `path`
+// when a route component needs its URL params. The router is
 // created once, so rerendering with new children keeps their state.
-function Harness( { queryClient, route, onLocation, children }: HarnessProps ): ReactElement {
+function Harness(
+  { queryClient, route, path = '*', onLocation, children }: HarnessProps,
+): ReactElement {
   const [ router ] = useState( () => createMemoryRouter(
-    [ { path: '*', element: <Content onLocation={ onLocation } /> } ],
+    [ { path, element: <Content onLocation={ onLocation } /> } ],
     { initialEntries: [ route ] },
   ) )
 
@@ -61,7 +65,7 @@ function Harness( { queryClient, route, onLocation, children }: HarnessProps ): 
 
 export const renderWithClient = (
   ui: ReactElement,
-  { route = '/' }: { route?: InitialEntry } = {},
+  { route = '/', path }: { route?: InitialEntry, path?: string } = {},
 ): ClientRender => {
   const queryClient = createQueryClient()
   let current: Location | undefined
@@ -70,7 +74,7 @@ export const renderWithClient = (
   }
 
   const wrap = ( content: ReactNode ): ReactElement => (
-    <Harness queryClient={ queryClient } route={ route } onLocation={ onLocation }>
+    <Harness queryClient={ queryClient } route={ route } path={ path } onLocation={ onLocation }>
       { content }
     </Harness>
   )
