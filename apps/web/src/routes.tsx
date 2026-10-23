@@ -6,6 +6,7 @@ import { App } from './App'
 import { HomePage } from './components/HomePage'
 import { JobPage } from './components/JobPage'
 import { MeleteNote } from './components/MeleteNote'
+import { MeleteReview } from './components/MeleteReview'
 import { MeleteSubject } from './components/MeleteSubject'
 import { MeleteToday } from './components/MeleteToday'
 import { ModelsTab } from './components/ModelsTab'
@@ -24,6 +25,7 @@ export const routes: RouteObject[] = [
       { path: 'melete', element: <MeleteToday /> },
       { path: 'melete/subjects/:subjectId', element: <MeleteSubject /> },
       { path: 'melete/notes/:noteId', element: <MeleteNote /> },
+      { path: 'melete/review', element: <MeleteReview /> },
       {
         path: 'settings',
         element: <SettingsLayout />,

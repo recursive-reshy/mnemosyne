@@ -1,0 +1,1 @@
+export { TypedAnswer } from './TypedAnswer'

@@ -3,8 +3,10 @@ import type {
   GetMeleteNoteResponse,
   GetMeleteSubjectResponse,
   GetMeleteTodayResponse,
+  MeleteGrade,
   MeleteNote,
   MeleteQuestion,
+  MeleteReviewItem,
   MeleteSubject,
 } from '@mnemosyne/shared'
 
@@ -88,6 +90,35 @@ export const meleteNoteResponseFixture = (
     note: meleteNoteFixture(),
     questions: [ meleteQuestionFixture() ],
     obsidian_url: null,
+    ...overrides,
+  }
+}
+
+export const OBSIDIAN_URL = 'obsidian://open?vault=Brain&file=Learning%2FTypeScript%2FGenerics'
+
+export const meleteReviewItemFixture = (
+  overrides: Partial< MeleteReviewItem > = {},
+): MeleteReviewItem => {
+  return {
+    question: meleteQuestionFixture(),
+    note: {
+      id: NOTE_ID,
+      title: 'Generics',
+      path: 'Learning/TypeScript/Generics.md',
+      subject_name: 'TypeScript',
+    },
+    obsidian_url: OBSIDIAN_URL,
+    ...overrides,
+  }
+}
+
+export const meleteGradeFixture = ( overrides: Partial< MeleteGrade > = {} ): MeleteGrade => {
+  return {
+    verdict: 'partial',
+    right: [ 'It is a placeholder for a type' ],
+    missed: [ 'The caller chooses the type' ],
+    feedback: 'You have the idea but not who picks the type.',
+    suggested_rating: 'hard',
     ...overrides,
   }
 }

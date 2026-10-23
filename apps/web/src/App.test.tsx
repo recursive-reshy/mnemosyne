@@ -12,14 +12,19 @@ import {
 import { getGmailAccount } from './api/gmail.api'
 import { useJob } from './hooks/useJob'
 import { useMeleteToday } from './hooks/useMeleteToday'
+import { useNextReview } from './hooks/useNextReview'
+import { useSettings } from './hooks/useSettings'
 import { gmailAccountFixture } from '#src/test-support/gmail.fixture'
 import { jobFixture } from '#src/test-support/job.fixture'
 import { meleteTodayFixture } from '#src/test-support/melete.fixture'
+import { settingsState } from '#src/test-support/hookStates'
 import { renderWithRouter } from '#src/test-support/renderWithRouter'
 
 vi.mock( './api/gmail.api' )
 vi.mock( './hooks/useJob' )
 vi.mock( './hooks/useMeleteToday' )
+vi.mock( './hooks/useNextReview' )
+vi.mock( './hooks/useSettings' )
 vi.mock( './components/SettingsLayout', () => ( {
   SettingsLayout: () => <h2>Settings</h2>,
 } ) )
@@ -29,6 +34,7 @@ const jobId = jobFixture().id
 
 beforeEach( () => {
   mockedUseJob.mockReset()
+  vi.mocked( useSettings ).mockReturnValue( settingsState() )
   vi.mocked( getGmailAccount ).mockResolvedValue( gmailAccountFixture() )
   mockedUseJob.mockReturnValue( { job: null, error: null } )
 } )
@@ -49,6 +55,15 @@ describe( 'App', () => {
 
     expect( screen.getByRole( 'heading', { name: 'Today' } ) ).toBeInTheDocument()
     expect( screen.getByRole( 'link', { name: 'Start review' } ) ).toBeInTheDocument()
+  } )
+
+  it( 'shows the review screen on /melete/review', () => {
+    vi.mocked( useNextReview ).mockReturnValue(
+      { item: null, counts: null, isLoading: false, error: null },
+    )
+    renderWithRouter( '/melete/review' )
+
+    expect( screen.getByText( 'All done for now' ) ).toBeInTheDocument()
   } )
 
   it( 'shows the job on /jobs/:id', () => {
