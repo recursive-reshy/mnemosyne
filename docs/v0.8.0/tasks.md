@@ -92,7 +92,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 7.5 | `MeleteNote` (TRD §11.2) | 0057 | ✅ |
 
 ## Checkpoint G: Phase 8 (review screen and Settings)
-**Plan:** ⬜ [`plans/checkpoint-g.md`](plans/checkpoint-g.md)
+**Plan:** ✅ [`plans/checkpoint-g.md`](plans/checkpoint-g.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
