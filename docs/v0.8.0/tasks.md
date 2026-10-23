@@ -80,7 +80,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 6.3 | Web: `NoteDestination` and `FilenamePreview` on `job.default_folder` (TRD §8) | 0059 | ✅ |
 
 ## Checkpoint F: Phase 7 (Melete pages)
-**Plan:** ⬜ [`plans/checkpoint-f.md`](plans/checkpoint-f.md)
+**Plan:** ✅ [`plans/checkpoint-f.md`](plans/checkpoint-f.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
