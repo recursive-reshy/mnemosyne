@@ -70,7 +70,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 5.5 | Routes: `review/next`, `grade`, `review` (TRD §10, last three rows), with `obsidian_url` | 0054 | ✅ |
 
 ## Checkpoint E: Phase 6 (Study profile and folder memory)
-**Plan:** ⬜ [`plans/checkpoint-e.md`](plans/checkpoint-e.md)
+**Plan:** ✅ [`plans/checkpoint-e.md`](plans/checkpoint-e.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
