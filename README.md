@@ -69,6 +69,7 @@ pnpm --filter web exec playwright install chromium webkit
    ```
 
 3. Open <http://localhost:3100>.
+   To review in Melete from your phone, see [`docs/phone-access.md`](docs/phone-access.md) (Tailscale, a private HTTPS address, Add to Home Screen). The app is published on `127.0.0.1` only.
 
 ## Google Cloud setup for Gmail
 
