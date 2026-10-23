@@ -3,11 +3,10 @@ import type { LinkResponse } from '@mnemosyne/shared'
 import { parseNote } from '@mnemosyne/shared'
 // Clients
 import { requestLinks } from '../clients/agent.client.js'
-// Config
-import { config } from '../config.js'
 // Services
 import {
   completeLinking,
+  defaultFolderFor,
   failLinking,
   findJob,
   recordLinkRun,
@@ -35,7 +34,7 @@ export const linkJob = async ( jobId: string ): Promise< void > => {
         note: {
           title: properties.title,
           tags: properties.tags,
-          folder: job.target_folder ?? config.defaultNoteFolder,
+          folder: job.target_folder ?? defaultFolderFor( job ),
           body,
         },
         model,

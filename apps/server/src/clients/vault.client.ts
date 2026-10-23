@@ -1,4 +1,5 @@
 // Node
+import { realpathSync, statSync } from 'node:fs'
 import {
   access,
   constants,
@@ -109,6 +110,18 @@ export const resolveExistingFolder = async (
   }
 
   return target
+}
+
+// Synchronous so job reads can use it; like resolveExistingFolder it creates nothing
+export const existingFolderSync = ( vaultPath: string, relativeFolder: string ): boolean => {
+  try {
+    const root = realpathSync( vaultPath )
+    const target = realpathSync( resolve( root, ...parseFolderPath( relativeFolder ) ) )
+
+    return isInside( root, target ) && statSync( target ).isDirectory()
+  } catch{
+    return false
+  }
 }
 
 export const listFolderTree = async (

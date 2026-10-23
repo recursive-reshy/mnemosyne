@@ -27,7 +27,7 @@ import {
 } from '@mnemosyne/shared'
 // Clients
 import type { TokenUsage } from '../clients/claude.client.js'
-import { writeNote } from '../clients/vault.client.js'
+import { existingFolderSync, writeNote } from '../clients/vault.client.js'
 // Config
 import { config } from '../config.js'
 // Errors
@@ -62,7 +62,11 @@ import {
 } from '../repositories/linkSuggestions.repository.js'
 import { findFeedById } from '../repositories/feeds.repository.js'
 import { findSourceById } from '../repositories/gmailSources.repository.js'
-import { findProfileById, findVersionById } from '../repositories/promptProfiles.repository.js'
+import {
+  findProfileById,
+  findVersionById,
+  setLastFolder,
+} from '../repositories/promptProfiles.repository.js'
 import { insertSummaryRun, listRunsForJob } from '../repositories/summaryRuns.repository.js'
 // Sources
 import { articleFromText } from '../sources/text.js'
@@ -138,6 +142,19 @@ const toSummaryUsage = ( jobId: string ): SummaryUsage | null => {
   }
 }
 
+// The profile's last saved folder while it still exists in the vault (ADR 0059)
+export const defaultFolderFor = ( job: { prompt_profile_id: string | null } ): string => {
+  const lastFolder = job.prompt_profile_id === null
+    ? null
+    : findProfileById( job.prompt_profile_id )?.last_folder ?? null
+
+  if( lastFolder !== null && existingFolderSync( config.vaultPath, lastFolder ) ) {
+    return lastFolder
+  }
+
+  return config.defaultNoteFolder
+}
+
 const toPublicJob = ( job: StoredJob ): Job => {
   return {
     id: job.id,
@@ -149,7 +166,9 @@ const toPublicJob = ( job: StoredJob ): Job => {
     title: job.title,
     note_markdown: job.note_markdown,
     target_folder: job.target_folder,
-    default_folder: config.defaultNoteFolder,
+    default_folder: job.status === 'ready_for_review'
+      ? defaultFolderFor( job )
+      : config.defaultNoteFolder,
     expires_at: job.expires_at,
     saved_path: job.saved_path,
     summary_model: job.summary_model,
@@ -692,12 +711,18 @@ export const saveJob = async ( id: string ): Promise< string > => {
     lockedPropertiesFor( job.source_document, today() ),
   )
 
+  const folder = job.target_folder ?? defaultFolderFor( job )
+
   const savedPath = await writeNote(
     config.vaultPath,
-    job.target_folder ?? config.defaultNoteFolder,
+    folder,
     note.properties.title,
     serializeNote( note ),
   )
+
+  if( job.prompt_profile_id !== null ) {
+    setLastFolder( job.prompt_profile_id, folder )
+  }
 
   moveTo( job, 'saved', {
     saved_path: savedPath,

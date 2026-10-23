@@ -24,6 +24,7 @@ import {
 // Clients
 import {
   assertVaultWritable,
+  existingFolderSync,
   listFolderTree,
   resolveExistingFolder,
   resolveFolder,
@@ -327,5 +328,40 @@ describe( 'resolveExistingFolder', () => {
 
   it( 'accepts the vault root', async () => {
     expect( await resolveExistingFolder( vault, '' ) ).toBe( await realpath( vault ) )
+  } )
+} )
+
+describe( 'existingFolderSync', () => {
+  it( 'is true for a folder that exists, nested or the vault root', async () => {
+    await mkdir( join( vault, 'Learning/TypeScript' ), { recursive: true } )
+
+    expect( existingFolderSync( vault, 'Learning/TypeScript' ) ).toBe( true )
+    expect( existingFolderSync( vault, 'Learning' ) ).toBe( true )
+    expect( existingFolderSync( vault, '' ) ).toBe( true )
+  } )
+
+  it( 'is false for a missing folder and creates nothing', async () => {
+    expect( existingFolderSync( vault, 'Learning/Missing' ) ).toBe( false )
+    expect( await readdir( vault ) ).toEqual( [] )
+  } )
+
+  it( 'is false for a file, an invalid path and a path that escapes the vault', async () => {
+    await writeFile( join( vault, 'note.md' ), 'x' )
+
+    expect( existingFolderSync( vault, 'note.md' ) ).toBe( false )
+    expect( existingFolderSync( vault, 'a//b' ) ).toBe( false )
+    expect( existingFolderSync( vault, '../elsewhere' ) ).toBe( false )
+  } )
+
+  it( 'is false for a link that leads out of the vault', async () => {
+    const outside = await mkdtemp( join( tmpdir(), 'mnemosyne-outside-' ) )
+
+    try {
+      await symlink( outside, join( vault, 'Escape' ) )
+
+      expect( existingFolderSync( vault, 'Escape' ) ).toBe( false )
+    } finally {
+      await rm( outside, { recursive: true, force: true } )
+    }
   } )
 } )

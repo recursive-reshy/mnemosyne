@@ -34,7 +34,9 @@ import {
 } from '../repositories/linkSuggestions.repository.js'
 import {
   findLatestVersion,
+  findProfileById,
   findProfileBySeedKey,
+  setLastFolder,
 } from '../repositories/promptProfiles.repository.js'
 import { setSetting } from '../repositories/settings.repository.js'
 import { insertFeed } from '../repositories/feeds.repository.js'
@@ -82,7 +84,7 @@ import {
   saveVersion,
 } from './prompts.service.js'
 // Clients
-import { writeNote } from '../clients/vault.client.js'
+import { existingFolderSync, writeNote } from '../clients/vault.client.js'
 // Formatters
 import { formatNote } from '../formatters/note.formatter.js'
 import { formatMarkdown } from '../formatters/markdown.formatter.js'
@@ -104,6 +106,7 @@ vi.mock( '../repositories/linkSuggestions.repository.js', async ( importOriginal
 } )
 
 const writeNoteMock = vi.mocked( writeNote )
+const existingFolderSyncMock = vi.mocked( existingFolderSync )
 const assertKnownModelMock = vi.mocked( assertKnownModel )
 
 const url = 'https://www.youtube.com/watch?v=abc'
@@ -151,6 +154,8 @@ beforeEach( () => {
   clearJobs()
   writeNoteMock.mockReset()
   writeNoteMock.mockResolvedValue( 'Mnemosyne/Edited title.md' )
+  existingFolderSyncMock.mockReset()
+  existingFolderSyncMock.mockReturnValue( true )
   assertKnownModelMock.mockReset()
   assertKnownModelMock.mockResolvedValue( undefined )
 } )
@@ -637,6 +642,144 @@ describe( 'findSource', () => {
 
   it( 'throws NotFoundError for an unknown id', () => {
     expect( () => findSource( 'missing' ) ).toThrow( NotFoundError )
+  } )
+} )
+
+describe( 'folder memory', () => {
+  const draft = '---\ntitle: "Edited title"\nsource: "x"\nchannel: "x"\nduration: "x"\n'
+    + 'created: 2020-01-01\ntags: []\n---\n\n## Summary\nEdited.\n'
+
+  const profileId = ( name: string ): string => {
+    return listProfiles().find( ( profile ) => profile.name === name )?.id ?? ''
+  }
+
+  const reviewJob = async ( profile: string | null ): Promise< string > => {
+    const { id } = await queueJob( { url, profile_id: profile ?? undefined } )
+
+    markStatus( id, 'downloading' )
+    markStatus( id, 'converting' )
+    markStatus( id, 'transcribing' )
+    completeAcquisition( id, { kind: 'video', ...transcript } )
+    completeSummary( id, '## Summary', [] )
+    updateDraft( id, { note_markdown: draft } )
+
+    return id
+  }
+
+  describe( 'default_folder', () => {
+    it( 'is the profile\'s last folder for a job in review', async () => {
+      const study = profileId( 'Study' )
+      setLastFolder( study, 'Learning/React' )
+
+      expect( findJob( await reviewJob( study ) ).default_folder ).toBe( 'Learning/React' )
+      expect( existingFolderSyncMock ).toHaveBeenCalledWith( config.vaultPath, 'Learning/React' )
+    } )
+
+    it( 'is the configured folder when the profile has no last folder', async () => {
+      expect( findJob( await reviewJob( profileId( 'Study' ) ) ).default_folder )
+        .toBe( 'Mnemosyne' )
+    } )
+
+    it( 'is the configured folder when the last folder is gone from the vault', async () => {
+      const study = profileId( 'Study' )
+      setLastFolder( study, 'Learning/Gone' )
+      existingFolderSyncMock.mockReturnValue( false )
+
+      expect( findJob( await reviewJob( study ) ).default_folder ).toBe( 'Mnemosyne' )
+    } )
+
+    it( 'is the configured folder when the job has no profile', async () => {
+      setLastFolder( profileId( 'Study' ), 'Learning/React' )
+
+      expect( findJob( await reviewJob( null ) ).default_folder ).toBe( 'Mnemosyne' )
+    } )
+
+    it( 'keeps each profile\'s own folder', async () => {
+      setLastFolder( profileId( 'Study' ), 'Learning/React' )
+      setLastFolder( profileId( 'Coding' ), 'Projects' )
+
+      expect( findJob( await reviewJob( profileId( 'Coding' ) ) ).default_folder )
+        .toBe( 'Projects' )
+      expect( findJob( await reviewJob( profileId( 'Business ideas' ) ) ).default_folder )
+        .toBe( 'Mnemosyne' )
+    } )
+
+    it( 'is the configured folder outside review, without looking at the vault', async () => {
+      const study = profileId( 'Study' )
+      setLastFolder( study, 'Learning/React' )
+      const { id } = await queueJob( { url, profile_id: study } )
+
+      expect( findJob( id ).default_folder ).toBe( 'Mnemosyne' )
+      expect( existingFolderSyncMock ).not.toHaveBeenCalled()
+    } )
+
+    it( 'shows the next Study job the folder the last one was saved to', async () => {
+      const study = profileId( 'Study' )
+      const first = await reviewJob( study )
+      updateDraft( first, { target_folder: 'Learning/React' } )
+      writeNoteMock.mockResolvedValue( 'Learning/React/Edited title.md' )
+
+      await saveJob( first )
+
+      expect( findJob( await reviewJob( study ) ).default_folder ).toBe( 'Learning/React' )
+    } )
+  } )
+
+  describe( 'saving', () => {
+    it( 'writes to the profile\'s last folder when no folder was picked', async () => {
+      const study = profileId( 'Study' )
+      setLastFolder( study, 'Learning/React' )
+
+      await saveJob( await reviewJob( study ) )
+
+      expect( writeNoteMock ).toHaveBeenCalledWith(
+        expect.any( String ),
+        'Learning/React',
+        'Edited title',
+        expect.any( String ),
+      )
+    } )
+
+    it( 'remembers the picked folder for that profile only', async () => {
+      const study = profileId( 'Study' )
+      const id = await reviewJob( study )
+      updateDraft( id, { target_folder: 'Learning/Rust' } )
+
+      await saveJob( id )
+
+      expect( findProfileById( study )?.last_folder ).toBe( 'Learning/Rust' )
+      expect( findProfileById( profileId( 'Coding' ) )?.last_folder ).toBeNull()
+    } )
+
+    it( 'remembers the folder it used when none was picked', async () => {
+      const study = profileId( 'Study' )
+      const id = await reviewJob( study )
+
+      await saveJob( id )
+
+      expect( findProfileById( study )?.last_folder ).toBe( 'Mnemosyne' )
+    } )
+
+    it( 'remembers nothing when the write fails', async () => {
+      const study = profileId( 'Study' )
+      const id = await reviewJob( study )
+      updateDraft( id, { target_folder: 'Learning/Rust' } )
+      writeNoteMock.mockRejectedValue( new Error( 'EACCES' ) )
+
+      await expect( saveJob( id ) ).rejects.toThrow( 'EACCES' )
+
+      expect( findProfileById( study )?.last_folder ).toBeNull()
+    } )
+
+    it( 'saves a job with no profile and remembers nothing', async () => {
+      const id = await reviewJob( null )
+      updateDraft( id, { target_folder: 'Learning/Rust' } )
+
+      await expect( saveJob( id ) ).resolves.toBe( 'Mnemosyne/Edited title.md' )
+
+      expect( listProfiles().map( ( profile ) => findProfileById( profile.id )?.last_folder ) )
+        .toEqual( listProfiles().map( () => null ) )
+    } )
   } )
 } )
 

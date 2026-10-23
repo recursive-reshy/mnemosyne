@@ -1,3 +1,6 @@
+// Node
+import { mkdir } from 'node:fs/promises'
+import { join } from 'node:path'
 // Packages
 import {
   describe,
@@ -16,6 +19,10 @@ import { AgentError, requestLinks } from '../clients/agent.client.js'
 // Repositories
 import { clearJobs, updateJob } from '../repositories/jobStore.repository.js'
 import { listSuggestions } from '../repositories/linkSuggestions.repository.js'
+import {
+  findProfileBySeedKey,
+  setLastFolder,
+} from '../repositories/promptProfiles.repository.js'
 import { setSetting } from '../repositories/settings.repository.js'
 // Services
 import {
@@ -64,8 +71,8 @@ const linkedResponse = ( ...targets: string[] ): LinkResponse => ( {
   usage,
 } )
 
-const queueLinking = async (): Promise< string > => {
-  const { id } = await queueJob( { url: source } )
+const queueLinking = async ( profile_id?: string ): Promise< string > => {
+  const { id } = await queueJob( { url: source, profile_id } )
 
   markStatus( id, 'downloading' )
   markStatus( id, 'converting' )
@@ -139,6 +146,17 @@ describe( 'linkJob', () => {
     await linkJob( id )
 
     expect( requestLinksMock.mock.calls[ 0 ]?.[ 0 ].note.folder ).toBe( config.defaultNoteFolder )
+  } )
+
+  it( 'uses the profile\'s last folder, when it exists, for a job with no folder', async () => {
+    const study = findProfileBySeedKey( 'study' )?.id ?? ''
+    setLastFolder( study, 'Learning/React' )
+    await mkdir( join( config.vaultPath, 'Learning/React' ), { recursive: true } )
+    const id = await queueLinking( study )
+
+    await linkJob( id )
+
+    expect( requestLinksMock.mock.calls[ 0 ]?.[ 0 ].note.folder ).toBe( 'Learning/React' )
   } )
 
   it( 'stores the suggestions as pending and ends in review as linked', async () => {

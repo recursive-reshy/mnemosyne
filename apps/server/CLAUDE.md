@@ -34,6 +34,7 @@ Parsed once with Zod in `config.ts`; nothing else reads `process.env`. `.env.exa
 - `WHISPER_URL` is `http://host.docker.internal:8178` in Docker. `DATA_DIR` is `/data` (a named volume) and `VAULT_PATH` is `/vault` (bind-mounted from `VAULT_HOST_PATH`) in Docker.
 - `ANTHROPIC_API_KEY` and `VAULT_PATH` are required; the vault must exist and be writable at startup, or the server exits with a message. The key lives in `.env` only.
 - `DEFAULT_NOTE_FOLDER` is validated at startup with the shared folder rules and created if missing.
+  It is only the fallback (ADR 0059): `Job.default_folder` for a job in review is its prompt profile's `last_folder` while that folder still exists in the vault (`defaultFolderFor`, checked read-only by `existingFolderSync`), and `saveJob` remembers the folder it wrote to for the profile once the write succeeds.
 - Gmail (ADR 0035) is optional: `config.gmail` is `null` unless `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `TOKEN_ENCRYPTION_KEY` (32 bytes, base64) are all set. A key that is set but isn't 32 bytes stops startup. `GOOGLE_REDIRECT_URI` defaults to the callback on `PORT`.
 - The vault agent service (ADR 0042) is optional: `config.agent` is `null` unless `AGENT_SECRET` (at least 32 characters) is set, and then jobs skip linking. `AGENT_URL` defaults to `http://localhost:8100`, `AGENT_TIMEOUT_MS` to 120000.
 - `LOG_LEVEL` (ADR 0049): `fatal`, `error`, `warn`, `info` (default), `debug`, `trace` or `silent`; vitest runs with `silent`.
