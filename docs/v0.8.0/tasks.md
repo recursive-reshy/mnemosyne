@@ -103,7 +103,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 8.4 | Prompts tab grouped by `purpose` with the Melete prompts; Models tab **Melete** section; `apps/web/CLAUDE.md` (TRD §11.4) | 0055 | ✅ |
 
 ## Checkpoint H: Phase 9 (phone access and e2e)
-**Plan:** ⬜ [`plans/checkpoint-h.md`](plans/checkpoint-h.md)
+**Plan:** ✅ [`plans/checkpoint-h.md`](plans/checkpoint-h.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
