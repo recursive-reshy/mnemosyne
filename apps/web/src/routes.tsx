@@ -5,6 +5,7 @@ import type { RouteObject } from 'react-router'
 import { App } from './App'
 import { HomePage } from './components/HomePage'
 import { JobPage } from './components/JobPage'
+import { MeleteToday } from './components/MeleteToday'
 import { ModelsTab } from './components/ModelsTab'
 import { PromptsTab } from './components/PromptsTab'
 import { SettingsIndexRedirect } from './components/SettingsIndexRedirect'
@@ -18,6 +19,7 @@ export const routes: RouteObject[] = [
     children: [
       { index: true, element: <HomePage /> },
       { path: 'jobs/:id', element: <JobPage /> },
+      { path: 'melete', element: <MeleteToday /> },
       {
         path: 'settings',
         element: <SettingsLayout />,

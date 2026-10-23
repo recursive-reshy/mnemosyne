@@ -11,12 +11,15 @@ import {
 // App
 import { getGmailAccount } from './api/gmail.api'
 import { useJob } from './hooks/useJob'
+import { useMeleteToday } from './hooks/useMeleteToday'
 import { gmailAccountFixture } from '#src/test-support/gmail.fixture'
 import { jobFixture } from '#src/test-support/job.fixture'
+import { meleteTodayFixture } from '#src/test-support/melete.fixture'
 import { renderWithRouter } from '#src/test-support/renderWithRouter'
 
 vi.mock( './api/gmail.api' )
 vi.mock( './hooks/useJob' )
+vi.mock( './hooks/useMeleteToday' )
 vi.mock( './components/SettingsLayout', () => ( {
   SettingsLayout: () => <h2>Settings</h2>,
 } ) )
@@ -36,6 +39,16 @@ describe( 'App', () => {
 
     expect( screen.getByRole( 'heading', { level: 1, name: 'Mnemosyne' } ) ).toBeInTheDocument()
     expect( screen.getByRole( 'form', { name: 'Add a video or article' } ) ).toBeInTheDocument()
+  } )
+
+  it( 'shows Melete\'s Today on /melete', () => {
+    vi.mocked( useMeleteToday ).mockReturnValue(
+      { today: meleteTodayFixture(), isLoading: false, error: null },
+    )
+    renderWithRouter( '/melete' )
+
+    expect( screen.getByRole( 'heading', { name: 'Today' } ) ).toBeInTheDocument()
+    expect( screen.getByRole( 'link', { name: 'Start review' } ) ).toBeInTheDocument()
   } )
 
   it( 'shows the job on /jobs/:id', () => {
