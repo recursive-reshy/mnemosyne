@@ -7,6 +7,7 @@ import {
   inboxKeys,
   jobKeys,
   linkSuggestionKeys,
+  meleteKeys,
   modelKeys,
   promptKeys,
   settingsKeys,
@@ -49,5 +50,16 @@ describe( 'link suggestion query keys', () => {
   it( 'nests a job\'s suggestions under the job\'s key', () => {
     expect( linkSuggestionKeys.list( 'abc' ) ).toEqual( [ 'jobs', 'abc', 'link-suggestions' ] )
     expect( linkSuggestionKeys.list( 'abc' ).slice( 0, 2 ) ).toEqual( jobKeys.detail( 'abc' ) )
+  } )
+} )
+
+describe( 'melete query keys', () => {
+  it( 'nests every key under the module key', () => {
+    expect( meleteKeys.all ).toEqual( [ 'melete' ] )
+    expect( meleteKeys.today ).toEqual( [ 'melete', 'today' ] )
+    expect( meleteKeys.subject( 's1' ) ).toEqual( [ 'melete', 'subjects', 's1' ] )
+    expect( meleteKeys.note( 'n1' ) ).toEqual( [ 'melete', 'notes', 'n1' ] )
+    expect( meleteKeys.review( 's1' ) ).toEqual( [ 'melete', 'review', 's1' ] )
+    expect( meleteKeys.review( null ) ).toEqual( [ 'melete', 'review', 'all' ] )
   } )
 } )

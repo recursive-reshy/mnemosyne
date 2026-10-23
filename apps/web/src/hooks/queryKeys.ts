@@ -43,3 +43,11 @@ export const statusKeys = {
   all: [ 'status' ] as const,
   errors: ( kind: string, id: string ) => [ 'status', 'errors', kind, id ] as const,
 }
+
+export const meleteKeys = {
+  all: [ 'melete' ] as const,
+  today: [ 'melete', 'today' ] as const,
+  subject: ( id: string ) => [ 'melete', 'subjects', id ] as const,
+  note: ( id: string ) => [ 'melete', 'notes', id ] as const,
+  review: ( subjectId: string | null ) => [ 'melete', 'review', subjectId ?? 'all' ] as const,
+}

@@ -13,7 +13,7 @@ import { ApiError } from '../api/apiError'
 import { getSettings, updateSettings } from '../api/settings.api'
 import { renderHookWithClient } from '../test-support/renderWithClient'
 import { settingsFixture } from '../test-support/summarizer.fixture'
-import { settingsKeys } from './queryKeys'
+import { meleteKeys, settingsKeys } from './queryKeys'
 import { useSettings } from './useSettings'
 
 vi.mock( '../api/settings.api' )
@@ -95,6 +95,19 @@ describe( 'useSettings', () => {
     expect( mockedUpdate ).toHaveBeenCalledWith( { default_model: 'claude-opus-5-5' } )
     expect( queryClient.getQueryData( settingsKeys.all ) ).toEqual( updated )
     expect( result.current.settings?.default_model ).toBe( 'claude-opus-5-5' )
+  } )
+
+  it( 'refreshes the Melete data after a save (the learning root is a setting)', async () => {
+    mockedGet.mockResolvedValue( settingsFixture() )
+    mockedUpdate.mockResolvedValue( settingsFixture() )
+    const { result, queryClient } = renderHookWithClient( () => useSettings() )
+    await vi.waitFor( () => expect( result.current.isLoading ).toBe( false ) )
+    const invalidate = vi.spyOn( queryClient, 'invalidateQueries' )
+
+    act( () => result.current.updateSettings.mutate( { melete_learning_root: 'Learning' } ) )
+
+    await vi.waitFor( () => expect( result.current.updateSettings.isSuccess ).toBe( true ) )
+    expect( invalidate ).toHaveBeenCalledWith( { queryKey: meleteKeys.all } )
   } )
 
   it( 'keeps the old settings and reports a failed save', async () => {

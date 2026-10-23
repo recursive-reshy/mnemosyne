@@ -9,7 +9,7 @@ import type {
 } from '@mnemosyne/shared'
 // App
 import { getSettings, updateSettings } from '../api/settings.api'
-import { settingsKeys } from './queryKeys'
+import { meleteKeys, settingsKeys } from './queryKeys'
 
 export interface SettingsState {
   settings: Settings | null
@@ -29,8 +29,10 @@ export function useSettings(): SettingsState {
   } )
   const update = useMutation( {
     mutationFn: ( body: UpdateSettingsBody ) => updateSettings( body ),
-    onSuccess: ( response ) => {
+    onSuccess: async ( response ) => {
       queryClient.setQueryData( settingsKeys.all, response )
+      // The learning root is a setting, and Melete's pages depend on it.
+      await queryClient.invalidateQueries( { queryKey: meleteKeys.all } )
     },
   } )
 
