@@ -46,6 +46,7 @@ const configMock = vi.hoisted( () => ( {
   logLevel: 'silent',
   vaultPath: '',
   timeZone: 'Asia/Singapore',
+  obsidianVaultName: undefined as string | undefined,
   melete: { requestRetention: 0.9, dayStartHour: 4 },
 } ) )
 
@@ -472,6 +473,23 @@ describe( 'getSubject', () => {
 
     await expect( getSubject( subjectId( 'TypeScript' ), at( 31 ) ) )
       .rejects.toThrow( NotFoundError )
+  } )
+} )
+
+describe( 'getNote, Obsidian link', () => {
+  it( 'is null without a vault name and the note\'s link with one', () => {
+    const id = noteId( GENERICS )
+
+    expect( getNote( id ).obsidian_url ).toBeNull()
+
+    configMock.obsidianVaultName = 'My Brain'
+    try {
+      expect( getNote( id ).obsidian_url ).toBe(
+        'obsidian://open?vault=My%20Brain&file=Learning%2FTypeScript%2FGenerics',
+      )
+    } finally {
+      configMock.obsidianVaultName = undefined
+    }
   } )
 } )
 

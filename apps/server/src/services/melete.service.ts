@@ -13,6 +13,7 @@ import { config } from '../config.js'
 // Errors
 import { ConflictError, NotFoundError } from '../errors.js'
 // Melete
+import { obsidianUrl } from '../melete/obsidian.js'
 import { newRemaining, reviewCounts } from '../melete/queue.js'
 import { listSubjectFolders } from '../melete/scan.js'
 // Repositories
@@ -97,7 +98,11 @@ const toMeleteNote = ( note: NoteRecord, questions: QuestionRecord[] ): MeleteNo
 const noteView = ( note: NoteRecord ): GetMeleteNoteResponse => {
   const questions = listForNote( note.id )
 
-  return { note: toMeleteNote( note, questions ), questions: questions.map( toMeleteQuestion ) }
+  return {
+    note: toMeleteNote( note, questions ),
+    questions: questions.map( toMeleteQuestion ),
+    obsidian_url: obsidianUrl( config.obsidianVaultName, note.path ),
+  }
 }
 
 export const subjectName = ( folder: string ): string => folder.split( '/' ).at( -1 ) ?? folder

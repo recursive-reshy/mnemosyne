@@ -133,6 +133,7 @@ export type UpdateMeleteNoteBody = z.infer< typeof UpdateMeleteNoteBody >
 export const GetMeleteNoteResponse = z.object( {
   note: MeleteNote,
   questions: z.array( MeleteQuestion ),
+  obsidian_url: z.string().nullable(),
 } )
 export type GetMeleteNoteResponse = z.infer< typeof GetMeleteNoteResponse >
 

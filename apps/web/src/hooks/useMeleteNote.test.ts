@@ -46,16 +46,23 @@ afterEach( () => {
 
 describe( 'useMeleteNote', () => {
   it( 'returns the note and its questions', async () => {
-    mockedGet.mockResolvedValue( meleteNoteResponseFixture() )
+    const response = meleteNoteResponseFixture( { obsidian_url: 'obsidian://open?vault=B&file=N' } )
+    mockedGet.mockResolvedValue( response )
     const { result } = renderHookWithClient( () => useMeleteNote( NOTE_ID ) )
 
-    expect( result.current ).toMatchObject( { note: null, questions: [], isLoading: true } )
+    expect( result.current ).toMatchObject( {
+      note: null,
+      questions: [],
+      obsidianUrl: null,
+      isLoading: true,
+    } )
 
     await advance( 0 )
     expect( mockedGet ).toHaveBeenCalledWith( NOTE_ID )
     expect( result.current ).toMatchObject( {
-      note: meleteNoteResponseFixture().note,
-      questions: meleteNoteResponseFixture().questions,
+      note: response.note,
+      questions: response.questions,
+      obsidianUrl: 'obsidian://open?vault=B&file=N',
       isLoading: false,
       error: null,
     } )

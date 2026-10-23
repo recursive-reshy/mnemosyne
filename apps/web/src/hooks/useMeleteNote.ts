@@ -11,6 +11,7 @@ import { meleteKeys } from './queryKeys'
 export interface MeleteNoteState {
   note: MeleteNote | null
   questions: MeleteQuestion[]
+  obsidianUrl: string | null
   isLoading: boolean
   error: string | null
 }
@@ -28,6 +29,7 @@ export function useMeleteNote( noteId: string ): MeleteNoteState {
   return {
     note: data?.note ?? null,
     questions: data?.questions ?? [],
+    obsidianUrl: data?.obsidian_url ?? null,
     isLoading: isPending,
     error: error === null ? null : error.message,
   }

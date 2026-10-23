@@ -235,6 +235,7 @@ describe( 'the note routes', () => {
     expect( response.status ).toBe( 200 )
     expect( body.note ).toMatchObject( { id, title: 'Generics in TypeScript', question_count: 1 } )
     expect( body.questions ).toHaveLength( 1 )
+    expect( body.obsidian_url ).toBeNull()
   } )
 
   it( 'PATCH enrols and unenrols a note', async () => {

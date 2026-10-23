@@ -84,5 +84,10 @@ export const meleteSubjectResponseFixture = (
 export const meleteNoteResponseFixture = (
   overrides: Partial< GetMeleteNoteResponse > = {},
 ): GetMeleteNoteResponse => {
-  return { note: meleteNoteFixture(), questions: [ meleteQuestionFixture() ], ...overrides }
+  return {
+    note: meleteNoteFixture(),
+    questions: [ meleteQuestionFixture() ],
+    obsidian_url: null,
+    ...overrides,
+  }
 }

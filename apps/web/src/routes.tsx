@@ -5,6 +5,7 @@ import type { RouteObject } from 'react-router'
 import { App } from './App'
 import { HomePage } from './components/HomePage'
 import { JobPage } from './components/JobPage'
+import { MeleteNote } from './components/MeleteNote'
 import { MeleteSubject } from './components/MeleteSubject'
 import { MeleteToday } from './components/MeleteToday'
 import { ModelsTab } from './components/ModelsTab'
@@ -22,6 +23,7 @@ export const routes: RouteObject[] = [
       { path: 'jobs/:id', element: <JobPage /> },
       { path: 'melete', element: <MeleteToday /> },
       { path: 'melete/subjects/:subjectId', element: <MeleteSubject /> },
+      { path: 'melete/notes/:noteId', element: <MeleteNote /> },
       {
         path: 'settings',
         element: <SettingsLayout />,

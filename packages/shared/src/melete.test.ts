@@ -288,6 +288,17 @@ describe( 'GradeAnswerResponse', () => {
 } )
 
 describe( 'responses', () => {
+  it( 'requires the note response to say whether an Obsidian link exists', () => {
+    expect( accepts( GetMeleteNoteResponse, { note, questions: [] } ) ).toBe( false )
+    expect( accepts( GetMeleteNoteResponse, { note, questions: [], obsidian_url: null } ) )
+      .toBe( true )
+    expect( accepts( GetMeleteNoteResponse, {
+      note,
+      questions: [],
+      obsidian_url: 'obsidian://open?vault=Brain&file=Learning%2FGenerics',
+    } ) ).toBe( true )
+  } )
+
   it( 'parses each response shape', () => {
     expect( GetMeleteTodayResponse.parse( { learning_root: null, subjects: [], totals: counts } ) )
       .toMatchObject( { learning_root: null } )
@@ -298,8 +309,11 @@ describe( 'responses', () => {
     } ).subjects ).toHaveLength( 1 )
     expect( GetMeleteSubjectResponse.parse( { subject, notes: [ note ] } ).notes )
       .toHaveLength( 1 )
-    expect( GetMeleteNoteResponse.parse( { note, questions: [ question ] } ).questions )
-      .toHaveLength( 1 )
+    expect( GetMeleteNoteResponse.parse( {
+      note,
+      questions: [ question ],
+      obsidian_url: null,
+    } ).questions ).toHaveLength( 1 )
     expect( GetNextReviewResponse.parse( { item: null, counts } ) )
       .toEqual( { item: null, counts } )
     expect( RecordReviewResponse.parse( { question, counts } ).counts ).toEqual( counts )
