@@ -114,7 +114,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 9.4 | e2e: fakes tell Melete requests apart (with unit tests), `run.sh` seeds `Learning/E2E/Recall.md`, `melete.spec.ts` on Pixel 7 (TRD §13.3) | 0053, 0060 | ✅ |
 
 ## Checkpoint I: Phase 10 (clean-up and release)
-**Plan:** ⬜ [`plans/checkpoint-i.md`](plans/checkpoint-i.md)
+**Plan:** ✅ [`plans/checkpoint-i.md`](plans/checkpoint-i.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
