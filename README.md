@@ -290,7 +290,7 @@ On a stop signal the server stops taking work and lets a running job finish, for
 
 ## Status and roadmap
 
-Version 0.7.1. A single-user tool: one job at a time, jobs kept in SQLite, no accounts.
+Version 0.8.0. A single-user tool: one job at a time, jobs kept in SQLite, no accounts.
 
 Possible next steps:
 
