@@ -42,6 +42,9 @@ import {
   runMigrations,
 } from './database.js'
 
+// Migration 1 seeds the profiles shipped before 0.8.0; Study arrives with migration 9
+const shippedBeforeStudy = SEEDED_PROFILES.filter( ( { seedKey } ) => seedKey !== 'study' )
+
 describe( 'openDatabase and closeDatabase', () => {
   let directory = ''
   let databasePath = ''
@@ -503,7 +506,7 @@ describe( 'migration 4', () => {
       FROM prompt_profiles p JOIN prompt_versions v ON v.profile_id = p.id
       ORDER BY p.rowid` ).all()
 
-    expect( rows ).toEqual( SEEDED_PROFILES.map( ( profile ) => ( {
+    expect( rows ).toEqual( shippedBeforeStudy.map( ( profile ) => ( {
       name: profile.name,
       seed_key: profile.seedKey,
       deleted_at: null,
@@ -1269,7 +1272,7 @@ describe( 'migration 7', () => {
     ] )
     expect( database
       .prepare( 'SELECT COUNT(*) AS count FROM prompt_profiles WHERE purpose = \'summary\'' )
-      .get() ).toEqual( { count: SEEDED_PROFILES.length + 2 } )
+      .get() ).toEqual( { count: shippedBeforeStudy.length + 2 } )
   } )
 
   it( 'leaves a job in review, its versions and its summary run untouched', () => {

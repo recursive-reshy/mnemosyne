@@ -85,6 +85,11 @@ List the key points.
 Pick notable quotes.
 Suggest short topical tags.`,
   },
+  {
+    seedKey: STUDY_SEED_KEY,
+    name: 'Study',
+    guidance: STUDY_GUIDANCE,
+  },
 ]
 
 export const buildSystemPrompt = ( guidance: string, kind: SourceType ): string => {

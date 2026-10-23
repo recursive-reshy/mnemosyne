@@ -115,7 +115,8 @@ const addSummarizerTables = ( db: Database.Database ): void => {
     ( profile_id, version, guidance, source, created_at ) VALUES ( ?, 1, ?, 'seed', ? )` )
   let businessId = ''
 
-  for( const profile of SEEDED_PROFILES ) {
+  // Study arrives with migration 9; this migration stays as it shipped
+  for( const profile of SEEDED_PROFILES.filter( ( { seedKey } ) => seedKey !== STUDY_SEED_KEY ) ) {
     const id = crypto.randomUUID()
 
     insertProfile.run( id, profile.name, profile.seedKey, now )

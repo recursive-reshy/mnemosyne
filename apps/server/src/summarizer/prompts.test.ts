@@ -33,11 +33,12 @@ describe( 'LOCKED_INSTRUCTIONS_VIDEO', () => {
 } )
 
 describe( 'SEEDED_PROFILES', () => {
-  it( 'ships business, coding and general, in that order', () => {
+  it( 'ships business, coding, general and study, in that order', () => {
     expect( SEEDED_PROFILES.map( ( { seedKey, name } ) => ( { seedKey, name } ) ) ).toEqual( [
       { seedKey: 'business', name: 'Business ideas' },
       { seedKey: 'coding', name: 'Coding' },
       { seedKey: 'general', name: 'General' },
+      { seedKey: 'study', name: 'Study' },
     ] )
   } )
 
@@ -140,7 +141,8 @@ describe( 'the Study profile text', () => {
     expect( Guidance.safeParse( STUDY_GUIDANCE ).success ).toBe( true )
   } )
 
-  it( 'is not in SEEDED_PROFILES yet (task 6.1 adds it)', () => {
-    expect( SEEDED_PROFILES.some( ( { seedKey } ) => seedKey === 'study' ) ).toBe( false )
+  it( 'is the guidance of the Study entry in SEEDED_PROFILES', () => {
+    expect( SEEDED_PROFILES.find( ( { seedKey } ) => seedKey === 'study' )?.guidance )
+      .toBe( STUDY_GUIDANCE )
   } )
 } )

@@ -16,7 +16,11 @@ import {
 // Repositories
 import { getSetting, setSetting } from '../repositories/settings.repository.js'
 // Summarizer
-import { DEFAULT_LINKER_GUIDANCE, SEEDED_PROFILES } from '../summarizer/prompts.js'
+import {
+  DEFAULT_LINKER_GUIDANCE,
+  SEEDED_PROFILES,
+  STUDY_GUIDANCE,
+} from '../summarizer/prompts.js'
 // Melete
 import {
   DEFAULT_MELETE_GRADING_GUIDANCE,
@@ -225,6 +229,17 @@ describe( 'resetProfile', () => {
       version: 3,
       source: 'reset',
       guidance: SEEDED_PROFILES[ 1 ]?.guidance,
+    } )
+  } )
+
+  it( 'restores the Study guidance after an edit', () => {
+    const id = byName( 'Study' )
+    saveVersion( id, 'Changed' )
+
+    expect( resetProfile( id ).current_version ).toMatchObject( {
+      version: 3,
+      source: 'reset',
+      guidance: STUDY_GUIDANCE,
     } )
   } )
 
