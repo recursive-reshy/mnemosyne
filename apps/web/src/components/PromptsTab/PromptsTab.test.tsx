@@ -11,10 +11,15 @@ import {
 } from 'vitest'
 // App
 import { getGmailAccount } from '#src/api/gmail.api'
+import { useMeleteProfiles } from '#src/hooks/useMeleteProfiles'
 import { usePromptProfiles } from '#src/hooks/usePromptProfiles'
 import { useSettings } from '#src/hooks/useSettings'
 import { gmailAccountFixture } from '#src/test-support/gmail.fixture'
-import { profilesState, settingsState } from '#src/test-support/hookStates'
+import {
+  meleteProfilesState,
+  profilesState,
+  settingsState,
+} from '#src/test-support/hookStates'
 import { mockMatchMedia } from '#src/test-support/matchMedia'
 import { renderWithRouter } from '#src/test-support/renderWithRouter'
 import { BUSINESS_ID, CODING_ID } from '#src/test-support/summarizer.fixture'
@@ -22,11 +27,15 @@ import { BUSINESS_ID, CODING_ID } from '#src/test-support/summarizer.fixture'
 vi.mock( '#src/api/gmail.api' )
 vi.mock( '#src/hooks/useSettings' )
 vi.mock( '#src/hooks/usePromptProfiles' )
+vi.mock( '#src/hooks/useMeleteProfiles' )
 vi.mock( '../ModelsTab', () => ( { ModelsTab: () => <p>models content</p> } ) )
 vi.mock( '../SourcesTab', () => ( { SourcesTab: () => <p>sources content</p> } ) )
 vi.mock( '../PromptList', () => ( {
-  PromptList: ( props: { selectedId: string | null } ) => (
-    <p>{ `list, selected ${ props.selectedId ?? 'none' }` }</p>
+  PromptList: ( props: { selectedId: string | null, meleteProfiles: unknown[] } ) => (
+    <>
+      <p>{ `list, selected ${ props.selectedId ?? 'none' }` }</p>
+      <p>{ `${ props.meleteProfiles.length } Melete prompts in the list` }</p>
+    </>
   ),
 } ) )
 vi.mock( '../ProfileManager', () => ( {
@@ -43,9 +52,16 @@ beforeEach( () => {
   vi.mocked( getGmailAccount ).mockResolvedValue( gmailAccountFixture() )
   vi.mocked( useSettings ).mockReturnValue( settingsState() )
   vi.mocked( usePromptProfiles ).mockReturnValue( profilesState() )
+  vi.mocked( useMeleteProfiles ).mockReturnValue( meleteProfilesState() )
 } )
 
 describe( 'PromptsTab, wide window', () => {
+  it( 'gives the list the Melete prompts', () => {
+    renderWithRouter( `/settings/prompts/${ CODING_ID }` )
+
+    expect( screen.getByText( '2 Melete prompts in the list' ) ).toBeInTheDocument()
+  } )
+
   it( 'opens the default profile on /settings/prompts', () => {
     const { location } = renderWithRouter( '/settings/prompts' )
 

@@ -14,10 +14,15 @@ import {
 } from 'vitest'
 import { page } from 'vitest/browser'
 // App
+import { useMeleteProfiles } from '#src/hooks/useMeleteProfiles'
 import { usePromptProfiles } from '#src/hooks/usePromptProfiles'
 import { usePromptVersions } from '#src/hooks/usePromptVersions'
 import { useSettings } from '#src/hooks/useSettings'
-import { profilesState, settingsState } from '#src/test-support/hookStates'
+import {
+  meleteProfilesState,
+  profilesState,
+  settingsState,
+} from '#src/test-support/hookStates'
 import { createQueryClient } from '#src/queryClient'
 import { CODING_ID } from '#src/test-support/summarizer.fixture'
 import { theme } from '#src/theme'
@@ -25,6 +30,7 @@ import { PromptsTab } from './PromptsTab'
 
 vi.mock( '#src/hooks/useSettings' )
 vi.mock( '#src/hooks/usePromptProfiles' )
+vi.mock( '#src/hooks/useMeleteProfiles' )
 vi.mock( '#src/hooks/usePromptVersions' )
 
 const LIST_WIDTH = 280
@@ -51,6 +57,7 @@ const renderTab = ( path: string ): void => {
 beforeEach( () => {
   vi.mocked( useSettings ).mockReturnValue( settingsState() )
   vi.mocked( usePromptProfiles ).mockReturnValue( profilesState() )
+  vi.mocked( useMeleteProfiles ).mockReturnValue( meleteProfilesState() )
   vi.mocked( usePromptVersions ).mockReturnValue(
     { versions: [], isLoading: false, error: null },
   )

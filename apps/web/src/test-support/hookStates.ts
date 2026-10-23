@@ -1,9 +1,11 @@
 // App
+import type { useMeleteProfiles } from '../hooks/useMeleteProfiles'
 import type { useModels } from '../hooks/useModels'
 import type { usePromptProfiles } from '../hooks/usePromptProfiles'
 import type { useSettings } from '../hooks/useSettings'
 import { mutationStub } from './mutationStub'
 import {
+  meleteProfilesFixture,
   modelsFixture,
   profilesFixture,
   settingsFixture,
@@ -12,6 +14,7 @@ import {
 type SettingsState = ReturnType< typeof useSettings >
 type ModelsState = ReturnType< typeof useModels >
 type ProfilesState = ReturnType< typeof usePromptProfiles >
+type MeleteProfilesState = ReturnType< typeof useMeleteProfiles >
 
 // Loaded, error-free return values for the Settings hooks, for component tests that mock them.
 export const settingsState = ( overrides: Partial< SettingsState > = {} ): SettingsState => ( {
@@ -43,5 +46,14 @@ export const profilesState = ( overrides: Partial< ProfilesState > = {} ): Profi
   saveVersion: mutationStub(),
   restoreVersion: mutationStub(),
   resetProfile: mutationStub(),
+  ...overrides,
+} )
+
+export const meleteProfilesState = (
+  overrides: Partial< MeleteProfilesState > = {},
+): MeleteProfilesState => ( {
+  profiles: meleteProfilesFixture(),
+  isLoading: false,
+  error: null,
   ...overrides,
 } )

@@ -1,0 +1,101 @@
+// Testing Library
+import { screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+// Vitest
+import {
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
+// App
+import { useModels } from '#src/hooks/useModels'
+import { useSettings } from '#src/hooks/useSettings'
+import { modelsState, settingsState } from '#src/test-support/hookStates'
+import { mutationStub } from '#src/test-support/mutationStub'
+import { renderWithClient } from '#src/test-support/renderWithClient'
+import { settingsFixture } from '#src/test-support/summarizer.fixture'
+import { MeleteSettings } from './MeleteSettings'
+
+vi.mock( '#src/hooks/useSettings' )
+vi.mock( '#src/hooks/useModels' )
+
+const mutate = vi.fn()
+
+const pick = async ( label: string, option: string ): Promise< void > => {
+  const user = userEvent.setup()
+
+  await user.click( screen.getByRole( 'combobox', { name: label } ) )
+  await user.click(
+    within( screen.getByRole( 'listbox' ) ).getByRole( 'option', { name: option } ),
+  )
+}
+
+beforeEach( () => {
+  mutate.mockReset()
+  vi.mocked( useSettings ).mockReturnValue(
+    settingsState( { updateSettings: mutationStub( { mutate } ) } ),
+  )
+  vi.mocked( useModels ).mockReturnValue( modelsState() )
+} )
+
+describe( 'MeleteSettings', () => {
+  it( 'shows the saved question and grading models', () => {
+    vi.mocked( useSettings ).mockReturnValue( settingsState( {
+      settings: {
+        ...settingsFixture().settings,
+        melete_question_model: 'claude-opus-5-5',
+        melete_grading_model: 'claude-sonnet-5-5',
+      },
+    } ) )
+    renderWithClient( <MeleteSettings /> )
+
+    expect( screen.getByRole( 'combobox', { name: 'Question model' } ) )
+      .toHaveTextContent( 'Claude Opus 5.5' )
+    expect( screen.getByRole( 'combobox', { name: 'Grading model' } ) )
+      .toHaveTextContent( 'Claude Sonnet 5.5' )
+  } )
+
+  it( 'saves a new question model', async () => {
+    renderWithClient( <MeleteSettings /> )
+
+    await pick( 'Question model', 'Claude Opus 5.5' )
+
+    expect( mutate ).toHaveBeenCalledWith( { melete_question_model: 'claude-opus-5-5' } )
+  } )
+
+  it( 'saves a new grading model', async () => {
+    renderWithClient( <MeleteSettings /> )
+
+    await pick( 'Grading model', 'Claude Sonnet 5.5' )
+
+    expect( mutate ).toHaveBeenCalledWith( { melete_grading_model: 'claude-sonnet-5-5' } )
+  } )
+
+  it( 'keeps a saved model that is not in the list selectable', () => {
+    vi.mocked( useSettings ).mockReturnValue( settingsState( {
+      settings: { ...settingsFixture().settings, melete_question_model: 'claude-haiku-5-5' },
+    } ) )
+    renderWithClient( <MeleteSettings /> )
+
+    expect( screen.getByRole( 'combobox', { name: 'Question model' } ) )
+      .toHaveTextContent( 'claude-haiku-5-5' )
+  } )
+
+  it( 'says when the model list is offline', () => {
+    vi.mocked( useModels ).mockReturnValue( modelsState( { source: 'fallback' } ) )
+    renderWithClient( <MeleteSettings /> )
+
+    expect( screen.getByText( /model list is offline/ ) ).toBeInTheDocument()
+  } )
+
+  it( 'shows a save error', () => {
+    vi.mocked( useSettings ).mockReturnValue( settingsState( {
+      updateSettings: mutationStub( { isError: true, error: new Error( 'Unknown model' ) } ),
+    } ) )
+    renderWithClient( <MeleteSettings /> )
+
+    expect( screen.getByRole( 'alert' ) ).toHaveTextContent( 'Unknown model' )
+  } )
+} )

@@ -7,13 +7,23 @@ import { renderWithClient } from '#src/test-support/renderWithClient'
 import {
   BUSINESS_ID,
   CODING_ID,
+  MELETE_GRADING_ID,
+  MELETE_QUESTIONS_ID,
+  meleteProfilesFixture,
   profilesFixture,
 } from '#src/test-support/summarizer.fixture'
 import { PromptList } from './PromptList'
 
-const setup = ( selectedId: string | null = null ) => renderWithClient(
-  <PromptList profiles={ profilesFixture() } defaultId={ BUSINESS_ID } selectedId={ selectedId } />,
-)
+const setup = ( selectedId: string | null = null, meleteProfiles = meleteProfilesFixture() ) => {
+  return renderWithClient(
+    <PromptList
+      profiles={ profilesFixture() }
+      meleteProfiles={ meleteProfiles }
+      defaultId={ BUSINESS_ID }
+      selectedId={ selectedId }
+    />,
+  )
+}
 
 describe( 'PromptList', () => {
   it( 'groups the summary profiles and the linker prompt', () => {
@@ -26,6 +36,33 @@ describe( 'PromptList', () => {
       .toEqual( [ 'Business ideasDefault', 'Coding', 'General' ] )
     expect( within( linking ).getByRole( 'link', { name: 'Linker prompt' } ) )
       .toHaveAttribute( 'href', '/settings/prompts/linker' )
+  } )
+
+  it( 'groups the two Melete prompts after Linking', () => {
+    setup()
+
+    const melete = screen.getByRole( 'list', { name: 'Melete' } )
+
+    expect( within( melete ).getAllByRole( 'link' ).map( ( link ) => link.textContent ) )
+      .toEqual( [ 'Melete questions', 'Melete grading' ] )
+    expect( within( melete ).getByRole( 'link', { name: 'Melete questions' } ) )
+      .toHaveAttribute( 'href', `/settings/prompts/${ MELETE_QUESTIONS_ID }` )
+    expect( within( melete ).getByRole( 'link', { name: 'Melete grading' } ) )
+      .toHaveAttribute( 'href', `/settings/prompts/${ MELETE_GRADING_ID }` )
+    expect( within( melete ).queryByText( 'Default' ) ).not.toBeInTheDocument()
+  } )
+
+  it( 'leaves the Melete group out until its prompts are loaded', () => {
+    setup( null, [] )
+
+    expect( screen.queryByRole( 'list', { name: 'Melete' } ) ).not.toBeInTheDocument()
+  } )
+
+  it( 'marks a selected Melete prompt as the current page', () => {
+    setup( MELETE_GRADING_ID )
+
+    expect( screen.getByRole( 'link', { name: 'Melete grading' } ) )
+      .toHaveAttribute( 'aria-current', 'page' )
   } )
 
   it( 'links each profile to its own address', () => {

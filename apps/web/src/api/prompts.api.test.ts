@@ -54,6 +54,14 @@ describe( 'listProfiles', () => {
     expect( fetchMock ).toHaveBeenCalledWith( '/api/prompt-profiles', undefined )
   } )
 
+  it( 'asks for another purpose when given one', async () => {
+    fetchMock.mockResolvedValue( json( { profiles: profilesFixture() } ) )
+
+    await listProfiles( 'all' )
+
+    expect( fetchMock ).toHaveBeenCalledWith( '/api/prompt-profiles?purpose=all', undefined )
+  } )
+
   it( 'rejects a response that does not match the schema', async () => {
     fetchMock.mockResolvedValue( json( { profiles: [ { id: 'x' } ] } ) )
 

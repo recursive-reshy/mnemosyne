@@ -8,6 +8,7 @@ import useMediaQuery from '@mui/material/useMediaQuery'
 import { useTheme } from '@mui/material/styles'
 import { Link, Navigate, useParams } from 'react-router'
 // App
+import { useMeleteProfiles } from '#src/hooks/useMeleteProfiles'
 import { usePromptProfiles } from '#src/hooks/usePromptProfiles'
 import { useSettings } from '#src/hooks/useSettings'
 import { ProfileManager } from '../ProfileManager'
@@ -21,6 +22,7 @@ export function PromptsTab(): ReactElement {
   const isNarrow = useMediaQuery( useTheme().breakpoints.down( 'md' ) )
   const defaultId = useSettings().settings?.default_profile_id
   const { profiles } = usePromptProfiles()
+  const meleteProfiles = useMeleteProfiles().profiles
 
   // On a wide window the editor is always open; the default profile is the one to start on.
   if( !isNarrow && promptId === null && profiles.some( ( { id } ) => id === defaultId ) ) {
@@ -29,7 +31,12 @@ export function PromptsTab(): ReactElement {
 
   const list = (
     <Stack spacing={ 1 } sx={ { flex: { md: `0 0 ${ LIST_WIDTH }px` }, minWidth: 0 } }>
-      <PromptList profiles={ profiles } defaultId={ defaultId } selectedId={ promptId } />
+      <PromptList
+        profiles={ profiles }
+        meleteProfiles={ meleteProfiles }
+        defaultId={ defaultId }
+        selectedId={ promptId }
+      />
       <ProfileManager selectedId={ promptId } />
     </Stack>
   )

@@ -22,6 +22,8 @@ export const modelKeys = {
 
 export const promptKeys = {
   profiles: [ 'prompt-profiles' ] as const,
+  // Under the profiles key, so every prompt change that refreshes the profiles refreshes these.
+  melete: [ 'prompt-profiles', 'melete' ] as const,
   versions: ( id: string ) => [ 'prompt-profiles', id, 'versions' ] as const,
 }
 

@@ -5,6 +5,7 @@ import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 // App
 import { LinkingSettings } from '../LinkingSettings'
+import { MeleteSettings } from '../MeleteSettings'
 import { SummarizerDefaults } from '../SummarizerDefaults'
 
 export function ModelsTab(): ReactElement {
@@ -14,6 +15,8 @@ export function ModelsTab(): ReactElement {
       <SummarizerDefaults />
       <Typography variant="h6" component="h3">Linking</Typography>
       <LinkingSettings />
+      <Typography variant="h6" component="h3">Melete</Typography>
+      <MeleteSettings />
     </Stack>
   )
 }

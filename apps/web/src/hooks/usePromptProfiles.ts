@@ -33,7 +33,7 @@ export function usePromptProfiles(): PromptProfilesState {
   const queryClient = useQueryClient()
   const { data, error, isPending } = useQuery( {
     queryKey: promptKeys.profiles,
-    queryFn: listProfiles,
+    queryFn: () => listProfiles(),
   } )
 
   // The profiles key is a prefix of every profile's versions key, so one call refreshes both.

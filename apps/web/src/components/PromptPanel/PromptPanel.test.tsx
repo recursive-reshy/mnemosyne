@@ -14,16 +14,23 @@ import {
   vi,
 } from 'vitest'
 // App
+import { useMeleteProfiles } from '#src/hooks/useMeleteProfiles'
 import { usePromptProfiles } from '#src/hooks/usePromptProfiles'
 import { usePromptVersions } from '#src/hooks/usePromptVersions'
 import { useSettings } from '#src/hooks/useSettings'
-import { profilesState, settingsState } from '#src/test-support/hookStates'
+import {
+  meleteProfilesState,
+  profilesState,
+  settingsState,
+} from '#src/test-support/hookStates'
 import { mutationStub } from '#src/test-support/mutationStub'
 import { renderWithClient } from '#src/test-support/renderWithClient'
 import {
   BUSINESS_ID,
   CODING_ID,
   LINKER_ID,
+  MELETE_GRADING_ID,
+  MELETE_QUESTIONS_ID,
   profileFixture,
   profilesFixture,
   settingsFixture,
@@ -33,6 +40,7 @@ import { PromptPanel } from './PromptPanel'
 
 vi.mock( '#src/hooks/useSettings' )
 vi.mock( '#src/hooks/usePromptProfiles' )
+vi.mock( '#src/hooks/useMeleteProfiles' )
 vi.mock( '#src/hooks/usePromptVersions' )
 vi.mock( '../PromptHistory', () => ( {
   PromptHistory: ( props: {
@@ -83,6 +91,7 @@ const field = (): HTMLElement => screen.getByRole( 'textbox', { name: 'Guidance'
 beforeEach( () => {
   vi.mocked( useSettings ).mockReturnValue( settingsState() )
   vi.mocked( usePromptProfiles ).mockReturnValue( profilesState() )
+  vi.mocked( useMeleteProfiles ).mockReturnValue( meleteProfilesState() )
   vi.mocked( usePromptVersions ).mockReturnValue( versionsState() )
 } )
 
@@ -309,6 +318,90 @@ describe( 'PromptPanel, the linker prompt', () => {
     renderWithClient( <PromptPanel promptId="linker" /> )
 
     expect( screen.getByRole( 'alert' ) ).toHaveTextContent( 'Could not reach the server' )
+  } )
+} )
+
+describe( 'PromptPanel, the Melete prompts', () => {
+  it( 'shows the question prompt with its guidance, history and locked instructions', () => {
+    renderWithClient( <PromptPanel promptId={ MELETE_QUESTIONS_ID } /> )
+    const sends = 'Instructions the app always sends for question generation'
+
+    expect( screen.getByRole( 'heading', { level: 3, name: 'Melete questions' } ) )
+      .toBeInTheDocument()
+    expect( field() ).toHaveValue( 'Ask me to explain.' )
+    expect( screen.getByText( `history of ${ MELETE_QUESTIONS_ID } at 20` ) ).toBeInTheDocument()
+    expect( screen.getByText( `${ sends }: You write questions.` ) ).toBeInTheDocument()
+    expect( screen.queryByText( /for videos/ ) ).not.toBeInTheDocument()
+    expect( usePromptVersions ).not.toHaveBeenCalledWith( MELETE_QUESTIONS_ID )
+  } )
+
+  it( 'shows the grading prompt with its own locked instructions', () => {
+    renderWithClient( <PromptPanel promptId={ MELETE_GRADING_ID } /> )
+
+    expect( field() ).toHaveValue( 'Be strict about the core idea.' )
+    expect( screen.getByText(
+      'Instructions the app always sends for grading: You grade answers.',
+    ) ).toBeInTheDocument()
+    expect( screen.queryByText( /question generation/ ) ).not.toBeInTheDocument()
+  } )
+
+  it( 'saves an edit as a new version of that profile', async () => {
+    const user = userEvent.setup()
+    const mutate = vi.fn()
+    vi.mocked( usePromptProfiles ).mockReturnValue(
+      profilesState( { saveVersion: mutationStub( { mutate } ) } ),
+    )
+    renderWithClient( <PromptPanel promptId={ MELETE_GRADING_ID } /> )
+
+    await user.clear( field() )
+    await user.type( field(), 'Be kind.' )
+    await user.click( screen.getByRole( 'button', { name: 'Save' } ) )
+
+    expect( mutate ).toHaveBeenCalledWith(
+      { id: MELETE_GRADING_ID, guidance: 'Be kind.' },
+      expect.anything(),
+    )
+  } )
+
+  it( 'resets to the shipped prompt after a confirm', async () => {
+    const user = userEvent.setup()
+    const mutate = vi.fn()
+    vi.mocked( usePromptProfiles ).mockReturnValue(
+      profilesState( { resetProfile: mutationStub( { mutate } ) } ),
+    )
+    renderWithClient( <PromptPanel promptId={ MELETE_QUESTIONS_ID } /> )
+
+    await user.click( screen.getByRole( 'button', { name: 'Reset to default' } ) )
+    await user.click( screen.getByRole( 'button', { name: 'Reset' } ) )
+
+    expect( mutate ).toHaveBeenCalledWith( MELETE_QUESTIONS_ID, expect.anything() )
+  } )
+
+  it( 'announces loading while the Melete prompts load', () => {
+    vi.mocked( useMeleteProfiles ).mockReturnValue(
+      meleteProfilesState( { profiles: [], isLoading: true } ),
+    )
+    renderWithClient( <PromptPanel promptId={ MELETE_QUESTIONS_ID } /> )
+
+    expect( screen.getByRole( 'status' ) ).toHaveTextContent( 'Loading the prompt…' )
+  } )
+
+  it( 'shows an error when the Melete prompts cannot be loaded', () => {
+    vi.mocked( useMeleteProfiles ).mockReturnValue(
+      meleteProfilesState( { profiles: [], error: 'Could not reach the server' } ),
+    )
+    renderWithClient( <PromptPanel promptId={ MELETE_QUESTIONS_ID } /> )
+
+    expect( screen.getByRole( 'alert' ) ).toHaveTextContent( 'Could not reach the server' )
+  } )
+
+  it( 'does not wait for the Melete prompts to show a summary profile', () => {
+    vi.mocked( useMeleteProfiles ).mockReturnValue(
+      meleteProfilesState( { profiles: [], isLoading: true } ),
+    )
+    renderWithClient( <PromptPanel promptId={ BUSINESS_ID } /> )
+
+    expect( field() ).toHaveValue( 'Focus on ideas worth exploring.' )
   } )
 } )
 

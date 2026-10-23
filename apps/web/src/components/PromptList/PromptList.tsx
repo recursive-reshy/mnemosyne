@@ -14,6 +14,7 @@ const LINKER = 'linker'
 
 interface PromptListProps {
   profiles: PromptProfile[]
+  meleteProfiles: PromptProfile[]
   defaultId: string | undefined
   selectedId: string | null
 }
@@ -41,7 +42,9 @@ function Item( { id, name, isDefault = false, selectedId }: ItemProps ): ReactEl
   )
 }
 
-export function PromptList( { profiles, defaultId, selectedId }: PromptListProps ): ReactElement {
+export function PromptList(
+  { profiles, meleteProfiles, defaultId, selectedId }: PromptListProps,
+): ReactElement {
   return (
     <>
       <List
@@ -61,6 +64,17 @@ export function PromptList( { profiles, defaultId, selectedId }: PromptListProps
       >
         <Item id={ LINKER } name="Linker prompt" selectedId={ selectedId } />
       </List>
+      { meleteProfiles.length > 0 && (
+        <List
+          dense
+          aria-labelledby="melete-prompts"
+          subheader={ <ListSubheader id="melete-prompts">Melete</ListSubheader> }
+        >
+          { meleteProfiles.map( ( { id, name } ) => (
+            <Item key={ id } id={ id } name={ name } selectedId={ selectedId } />
+          ) ) }
+        </List>
+      ) }
     </>
   )
 }

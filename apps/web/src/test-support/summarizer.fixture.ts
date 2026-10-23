@@ -59,6 +59,29 @@ export const profilesFixture = (): PromptProfile[] => [
   } ),
 ]
 
+export const meleteProfilesFixture = (): PromptProfile[] => [
+  profileFixture( {
+    id: MELETE_QUESTIONS_ID,
+    name: 'Melete questions',
+    purpose: 'melete_questions',
+    current_version: versionFixture( {
+      id: 20,
+      profile_id: MELETE_QUESTIONS_ID,
+      guidance: 'Ask me to explain.',
+    } ),
+  } ),
+  profileFixture( {
+    id: MELETE_GRADING_ID,
+    name: 'Melete grading',
+    purpose: 'melete_grading',
+    current_version: versionFixture( {
+      id: 21,
+      profile_id: MELETE_GRADING_ID,
+      guidance: 'Be strict about the core idea.',
+    } ),
+  } ),
+]
+
 export const modelsFixture = (
   overrides: Partial< ListModelsResponse > = {},
 ): ListModelsResponse => {

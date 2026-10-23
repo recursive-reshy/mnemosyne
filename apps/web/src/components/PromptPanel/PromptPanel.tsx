@@ -7,6 +7,7 @@ import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import { Navigate } from 'react-router'
 // App
+import { useMeleteProfiles } from '#src/hooks/useMeleteProfiles'
 import { usePromptProfiles } from '#src/hooks/usePromptProfiles'
 import { usePromptVersions } from '#src/hooks/usePromptVersions'
 import { useSettings } from '#src/hooks/useSettings'
@@ -17,8 +18,19 @@ import { PromptHistory } from '../PromptHistory'
 
 const LINKER = 'linker'
 
+const MELETE_LOCKED = {
+  melete_questions: {
+    key: 'melete_questions',
+    title: 'Instructions the app always sends for question generation',
+  },
+  melete_grading: {
+    key: 'melete_grading',
+    title: 'Instructions the app always sends for grading',
+  },
+} as const
+
 interface PromptPanelProps {
-  // A summary profile's id, or 'linker'.
+  // A summary or Melete profile's id, or 'linker'.
   promptId: string
 }
 
@@ -34,13 +46,19 @@ export function PromptPanel( { promptId }: PromptPanelProps ): ReactElement {
   const isLinker = promptId === LINKER
   const { settings, lockedInstructions, linkerLockedInstructions } = useSettings()
   const state = usePromptProfiles()
+  const meleteState = useMeleteProfiles()
   const linkerId = settings?.linker_profile_id ?? null
   const linker = usePromptVersions( isLinker ? linkerId : null )
   // The edit belongs to one prompt, so it never carries over when the prompt changes.
   const [ edit, setEdit ] = useState< { promptId: string, text: string } | null >( null )
   const draft = edit?.promptId === promptId ? edit.text : null
 
-  const profile = state.profiles.find( ( { id } ) => id === promptId )
+  const summary = state.profiles.find( ( { id } ) => id === promptId )
+  const melete = meleteState.profiles.find( ( { id } ) => id === promptId )
+  const profile = summary ?? melete
+  const meleteLocked = melete === undefined
+    ? undefined
+    : MELETE_LOCKED[ melete.purpose as keyof typeof MELETE_LOCKED ]
   const newest = linker.versions[ 0 ]
   let subject: Subject | undefined
 
@@ -60,9 +78,10 @@ export function PromptPanel( { promptId }: PromptPanelProps ): ReactElement {
 
   const isDirty = subject !== undefined && draft !== null && draft.trim() !== subject.saved.trim()
   const guard = useUnsavedChangesGuard( isDirty )
-  const error = state.error ?? linker.error
+  const isWaitingForMelete = !isLinker && summary === undefined && meleteState.isLoading
+  const error = state.error ?? linker.error ?? ( subject === undefined ? meleteState.error : null )
 
-  if( state.isLoading || ( isLinker && linker.isLoading ) ) {
+  if( state.isLoading || isWaitingForMelete || ( isLinker && linker.isLoading ) ) {
     return <Typography role="status">Loading the prompt…</Typography>
   }
 
@@ -103,7 +122,7 @@ export function PromptPanel( { promptId }: PromptPanelProps ): ReactElement {
           clearDraft,
         ) }
       />
-      { !isLinker && lockedInstructions !== null && (
+      { !isLinker && melete === undefined && lockedInstructions !== null && (
         <>
           <LockedInstructions
             title="Instructions the app always sends for videos"
@@ -114,6 +133,12 @@ export function PromptPanel( { promptId }: PromptPanelProps ): ReactElement {
             text={ lockedInstructions.article }
           />
         </>
+      ) }
+      { meleteLocked !== undefined && lockedInstructions !== null && (
+        <LockedInstructions
+          title={ meleteLocked.title }
+          text={ lockedInstructions[ meleteLocked.key ] }
+        />
       ) }
       { isLinker && linkerLockedInstructions !== null && (
         <LockedInstructions

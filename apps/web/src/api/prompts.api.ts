@@ -7,6 +7,7 @@ import {
 import type {
   CreatePromptProfileBody,
   PromptProfile,
+  PromptPurpose,
   PromptVersion,
 } from '@mnemosyne/shared'
 // App
@@ -22,8 +23,12 @@ const jsonInit = ( method: string, body: unknown ): RequestInit => {
   }
 }
 
-export const listProfiles = async (): Promise< PromptProfile[] > => {
-  const { profiles } = await request( '/api/prompt-profiles', ListPromptProfilesResponse )
+// The server lists summary profiles unless asked for another purpose, or for 'all'.
+export const listProfiles = async (
+  purpose?: PromptPurpose | 'all',
+): Promise< PromptProfile[] > => {
+  const query = purpose === undefined ? '' : `?purpose=${ purpose }`
+  const { profiles } = await request( `/api/prompt-profiles${ query }`, ListPromptProfilesResponse )
   return profiles
 }
 
