@@ -68,15 +68,23 @@ export function MeleteNoteRow(
           { note.path }
         </Typography>
         { note.generation === 'failed' && note.generation_error !== null && (
-          <Typography variant="caption" color="error">{ note.generation_error }</Typography>
+          <Typography
+            variant="caption"
+            color="error"
+            sx={ { overflowWrap: 'anywhere' } }
+          >
+            { note.generation_error }
+          </Typography>
         ) }
+        <Stack direction="row" spacing={ 1 } sx={ { alignItems: 'center', minHeight: 24 } }>
+          { status !== null && (
+            <Typography variant="body2" color="text.secondary">{ status }</Typography>
+          ) }
+          { note.generation === 'failed' && (
+            <Button size="small" sx={ { minHeight: 44 } } onClick={ onRetry }>Retry</Button>
+          ) }
+        </Stack>
       </Stack>
-      { status !== null && (
-        <Typography variant="body2" color="text.secondary">{ status }</Typography>
-      ) }
-      { note.generation === 'failed' && (
-        <Button size="small" sx={ { minHeight: 44 } } onClick={ onRetry }>Retry</Button>
-      ) }
     </Stack>
   )
 }
