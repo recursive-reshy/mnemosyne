@@ -36,7 +36,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 2.5 | Schema guard test with its shrinking list of unconverted tables, and the repository signature guard (TRD §11.1); both start with every data table listed as unconverted | 0062 | ✅ |
 
 ## Checkpoint B: Phase 3 (sign-in and sessions)
-**Plan:** ⬜ [`plans/checkpoint-b.md`](plans/checkpoint-b.md)
+**Plan:** ✅ [`plans/checkpoint-b.md`](plans/checkpoint-b.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
