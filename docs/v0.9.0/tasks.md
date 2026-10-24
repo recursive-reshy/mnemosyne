@@ -29,7 +29,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | **Phase 1** | **Kick-off** | | |
 | 1.1 | Set ADRs 0061–0068 to Accepted (Status lines and the `docs/README.md` index); mark 0035 and 0060 "amended by 0061" and 0012 "amended by 0066" in the index; `docs/README.md` current version 0.9.0 and the v0.9.0 entry "in progress" (v0.8.0 is already marked done); root `CLAUDE.md` first paragraph (multi-user, vaults root). The root `CLAUDE.md` already points at 0.9.0 (updated with these docs) | 0061–0068 | ✅ |
 | **Phase 2** | **Contracts and baseline** | | |
-| 2.1 | Shared `auth.ts` and `admin.ts` (TRD §2.1–2.2) with schema tests; exported from `index.ts` | 0061, 0063, 0067 | ⬜ |
+| 2.1 | Shared `auth.ts` and `admin.ts` (TRD §2.1–2.2) with schema tests; exported from `index.ts` | 0061, 0063, 0067 | ✅ |
 | 2.2 | Shared `UserSettingKey` / `AppSettingKey` (TRD §2.3), `AppHealthKind` / `UserHealthKind` (§2.4); tests and fixtures that list every key updated | 0065 | ⬜ |
 | 2.3 | Baseline schema: collapse migrations 1–9 into `baseline` at `SCHEMA_BASE = 9` with the 0.8 tables unchanged plus `users`, `user_modules`, `sessions`, `app_settings` (TRD §3.1–3.2); delete the old migration functions; their seeding moves to a temporary `seedDefaults()` run after migrations (so existing tests keep their seeded profiles), replaced by `seedUser` in 3.2; the newer-version check on `SCHEMA_BASE + migrations.length`; `foreign_keys = ON` and `foreign_key_check` (§3.3); fix any delete order the suite exposes and list it in the log | 0062, 0066 | ⬜ |
 | 2.4 | `openDatabase` set-aside of schema 1–9 and pre-migration backups (TRD §3.3, §3.6), with tests for: v9 file set aside and empty start, failed copy refuses and deletes nothing, a test-only migration 11 gets a backup, `foreign_key_check` failure refuses | 0066 | ⬜ |
@@ -113,3 +113,4 @@ Each task adds `user_id` to its tables in the baseline (TRD §3.2), threads `use
 ## Log
 
 - 1.1: ADRs 0061–0068 set to Accepted; README index marks 0012 (by 0066), 0035 and 0060 (by 0061) amended, current version 0.9.0, v0.9.0 in progress; root CLAUDE.md first paragraph made multi-user.
+- 2.1: shared `auth.ts` and `admin.ts` per TRD §2.1–2.2 with schema tests (shared: 668 tests, lint, typecheck green); no existing test changed.
