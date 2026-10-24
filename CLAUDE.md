@@ -24,12 +24,12 @@ The reasons behind each part are in `docs/decisions/`. Read the ADRs a task list
 
 ## Workflow
 
-Work is planned in versioned docs: `docs/v<version>/prd.md` (what and why), `trd.md` (how) and `tasks.md` (ordered tasks grouped into checkpoints). The current version is **0.8.0**. Only Naresh edits the PRD and TRD; `tasks.md` is the only planning doc you edit, and you also write ADRs and checkpoint plans.
+Work is planned in versioned docs: `docs/v<version>/prd.md` (what and why), `trd.md` (how) and `tasks.md` (ordered tasks grouped into checkpoints). The current version is **0.9.0**. Only Naresh edits the PRD and TRD; `tasks.md` is the only planning doc you edit, and you also write ADRs and checkpoint plans.
 
 At the start of every session:
-1. Read `docs/v0.8.0/prd.md`, `trd.md` and `tasks.md`, and the ADRs listed against the next unticked task.
+1. Read `docs/v0.9.0/prd.md`, `trd.md` and `tasks.md`, and the ADRs listed against the next unticked task.
 2. Say which checkpoint and task is next, in one line.
-3. If that checkpoint's Plan cell is ⬜: enter plan mode and write one plan for every task in the checkpoint (files to touch, tests to write first, expected red → green path). Stop. When Naresh approves it, save it to `docs/v0.8.0/plans/checkpoint-<x>.md`, tick the Plan cell, commit, push, then start the first task.
+3. If that checkpoint's Plan cell is ⬜: enter plan mode and write one plan for every task in the checkpoint (files to touch, tests to write first, expected red → green path). Stop. When Naresh approves it, save it to `docs/v0.9.0/plans/checkpoint-<x>.md`, tick the Plan cell, commit, push, then start the first task.
 4. If the Plan cell is ✅: read the saved plan and continue from the first unticked task.
 
 Within a checkpoint, work through its tasks without stopping. For each task: failing tests first and watch them fail → least code to pass → refactor while green → tick Status and add a log line in `tasks.md` → commit → push. At the end of the checkpoint, stop and report (see "Before you stop").
@@ -54,7 +54,7 @@ If something isn't covered by the PRD, TRD, ADRs or the approved plan (a new dep
 ## Git
 
 - Work on `main`. One commit per task, containing its code, tests and the `tasks.md` update. Push after every commit.
-- Conventional messages with the task id: `feat(3.2): Claude client`, `refactor(6.1): useJob on TanStack Query`, `docs(plan): checkpoint B`.
+- Conventional messages scoped by version and task id, so every scope is unique across versions: `feat(0.9-3.2): Claude client`, `refactor(0.9-6.1): useJob on TanStack Query`, `docs(0.9-plan): checkpoint B`. Use major.minor for the version (`0.9`), and the full version for a patch release (`0.7.1-2.3`).
 - Stage files by name; never `git add -A` or `git add .`. Never commit `.env` or anything with a secret.
 - Never `--amend`, rebase, force-push, `reset`, `stash`, `checkout -- <file>` or `restore`. If a commit is wrong, fix it in a new commit.
 - If a push fails, stop and report it; don't try to resolve it.

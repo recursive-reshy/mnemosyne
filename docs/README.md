@@ -4,7 +4,8 @@
 
 Each version has its own folder. The current version is 0.8.0.
 
-- **v0.8.0 (in progress):** [PRD](v0.8.0/prd.md) · [TRD](v0.8.0/trd.md) · [Tasks](v0.8.0/tasks.md) · [Release notes](v0.8.0/release-notes.md) · checkpoint plans in `v0.8.0/plans/`
+- **v0.9.0 (planned):** [PRD](v0.9.0/prd.md) · [TRD](v0.9.0/trd.md) · [Tasks](v0.9.0/tasks.md) · checkpoint plans in `v0.9.0/plans/`
+- **v0.8.0 (done):** [PRD](v0.8.0/prd.md) · [TRD](v0.8.0/trd.md) · [Tasks](v0.8.0/tasks.md) · [Release notes](v0.8.0/release-notes.md) · checkpoint plans in `v0.8.0/plans/`
 - **v0.7.1 (done):** [PRD](v0.7.1/prd.md) · [TRD](v0.7.1/trd.md) · [Tasks](v0.7.1/tasks.md) · [Release notes](v0.7.1/release-notes.md) · checkpoint plans in `v0.7.1/plans/`
 - **v0.7.0 (done):** [PRD](v0.7.0/prd.md) · [TRD](v0.7.0/trd.md) · [Tasks](v0.7.0/tasks.md) · [Release notes](v0.7.0/release-notes.md) · checkpoint plans in `v0.7.0/plans/`
 - **v0.6.0 (done):** [PRD](v0.6.0/prd.md) · [TRD](v0.6.0/trd.md) · [Tasks](v0.6.0/tasks.md) · [Release notes](v0.6.0/release-notes.md) · checkpoint plans in `v0.6.0/plans/`
@@ -81,6 +82,14 @@ Each significant decision is recorded as a short ADR (Architecture Decision Reco
 | [0058](decisions/0058-melete-data-and-generator-loop.md) | Melete's data model and generator loop | Accepted |
 | [0059](decisions/0059-study-profile-and-folder-memory.md) | Study profile and per-profile folder memory | Accepted |
 | [0060](decisions/0060-phone-access.md) | Phone access: localhost-only port, Tailscale Serve, installable web app | Accepted |
+| [0061](decisions/0061-google-sign-in-and-sessions.md) | Google sign-in and server-side sessions | Proposed |
+| [0062](decisions/0062-per-user-ownership-and-isolation.md) | Every row has an owner; isolation in the repositories | Proposed |
+| [0063](decisions/0063-per-user-vaults-and-onboarding.md) | Per-user vaults under one root, chosen at first sign-in | Proposed |
+| [0064](decisions/0064-shared-background-loops.md) | One background loop of each kind, round-robin by user | Proposed |
+| [0065](decisions/0065-user-and-app-settings.md) | Per-user settings, app settings, per-user seeding, split health | Proposed |
+| [0066](decisions/0066-fresh-baseline-schema.md) | A fresh baseline schema; old databases set aside | Proposed |
+| [0067](decisions/0067-admin-and-usage.md) | Admin routes and a usage rollup | Proposed |
+| [0068](decisions/0068-web-gate-and-module-guards.md) | Web: one gate, module guards, filtered navigation | Proposed |
 
 ## Template for new ADRs
 
