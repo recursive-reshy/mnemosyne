@@ -32,6 +32,22 @@ const LearningRoot = z.string().refine(
   { message: 'Invalid folder path' },
 )
 
+export const UserSettingKey = z.enum( [
+  'default_model',
+  'default_profile_id',
+  'linking_enabled',
+  'linking_model',
+  'extraction_model',
+  'melete_learning_root',
+  'melete_question_model',
+  'melete_grading_model',
+  'melete_review_mode',
+] )
+export type UserSettingKey = z.infer< typeof UserSettingKey >
+
+export const AppSettingKey = z.enum( [ 'feed_check_interval_minutes' ] )
+export type AppSettingKey = z.infer< typeof AppSettingKey >
+
 export const Settings = z.object( {
   default_model: z.string().min( 1 ),
   extraction_model: z.string().min( 1 ),

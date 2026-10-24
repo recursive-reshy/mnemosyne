@@ -2,6 +2,7 @@
 import { describe, it, expect } from 'vitest'
 // Status
 import {
+  AppHealthKind,
   BackupResult,
   GetHealthErrorsResponse,
   GetStatusResponse,
@@ -9,6 +10,7 @@ import {
   HealthKind,
   HealthState,
   StatusRow,
+  UserHealthKind,
 } from './status.js'
 
 const row = {
@@ -33,6 +35,18 @@ describe( 'HealthKind', () => {
 
   it( 'rejects an unknown kind', () => {
     expect( HealthKind.safeParse( 'vault' ).success ).toBe( false )
+  } )
+} )
+
+describe( 'AppHealthKind and UserHealthKind', () => {
+  it( 'split the kinds into app services and a user\'s own sources', () => {
+    expect( AppHealthKind.options ).toEqual( [ 'agent', 'whisper', 'backup' ] )
+    expect( UserHealthKind.options ).toEqual( [ 'feed', 'gmail_source', 'gmail_connection' ] )
+  } )
+
+  it( 'cover HealthKind exactly', () => {
+    expect( [ ...AppHealthKind.options, ...UserHealthKind.options ].sort() )
+      .toEqual( [ ...HealthKind.options ].sort() )
   } )
 } )
 

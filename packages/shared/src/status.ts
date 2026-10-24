@@ -1,13 +1,16 @@
 // Packages
 import { z } from 'zod'
 
+// App services have one answer for everyone; a user's own sources belong to that user.
+export const AppHealthKind = z.enum( [ 'agent', 'whisper', 'backup' ] )
+export type AppHealthKind = z.infer< typeof AppHealthKind >
+
+export const UserHealthKind = z.enum( [ 'feed', 'gmail_source', 'gmail_connection' ] )
+export type UserHealthKind = z.infer< typeof UserHealthKind >
+
 export const HealthKind = z.enum( [
-  'feed',
-  'gmail_source',
-  'gmail_connection',
-  'agent',
-  'whisper',
-  'backup',
+  ...UserHealthKind.options,
+  ...AppHealthKind.options,
 ] )
 export type HealthKind = z.infer< typeof HealthKind >
 

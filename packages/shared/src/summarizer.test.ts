@@ -2,6 +2,7 @@
 import { describe, it, expect } from 'vitest'
 // Summarizer
 import {
+  AppSettingKey,
   CreatePromptProfileBody,
   GetSettingsResponse,
   Guidance,
@@ -21,6 +22,7 @@ import {
   SummaryRun,
   SummaryUsage,
   UpdateSettingsBody,
+  UserSettingKey,
 } from './summarizer.js'
 
 const profileId = '3f2b8c1e-6d1a-4b8e-9a53-0c1d2e3f4a5b'
@@ -69,6 +71,28 @@ describe( 'ModelOption and ListModelsResponse', () => {
 
   it( 'rejects an unknown source', () => {
     expect( ListModelsResponse.safeParse( { models: [], source: 'cache' } ).success ).toBe( false )
+  } )
+} )
+
+describe( 'UserSettingKey and AppSettingKey', () => {
+  it( 'list the per-user keys and the app-wide key', () => {
+    expect( UserSettingKey.options ).toEqual( [
+      'default_model',
+      'default_profile_id',
+      'linking_enabled',
+      'linking_model',
+      'extraction_model',
+      'melete_learning_root',
+      'melete_question_model',
+      'melete_grading_model',
+      'melete_review_mode',
+    ] )
+    expect( AppSettingKey.options ).toEqual( [ 'feed_check_interval_minutes' ] )
+  } )
+
+  it( 'keep the two sets apart', () => {
+    expect( UserSettingKey.safeParse( 'feed_check_interval_minutes' ).success ).toBe( false )
+    expect( AppSettingKey.safeParse( 'default_model' ).success ).toBe( false )
   } )
 } )
 
