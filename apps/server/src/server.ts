@@ -36,7 +36,18 @@ try {
 await mkdir( config.dataDir, { recursive: true } )
 
 try {
-  openDatabase( join( config.dataDir, 'mnemosyne.db' ) )
+  const { setAside, preMigrationBackup } = openDatabase(
+    join( config.dataDir, 'mnemosyne.db' ),
+    { backupDir: config.backupDir },
+  )
+
+  if( setAside !== null ) {
+    logger.warn( { copy: setAside }, 'Set aside a database from before 0.9 and started empty' )
+  }
+
+  if( preMigrationBackup !== null ) {
+    logger.info( { copy: preMigrationBackup }, 'Backed up the database before migrating' )
+  }
 } catch( error ) {
   logger.error( { err: error }, 'The database cannot be opened' )
   process.exit( 1 )

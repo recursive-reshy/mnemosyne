@@ -17,6 +17,7 @@ import { BackupError, ConflictError } from '../errors.js'
 // Logging
 import { logger } from '../logger.js'
 // Repositories
+import { backupStamp } from '../repositories/backupStamp.js'
 import { getDatabase } from '../repositories/database.js'
 // Services
 import { recordCheck } from './health.service.js'
@@ -51,24 +52,7 @@ const makeSelfContained = ( path: string ): void => {
   }
 }
 
-// Singapore time from Intl parts, so the container's TZ doesn't matter.
-export const backupName = ( date: Date ): string => {
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat( 'en-GB', {
-      timeZone: 'Asia/Singapore',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hourCycle: 'h23',
-    } ).formatToParts( date ).map( ( part ) => [ part.type, part.value ] ),
-  )
-
-  return `mnemosyne-${ parts.year }${ parts.month }${ parts.day }`
-    + `-${ parts.hour }${ parts.minute }${ parts.second }.db`
-}
+export const backupName = ( date: Date ): string => `mnemosyne-${ backupStamp( date ) }.db`
 
 let running = false
 

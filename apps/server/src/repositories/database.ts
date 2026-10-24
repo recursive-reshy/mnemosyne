@@ -1,3 +1,9 @@
+// Node
+import {
+  mkdirSync,
+  rmSync,
+} from 'node:fs'
+import { join } from 'node:path'
 // Packages
 import Database from 'better-sqlite3'
 import { z } from 'zod'
@@ -14,6 +20,8 @@ import {
   MELETE_GRADING_SEED_KEY,
   MELETE_QUESTIONS_SEED_KEY,
 } from '../melete/prompts.js'
+// Repositories
+import { backupStamp } from './backupStamp.js'
 
 // The whole 0.9 schema in one step (ADR 0066). It seeds nothing: see seedDefaults, then seedUser.
 const baseline = `CREATE TABLE users (
@@ -467,41 +475,95 @@ export const runMigrations = ( db: Database.Database, migrations: Migration[] ):
   } )()
 }
 
-export const openDatabase = ( path: string ): void => {
-  closeDatabase()
+export type OpenOptions = {
+  backupDir?: string
+  migrations?: Migration[]
+}
 
-  const opened = new Database( path )
-  const stored = z.number().parse( opened.pragma( 'user_version', { simple: true } ) )
+export type OpenResult = {
+  setAside: string | null
+  preMigrationBackup: string | null
+}
 
-  // Checked before anything is written, so a refused file is left exactly as it was.
-  if( stored > SCHEMA_BASE + migrations.length ) {
-    opened.close()
-
-    throw new Error(
-      `This database is from a newer version of Mnemosyne (schema ${ stored }, `
-      + `this version knows ${ SCHEMA_BASE + migrations.length }). `
-      + 'Restore an older backup or upgrade the app.',
-    )
+// VACUUM INTO writes a consistent single-file copy and refuses to overwrite an existing file.
+const copyTo = (
+  source: Database.Database,
+  backupDir: string | undefined,
+  name: string,
+): string => {
+  if( backupDir === undefined ) {
+    throw new Error( `A backup is needed (${ name }) but no backups folder was given` )
   }
 
-  opened.pragma( 'journal_mode = WAL' )
-  // Outside the migration transaction, where it would have no effect.
-  opened.pragma( 'foreign_keys = ON' )
+  mkdirSync( backupDir, { recursive: true } )
 
-  runMigrations( opened, migrations )
-  seedDefaults( opened )
+  const target = join( backupDir, name )
 
-  const orphans = opened.pragma( 'foreign_key_check' ) as unknown[]
+  source.prepare( 'VACUUM INTO ?' ).run( target )
 
-  if( orphans.length > 0 ) {
+  return target
+}
+
+export const openDatabase = (
+  path: string,
+  { backupDir, migrations: toApply = migrations }: OpenOptions = {},
+): OpenResult => {
+  closeDatabase()
+
+  const result: OpenResult = { setAside: null, preMigrationBackup: null }
+  const target = SCHEMA_BASE + toApply.length
+  const file = path !== ':memory:'
+  let opened = new Database( path )
+  const stored = z.number().parse( opened.pragma( 'user_version', { simple: true } ) )
+
+  try {
+    // Checked before anything is written, so a refused file is left exactly as it was.
+    if( stored > target ) {
+      throw new Error(
+        `This database is from a newer version of Mnemosyne (schema ${ stored }, `
+        + `this version knows ${ target }). `
+        + 'Restore an older backup or upgrade the app.',
+      )
+    }
+
+    if( file && stored >= 1 && stored <= SCHEMA_BASE ) {
+      // Schema 1–9 is a pre-0.9 database: keep a copy, then start empty (ADR 0066).
+      result.setAside = copyTo( opened, backupDir, `pre-0.9-${ backupStamp( new Date() ) }.db` )
+      opened.close()
+
+      for( const suffix of [ '', '-wal', '-shm' ] ) {
+        rmSync( `${ path }${ suffix }`, { force: true } )
+      }
+
+      opened = new Database( path )
+    } else if( file && stored > SCHEMA_BASE && stored < target ) {
+      const name = `pre-migration-v${ stored }-to-v${ target }-${ backupStamp( new Date() ) }.db`
+
+      result.preMigrationBackup = copyTo( opened, backupDir, name )
+    }
+
+    opened.pragma( 'journal_mode = WAL' )
+    // Outside the migration transaction, where it would have no effect.
+    opened.pragma( 'foreign_keys = ON' )
+
+    runMigrations( opened, toApply )
+    seedDefaults( opened )
+
+    const orphans = opened.pragma( 'foreign_key_check' ) as unknown[]
+
+    if( orphans.length > 0 ) {
+      throw new Error(
+        `The database has ${ orphans.length } row(s) that break a foreign key. Restore a backup.`,
+      )
+    }
+  } catch( error ) {
     opened.close()
-
-    throw new Error(
-      `The database has ${ orphans.length } row(s) that break a foreign key. Restore a backup.`,
-    )
+    throw error
   }
 
   database = opened
+
+  return result
 }
 
 export const closeDatabase = (): void => {
