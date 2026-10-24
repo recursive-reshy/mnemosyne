@@ -1,6 +1,6 @@
 # CLAUDE.md — Mnemosyne (repo root)
 
-Mnemosyne is a single-user, local-first app that turns a video URL (YouTube and anything else yt-dlp supports) into a timestamped Markdown transcript, ready for Obsidian. Later it may summarise transcripts and write notes straight into an Obsidian vault. It runs on Naresh's Mac: the app in one Docker container (with a data volume and the vault mounted), and whisper-server natively on the host.
+Mnemosyne is a local-first app, used by Naresh (the admin) and his brother, that turns a video URL (YouTube and anything else yt-dlp supports) or an article into a timestamped transcript or a reviewed summary note for Obsidian, and quizzes you on your notes. Each person signs in with Google, has their own vault under a shared vaults folder, and sees only the modules the admin has switched on. Later it may summarise transcripts and write notes straight into an Obsidian vault. It runs on Naresh's Mac: the app in one Docker container (with a data volume and the vaults folder mounted), and whisper-server natively on the host.
 
 This file holds only what is true everywhere. Each app has its own `CLAUDE.md` with its language, style and local rules, so read that one before working in the folder.
 

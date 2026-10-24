@@ -1,6 +1,6 @@
 # 0065. Per-user settings, app settings, per-user seeding, split health
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-24
 
 ## Context

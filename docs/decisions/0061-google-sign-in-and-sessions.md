@@ -1,6 +1,6 @@
 # 0061. Google sign-in and server-side sessions
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-24
 
 ## Context

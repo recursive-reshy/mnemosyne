@@ -27,7 +27,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
 | **Phase 1** | **Kick-off** | | |
-| 1.1 | Set ADRs 0061–0068 to Accepted (Status lines and the `docs/README.md` index); mark 0035 and 0060 "amended by 0061" and 0012 "amended by 0066" in the index; `docs/README.md` current version 0.9.0 and the v0.9.0 entry "in progress" (v0.8.0 is already marked done); root `CLAUDE.md` first paragraph (multi-user, vaults root). The root `CLAUDE.md` already points at 0.9.0 (updated with these docs) | 0061–0068 | ⬜ |
+| 1.1 | Set ADRs 0061–0068 to Accepted (Status lines and the `docs/README.md` index); mark 0035 and 0060 "amended by 0061" and 0012 "amended by 0066" in the index; `docs/README.md` current version 0.9.0 and the v0.9.0 entry "in progress" (v0.8.0 is already marked done); root `CLAUDE.md` first paragraph (multi-user, vaults root). The root `CLAUDE.md` already points at 0.9.0 (updated with these docs) | 0061–0068 | ✅ |
 | **Phase 2** | **Contracts and baseline** | | |
 | 2.1 | Shared `auth.ts` and `admin.ts` (TRD §2.1–2.2) with schema tests; exported from `index.ts` | 0061, 0063, 0067 | ⬜ |
 | 2.2 | Shared `UserSettingKey` / `AppSettingKey` (TRD §2.3), `AppHealthKind` / `UserHealthKind` (§2.4); tests and fixtures that list every key updated | 0065 | ⬜ |
@@ -111,3 +111,5 @@ Each task adds `user_id` to its tables in the baseline (TRD §3.2), threads `use
 ---
 
 ## Log
+
+- 1.1: ADRs 0061–0068 set to Accepted; README index marks 0012 (by 0066), 0035 and 0060 (by 0061) amended, current version 0.9.0, v0.9.0 in progress; root CLAUDE.md first paragraph made multi-user.

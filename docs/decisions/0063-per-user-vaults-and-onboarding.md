@@ -1,6 +1,6 @@
 # 0063. Per-user vaults under one root, chosen at first sign-in
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-24
 
 ## Context

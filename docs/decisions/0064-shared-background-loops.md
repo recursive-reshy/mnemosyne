@@ -1,6 +1,6 @@
 # 0064. One background loop of each kind, round-robin by user
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-24
 
 ## Context

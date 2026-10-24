@@ -1,6 +1,6 @@
 # 0068. Web: one gate, module guards, filtered navigation
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-24
 
 ## Context

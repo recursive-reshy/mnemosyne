@@ -1,6 +1,6 @@
 # 0062. Every row has an owner; isolation in the repositories
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-24
 
 ## Context

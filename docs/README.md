@@ -2,9 +2,9 @@
 
 ## Plans
 
-Each version has its own folder. The current version is 0.8.0.
+Each version has its own folder. The current version is 0.9.0.
 
-- **v0.9.0 (planned):** [PRD](v0.9.0/prd.md) · [TRD](v0.9.0/trd.md) · [Tasks](v0.9.0/tasks.md) · checkpoint plans in `v0.9.0/plans/`
+- **v0.9.0 (in progress):** [PRD](v0.9.0/prd.md) · [TRD](v0.9.0/trd.md) · [Tasks](v0.9.0/tasks.md) · checkpoint plans in `v0.9.0/plans/`
 - **v0.8.0 (done):** [PRD](v0.8.0/prd.md) · [TRD](v0.8.0/trd.md) · [Tasks](v0.8.0/tasks.md) · [Release notes](v0.8.0/release-notes.md) · checkpoint plans in `v0.8.0/plans/`
 - **v0.7.1 (done):** [PRD](v0.7.1/prd.md) · [TRD](v0.7.1/trd.md) · [Tasks](v0.7.1/tasks.md) · [Release notes](v0.7.1/release-notes.md) · checkpoint plans in `v0.7.1/plans/`
 - **v0.7.0 (done):** [PRD](v0.7.0/prd.md) · [TRD](v0.7.0/trd.md) · [Tasks](v0.7.0/tasks.md) · [Release notes](v0.7.0/release-notes.md) · checkpoint plans in `v0.7.0/plans/`
@@ -33,7 +33,7 @@ Each significant decision is recorded as a short ADR (Architecture Decision Reco
 | [0009](decisions/0009-code-style-and-eslint.md) | Code style enforced by ESLint, check-only | Accepted |
 | [0010](decisions/0010-typescript-6-for-eslint.md) | TypeScript 6 until typescript-eslint supports TypeScript 7 | Accepted |
 | [0011](decisions/0011-web-stack.md) | Web app: Vite, React, plain CSS, hand-written polling | Partly superseded by 0013, 0024 |
-| [0012](decisions/0012-sqlite-job-store.md) | SQLite job store with better-sqlite3 | Accepted |
+| [0012](decisions/0012-sqlite-job-store.md) | SQLite job store with better-sqlite3 | Accepted (amended by 0066) |
 | [0013](decisions/0013-tanstack-query-react-router.md) | TanStack Query and React Router | Accepted |
 | [0014](decisions/0014-claude-summarizer.md) | Summaries with the Claude API, called from the server | Accepted (amended by 0027, 0028, 0030) |
 | [0015](decisions/0015-transcript-lifecycle.md) | Transcript lifecycle: reviewed, then deleted | Accepted (amended by 0030) |
@@ -56,7 +56,7 @@ Each significant decision is recorded as a short ADR (Architecture Decision Reco
 | [0032](decisions/0032-rss-feeds-inbox-poller.md) | RSS feeds with feedsmith, an inbox before summarizing, and a separate poller | Accepted (amended by 0038) |
 | [0033](decisions/0033-browser-mode-tests.md) | Browser-mode tests with Vitest and Playwright for real-DOM behaviour | Accepted |
 | [0034](decisions/0034-caret-sync-paragraph-and-front-matter.md) | Caret sync: match paragraphs by whole second, and ignore the front-matter | Accepted |
-| [0035](decisions/0035-gmail-intake.md) | Gmail intake: `@googleapis/gmail`, server-side OAuth, an encrypted refresh token, and a date-window sync | Accepted |
+| [0035](decisions/0035-gmail-intake.md) | Gmail intake: `@googleapis/gmail`, server-side OAuth, an encrypted refresh token, and a date-window sync | Accepted (amended by 0061) |
 | [0036](decisions/0036-newsletters-email-to-markdown.md) | Newsletters: email to Markdown with Readability first and unwrapped layout tables as fallback | Accepted (amended by 0040) |
 | [0037](decisions/0037-job-postings-dataset.md) | Job postings: Claude extraction into fixed columns plus JSON, deduplicated by platform job ID | Accepted (deferred by 0041) |
 | [0038](decisions/0038-unified-inbox.md) | One inbox for feed items and newsletter emails | Accepted |
@@ -81,15 +81,15 @@ Each significant decision is recorded as a short ADR (Architecture Decision Reco
 | [0057](decisions/0057-note-identity-and-scans.md) | Note identity: path plus body hash, on-demand scans | Accepted |
 | [0058](decisions/0058-melete-data-and-generator-loop.md) | Melete's data model and generator loop | Accepted |
 | [0059](decisions/0059-study-profile-and-folder-memory.md) | Study profile and per-profile folder memory | Accepted |
-| [0060](decisions/0060-phone-access.md) | Phone access: localhost-only port, Tailscale Serve, installable web app | Accepted |
-| [0061](decisions/0061-google-sign-in-and-sessions.md) | Google sign-in and server-side sessions | Proposed |
-| [0062](decisions/0062-per-user-ownership-and-isolation.md) | Every row has an owner; isolation in the repositories | Proposed |
-| [0063](decisions/0063-per-user-vaults-and-onboarding.md) | Per-user vaults under one root, chosen at first sign-in | Proposed |
-| [0064](decisions/0064-shared-background-loops.md) | One background loop of each kind, round-robin by user | Proposed |
-| [0065](decisions/0065-user-and-app-settings.md) | Per-user settings, app settings, per-user seeding, split health | Proposed |
-| [0066](decisions/0066-fresh-baseline-schema.md) | A fresh baseline schema; old databases set aside | Proposed |
-| [0067](decisions/0067-admin-and-usage.md) | Admin routes and a usage rollup | Proposed |
-| [0068](decisions/0068-web-gate-and-module-guards.md) | Web: one gate, module guards, filtered navigation | Proposed |
+| [0060](decisions/0060-phone-access.md) | Phone access: localhost-only port, Tailscale Serve, installable web app | Accepted (amended by 0061) |
+| [0061](decisions/0061-google-sign-in-and-sessions.md) | Google sign-in and server-side sessions | Accepted |
+| [0062](decisions/0062-per-user-ownership-and-isolation.md) | Every row has an owner; isolation in the repositories | Accepted |
+| [0063](decisions/0063-per-user-vaults-and-onboarding.md) | Per-user vaults under one root, chosen at first sign-in | Accepted |
+| [0064](decisions/0064-shared-background-loops.md) | One background loop of each kind, round-robin by user | Accepted |
+| [0065](decisions/0065-user-and-app-settings.md) | Per-user settings, app settings, per-user seeding, split health | Accepted |
+| [0066](decisions/0066-fresh-baseline-schema.md) | A fresh baseline schema; old databases set aside | Accepted |
+| [0067](decisions/0067-admin-and-usage.md) | Admin routes and a usage rollup | Accepted |
+| [0068](decisions/0068-web-gate-and-module-guards.md) | Web: one gate, module guards, filtered navigation | Accepted |
 
 ## Template for new ADRs
 
