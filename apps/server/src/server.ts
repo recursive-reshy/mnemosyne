@@ -6,7 +6,7 @@ import { app } from './app.js'
 // Clients
 import { assertVaultWritable, resolveFolder } from './clients/vault.client.js'
 // Config
-import { config } from './config.js'
+import { config, ignoredEnv } from './config.js'
 // Logging
 import { logger } from './logger.js'
 // Repositories
@@ -21,6 +21,10 @@ import { startMeleteGenerator } from './worker/meleteGenerator.js'
 import { startServiceMonitor } from './worker/serviceMonitor.js'
 import { startSweeper } from './worker/sweeper.js'
 import { startWorker } from './worker/worker.js'
+
+for( const name of ignoredEnv( process.env ) ) {
+  logger.warn( { variable: name }, 'Ignored a variable that is no longer used' )
+}
 
 // Audio is deleted when a job ends, so anything left here belongs to a job cut short by a shutdown.
 await rm( config.workDir, { recursive: true, force: true } )

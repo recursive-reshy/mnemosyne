@@ -13,12 +13,13 @@ COMPOSE=( docker compose -p "$PROJECT" --project-directory "$ROOT" -f "$ROOT/doc
 VAULT_HOST_PATH="$( mktemp -d )"
 BACKUP_HOST_PATH="$( mktemp -d )"
 AGENT_SECRET="$( openssl rand -hex 32 )"
+TOKEN_ENCRYPTION_KEY="$( openssl rand -base64 32 )"
 printf '# Existing note\n\nA note that was already in the vault.\n' > "$VAULT_HOST_PATH/Existing note.md"
 node "$ROOT/e2e/fakes/seedVault.mjs" "$VAULT_HOST_PATH"
 
 chmod -R 777 "$VAULT_HOST_PATH" "$BACKUP_HOST_PATH"
 
-export VAULT_HOST_PATH BACKUP_HOST_PATH AGENT_SECRET
+export VAULT_HOST_PATH BACKUP_HOST_PATH AGENT_SECRET TOKEN_ENCRYPTION_KEY
 export ANTHROPIC_API_KEY=e2e
 
 cleanup() {

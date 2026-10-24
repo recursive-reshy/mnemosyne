@@ -4,9 +4,21 @@ import { join } from 'node:path'
 // Packages
 import { describe, it, expect } from 'vitest'
 // Config
-import { loadConfig } from './config.js'
+import { ignoredEnv, loadConfig } from './config.js'
 
-const base = { ANTHROPIC_API_KEY: 'sk-test', VAULT_PATH: '/vault' }
+const key = Buffer.alloc( 32, 7 ).toString( 'base64' )
+const google = {
+  GOOGLE_CLIENT_ID: 'id.apps.googleusercontent.com',
+  GOOGLE_CLIENT_SECRET: 'secret',
+  TOKEN_ENCRYPTION_KEY: key,
+}
+const base = {
+  ANTHROPIC_API_KEY: 'sk-test',
+  VAULT_PATH: '/vault',
+  ADMIN_EMAIL: 'Admin@Example.com',
+  APP_ORIGINS: 'http://localhost:3100',
+  ...google,
+}
 
 describe( 'loadConfig', () => {
   it( 'returns the defaults for a minimal environment', () => {
@@ -26,7 +38,16 @@ describe( 'loadConfig', () => {
       cleanupIntervalMinutes: 15,
       statusCheckIntervalMinutes: 2,
       logLevel: 'info',
-      gmail: null,
+      gmail: {
+        clientId: google.GOOGLE_CLIENT_ID,
+        clientSecret: 'secret',
+        redirectUri: 'http://localhost:3100/api/gmail/oauth/callback',
+        encryptionKey: Buffer.alloc( 32, 7 ),
+      },
+      adminEmail: 'admin@example.com',
+      appOrigins: [ 'http://localhost:3100' ],
+      sessionDays: 30,
+      vaultsPath: '/vaults',
       agent: null,
       timeZone: 'Asia/Singapore',
       obsidianVaultName: undefined,
@@ -79,7 +100,16 @@ describe( 'loadConfig', () => {
       cleanupIntervalMinutes: 5,
       statusCheckIntervalMinutes: 3,
       logLevel: 'info',
-      gmail: null,
+      gmail: {
+        clientId: google.GOOGLE_CLIENT_ID,
+        clientSecret: 'secret',
+        redirectUri: 'http://localhost:4000/api/gmail/oauth/callback',
+        encryptionKey: Buffer.alloc( 32, 7 ),
+      },
+      adminEmail: 'admin@example.com',
+      appOrigins: [ 'http://localhost:3100' ],
+      sessionDays: 30,
+      vaultsPath: '/vaults',
       agent: null,
       timeZone: 'Europe/London',
       obsidianVaultName: 'My Vault',
@@ -341,29 +371,66 @@ describe( 'loadConfig', () => {
     )
   } )
 
-  describe( 'gmail', () => {
-    const key = Buffer.alloc( 32, 7 ).toString( 'base64' )
-    const google = {
-      GOOGLE_CLIENT_ID: 'id.apps.googleusercontent.com',
-      GOOGLE_CLIENT_SECRET: 'secret',
-      TOKEN_ENCRYPTION_KEY: key,
-    }
+  describe( 'sign-in', () => {
+    it( 'lower-cases ADMIN_EMAIL', () => {
+      expect( loadConfig( base ).adminEmail ).toBe( 'admin@example.com' )
+    } )
 
-    it( 'is null when nothing is set', () => {
-      expect( loadConfig( base ).gmail ).toBeNull()
+    it.each( [ undefined, '', 'not-an-email' ] )( 'throws naming ADMIN_EMAIL for %j', ( value ) => {
+      expect( () => loadConfig( { ...base, ADMIN_EMAIL: value } ) ).toThrow( /ADMIN_EMAIL/ )
+    } )
+
+    it( 'splits APP_ORIGINS on commas, normalises each and drops duplicates', () => {
+      const { appOrigins } = loadConfig( {
+        ...base,
+        APP_ORIGINS: ' http://localhost:3100/ , https://mac.tail1234.ts.net,http://localhost:3100',
+      } )
+
+      expect( appOrigins ).toEqual( [ 'http://localhost:3100', 'https://mac.tail1234.ts.net' ] )
     } )
 
     it.each( [
-      [ 'only the client ID', { GOOGLE_CLIENT_ID: 'id' } ],
-      [ 'no encryption key', { GOOGLE_CLIENT_ID: 'id', GOOGLE_CLIENT_SECRET: 's' } ],
-      [ 'no client secret', { GOOGLE_CLIENT_ID: 'id', TOKEN_ENCRYPTION_KEY: key } ],
-      [ 'no client ID', { GOOGLE_CLIENT_SECRET: 's', TOKEN_ENCRYPTION_KEY: key } ],
-    ] )( 'is null with %s', ( _name, env ) => {
-      expect( loadConfig( { ...base, ...env } ).gmail ).toBeNull()
+      undefined,
+      '',
+      ',',
+      'localhost:3100',
+      'ftp://example.com',
+      'http://localhost:3100/app',
+      'http://localhost:3100?x=1',
+      'http://a.test,,http://b.test',
+    ] )( 'throws naming APP_ORIGINS for %j', ( value ) => {
+      expect( () => loadConfig( { ...base, APP_ORIGINS: value } ) ).toThrow( /APP_ORIGINS/ )
     } )
 
-    it( 'is set when the ID, secret and key are present, with the default redirect URI', () => {
-      const { gmail } = loadConfig( { ...base, ...google, PORT: '4000' } )
+    it( 'defaults SESSION_DAYS to 30, also when empty', () => {
+      expect( loadConfig( base ).sessionDays ).toBe( 30 )
+      expect( loadConfig( { ...base, SESSION_DAYS: '' } ).sessionDays ).toBe( 30 )
+      expect( loadConfig( { ...base, SESSION_DAYS: '7' } ).sessionDays ).toBe( 7 )
+    } )
+
+    it.each( [ '0', '366', '1.5', 'abc' ] )( 'throws naming SESSION_DAYS for %s', ( value ) => {
+      expect( () => loadConfig( { ...base, SESSION_DAYS: value } ) ).toThrow( /SESSION_DAYS/ )
+    } )
+
+    it( 'defaults VAULTS_PATH to /vaults and reads an override', () => {
+      expect( loadConfig( base ).vaultsPath ).toBe( '/vaults' )
+      expect( loadConfig( { ...base, VAULTS_PATH: '' } ).vaultsPath ).toBe( '/vaults' )
+      expect( loadConfig( { ...base, VAULTS_PATH: '/Users/x/Vaults' } ).vaultsPath )
+        .toBe( '/Users/x/Vaults' )
+    } )
+  } )
+
+  describe( 'google', () => {
+    it.each( [ 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'TOKEN_ENCRYPTION_KEY' ] )(
+      'throws naming %s when it is missing or empty',
+      ( name ) => {
+        expect( () => loadConfig( { ...base, [ name ]: undefined } ) ).toThrow( name )
+        expect( () => loadConfig( { ...base, [ name ]: '' } ) ).toThrow( name )
+      },
+    )
+
+    it( 'builds the Gmail settings with the localhost callback on PORT', () => {
+      const { gmail } = loadConfig( { ...base, PORT: '4000' } )
 
       expect( gmail ).toEqual( {
         clientId: google.GOOGLE_CLIENT_ID,
@@ -371,29 +438,13 @@ describe( 'loadConfig', () => {
         redirectUri: 'http://localhost:4000/api/gmail/oauth/callback',
         encryptionKey: Buffer.alloc( 32, 7 ),
       } )
-      expect( gmail?.encryptionKey ).toHaveLength( 32 )
+      expect( gmail.encryptionKey ).toHaveLength( 32 )
     } )
 
-    it( 'uses GOOGLE_REDIRECT_URI when set', () => {
-      const { gmail } = loadConfig( {
-        ...base,
-        ...google,
-        GOOGLE_REDIRECT_URI: 'http://localhost:5000/cb',
-      } )
+    it( 'ignores GOOGLE_REDIRECT_URI, even an invalid one', () => {
+      const { gmail } = loadConfig( { ...base, GOOGLE_REDIRECT_URI: 'nope' } )
 
-      expect( gmail?.redirectUri ).toBe( 'http://localhost:5000/cb' )
-    } )
-
-    it( 'treats empty strings as unset', () => {
-      const { gmail } = loadConfig( {
-        ...base,
-        GOOGLE_CLIENT_ID: '',
-        GOOGLE_CLIENT_SECRET: '',
-        GOOGLE_REDIRECT_URI: '',
-        TOKEN_ENCRYPTION_KEY: '',
-      } )
-
-      expect( gmail ).toBeNull()
+      expect( gmail.redirectUri ).toBe( 'http://localhost:3100/api/gmail/oauth/callback' )
     } )
 
     it.each( [
@@ -405,11 +456,17 @@ describe( 'loadConfig', () => {
         'TOKEN_ENCRYPTION_KEY must be 32 bytes in base64 (openssl rand -base64 32)',
       )
     } )
+  } )
 
-    it( 'throws naming GOOGLE_REDIRECT_URI for an invalid URL', () => {
-      expect( () => loadConfig( { ...base, GOOGLE_REDIRECT_URI: 'nope' } ) ).toThrow(
-        /GOOGLE_REDIRECT_URI/,
-      )
+  describe( 'ignoredEnv', () => {
+    it( 'names GOOGLE_REDIRECT_URI when it is set', () => {
+      expect( ignoredEnv( { ...base, GOOGLE_REDIRECT_URI: 'http://x.test/cb' } ) )
+        .toEqual( [ 'GOOGLE_REDIRECT_URI' ] )
+    } )
+
+    it( 'is empty when no removed variable is set, or the value is empty', () => {
+      expect( ignoredEnv( base ) ).toEqual( [] )
+      expect( ignoredEnv( { ...base, GOOGLE_REDIRECT_URI: '' } ) ).toEqual( [] )
     } )
   } )
 

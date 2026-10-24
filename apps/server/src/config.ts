@@ -60,6 +60,55 @@ const encryptionKeySchema = z
   .refine( isKey, KEY_MESSAGE )
   .transform( ( value ) => Buffer.from( value, 'base64' ) )
 
+const sessionDaysSchema = z.coerce.number().int().min( 1 ).max( 365 ).default( 30 )
+
+// Each entry is scheme://host[:port] with nothing after it, so a request's origin can be compared as text
+const toOrigin = ( entry: string ): string | null => {
+  const url = URL.canParse( entry ) ? new URL( entry ) : null
+
+  if( url === null || ![ 'http:', 'https:' ].includes( url.protocol ) ) {
+    return null
+  }
+
+  if( url.pathname !== '/' || url.search !== '' || url.hash !== '' || url.username !== '' ) {
+    return null
+  }
+
+  return url.origin
+}
+
+const originsSchema = z
+  .string()
+  .transform( ( value, ctx ) => {
+    const origins: string[] = []
+
+    for( const raw of value.split( ',' ) ) {
+      const origin = toOrigin( raw.trim() )
+
+      if( origin === null ) {
+        ctx.addIssue( {
+          code: 'custom',
+          message: 'must be comma-separated origins like http://localhost:3100 (no path)',
+        } )
+
+        return z.NEVER
+      }
+
+      if( !origins.includes( origin ) ) {
+        origins.push( origin )
+      }
+    }
+
+    return origins
+  } )
+
+// Removed variables that are still read by nothing; a leftover value is reported at startup
+const IGNORED_VARIABLES = [ 'GOOGLE_REDIRECT_URI' ]
+
+export const ignoredEnv = ( env: NodeJS.ProcessEnv ): string[] => {
+  return IGNORED_VARIABLES.filter( ( name ) => env[ name ] !== undefined && env[ name ] !== '' )
+}
+
 const EnvSchema = z
   .object( {
     PORT: z.preprocess( emptyAsUnset, portSchema ),
@@ -77,10 +126,13 @@ const EnvSchema = z
     REVIEW_TTL_HOURS: z.preprocess( emptyAsUnset, reviewTtlSchema ),
     CLEANUP_INTERVAL_MINUTES: z.preprocess( emptyAsUnset, cleanupIntervalSchema ),
     STATUS_CHECK_INTERVAL_MINUTES: z.preprocess( emptyAsUnset, statusIntervalSchema ),
-    GOOGLE_CLIENT_ID: z.preprocess( emptyAsUnset, z.string().min( 1 ).optional() ),
-    GOOGLE_CLIENT_SECRET: z.preprocess( emptyAsUnset, z.string().min( 1 ).optional() ),
-    GOOGLE_REDIRECT_URI: z.preprocess( emptyAsUnset, z.url().optional() ),
-    TOKEN_ENCRYPTION_KEY: z.preprocess( emptyAsUnset, encryptionKeySchema.optional() ),
+    ADMIN_EMAIL: z.email().transform( ( value ) => value.toLowerCase() ),
+    APP_ORIGINS: originsSchema,
+    SESSION_DAYS: z.preprocess( emptyAsUnset, sessionDaysSchema ),
+    VAULTS_PATH: z.preprocess( emptyAsUnset, z.string().min( 1 ).default( '/vaults' ) ),
+    GOOGLE_CLIENT_ID: z.string().min( 1 ),
+    GOOGLE_CLIENT_SECRET: z.string().min( 1 ),
+    TOKEN_ENCRYPTION_KEY: encryptionKeySchema,
     AGENT_URL: z.preprocess( emptyAsUnset, z.url().default( 'http://localhost:8100' ) ),
     AGENT_SECRET: z.preprocess( emptyAsUnset, z.string().min( 32 ).optional() ),
     AGENT_TIMEOUT_MS: z.preprocess( emptyAsUnset, agentTimeoutSchema ),
@@ -101,23 +153,23 @@ const EnvSchema = z
     webDir: env.WEB_DIR,
     anthropicApiKey: env.ANTHROPIC_API_KEY,
     vaultPath: env.VAULT_PATH,
+    vaultsPath: env.VAULTS_PATH,
+    adminEmail: env.ADMIN_EMAIL,
+    appOrigins: env.APP_ORIGINS,
+    sessionDays: env.SESSION_DAYS,
     defaultNoteFolder: env.DEFAULT_NOTE_FOLDER,
     summaryTimeoutMs: env.SUMMARY_TIMEOUT_MS,
     reviewTtlHours: env.REVIEW_TTL_HOURS,
     cleanupIntervalMinutes: env.CLEANUP_INTERVAL_MINUTES,
     statusCheckIntervalMinutes: env.STATUS_CHECK_INTERVAL_MINUTES,
     logLevel: env.LOG_LEVEL,
-    gmail: env.GOOGLE_CLIENT_ID !== undefined
-      && env.GOOGLE_CLIENT_SECRET !== undefined
-      && env.TOKEN_ENCRYPTION_KEY !== undefined
-      ? {
-        clientId: env.GOOGLE_CLIENT_ID,
-        clientSecret: env.GOOGLE_CLIENT_SECRET,
-        redirectUri: env.GOOGLE_REDIRECT_URI
-          ?? `http://localhost:${ env.PORT }/api/gmail/oauth/callback`,
-        encryptionKey: env.TOKEN_ENCRYPTION_KEY,
-      }
-      : null,
+    // The callback is derived per origin from 4.3 on; until then Gmail keeps its localhost callback
+    gmail: {
+      clientId: env.GOOGLE_CLIENT_ID,
+      clientSecret: env.GOOGLE_CLIENT_SECRET,
+      redirectUri: `http://localhost:${ env.PORT }/api/gmail/oauth/callback`,
+      encryptionKey: env.TOKEN_ENCRYPTION_KEY,
+    },
     agent: env.AGENT_SECRET === undefined
       ? null
       : { url: env.AGENT_URL, secret: env.AGENT_SECRET, timeoutMs: env.AGENT_TIMEOUT_MS },
