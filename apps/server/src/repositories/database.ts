@@ -7,23 +7,10 @@ import { join } from 'node:path'
 // Packages
 import Database from 'better-sqlite3'
 import { z } from 'zod'
-// Summarizer
-import {
-  DEFAULT_LINKER_GUIDANCE,
-  LINKER_SEED_KEY,
-  SEEDED_PROFILES,
-} from '../summarizer/prompts.js'
-// Melete
-import {
-  DEFAULT_MELETE_GRADING_GUIDANCE,
-  DEFAULT_MELETE_QUESTIONS_GUIDANCE,
-  MELETE_GRADING_SEED_KEY,
-  MELETE_QUESTIONS_SEED_KEY,
-} from '../melete/prompts.js'
 // Repositories
 import { backupStamp } from './backupStamp.js'
 
-// The whole 0.9 schema in one step (ADR 0066). It seeds nothing: see seedDefaults, then seedUser.
+// The whole 0.9 schema in one step (ADR 0066). It seeds nothing: seeding is seedUser.
 const baseline = `CREATE TABLE users (
   id TEXT PRIMARY KEY,
   email TEXT NOT NULL UNIQUE,
@@ -375,77 +362,6 @@ CREATE TABLE melete_runs (
 );
 CREATE INDEX melete_runs_note ON melete_runs ( note_id, id );`
 
-type SeedProfile = {
-  name: string
-  seedKey: string
-  purpose: string
-  guidance: string
-}
-
-const seedProfile = ( db: Database.Database, profile: SeedProfile ): string => {
-  const exists = db.prepare( 'SELECT id FROM prompt_profiles WHERE seed_key = ?' )
-    .get( profile.seedKey ) as { id: string } | undefined
-
-  if( exists !== undefined ) {
-    return exists.id
-  }
-
-  const taken = db.prepare( `SELECT 1 FROM prompt_profiles
-    WHERE purpose = ? AND lower( name ) = lower( ? ) AND deleted_at IS NULL` )
-    .get( profile.purpose, profile.name )
-  const id = crypto.randomUUID()
-  const now = new Date().toISOString()
-
-  const name = taken === undefined ? profile.name : `${ profile.name } (seeded)`
-
-  db.prepare( `INSERT INTO prompt_profiles ( id, name, seed_key, purpose, created_at )
-    VALUES ( ?, ?, ?, ?, ? )` )
-    .run( id, name, profile.seedKey, profile.purpose, now )
-  db.prepare( `INSERT INTO prompt_versions
-    ( profile_id, version, guidance, source, created_at ) VALUES ( ?, 1, ?, 'seed', ? )` )
-    .run( id, profile.guidance, now )
-
-  return id
-}
-
-// Temporary (task 2.3 to 3.2): seeds the shared prompt profiles that migrations 4, 7 and 9 used to
-// create, so code that isn't per-user yet keeps working. `seedUser` replaces it (ADR 0065).
-export const seedDefaults = ( db: Database.Database ): void => {
-  db.transaction( () => {
-    let businessId = ''
-
-    for( const profile of SEEDED_PROFILES ) {
-      const id = seedProfile( db, { ...profile, seedKey: profile.seedKey, purpose: 'summary' } )
-
-      if( profile.seedKey === 'business' ) {
-        businessId = id
-      }
-    }
-
-    seedProfile( db, {
-      name: 'Linker',
-      seedKey: LINKER_SEED_KEY,
-      purpose: 'linker',
-      guidance: DEFAULT_LINKER_GUIDANCE,
-    } )
-    seedProfile( db, {
-      name: 'Melete questions',
-      seedKey: MELETE_QUESTIONS_SEED_KEY,
-      purpose: 'melete_questions',
-      guidance: DEFAULT_MELETE_QUESTIONS_GUIDANCE,
-    } )
-    seedProfile( db, {
-      name: 'Melete grading',
-      seedKey: MELETE_GRADING_SEED_KEY,
-      purpose: 'melete_grading',
-      guidance: DEFAULT_MELETE_GRADING_GUIDANCE,
-    } )
-
-    db.prepare( 'INSERT OR IGNORE INTO settings ( key, value ) VALUES ( ?, ? )' )
-      .run( 'default_profile_id', JSON.stringify( businessId ) )
-  } )()
-}
-
 // Migration N is stored as version SCHEMA_BASE + N; migrations 1–9 became the baseline (ADR 0066).
 export const SCHEMA_BASE = 9
 
@@ -547,7 +463,6 @@ export const openDatabase = (
     opened.pragma( 'foreign_keys = ON' )
 
     runMigrations( opened, toApply )
-    seedDefaults( opened )
 
     const orphans = opened.pragma( 'foreign_key_check' ) as unknown[]
 

@@ -24,10 +24,10 @@ import * as postings from './postings.repository.js'
 import * as promptProfiles from './promptProfiles.repository.js'
 import * as settings from './settings.repository.js'
 import * as summaryRuns from './summaryRuns.repository.js'
+import * as userModules from './userModules.repository.js'
 
 // Repositories that hold users, sessions or app-wide values, or that read across users for the
-// background loops, take no `userId` (ADR 0062). They don't exist yet; they join this list as
-// the Checkpoint B and D tasks create them.
+// background loops, take no `userId` (ADR 0062). `system` joins in Checkpoint D.
 const EXEMPT = [ 'system', 'users', 'sessions', 'appSettings' ]
 
 // Data repositories whose functions don't yet take `userId` first. Each Phase 4 task removes its
@@ -78,6 +78,7 @@ const DATA_REPOSITORIES: Record< string, Record< string, unknown > > = {
   promptProfiles,
   settings,
   summaryRuns,
+  userModules,
 }
 
 const files = readdirSync( dirname( fileURLToPath( import.meta.url ) ) )

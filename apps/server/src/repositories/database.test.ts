@@ -17,16 +17,8 @@ import {
   afterEach,
   vi,
 } from 'vitest'
-// Summarizer
-import {
-  DEFAULT_LINKER_GUIDANCE,
-  SEEDED_PROFILES,
-} from '../summarizer/prompts.js'
-// Melete
-import {
-  DEFAULT_MELETE_GRADING_GUIDANCE,
-  DEFAULT_MELETE_QUESTIONS_GUIDANCE,
-} from '../melete/prompts.js'
+// Services
+import { seedSharedProfiles } from '../services/seedUser.service.js'
 // Repositories
 import {
   SCHEMA_BASE,
@@ -36,7 +28,6 @@ import {
   migrations,
   openDatabase,
   runMigrations,
-  seedDefaults,
 } from './database.js'
 
 const CURRENT_VERSION = SCHEMA_BASE + migrations.length
@@ -727,6 +718,8 @@ describe( 'the baseline schema', () => {
     } )
 
     it( 'lets summary runs outlive their job', () => {
+      seedSharedProfiles( 'now' )
+
       const version = getDatabase().prepare( 'SELECT id FROM prompt_versions LIMIT 1' )
         .get() as { id: number }
 
@@ -737,129 +730,16 @@ describe( 'the baseline schema', () => {
   } )
 } )
 
-describe( 'seedDefaults', () => {
-  beforeEach( () => {
-    openDatabase( ':memory:' )
-  } )
-
-  afterEach( () => {
-    closeDatabase()
-  } )
-
-  type ProfileRow = {
-    name: string
-    seed_key: string
-    purpose: string
-    guidance: string
-    version: number
-    source: string
-  }
-
-  const profiles = (): ProfileRow[] => {
-    return getDatabase().prepare( `SELECT
-        p.name, p.seed_key, p.purpose, v.guidance, v.version, v.source
-      FROM prompt_profiles p JOIN prompt_versions v ON v.profile_id = p.id
-      ORDER BY p.rowid` ).all() as ProfileRow[]
-  }
-
-  it( 'is run by openDatabase: each seeded profile exists once, at version 1', () => {
-    const rows = profiles()
-
-    for( const seeded of SEEDED_PROFILES ) {
-      expect( rows.filter( ( { seed_key } ) => seed_key === seeded.seedKey ) ).toEqual( [ {
-        name: seeded.name,
-        seed_key: seeded.seedKey,
-        purpose: 'summary',
-        guidance: seeded.guidance,
-        version: 1,
-        source: 'seed',
-      } ] )
-    }
-
-    expect( rows.find( ( { seed_key } ) => seed_key === 'linker' ) ).toMatchObject( {
-      name: 'Linker',
-      purpose: 'linker',
-      guidance: DEFAULT_LINKER_GUIDANCE,
-    } )
-    expect( rows.find( ( { seed_key } ) => seed_key === 'melete_questions' ) ).toMatchObject( {
-      name: 'Melete questions',
-      purpose: 'melete_questions',
-      guidance: DEFAULT_MELETE_QUESTIONS_GUIDANCE,
-    } )
-    expect( rows.find( ( { seed_key } ) => seed_key === 'melete_grading' ) ).toMatchObject( {
-      name: 'Melete grading',
-      purpose: 'melete_grading',
-      guidance: DEFAULT_MELETE_GRADING_GUIDANCE,
-    } )
-    expect( rows ).toHaveLength( SEEDED_PROFILES.length + 3 )
-  } )
-
-  it( 'makes Business ideas the default profile and leaves default_model unset', () => {
-    const business = getDatabase()
-      .prepare( "SELECT id FROM prompt_profiles WHERE seed_key = 'business'" )
-      .get() as { id: string }
-    const settings = getDatabase().prepare( 'SELECT key, value FROM settings' ).all()
-
-    expect( settings ).toEqual( [
-      { key: 'default_profile_id', value: JSON.stringify( business.id ) },
-    ] )
-  } )
-
-  it( 'gives profiles uuid ids and iso creation times', () => {
-    const row = getDatabase().prepare( 'SELECT id, created_at FROM prompt_profiles LIMIT 1' )
-      .get() as { id: string, created_at: string }
-
-    expect( row.id ).toMatch( /^[0-9a-f-]{36}$/ )
-    expect( new Date( row.created_at ).toISOString() ).toBe( row.created_at )
-  } )
-
-  it( 'does nothing a second time', () => {
-    const before = profiles()
-
-    seedDefaults( getDatabase() )
-
-    expect( profiles() ).toEqual( before )
-  } )
-
-  it( 'does not overwrite a changed default_profile_id', () => {
-    getDatabase().prepare( `UPDATE settings SET value = '"other"'
-      WHERE key = 'default_profile_id'` ).run()
-
-    seedDefaults( getDatabase() )
-
-    expect( getDatabase().prepare( `SELECT value FROM settings
-      WHERE key = 'default_profile_id'` ).get() ).toEqual( { value: '"other"' } )
-  } )
-
-  it( 'suffixes a seeded name that a user profile already holds', () => {
+describe( 'a fresh database', () => {
+  it( 'seeds nothing: profiles and settings come from seedUser', () => {
     const database = new Database( ':memory:' )
 
     runMigrations( database, migrations )
-    database.prepare( `INSERT INTO prompt_profiles ( id, name, created_at )
-      VALUES ( 'mine', 'Study', 'now' )` ).run()
 
-    seedDefaults( database )
-
-    const names = database
-      .prepare( "SELECT name FROM prompt_profiles WHERE seed_key = 'study'" )
-      .all()
-
-    expect( names ).toEqual( [ { name: 'Study (seeded)' } ] )
-    expect( database.prepare( "SELECT name FROM prompt_profiles WHERE id = 'mine'" ).get() )
-      .toEqual( { name: 'Study' } )
-  } )
-
-  it( 'skips a profile whose seed key already exists, even if renamed', () => {
-    const database = new Database( ':memory:' )
-
-    runMigrations( database, migrations )
-    database.prepare( `INSERT INTO prompt_profiles ( id, name, seed_key, created_at )
-      VALUES ( 'mine', 'Renamed', 'study', 'now' )` ).run()
-
-    seedDefaults( database )
-
-    expect( database.prepare( `SELECT COUNT(*) AS count FROM prompt_profiles
-      WHERE seed_key = 'study'` ).get() ).toEqual( { count: 1 } )
+    expect( database.prepare( 'SELECT COUNT(*) AS count FROM prompt_profiles' ).get() )
+      .toEqual( { count: 0 } )
+    expect( database.prepare( 'SELECT COUNT(*) AS count FROM settings' ).get() )
+      .toEqual( { count: 0 } )
   } )
 } )
 
