@@ -35,6 +35,14 @@ export class UnprocessableError extends Error {
   }
 }
 
+// The address a sign-in request came to isn't one the app was told it is served at
+export class UnknownOriginError extends Error {
+  constructor() {
+    super( 'This address isn\'t configured in APP_ORIGINS' )
+    this.name = 'UnknownOriginError'
+  }
+}
+
 // A failed backup is the one 500 whose message the user needs to read (ADR 0051).
 export class BackupError extends Error {
   constructor( message: string ) {
@@ -97,7 +105,7 @@ export const errorMiddleware = (
     return
   }
 
-  if( error instanceof ValidationError ) {
+  if( error instanceof ValidationError || error instanceof UnknownOriginError ) {
     sendError( res, 400, { error: error.message } )
   } else if( error instanceof NotFoundError ) {
     sendError( res, 404, { error: error.message } )

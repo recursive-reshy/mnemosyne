@@ -19,6 +19,7 @@ import {
   BadGatewayError,
   ConflictError,
   NotFoundError,
+  UnknownOriginError,
   UnprocessableError,
   ValidationError,
   errorMiddleware,
@@ -44,6 +45,9 @@ const buildApp = (): Express => {
   } )
   testApp.get( '/unprocessable', () => {
     throw new UnprocessableError( 'Could not summarize "A post"' )
+  } )
+  testApp.get( '/origin', () => {
+    throw new UnknownOriginError()
   } )
   testApp.get( '/zod', () => {
     z.object( { url: z.string() } ).parse( { url: 42 } )
@@ -101,6 +105,15 @@ describe( 'errorMiddleware', () => {
 
     expect( response.status ).toBe( 422 )
     expect( response.body ).toEqual( { error: 'Could not summarize "A post"' } )
+  } )
+
+  it( 'maps UnknownOriginError to 400 naming APP_ORIGINS', async () => {
+    const response = await request( buildApp() ).get( '/origin' )
+
+    expect( response.status ).toBe( 400 )
+    expect( response.body ).toEqual( {
+      error: 'This address isn\'t configured in APP_ORIGINS',
+    } )
   } )
 
   it( 'maps ZodError to 400 with its issues', async () => {
