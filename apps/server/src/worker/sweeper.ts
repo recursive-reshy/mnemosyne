@@ -1,5 +1,6 @@
 // Services
 import { deleteExpiredJobs } from '../services/jobs.service.js'
+import { sweepSessions } from '../services/session.service.js'
 // Config
 import { config } from '../config.js'
 // Logging
@@ -17,6 +18,16 @@ export const startSweeper = (): ( () => void ) => {
       }
     } catch( error ) {
       logger.error( { err: error }, 'Sweep failed' )
+    }
+
+    try {
+      const deleted = sweepSessions( new Date() )
+
+      if( deleted > 0 ) {
+        logger.info( { deleted }, 'Deleted expired sessions' )
+      }
+    } catch( error ) {
+      logger.error( { err: error }, 'Session sweep failed' )
     }
   }
 

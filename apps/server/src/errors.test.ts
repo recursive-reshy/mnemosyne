@@ -19,7 +19,9 @@ import {
   BadGatewayError,
   ConflictError,
   NotFoundError,
+  UnauthenticatedError,
   UnknownOriginError,
+  UnsupportedMediaTypeError,
   UnprocessableError,
   ValidationError,
   errorMiddleware,
@@ -45,6 +47,12 @@ const buildApp = (): Express => {
   } )
   testApp.get( '/unprocessable', () => {
     throw new UnprocessableError( 'Could not summarize "A post"' )
+  } )
+  testApp.get( '/unauthenticated', () => {
+    throw new UnauthenticatedError()
+  } )
+  testApp.get( '/unsupported', () => {
+    throw new UnsupportedMediaTypeError()
   } )
   testApp.get( '/origin', () => {
     throw new UnknownOriginError()
@@ -105,6 +113,20 @@ describe( 'errorMiddleware', () => {
 
     expect( response.status ).toBe( 422 )
     expect( response.body ).toEqual( { error: 'Could not summarize "A post"' } )
+  } )
+
+  it( 'maps UnauthenticatedError to 401 with the code the web app looks for', async () => {
+    const response = await request( buildApp() ).get( '/unauthenticated' )
+
+    expect( response.status ).toBe( 401 )
+    expect( response.body ).toEqual( { error: 'unauthenticated' } )
+  } )
+
+  it( 'maps UnsupportedMediaTypeError to 415', async () => {
+    const response = await request( buildApp() ).get( '/unsupported' )
+
+    expect( response.status ).toBe( 415 )
+    expect( response.body ).toEqual( { error: 'Requests must be application/json' } )
   } )
 
   it( 'maps UnknownOriginError to 400 naming APP_ORIGINS', async () => {

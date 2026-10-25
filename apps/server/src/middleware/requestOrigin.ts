@@ -14,15 +14,28 @@ const firstValue = ( header: string | string[] | undefined ): string | undefined
   return first === undefined || first === '' ? undefined : first
 }
 
+const isLoopback = ( req: Request ): boolean => LOOPBACK.has( req.socket.remoteAddress ?? '' )
+
+// http or https, as the person's browser used it: the socket's own, or what a loopback proxy says
+export const requestScheme = ( req: Request ): 'http' | 'https' => {
+  const forwarded = isLoopback( req )
+    ? firstValue( req.headers[ 'x-forwarded-proto' ] )?.toLowerCase()
+    : undefined
+
+  if( forwarded === 'http' || forwarded === 'https' ) {
+    return forwarded
+  }
+
+  return 'encrypted' in req.socket && req.socket.encrypted === true ? 'https' : 'http'
+}
+
 // Forwarded headers are only believed from a loopback peer, where Tailscale Serve and a browser on
 // the Mac connect from; anyone else could send them. The answer is always one of `origins`.
 export const requestOrigin = ( req: Request, origins: string[] ): string => {
-  const loopback = LOOPBACK.has( req.socket.remoteAddress ?? '' )
+  const loopback = isLoopback( req )
   const forwardedHost = loopback ? firstValue( req.headers[ 'x-forwarded-host' ] ) : undefined
-  const forwardedProto = loopback ? firstValue( req.headers[ 'x-forwarded-proto' ] ) : undefined
-  const socketScheme = 'encrypted' in req.socket && req.socket.encrypted === true ? 'https' : 'http'
   const host = ( forwardedHost ?? firstValue( req.headers.host ) )?.toLowerCase()
-  const scheme = forwardedProto?.toLowerCase() ?? socketScheme
+  const scheme = requestScheme( req )
 
   if( host !== undefined ) {
     // Tailscale Serve may pass Host unchanged with no forwarded headers; its address is https

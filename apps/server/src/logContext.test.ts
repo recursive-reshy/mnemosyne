@@ -4,6 +4,12 @@ import { describe, it, expect } from 'vitest'
 import { getLogContext, withLogContext } from './logContext.js'
 
 describe( 'withLogContext', () => {
+  it( 'carries the user ID', () => {
+    const seen = withLogContext( { user_id: 'u1' }, () => getLogContext() )
+
+    expect( seen ).toEqual( { user_id: 'u1' } )
+  } )
+
   it( 'has no context outside a call', () => {
     expect( getLogContext() ).toBeUndefined()
   } )

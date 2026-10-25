@@ -35,6 +35,21 @@ export class UnprocessableError extends Error {
   }
 }
 
+// No valid session; the web app reads this exact text to show the sign-in page
+export class UnauthenticatedError extends Error {
+  constructor() {
+    super( 'unauthenticated' )
+    this.name = 'UnauthenticatedError'
+  }
+}
+
+export class UnsupportedMediaTypeError extends Error {
+  constructor() {
+    super( 'Requests must be application/json' )
+    this.name = 'UnsupportedMediaTypeError'
+  }
+}
+
 // The address a sign-in request came to isn't one the app was told it is served at
 export class UnknownOriginError extends Error {
   constructor() {
@@ -107,6 +122,10 @@ export const errorMiddleware = (
 
   if( error instanceof ValidationError || error instanceof UnknownOriginError ) {
     sendError( res, 400, { error: error.message } )
+  } else if( error instanceof UnauthenticatedError ) {
+    sendError( res, 401, { error: error.message } )
+  } else if( error instanceof UnsupportedMediaTypeError ) {
+    sendError( res, 415, { error: error.message } )
   } else if( error instanceof NotFoundError ) {
     sendError( res, 404, { error: error.message } )
   } else if( error instanceof ConflictError ) {

@@ -5,7 +5,7 @@ import { describe, it, expect } from 'vitest'
 // Errors
 import { UnknownOriginError } from '../errors.js'
 // Middleware
-import { requestOrigin } from './requestOrigin.js'
+import { requestOrigin, requestScheme } from './requestOrigin.js'
 
 const ORIGINS = [ 'http://localhost:3100', 'https://mac.tail1234.ts.net' ]
 
@@ -135,5 +135,24 @@ describe( 'requestOrigin', () => {
   it( 'names APP_ORIGINS in the error message', () => {
     expect( () => requestOrigin( buildRequest( { headers: { host: 'evil.test' } } ), ORIGINS ) )
       .toThrow( 'This address isn\'t configured in APP_ORIGINS' )
+  } )
+} )
+
+describe( 'requestScheme', () => {
+  it( 'is http for a plain socket and https for a TLS one', () => {
+    expect( requestScheme( buildRequest( {} ) ) ).toBe( 'http' )
+    expect( requestScheme( buildRequest( { encrypted: true } ) ) ).toBe( 'https' )
+  } )
+
+  it( 'believes X-Forwarded-Proto from loopback only', () => {
+    const headers = { 'x-forwarded-proto': 'https' }
+
+    expect( requestScheme( buildRequest( { headers } ) ) ).toBe( 'https' )
+    expect( requestScheme( buildRequest( { peer: '100.64.0.7', headers } ) ) ).toBe( 'http' )
+  } )
+
+  it( 'ignores a forwarded scheme that is neither http nor https', () => {
+    expect( requestScheme( buildRequest( { headers: { 'x-forwarded-proto': 'gopher' } } ) ) )
+      .toBe( 'http' )
   } )
 } )

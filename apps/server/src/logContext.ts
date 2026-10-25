@@ -2,6 +2,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 
 export type LogContext = {
+  user_id?: string
   job_id?: string
   feed_id?: string
   gmail_source_id?: string

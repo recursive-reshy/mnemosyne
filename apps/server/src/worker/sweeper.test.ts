@@ -9,21 +9,25 @@ import {
 } from 'vitest'
 // Services
 import { deleteExpiredJobs } from '../services/jobs.service.js'
+import { sweepSessions } from '../services/session.service.js'
 // Worker
 import { startSweeper } from './sweeper.js'
 // Logging
 import { logger } from '../logger.js'
 
 vi.mock( '../services/jobs.service.js' )
+vi.mock( '../services/session.service.js' )
 vi.mock( '../config.js', () => ( { config: { cleanupIntervalMinutes: 15, logLevel: 'silent' } } ) )
 
 const deleteMock = vi.mocked( deleteExpiredJobs )
+const sessionsMock = vi.mocked( sweepSessions )
 const INTERVAL_MS = 15 * 60_000
 
 beforeEach( () => {
   vi.useFakeTimers()
   vi.resetAllMocks()
   deleteMock.mockReturnValue( 0 )
+  sessionsMock.mockReturnValue( 0 )
 } )
 
 afterEach( () => {
@@ -32,6 +36,30 @@ afterEach( () => {
 } )
 
 describe( 'startSweeper', () => {
+  it( 'also deletes expired sessions on every sweep', async () => {
+    const stop = startSweeper()
+
+    expect( sessionsMock ).toHaveBeenCalledTimes( 1 )
+    expect( sessionsMock.mock.calls[ 0 ]?.[ 0 ] ).toBeInstanceOf( Date )
+
+    await vi.advanceTimersByTimeAsync( INTERVAL_MS )
+    expect( sessionsMock ).toHaveBeenCalledTimes( 2 )
+
+    stop()
+  } )
+
+  it( 'still sweeps sessions when the job sweep throws, and the other way round', () => {
+    deleteMock.mockImplementation( () => {
+      throw new Error( 'boom' )
+    } )
+
+    const stop = startSweeper()
+
+    expect( sessionsMock ).toHaveBeenCalledTimes( 1 )
+
+    stop()
+  } )
+
   it( 'sweeps once at start', () => {
     const stop = startSweeper()
 
