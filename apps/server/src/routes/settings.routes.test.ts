@@ -15,11 +15,12 @@ import {
   beforeEach,
   afterEach,
 } from 'vitest'
-import request from 'supertest'
 // Shared
 import { GetSettingsResponse } from '@mnemosyne/shared'
 // App
 import { app } from '../app.js'
+// Test support
+import { signedInRequest as request } from '../test-support/auth.js'
 import { config } from '../config.js'
 // Clients
 import { AgentError, checkHealth, fetchInstructions } from '../clients/agent.client.js'

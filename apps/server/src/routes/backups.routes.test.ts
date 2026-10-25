@@ -7,11 +7,12 @@ import {
   it,
   vi,
 } from 'vitest'
-import request from 'supertest'
 // Shared
 import { BackupResult } from '@mnemosyne/shared'
 // App
 import { app } from '../app.js'
+// Test support
+import { signedInRequest as request } from '../test-support/auth.js'
 // Errors
 import { BackupError, ConflictError } from '../errors.js'
 // Services

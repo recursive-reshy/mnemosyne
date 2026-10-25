@@ -10,11 +10,12 @@ import {
   afterEach,
   vi,
 } from 'vitest'
-import request from 'supertest'
 // Shared
 import { ListFoldersResponse } from '@mnemosyne/shared'
 // App
 import { app } from '../app.js'
+// Test support
+import { signedInRequest as request } from '../test-support/auth.js'
 import { config } from '../config.js'
 
 const vault = vi.hoisted( () => `/tmp/mnemosyne-vault-routes-${ process.pid }` )

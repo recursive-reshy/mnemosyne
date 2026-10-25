@@ -8,7 +8,6 @@ import {
   vi,
   beforeEach,
 } from 'vitest'
-import request from 'supertest'
 // Shared
 import {
   FeedResponse,
@@ -18,6 +17,8 @@ import {
 import type { InboxItemRef } from '@mnemosyne/shared'
 // App
 import { app } from '../app.js'
+// Test support
+import { signedInRequest as request } from '../test-support/auth.js'
 // Clients
 import { listSummaryModels } from '../clients/anthropicModels.client.js'
 import { fetchResource } from '../clients/http.client.js'

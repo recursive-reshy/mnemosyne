@@ -8,7 +8,6 @@ import {
   vi,
   beforeEach,
 } from 'vitest'
-import request from 'supertest'
 // Shared
 import {
   FeedResponse,
@@ -18,6 +17,8 @@ import {
 } from '@mnemosyne/shared'
 // App
 import { app } from '../app.js'
+// Test support
+import { signedInRequest as request } from '../test-support/auth.js'
 // Clients
 import { HttpStatusError, UnreachableError, fetchResource } from '../clients/http.client.js'
 import { listSummaryModels } from '../clients/anthropicModels.client.js'

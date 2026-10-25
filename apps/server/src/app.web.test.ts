@@ -13,6 +13,9 @@ import {
   afterAll,
 } from 'vitest'
 
+// Test support
+import { signedInRequest } from './test-support/auth.js'
+
 const state = vi.hoisted( () => ( { webDir: '' } ) )
 
 vi.mock( './config.js', () => ( {
@@ -22,6 +25,7 @@ vi.mock( './config.js', () => ( {
     workDir: '/work',
     logLevel: 'silent',
     whisperModel: 'test-model',
+    sessionDays: 30,
     get webDir(): string {
       return state.webDir
     },
@@ -51,7 +55,7 @@ describe( 'app with WEB_DIR set', () => {
   } )
 
   it( 'keeps the JSON 404 for unknown API paths', async () => {
-    const response = await request( app ).get( '/api/nope' )
+    const response = await signedInRequest( app ).get( '/api/nope' )
 
     expect( response.status ).toBe( 404 )
     expect( response.body ).toEqual( { error: 'Not Found' } )

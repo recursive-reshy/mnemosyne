@@ -6,11 +6,12 @@ import {
   vi,
   beforeEach,
 } from 'vitest'
-import request from 'supertest'
 // Shared
 import { GetHealthErrorsResponse, GetStatusResponse } from '@mnemosyne/shared'
 // App
 import { app } from '../app.js'
+// Test support
+import { signedInRequest as request } from '../test-support/auth.js'
 // Repositories
 import { insertFeed } from '../repositories/feeds.repository.js'
 import { recordFailure } from '../repositories/health.repository.js'

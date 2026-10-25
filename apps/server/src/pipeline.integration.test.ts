@@ -2,7 +2,6 @@
 import { access } from 'node:fs/promises'
 import path from 'node:path'
 // Packages
-import request from 'supertest'
 import { z } from 'zod'
 import {
   describe,
@@ -13,6 +12,8 @@ import {
 } from 'vitest'
 // App
 import { app } from './app.js'
+// Test support
+import { signedInRequest as request } from './test-support/auth.js'
 // Config
 import { config } from './config.js'
 // Repositories

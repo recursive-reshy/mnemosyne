@@ -1,6 +1,5 @@
 // Packages
 import { describe, it, expect } from 'vitest'
-import request from 'supertest'
 // Shared
 import {
   ListPromptProfilesResponse,
@@ -10,6 +9,8 @@ import {
 } from '@mnemosyne/shared'
 // App
 import { app } from '../app.js'
+// Test support
+import { signedInRequest as request } from '../test-support/auth.js'
 // Summarizer
 import { DEFAULT_LINKER_GUIDANCE, SEEDED_PROFILES } from '../summarizer/prompts.js'
 // Melete

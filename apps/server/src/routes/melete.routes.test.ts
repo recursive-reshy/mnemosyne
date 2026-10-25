@@ -10,7 +10,6 @@ import {
   it,
   vi,
 } from 'vitest'
-import request from 'supertest'
 // Clients
 import { gradeAnswer } from '../clients/claude.client.js'
 // Shared
@@ -25,6 +24,8 @@ import {
 } from '@mnemosyne/shared'
 // App
 import { app } from '../app.js'
+// Test support
+import { signedInRequest as request } from '../test-support/auth.js'
 import { config } from '../config.js'
 // Errors
 import { MeleteError } from '../errors.js'

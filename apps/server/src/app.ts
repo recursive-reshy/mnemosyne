@@ -5,8 +5,11 @@ import { config } from './config.js'
 // Errors
 import { errorMiddleware, notFoundHandler } from './errors.js'
 // Middleware
+import { requireUser } from './middleware/auth.js'
+import { jsonOnly } from './middleware/jsonOnly.js'
 import { requestLog } from './middleware/requestLog.js'
 // Routes
+import { authRoutes } from './routes/auth.routes.js'
 import { backupsRoutes } from './routes/backups.routes.js'
 import { feedsRoutes } from './routes/feeds.routes.js'
 import { gmailRoutes } from './routes/gmail.routes.js'
@@ -15,6 +18,7 @@ import { healthRoutes } from './routes/health.routes.js'
 import { inboxRoutes } from './routes/inbox.routes.js'
 import { jobsRoutes } from './routes/jobs.routes.js'
 import { meleteRoutes } from './routes/melete.routes.js'
+import { meRoutes } from './routes/me.routes.js'
 import { modelsRoutes } from './routes/models.routes.js'
 import { promptProfilesRoutes } from './routes/promptProfiles.routes.js'
 import { settingsRoutes } from './routes/settings.routes.js'
@@ -26,7 +30,11 @@ export const app: Express = express()
 
 app.use( '/api', requestLog )
 app.use( '/api', express.json( { limit: '2mb' } ) )
+app.use( '/api', jsonOnly )
 app.use( '/api', healthRoutes )
+app.use( '/api', authRoutes )
+app.use( '/api', requireUser )
+app.use( '/api', meRoutes )
 app.use( '/api', jobsRoutes )
 app.use( '/api', feedsRoutes )
 app.use( '/api', inboxRoutes )

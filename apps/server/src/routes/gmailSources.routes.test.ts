@@ -6,7 +6,6 @@ import {
   vi,
   beforeEach,
 } from 'vitest'
-import request from 'supertest'
 // Shared
 import {
   GmailSourceResponse,
@@ -15,6 +14,8 @@ import {
 } from '@mnemosyne/shared'
 // App
 import { app } from '../app.js'
+// Test support
+import { signedInRequest as request } from '../test-support/auth.js'
 // Gmail
 import { GmailAuthError } from '../gmail/auth.js'
 import {
