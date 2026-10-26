@@ -44,13 +44,13 @@ interface Choices {
 
 // A feed's or source's profile may have been deleted since it was chosen; the default takes
 // over then.
-const remembered = ( profileId: string | null ): string | undefined => {
+const remembered = ( userId: string, profileId: string | null ): string | undefined => {
   if( profileId === null ) {
     return undefined
   }
 
   try {
-    assertActiveProfile( profileId )
+    assertActiveProfile( userId, profileId )
 
     return profileId
   } catch( error ) {
@@ -63,11 +63,12 @@ const remembered = ( profileId: string | null ): string | undefined => {
 }
 
 export const queueFeedItem = async (
+  userId: string,
   feed: StoredFeed,
   item: StoredFeedItem,
   choices: Choices = {},
 ): Promise< Job > => {
-  const profile = choices.profile_id ?? remembered( feed.profile_id )
+  const profile = choices.profile_id ?? remembered( userId, feed.profile_id )
   const body = {
     url: item.link,
     ...choices.model === undefined ? {} : { model: choices.model },
@@ -87,7 +88,7 @@ export const queueFeedItem = async (
     : undefined
 
   const extra = { feed_id: feed.id, ...document === undefined ? {} : { document } }
-  const job = await queueJob( body, extra )
+  const job = await queueJob( userId, body, extra )
 
   setItemStatus( [ item.id ], 'queued', job.id )
 
@@ -95,6 +96,7 @@ export const queueFeedItem = async (
 }
 
 export const queueNewsletterMessage = async (
+  userId: string,
   source: StoredGmailSource,
   row: StoredGmailMessage,
   choices: Choices = {},
@@ -110,7 +112,7 @@ export const queueNewsletterMessage = async (
   }
 
   const link = gmailLink( { email: findAccount()?.email ?? null, messageId: row.message_id } )
-  const profile = choices.profile_id ?? remembered( source.profile_id )
+  const profile = choices.profile_id ?? remembered( userId, source.profile_id )
   const body = {
     url: link,
     ...choices.model === undefined ? {} : { model: choices.model },
@@ -125,7 +127,7 @@ export const queueNewsletterMessage = async (
     site: source.name,
     published: row.received_at.slice( 0, 10 ),
   } )
-  const job = await queueJob( body, { gmail_source_id: source.id, document } )
+  const job = await queueJob( userId, body, { gmail_source_id: source.id, document } )
 
   setMessageStatus( [ row.id ], 'queued', job.id )
 
@@ -175,7 +177,11 @@ const failureText = ( error: unknown ): string => {
   return error instanceof Error ? error.message : 'Unknown error'
 }
 
-const queueOne = async ( queued: Queued, choices: Choices ): Promise< Job > => {
+const queueOne = async (
+  userId: string,
+  queued: Queued,
+  choices: Choices,
+): Promise< Job > => {
   if( queued.kind === 'feed' ) {
     const feed = findFeedById( queued.item.feed_id )
 
@@ -183,7 +189,7 @@ const queueOne = async ( queued: Queued, choices: Choices ): Promise< Job > => {
       throw new ConflictError( 'Feed not found' )
     }
 
-    return queueFeedItem( feed, queued.item, choices )
+    return queueFeedItem( userId, feed, queued.item, choices )
   }
 
   const source = findSourceById( queued.row.source_id )
@@ -192,7 +198,7 @@ const queueOne = async ( queued: Queued, choices: Choices ): Promise< Job > => {
     throw new ConflictError( 'Gmail source not found' )
   }
 
-  return queueNewsletterMessage( source, queued.row, choices )
+  return queueNewsletterMessage( userId, source, queued.row, choices )
 }
 
 const unique = ( refs: InboxItemRef[] ): InboxItemRef[] => {
@@ -228,6 +234,7 @@ const findInInbox = ( refs: InboxItemRef[] ): Map< string, Queued > => {
 }
 
 export const summarizeItems = async (
+  userId: string,
   { items, model, profile_id }: SummarizeInboxBody,
 ): Promise< SummarizeInboxResponse > => {
   const refs = unique( items )
@@ -239,11 +246,11 @@ export const summarizeItems = async (
   }
 
   if( model !== undefined ) {
-    await assertKnownModel( model )
+    await assertKnownModel( userId, model )
   }
 
   if( profile_id !== undefined ) {
-    assertActiveProfile( profile_id )
+    assertActiveProfile( userId, profile_id )
   }
 
   const jobs: Job[] = []
@@ -255,7 +262,7 @@ export const summarizeItems = async (
 
     if( queued !== undefined ) {
       try {
-        jobs.push( await queueOne( queued, { model, profile_id } ) )
+        jobs.push( await queueOne( userId, queued, { model, profile_id } ) )
       } catch( error ) {
         failures.push( `"${ titleOf( queued ) }" (${ failureText( error ) })` )
       }

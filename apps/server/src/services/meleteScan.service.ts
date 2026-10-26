@@ -27,6 +27,7 @@ import { retireActiveForNote } from '../repositories/meleteQuestions.repository.
 import { SubjectRecord, upsertSubject } from '../repositories/meleteSubjects.repository.js'
 // Services
 import { getLearningRoot } from './settings.service.js'
+import { interimOwnerId } from './interimOwner.js'
 
 type ScanOptions = { force?: boolean, now?: Date }
 
@@ -215,7 +216,7 @@ const runScan = async ( learningRoot: string, now: Date ): Promise< void > => {
 export const scanLearningRoot = async (
   { force = false, now = new Date() }: ScanOptions = {},
 ): Promise< void > => {
-  const learningRoot = getLearningRoot()
+  const learningRoot = getLearningRoot( interimOwnerId() )
 
   if( learningRoot === null ) {
     throw new ConflictError( 'Choose a learning root first' )

@@ -1,17 +1,17 @@
 // Repositories
 import { getDatabase } from './database.js'
 
-export const getSetting = ( key: string ): unknown => {
+export const getSetting = ( userId: string, key: string ): unknown => {
   const row = getDatabase()
-    .prepare( 'SELECT value FROM settings WHERE key = ?' )
-    .get( key ) as { value: string } | undefined
+    .prepare( 'SELECT value FROM settings WHERE user_id = ? AND key = ?' )
+    .get( userId, key ) as { value: string } | undefined
 
   return row === undefined ? undefined : JSON.parse( row.value ) as unknown
 }
 
-export const setSetting = ( key: string, value: unknown ): void => {
+export const setSetting = ( userId: string, key: string, value: unknown ): void => {
   getDatabase()
-    .prepare( `INSERT INTO settings ( key, value ) VALUES ( ?, ? )
-      ON CONFLICT ( key ) DO UPDATE SET value = excluded.value` )
-    .run( key, JSON.stringify( value ) )
+    .prepare( `INSERT INTO settings ( user_id, key, value ) VALUES ( ?, ?, ? )
+      ON CONFLICT ( user_id, key ) DO UPDATE SET value = excluded.value` )
+    .run( userId, key, JSON.stringify( value ) )
 }

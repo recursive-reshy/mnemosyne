@@ -42,6 +42,7 @@ import {
 // Services
 import { scanLearningRoot } from './meleteScan.service.js'
 import { getLearningRoot } from './settings.service.js'
+import { interimOwnerId } from './interimOwner.js'
 
 const requireNote = ( id: string ): NoteRecord => {
   const note = findNote( id )
@@ -295,7 +296,7 @@ export const listSubjectsInRoot = async ( learningRoot: string ): Promise< Subje
 }
 
 export const getToday = async ( now = new Date() ): Promise< GetMeleteTodayResponse > => {
-  const learningRoot = getLearningRoot()
+  const learningRoot = getLearningRoot( interimOwnerId() )
 
   if( learningRoot === null ) {
     return {
@@ -321,7 +322,7 @@ export const getSubject = async (
 ): Promise< GetMeleteSubjectResponse > => {
   await scanLearningRoot( { now } )
 
-  const learningRoot = getLearningRoot()
+  const learningRoot = getLearningRoot( interimOwnerId() )
 
   if( learningRoot === null ) {
     throw new ConflictError( 'Choose a learning root first' )

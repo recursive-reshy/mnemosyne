@@ -31,6 +31,14 @@ import {
   markInterruptedLinkingJobs,
   updateJob,
 } from './jobStore.repository.js'
+// Test support
+import { defaultTestAdmin } from '../test-support/auth.js'
+
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
 
 const buildJob = ( overrides: Partial< StoredJob > = {} ): StoredJob => {
   return {
@@ -671,8 +679,8 @@ describe( 'deleteJob', () => {
   it( 'removes the job\'s link runs and suggestions, and only its own', () => {
     const job = buildJob()
     const other = buildJob()
-    const linker = findProfileBySeedKey( 'linker' )
-    const version = findLatestVersion( linker?.id ?? '' )
+    const linker = findProfileBySeedKey( userId, 'linker' )
+    const version = findLatestVersion( userId, linker?.id ?? '' )
     const run = ( jobId: string ): number => insertLinkRun( {
       job_id: jobId,
       model: 'claude-haiku-5-5',

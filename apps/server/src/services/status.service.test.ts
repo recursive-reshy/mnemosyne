@@ -21,13 +21,27 @@ import { runServiceChecks } from './health.service.js'
 import { getHealthErrors, getStatus, refreshStatus } from './status.service.js'
 // Test support
 import { addStoredSource } from '../test-support/gmailSources.fixture.js'
+// Test support
+import { defaultTestAdmin } from '../test-support/auth.js'
+
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
 
 const configMock = vi.hoisted( () => {
   const mock: {
     logLevel: string
+    sessionDays: number
     gmail: Record< string, unknown > | null
     agent: { url: string } | null
-  } = { logLevel: 'silent', gmail: { clientId: 'id' }, agent: { url: 'http://agent.test' } }
+  } = {
+    logLevel: 'silent',
+    sessionDays: 30,
+    gmail: { clientId: 'id' },
+    agent: { url: 'http://agent.test' },
+  }
 
   return mock
 } )
@@ -133,7 +147,7 @@ describe( 'getStatus', () => {
 
   it( 'never marks whisper-server off', () => {
     configMock.agent = null
-    setSetting( 'linking_enabled', false )
+    setSetting( userId, 'linking_enabled', false )
 
     expect( rowOf( 'whisper' ).state ).toBe( 'ok' )
   } )
@@ -145,16 +159,12 @@ describe( 'getStatus', () => {
       expect( rowOf( 'agent' ).state ).toBe( 'off' )
     } )
 
-    it( 'is off when linking is switched off, hiding an old error', () => {
+    it( 'does not follow a user\'s linking switch: it is an app check', () => {
       recordFailure( 'agent', 'default', at( 1 ), 'down' )
-      setSetting( 'linking_enabled', false )
+      setSetting( userId, 'linking_enabled', false )
 
-      expect( rowOf( 'agent' ) ).toMatchObject( {
-        state: 'off',
-        last_error: null,
-        failing_since: null,
-      } )
-      expect( getStatus().failing_count ).toBe( 0 )
+      expect( rowOf( 'agent' ) ).toMatchObject( { state: 'failing', last_error: 'down' } )
+      expect( getStatus().failing_count ).toBe( 1 )
     } )
 
     it( 'is failing when its check failed and linking is on', () => {

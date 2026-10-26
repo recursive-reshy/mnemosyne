@@ -36,6 +36,14 @@ import {
 import { DEFAULT_LINKER_GUIDANCE } from '../summarizer/prompts.js'
 // Worker
 import { linkJob } from './linkJob.js'
+// Test support
+import { defaultTestAdmin } from '../test-support/auth.js'
+
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
 
 vi.mock( '../clients/agent.client.js', async ( importOriginal ) => {
   const original = await importOriginal< typeof import( '../clients/agent.client.js' ) >()
@@ -72,7 +80,7 @@ const linkedResponse = ( ...targets: string[] ): LinkResponse => ( {
 } )
 
 const queueLinking = async ( profile_id?: string ): Promise< string > => {
-  const { id } = await queueJob( { url: source, profile_id } )
+  const { id } = await queueJob( userId, { url: source, profile_id } )
 
   markStatus( id, 'downloading' )
   markStatus( id, 'converting' )
@@ -100,7 +108,7 @@ beforeEach( () => {
   clearJobs()
   vi.resetAllMocks()
   config.agent = { url: 'http://agent:8100', secret: 'x'.repeat( 32 ), timeoutMs: 1000 }
-  setSetting( 'linking_model', 'claude-haiku-5-5' )
+  setSetting( userId, 'linking_model', 'claude-haiku-5-5' )
   requestLinksMock.mockResolvedValue( linkedResponse( 'Ownership' ) )
 } )
 
@@ -149,8 +157,8 @@ describe( 'linkJob', () => {
   } )
 
   it( 'uses the profile\'s last folder, when it exists, for a job with no folder', async () => {
-    const study = findProfileBySeedKey( 'study' )?.id ?? ''
-    setLastFolder( study, 'Learning/React' )
+    const study = findProfileBySeedKey( userId, 'study' )?.id ?? ''
+    setLastFolder( userId, study, 'Learning/React' )
     await mkdir( join( config.vaultPath, 'Learning/React' ), { recursive: true } )
     const id = await queueLinking( study )
 

@@ -1,13 +1,26 @@
 // Packages
-import { describe, it, expect } from 'vitest'
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+} from 'vitest'
 // Repositories
 import { deleteJob, insertJob } from './jobStore.repository.js'
 import { findLatestVersion, listActiveProfiles } from './promptProfiles.repository.js'
 import { insertSummaryRun, listRunsForJob } from './summaryRuns.repository.js'
+// Test support
+import { defaultTestAdmin } from '../test-support/auth.js'
+
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
 
 const promptVersionId = (): number => {
-  const profile = listActiveProfiles()[ 0 ]
-  const version = findLatestVersion( profile?.id ?? '' )
+  const profile = listActiveProfiles( userId )[ 0 ]
+  const version = findLatestVersion( userId, profile?.id ?? '' )
 
   return version?.id ?? 0
 }

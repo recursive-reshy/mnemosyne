@@ -53,13 +53,21 @@ import { clearModelCache } from '../services/models.service.js'
 import { listProfiles, resolveLinkerPrompt } from '../services/prompts.service.js'
 // Fixtures
 import { transcriptFixture } from '../test-support/transcript.fixture.js'
+// Test support
+import { defaultTestAdmin } from '../test-support/auth.js'
+
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
 
 vi.mock( '../clients/anthropicModels.client.js' )
 
 const youtubeUrl = 'https://www.youtube.com/watch?v=abc'
 
 const seedJobAt = async ( status: JobStatus ): Promise< string > => {
-  const { id } = await queueJob( { url: youtubeUrl } )
+  const { id } = await queueJob( userId, { url: youtubeUrl } )
   const steps = [ 'downloading', 'converting', 'transcribing' ] as const
 
   if( status === 'queued' ) {
@@ -178,8 +186,8 @@ describe( 'GET /api/jobs', () => {
   } )
 
   it( 'lists active jobs newest first, without transcripts', async () => {
-    const first = await queueJob( { url: youtubeUrl } )
-    const second = await queueJob( { url: 'https://www.youtube.com/watch?v=def' } )
+    const first = await queueJob( userId, { url: youtubeUrl } )
+    const second = await queueJob( userId, { url: 'https://www.youtube.com/watch?v=def' } )
     markStatus( second.id, 'downloading' )
 
     const response = await request( app ).get( '/api/jobs' )
@@ -191,7 +199,7 @@ describe( 'GET /api/jobs', () => {
   } )
 
   it( 'leaves out failed jobs', async () => {
-    const { id } = await queueJob( { url: youtubeUrl } )
+    const { id } = await queueJob( userId, { url: youtubeUrl } )
     failJob( id, 'boom' )
 
     const response = await request( app ).get( '/api/jobs' )
@@ -230,7 +238,7 @@ describe( 'GET /api/jobs/:id', () => {
 
 describe( 'GET /api/jobs/:id/download', () => {
   const seedReviewJob = async ( title?: string ): Promise< string > => {
-    const { id } = await queueJob( { url: youtubeUrl } )
+    const { id } = await queueJob( userId, { url: youtubeUrl } )
 
     markStatus( id, 'downloading' )
     markStatus( id, 'converting' )
@@ -294,7 +302,7 @@ describe( 'GET /api/jobs/:id/download', () => {
   } )
 
   it( 'returns 409 for a queued job', async () => {
-    const { id } = await queueJob( { url: youtubeUrl } )
+    const { id } = await queueJob( userId, { url: youtubeUrl } )
 
     const response = await request( app ).get( `/api/jobs/${ id }/download` )
 
@@ -515,7 +523,8 @@ describe( 'POST /api/jobs/:id/retry-summary', () => {
 } )
 
 describe( 'POST /api/jobs with summary options', () => {
-  const codingId = (): string => listProfiles().find( ( { name } ) => name === 'Coding' )?.id ?? ''
+  const codingId = (): string => listProfiles( userId )
+    .find( ( { name } ) => name === 'Coding' )?.id ?? ''
 
   it( 'stores the model and profile on the job', async () => {
     const response = await request( app )
@@ -564,7 +573,7 @@ describe( 'POST /api/jobs with summary options', () => {
 describe( 'POST /api/jobs/:id/regenerate-summary', () => {
   it( 'returns 202 with the job back in summarizing and the new choices', async () => {
     const id = await seedJobAt( 'ready_for_review' )
-    const profileId = listProfiles()[ 1 ]?.id ?? ''
+    const profileId = listProfiles( userId )[ 1 ]?.id ?? ''
 
     const response = await request( app )
       .post( `/api/jobs/${ id }/regenerate-summary` )
@@ -806,7 +815,7 @@ describe( 'POST /api/jobs/:id/text', () => {
   const text = `# A pasted post\n\n${ 'Pasted words go here. '.repeat( 15 ) }`
 
   const failedArticle = async (): Promise< string > => {
-    const { id } = await queueJob( { url: articleUrl } )
+    const { id } = await queueJob( userId, { url: articleUrl } )
     markStatus( id, 'fetching' )
     failJob( id, 'The page needs a login or is paywalled' )
 
@@ -870,7 +879,7 @@ describe( 'POST /api/jobs/:id/text', () => {
   } )
 
   it( 'returns 409 for an article job that has not failed', async () => {
-    const { id } = await queueJob( { url: articleUrl } )
+    const { id } = await queueJob( userId, { url: articleUrl } )
 
     const response = await request( app ).post( `/api/jobs/${ id }/text` ).send( { text } )
 
@@ -882,7 +891,7 @@ describe( 'GET /api/jobs/:id/download for articles', () => {
   const articleUrl = 'https://example.com/post'
 
   const reviewedArticle = async (): Promise< string > => {
-    const { id } = await queueJob( { url: articleUrl } )
+    const { id } = await queueJob( userId, { url: articleUrl } )
     markStatus( id, 'fetching' )
     completeAcquisition( id, {
       kind: 'article',
@@ -947,7 +956,7 @@ describe( 'link suggestion routes', () => {
 
     const runId = recordLinkRun( id, {
       model: 'claude-haiku-5-5',
-      promptVersionId: resolveLinkerPrompt().version.id,
+      promptVersionId: resolveLinkerPrompt( userId ).version.id,
       usage: undefined,
     } )
 

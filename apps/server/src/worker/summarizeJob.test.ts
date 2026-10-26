@@ -29,6 +29,14 @@ import { SummaryError, summarizeSource } from '../clients/claude.client.js'
 import { assertKnownModel } from '../services/models.service.js'
 // Worker
 import { summarizeJob } from './summarizeJob.js'
+// Test support
+import { defaultTestAdmin } from '../test-support/auth.js'
+
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
 
 vi.mock( '../clients/claude.client.js', async ( importOriginal ) => {
   const original = await importOriginal< typeof import( '../clients/claude.client.js' ) >()
@@ -56,7 +64,7 @@ const transcript: Transcript = {
 }
 
 const queueSummarizing = async (): Promise< string > => {
-  const { id } = await queueJob( { url: transcript.meta.source } )
+  const { id } = await queueJob( userId, { url: transcript.meta.source } )
   markStatus( id, 'downloading' )
   markStatus( id, 'converting' )
   markStatus( id, 'transcribing' )
@@ -137,8 +145,8 @@ describe( 'summarizeJob', () => {
 
   it( 'uses the default model and the default profile\'s current guidance', async () => {
     const id = await queueSummarizing()
-    saveVersion( listProfiles()[ 0 ]?.id ?? '', 'Be brief.' )
-    setSetting( 'default_model', 'claude-opus-5-5' )
+    saveVersion( userId, listProfiles( userId )[ 0 ]?.id ?? '', 'Be brief.' )
+    setSetting( userId, 'default_model', 'claude-opus-5-5' )
 
     await summarizeJob( id )
 
@@ -151,7 +159,7 @@ describe( 'summarizeJob', () => {
 
   it( 'uses the model and profile stored on the job', async () => {
     const id = await queueSummarizing()
-    const coding = listProfiles().find( ( { name } ) => name === 'Coding' )
+    const coding = listProfiles( userId ).find( ( { name } ) => name === 'Coding' )
     updateJob( id, { summary_model: 'claude-sonnet-4-6', prompt_profile_id: coding?.id ?? null } )
 
     await summarizeJob( id )
@@ -253,7 +261,7 @@ describe( 'summarizeJob', () => {
       usage: { input_tokens: 80, output_tokens: 10 },
     } )
 
-    await regenerateSummary( id, { model: 'claude-opus-5-5' } )
+    await regenerateSummary( userId, id, { model: 'claude-opus-5-5' } )
     await summarizeJob( id )
 
     const job = findJob( id )

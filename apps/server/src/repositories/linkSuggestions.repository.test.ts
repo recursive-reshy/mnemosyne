@@ -1,5 +1,10 @@
 // Packages
-import { describe, it, expect } from 'vitest'
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+} from 'vitest'
 // Shared
 import type { LinkSuggestion } from '@mnemosyne/shared'
 // Repositories
@@ -13,13 +18,21 @@ import {
   setStatus,
   supersedePending,
 } from './linkSuggestions.repository.js'
+// Test support
+import { defaultTestAdmin } from '../test-support/auth.js'
+
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
 
 const JOB_1 = '3f2b8c1e-6d1a-4b8e-9a53-0c1d2e3f4a5b'
 const JOB_2 = '3f2b8c1e-6d1a-4b8e-9a53-0c1d2e3f4a5c'
 
 const newRun = ( jobId: string ): number => {
-  const profile = findProfileBySeedKey( 'linker' )
-  const version = findLatestVersion( profile?.id ?? '' )
+  const profile = findProfileBySeedKey( userId, 'linker' )
+  const version = findLatestVersion( userId, profile?.id ?? '' )
 
   return insertLinkRun( {
     job_id: jobId,

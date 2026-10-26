@@ -21,6 +21,8 @@ import {
   UpdateDraftBody,
   UpdateDraftResponse,
 } from '@mnemosyne/shared'
+// Middleware
+import { currentUser } from '../middleware/auth.js'
 // Services
 import {
   acceptSuggestions,
@@ -41,10 +43,10 @@ import {
 } from '../services/jobs.service.js'
 
 export const createJob = async (
-  { body }: Request,
+  req: Request,
   res: Response< CreateJobResponse >,
 ): Promise< void > => {
-  const job = await queueJob( CreateJobBody.parse( body ) )
+  const job = await queueJob( currentUser( req ).id, CreateJobBody.parse( req.body ) )
 
   res
     .status( 202 )
@@ -107,12 +109,11 @@ export const retryJobSummary = ( { params }: Request, res: Response< GetJobRespo
 }
 
 export const regenerateJobSummary = async (
-  { params, body }: Request,
+  req: Request,
   res: Response< GetJobResponse >,
 ): Promise< void > => {
-  const choices = RegenerateSummaryBody.parse( body ?? {} )
-
-  const job = await regenerateSummary( String( params.id ), choices )
+  const choices = RegenerateSummaryBody.parse( req.body ?? {} )
+  const job = await regenerateSummary( currentUser( req ).id, String( req.params.id ), choices )
 
   res.status( 202 ).json( { job } )
 }

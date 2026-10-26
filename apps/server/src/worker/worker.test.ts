@@ -22,6 +22,14 @@ import { startWorker } from './worker.js'
 // Logging
 import { logger } from '../logger.js'
 import { getLogContext } from '../logContext.js'
+// Test support
+import { defaultTestAdmin } from '../test-support/auth.js'
+
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
 
 vi.mock( './runJob.js' )
 
@@ -47,7 +55,7 @@ const useRealisticRunJob = (): void => {
 }
 
 const queue = async (): Promise< string > => {
-  return ( await queueJob( { url: 'https://www.youtube.com/watch?v=abc' } ) ).id
+  return ( await queueJob( userId, { url: 'https://www.youtube.com/watch?v=abc' } ) ).id
 }
 
 beforeEach( () => {

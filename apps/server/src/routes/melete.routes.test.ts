@@ -39,6 +39,14 @@ import { setSetting } from '../repositories/settings.repository.js'
 // Test support
 import { addQuestion } from '../test-support/meleteData.fixture.js'
 import { MeleteVault, createMeleteVault } from '../test-support/meleteVault.fixture.js'
+// Test support
+import { defaultTestAdmin } from '../test-support/auth.js'
+
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
 
 vi.mock( '../clients/claude.client.js' )
 
@@ -79,8 +87,8 @@ beforeEach( async () => {
   vault = await createMeleteVault()
   originalVaultPath = config.vaultPath
   config.vaultPath = vault.vaultPath
-  setSetting( 'melete_learning_root', 'Learning' )
-  setSetting( 'melete_grading_model', 'claude-haiku-5-5' )
+  setSetting( userId, 'melete_learning_root', 'Learning' )
+  setSetting( userId, 'melete_grading_model', 'claude-haiku-5-5' )
   grade.mockReset()
   resetScanClock()
 } )
@@ -102,7 +110,7 @@ describe( 'GET /api/melete/today', () => {
   } )
 
   it( 'answers 200 with a null learning root when none is set', async () => {
-    setSetting( 'melete_learning_root', null )
+    setSetting( userId, 'melete_learning_root', null )
 
     const response = await request( app ).get( '/api/melete/today' )
 
@@ -141,7 +149,7 @@ describe( 'GET /api/melete/subjects/:id', () => {
   it( 'returns 409 when there is no learning root', async () => {
     await scanned()
     const { id } = subject( 'Rust' )
-    setSetting( 'melete_learning_root', null )
+    setSetting( userId, 'melete_learning_root', null )
 
     const response = await request( app ).get( `/api/melete/subjects/${ id }` )
 
@@ -374,7 +382,7 @@ const dueQuestion = async (): Promise< string > => {
 
 describe( 'GET /api/melete/review/next', () => {
   it( 'answers 409 until a learning root is chosen', async () => {
-    setSetting( 'melete_learning_root', null )
+    setSetting( userId, 'melete_learning_root', null )
 
     const response = await request( app ).get( '/api/melete/review/next' )
 

@@ -20,7 +20,7 @@ import { GetSettingsResponse } from '@mnemosyne/shared'
 // App
 import { app } from '../app.js'
 // Test support
-import { signedInRequest as request } from '../test-support/auth.js'
+import { createTestUser, signedInRequest as request } from '../test-support/auth.js'
 import { config } from '../config.js'
 // Clients
 import { AgentError, checkHealth, fetchInstructions } from '../clients/agent.client.js'
@@ -36,6 +36,14 @@ import { findProfileBySeedKey } from '../repositories/promptProfiles.repository.
 import { clearModelCache } from '../services/models.service.js'
 import { listProfiles, resolveLinkerPrompt } from '../services/prompts.service.js'
 import { LOCKED_INSTRUCTIONS_ARTICLE, LOCKED_INSTRUCTIONS_VIDEO } from '../summarizer/prompts.js'
+// Test support
+import { defaultTestAdmin } from '../test-support/auth.js'
+
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
 
 vi.mock( '../clients/anthropicModels.client.js' )
 vi.mock( '../clients/agent.client.js', async ( importOriginal ) => {
@@ -49,7 +57,7 @@ const healthMock = vi.mocked( checkHealth )
 const instructionsMock = vi.mocked( fetchInstructions )
 
 const profileId = ( name: string ): string => {
-  return listProfiles().find( ( profile ) => profile.name === name )?.id ?? ''
+  return listProfiles( userId ).find( ( profile ) => profile.name === name )?.id ?? ''
 }
 
 beforeEach( () => {
@@ -74,13 +82,13 @@ describe( 'GET /api/settings', () => {
         feed_check_interval_minutes: 60,
         linking_enabled: true,
         linking_model: 'claude-sonnet-5-5',
-        linker_profile_id: resolveLinkerPrompt().profile.id,
+        linker_profile_id: resolveLinkerPrompt( userId ).profile.id,
         melete_learning_root: null,
         melete_question_model: 'claude-sonnet-5-5',
         melete_grading_model: 'claude-sonnet-5-5',
         melete_review_mode: 'typed',
-        melete_question_profile_id: findProfileBySeedKey( 'melete_questions' )?.id,
-        melete_grading_profile_id: findProfileBySeedKey( 'melete_grading' )?.id,
+        melete_question_profile_id: findProfileBySeedKey( userId, 'melete_questions' )?.id,
+        melete_grading_profile_id: findProfileBySeedKey( userId, 'melete_grading' )?.id,
       },
       locked_instructions: {
         video: LOCKED_INSTRUCTIONS_VIDEO,
@@ -327,5 +335,77 @@ describe( 'PATCH /api/settings', () => {
       .send( { default_profile_id: crypto.randomUUID() } )
 
     expect( response.status ).toBe( 400 )
+  } )
+} )
+
+describe( 'settings are per user', () => {
+  it( 'keeps each user\'s default model apart', async () => {
+    listMock.mockResolvedValue( [
+      { id: 'claude-opus-5-5', display_name: 'Opus' },
+      { id: 'claude-sonnet-5-5', display_name: 'Sonnet' },
+    ] )
+
+    const member = createTestUser()
+
+    await request( app ).patch( '/api/settings' ).send( { default_model: 'claude-opus-5-5' } )
+    await request( app, member ).patch( '/api/settings' )
+      .send( { default_model: 'claude-sonnet-5-5' } )
+
+    const read = async ( user?: ReturnType< typeof createTestUser > ): Promise< string > => {
+      return GetSettingsResponse.parse(
+        ( await request( app, user ).get( '/api/settings' ) ).body,
+      ).settings.default_model
+    }
+
+    expect( await read() ).toBe( 'claude-opus-5-5' )
+    expect( await read( member ) ).toBe( 'claude-sonnet-5-5' )
+  } )
+
+  it( 'gives each user their own default profile', async () => {
+    const member = createTestUser()
+    const read = async ( user?: ReturnType< typeof createTestUser > ): Promise< string > => {
+      return GetSettingsResponse.parse(
+        ( await request( app, user ).get( '/api/settings' ) ).body,
+      ).settings.default_profile_id
+    }
+
+    expect( await read( member ) ).not.toBe( await read() )
+  } )
+
+  it( 'refuses another user\'s profile as the default', async () => {
+    const member = createTestUser()
+    const coding = profileId( 'Coding' )
+
+    const response = await request( app, member )
+      .patch( '/api/settings' )
+      .send( { default_profile_id: coding } )
+
+    expect( response.status ).toBe( 400 )
+  } )
+
+  it( 'refuses a member the feed interval and saves nothing', async () => {
+    listMock.mockResolvedValue( [ { id: 'claude-opus-5-5', display_name: 'Opus' } ] )
+
+    const member = createTestUser()
+    const response = await request( app, member )
+      .patch( '/api/settings' )
+      .send( { default_model: 'claude-opus-5-5', feed_check_interval_minutes: 180 } )
+    const after = GetSettingsResponse.parse(
+      ( await request( app, member ).get( '/api/settings' ) ).body,
+    ).settings
+
+    expect( response.status ).toBe( 404 )
+    expect( after.feed_check_interval_minutes ).toBe( 60 )
+    expect( after.default_model ).not.toBe( 'claude-opus-5-5' )
+  } )
+
+  it( 'shares the interval the admin set with every user', async () => {
+    await request( app ).patch( '/api/settings' ).send( { feed_check_interval_minutes: 180 } )
+
+    const member = createTestUser()
+    const response = await request( app, member ).get( '/api/settings' )
+
+    expect( GetSettingsResponse.parse( response.body ).settings.feed_check_interval_minutes )
+      .toBe( 180 )
   } )
 } )

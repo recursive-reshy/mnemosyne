@@ -49,8 +49,6 @@ const UNCONVERTED = [
   'meleteRuns',
   'meleteSubjects',
   'postings',
-  'promptProfiles',
-  'settings',
   'summaryRuns',
 ]
 

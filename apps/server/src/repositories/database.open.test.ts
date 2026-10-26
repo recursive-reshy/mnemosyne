@@ -158,7 +158,10 @@ describe( 'openDatabase on a file', () => {
 
     beforeEach( () => {
       openDatabase( databasePath, { backupDir } )
-      getDatabase().prepare( `INSERT INTO settings ( key, value ) VALUES ( 'kept', '1' )` ).run()
+      getDatabase().prepare( `INSERT INTO users ( id, email, name, role, status, created_at )
+        VALUES ( 'u', 'u@x.test', 'U', 'member', 'active', 'now' )` ).run()
+      getDatabase().prepare( `INSERT INTO settings ( user_id, key, value )
+        VALUES ( 'u', 'kept', '1' )` ).run()
       closeDatabase()
     } )
 
@@ -212,8 +215,8 @@ describe( 'openDatabase on a file', () => {
 
     writer.pragma( 'foreign_keys = OFF' )
     writer.prepare( `INSERT INTO prompt_versions
-      ( profile_id, version, guidance, source, created_at )
-      VALUES ( 'nobody', 1, 'g', 'seed', 'now' )` ).run()
+      ( user_id, profile_id, version, guidance, source, created_at )
+      VALUES ( 'nobody', 'nobody', 1, 'g', 'seed', 'now' )` ).run()
     writer.close()
 
     expect( () => openDatabase( databasePath, { backupDir } ) )

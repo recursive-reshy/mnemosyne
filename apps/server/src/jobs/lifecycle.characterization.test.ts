@@ -55,6 +55,14 @@ import { writeNote } from '../clients/vault.client.js'
 import { formatNote } from '../formatters/note.formatter.js'
 // Fixtures
 import { transcriptFixture } from '../test-support/transcript.fixture.js'
+// Test support
+import { defaultTestAdmin } from '../test-support/auth.js'
+
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
 
 // Characterization of the 0.7.0 job lifecycle (ADR 0048, TRD §2.4). Every service function is
 // driven from every status and source, and the moves that succeed are listed below; any move
@@ -185,7 +193,7 @@ const OPS: Record< string, Op > = {
   failLinking: ( id ) => failLinking( id, 'agent down' ),
   failSummary: ( id ) => failSummary( id, 'Claude down' ),
   retrySummary: ( id ) => retrySummary( id ),
-  regenerateSummary: ( id ) => regenerateSummary( id, {} ),
+  regenerateSummary: ( id ) => regenerateSummary( userId, id, {} ),
   'runLinking without an agent': ( id ) => runLinking( id, {} ),
   'runLinking': ( id ) => {
     config.agent = agent

@@ -65,6 +65,7 @@ import {
 import { scanLearningRoot } from './meleteScan.service.js'
 import { resolveMeletePrompt } from './prompts.service.js'
 import { getLearningRoot, resolveMeleteGradingModel } from './settings.service.js'
+import { interimOwnerId } from './interimOwner.js'
 // Logging
 import { logger } from '../logger.js'
 
@@ -103,7 +104,7 @@ const pickNext = ( subjects: SubjectRecord[], now: Date ): QueuedQuestion | unde
 export const getNextReview = async (
   { subjectId, now = new Date() }: NextReviewOptions = {},
 ): Promise< GetNextReviewResponse > => {
-  const learningRoot = getLearningRoot()
+  const learningRoot = getLearningRoot( interimOwnerId() )
 
   if( learningRoot === null ) {
     throw new ConflictError( 'Choose a learning root first' )
@@ -170,8 +171,9 @@ export const gradeAnswer = async (
   }
 
   try {
-    const model = await resolveMeleteGradingModel()
-    const { version } = resolveMeletePrompt( 'melete_grading' )
+    const userId = interimOwnerId()
+    const model = await resolveMeleteGradingModel( userId )
+    const { version } = resolveMeletePrompt( userId, 'melete_grading' )
     const run = { kind: 'grade' as const, questionId, model, promptVersionId: version.id, now }
 
     try {
@@ -247,14 +249,16 @@ export const recordReview = async (
       before_state: JSON.stringify( before ),
     } )
 
-    const mode = MeleteReviewMode.catch( 'typed' ).parse( getSetting( 'melete_review_mode' ) )
+    const userId = interimOwnerId()
+    const mode = MeleteReviewMode.catch( 'typed' )
+      .parse( getSetting( userId, 'melete_review_mode' ) )
 
     if( mode !== body.mode ) {
-      setSetting( 'melete_review_mode', body.mode )
+      setSetting( userId, 'melete_review_mode', body.mode )
     }
   } )()
 
-  const learningRoot = getLearningRoot()
+  const learningRoot = getLearningRoot( interimOwnerId() )
   const subjects = learningRoot === null ? [] : await listSubjectsInRoot( learningRoot )
   const updated = findQuestion( questionId )
 

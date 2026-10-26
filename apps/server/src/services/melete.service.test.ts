@@ -41,9 +41,18 @@ import { resetScanClock, scanLearningRoot } from './meleteScan.service.js'
 // Test support
 import { addQuestion } from '../test-support/meleteData.fixture.js'
 import { MeleteVault, createMeleteVault } from '../test-support/meleteVault.fixture.js'
+// Test support
+import { defaultTestAdmin } from '../test-support/auth.js'
+
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
 
 const configMock = vi.hoisted( () => ( {
   logLevel: 'silent',
+  sessionDays: 30,
   vaultPath: '',
   timeZone: 'Asia/Singapore',
   obsidianVaultName: undefined as string | undefined,
@@ -88,7 +97,7 @@ const hashOf = ( id: string ): string => findNote( id )?.body_hash ?? ''
 beforeEach( async () => {
   vault = await createMeleteVault()
   configMock.vaultPath = vault.vaultPath
-  setSetting( 'melete_learning_root', 'Learning' )
+  setSetting( userId, 'melete_learning_root', 'Learning' )
   resetScanClock()
   await scanLearningRoot( { force: true, now: at( 0 ) } )
 } )
@@ -316,7 +325,7 @@ describe( 'updateSubject', () => {
 
 describe( 'getToday', () => {
   it( 'says so when there is no learning root', async () => {
-    setSetting( 'melete_learning_root', null )
+    setSetting( userId, 'melete_learning_root', null )
 
     expect( await getToday( at( 1 ) ) ).toEqual( {
       learning_root: null,
@@ -462,14 +471,14 @@ describe( 'getSubject', () => {
   it( 'refuses an unknown subject, and a missing learning root', async () => {
     await expect( getSubject( crypto.randomUUID() ) ).rejects.toThrow( NotFoundError )
 
-    setSetting( 'melete_learning_root', null )
+    setSetting( userId, 'melete_learning_root', null )
 
     await expect( getSubject( subjectId( 'TypeScript' ) ) )
       .rejects.toThrow( new ConflictError( 'Choose a learning root first' ) )
   } )
 
   it( 'refuses a subject outside the learning root', async () => {
-    setSetting( 'melete_learning_root', 'Inbox' )
+    setSetting( userId, 'melete_learning_root', 'Inbox' )
 
     await expect( getSubject( subjectId( 'TypeScript' ), at( 31 ) ) )
       .rejects.toThrow( NotFoundError )

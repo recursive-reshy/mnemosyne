@@ -11,6 +11,8 @@ import {
   PreviewGmailSourceResponse,
   UpdateGmailSourceBody,
 } from '@mnemosyne/shared'
+// Middleware
+import { currentUser } from '../middleware/auth.js'
 // Services
 import {
   checkAllSources,
@@ -45,21 +47,25 @@ export const previewGmailSource = async (
 }
 
 export const addGmailSource = async (
-  { body }: Request,
+  req: Request,
   res: Response< GmailSourceResponse >,
 ): Promise< void > => {
-  const source = await createSource( CreateGmailSourceBody.parse( body ) )
+  const source = await createSource(
+    currentUser( req ).id,
+    CreateGmailSourceBody.parse( req.body ),
+  )
 
   res.status( 201 ).json( { source } )
 }
 
 export const patchGmailSource = async (
-  { params, body }: Request,
+  req: Request,
   res: Response< GmailSourceResponse >,
 ): Promise< void > => {
   const source = await updateSource(
-    SourceId.parse( params.id ),
-    UpdateGmailSourceBody.parse( body ),
+    currentUser( req ).id,
+    SourceId.parse( req.params.id ),
+    UpdateGmailSourceBody.parse( req.body ),
   )
 
   res.status( 200 ).json( { source } )
@@ -77,15 +83,17 @@ export const removeGmailSource = ( { params, query }: Request, res: Response ): 
 }
 
 export const checkOneGmailSource = async (
-  { params }: Request,
+  req: Request,
   res: Response< GmailSourceResponse >,
 ): Promise< void > => {
-  res.status( 200 ).json( { source: await checkSource( SourceId.parse( params.id ) ) } )
+  const source = await checkSource( currentUser( req ).id, SourceId.parse( req.params.id ) )
+
+  res.status( 200 ).json( { source } )
 }
 
 export const checkEveryGmailSource = async (
-  _req: Request,
+  req: Request,
   res: Response< ListGmailSourcesResponse >,
 ): Promise< void > => {
-  res.status( 200 ).json( { sources: await checkAllSources() } )
+  res.status( 200 ).json( { sources: await checkAllSources( currentUser( req ).id ) } )
 }

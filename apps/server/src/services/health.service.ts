@@ -10,7 +10,6 @@ import { logger } from '../logger.js'
 // Repositories
 import { recordFailure, recordSuccess } from '../repositories/health.repository.js'
 // Services
-import { isLinkingEnabled } from './settings.service.js'
 
 export type HealthSubject = { kind: HealthKind, id: string }
 export type CheckResult = { ok: true, detail?: string } | { ok: false, message: string }
@@ -60,11 +59,11 @@ const checkWhisper = async (): Promise< void > => {
   }
 }
 
-// The agent is not checked while it is not configured or linking is off; its row reads as off.
+// The agent is checked whenever it is configured; its row reads as off while it is not.
 export const runServiceChecks = async (): Promise< void > => {
   const checks = [ checkWhisper() ]
 
-  if( config.agent !== null && isLinkingEnabled() ) {
+  if( config.agent !== null ) {
     checks.push( checkAgent() )
   }
 

@@ -1,13 +1,26 @@
 // Packages
-import { describe, it, expect } from 'vitest'
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+} from 'vitest'
 // Repositories
 import { findLatestVersion, findProfileBySeedKey } from './promptProfiles.repository.js'
 import { insertLinkRun, listLinkRuns, summarizeLinkUsage } from './linkRuns.repository.js'
 import type { LinkRunRecord } from './linkRuns.repository.js'
+// Test support
+import { defaultTestAdmin } from '../test-support/auth.js'
+
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
 
 const linkerVersion = (): { id: number, version: number } => {
-  const profile = findProfileBySeedKey( 'linker' )
-  const version = findLatestVersion( profile?.id ?? '' )
+  const profile = findProfileBySeedKey( userId, 'linker' )
+  const version = findLatestVersion( userId, profile?.id ?? '' )
 
   if( version === undefined ) {
     throw new Error( 'The linker profile has no version' )

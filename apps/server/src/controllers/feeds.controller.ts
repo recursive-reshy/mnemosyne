@@ -11,6 +11,8 @@ import {
   PreviewFeedResponse,
   UpdateFeedBody,
 } from '@mnemosyne/shared'
+// Middleware
+import { currentUser } from '../middleware/auth.js'
 // Services
 import {
   checkAllFeeds,
@@ -40,19 +42,23 @@ export const previewFeedAddress = async (
 }
 
 export const addFeed = async (
-  { body }: Request,
+  req: Request,
   res: Response< FeedResponse >,
 ): Promise< void > => {
-  const feed = await createFeed( CreateFeedBody.parse( body ) )
+  const feed = await createFeed( currentUser( req ).id, CreateFeedBody.parse( req.body ) )
 
   res.status( 201 ).json( { feed } )
 }
 
 export const patchFeed = (
-  { params, body }: Request,
+  req: Request,
   res: Response< FeedResponse >,
 ): void => {
-  const feed = updateFeed( String( params.id ), UpdateFeedBody.parse( body ) )
+  const feed = updateFeed(
+    currentUser( req ).id,
+    String( req.params.id ),
+    UpdateFeedBody.parse( req.body ),
+  )
 
   res.status( 200 ).json( { feed } )
 }
@@ -66,17 +72,19 @@ export const removeFeed = ( { params, query }: Request, res: Response ): void =>
 }
 
 export const checkOneFeed = async (
-  { params }: Request,
+  req: Request,
   res: Response< FeedResponse >,
 ): Promise< void > => {
-  res.status( 200 ).json( { feed: await checkFeed( String( params.id ) ) } )
+  const feed = await checkFeed( currentUser( req ).id, String( req.params.id ) )
+
+  res.status( 200 ).json( { feed } )
 }
 
 export const checkEveryFeed = async (
-  _req: Request,
+  req: Request,
   res: Response< ListFeedsResponse >,
 ): Promise< void > => {
-  await checkAllFeeds()
+  await checkAllFeeds( currentUser( req ).id )
 
   res.status( 200 ).json( { feeds: listFeeds() } )
 }

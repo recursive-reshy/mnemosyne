@@ -12,6 +12,7 @@ import {
   recordLinkRun,
   recordLinkSuggestions,
 } from '../services/jobs.service.js'
+import { interimOwnerId } from '../services/interimOwner.js'
 import { resolveLinkerPrompt } from '../services/prompts.service.js'
 import { resolveLinkingModel } from '../services/settings.service.js'
 
@@ -24,8 +25,9 @@ export const linkJob = async ( jobId: string ): Promise< void > => {
     }
 
     const { properties, body } = parseNote( job.note_markdown )
-    const { version } = resolveLinkerPrompt()
-    const model = await resolveLinkingModel()
+    const userId = interimOwnerId()
+    const { version } = resolveLinkerPrompt( userId )
+    const model = await resolveLinkingModel( userId )
 
     let response: LinkResponse
 

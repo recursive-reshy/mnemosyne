@@ -2,21 +2,25 @@
 import { Request, Response } from 'express'
 // Shared
 import { GetSettingsResponse, UpdateSettingsBody } from '@mnemosyne/shared'
+// Middleware
+import { currentUser } from '../middleware/auth.js'
 // Services
 import { getSettingsResponse, updateSettings } from '../services/settings.service.js'
 
 export const getAppSettings = async (
-  _req: Request,
+  req: Request,
   res: Response< GetSettingsResponse >,
 ): Promise< void > => {
-  res.status( 200 ).json( await getSettingsResponse() )
+  res.status( 200 ).json( await getSettingsResponse( currentUser( req ).id ) )
 }
 
 export const patchAppSettings = async (
-  { body }: Request,
+  req: Request,
   res: Response< GetSettingsResponse >,
 ): Promise< void > => {
-  await updateSettings( UpdateSettingsBody.parse( body ) )
+  const { id, role } = currentUser( req )
 
-  res.status( 200 ).json( await getSettingsResponse() )
+  await updateSettings( id, role === 'admin', UpdateSettingsBody.parse( req.body ) )
+
+  res.status( 200 ).json( await getSettingsResponse( id ) )
 }

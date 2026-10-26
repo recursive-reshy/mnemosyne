@@ -12,6 +12,8 @@ import {
   RenamePromptProfileBody,
   SavePromptVersionBody,
 } from '@mnemosyne/shared'
+// Middleware
+import { currentUser } from '../middleware/auth.js'
 // Services
 import {
   createProfile,
@@ -28,61 +30,73 @@ const VersionId = z.coerce.number().int().positive()
 const ListPurpose = z.enum( [ ...PromptPurpose.options, 'all' ] ).default( 'summary' )
 
 export const getProfiles = (
-  { query }: Request,
+  req: Request,
   res: Response< ListPromptProfilesResponse >,
 ): void => {
-  res.status( 200 ).json( { profiles: listProfiles( ListPurpose.parse( query.purpose ) ) } )
+  const purpose = ListPurpose.parse( req.query.purpose )
+
+  res.status( 200 ).json( { profiles: listProfiles( currentUser( req ).id, purpose ) } )
 }
 
 export const postProfile = (
-  { body }: Request,
+  req: Request,
   res: Response< PromptProfileResponse >,
 ): void => {
-  const profile = createProfile( CreatePromptProfileBody.parse( body ) )
+  const profile = createProfile( currentUser( req ).id, CreatePromptProfileBody.parse( req.body ) )
 
   res.status( 201 ).json( { profile } )
 }
 
 export const patchProfile = (
-  { params, body }: Request,
+  req: Request,
   res: Response< PromptProfileResponse >,
 ): void => {
-  const { name } = RenamePromptProfileBody.parse( body )
+  const { name } = RenamePromptProfileBody.parse( req.body )
 
-  res.status( 200 ).json( { profile: renameProfile( String( params.id ), name ) } )
+  res.status( 200 ).json( {
+    profile: renameProfile( currentUser( req ).id, String( req.params.id ), name ),
+  } )
 }
 
-export const removeProfile = ( { params }: Request, res: Response ): void => {
-  deleteProfile( String( params.id ) )
+export const removeProfile = ( req: Request, res: Response ): void => {
+  deleteProfile( currentUser( req ).id, String( req.params.id ) )
 
   res.status( 204 ).end()
 }
 
 export const getVersions = (
-  { params }: Request,
+  req: Request,
   res: Response< ListPromptVersionsResponse >,
 ): void => {
-  res.status( 200 ).json( { versions: listVersions( String( params.id ) ) } )
+  res.status( 200 ).json( {
+    versions: listVersions( currentUser( req ).id, String( req.params.id ) ),
+  } )
 }
 
 export const postVersion = (
-  { params, body }: Request,
+  req: Request,
   res: Response< PromptProfileResponse >,
 ): void => {
-  const { guidance } = SavePromptVersionBody.parse( body )
+  const { guidance } = SavePromptVersionBody.parse( req.body )
 
-  res.status( 200 ).json( { profile: saveVersion( String( params.id ), guidance ) } )
+  res.status( 200 ).json( {
+    profile: saveVersion( currentUser( req ).id, String( req.params.id ), guidance ),
+  } )
 }
 
 export const postRestore = (
-  { params }: Request,
+  req: Request,
   res: Response< PromptProfileResponse >,
 ): void => {
-  const versionId = VersionId.parse( params.versionId )
+  const versionId = VersionId.parse( req.params.versionId )
 
-  res.status( 200 ).json( { profile: restoreVersion( String( params.id ), versionId ) } )
+  res.status( 200 ).json( {
+    profile: restoreVersion( currentUser( req ).id, String( req.params.id ), versionId ),
+  } )
 }
 
-export const postReset = ( { params }: Request, res: Response< PromptProfileResponse > ): void => {
-  res.status( 200 ).json( { profile: resetProfile( String( params.id ) ) } )
+export const postReset = ( req: Request, res: Response< PromptProfileResponse > ): void => {
+  res.status( 200 ).json( {
+    profile: resetProfile( currentUser( req ).id, String( req.params.id ) ),
+  } )
 }

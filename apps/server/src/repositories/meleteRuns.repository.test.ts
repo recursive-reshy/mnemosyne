@@ -1,12 +1,25 @@
 // Packages
-import { describe, it, expect } from 'vitest'
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+} from 'vitest'
 // Repositories
 import { findLatestVersion, findProfileBySeedKey } from './promptProfiles.repository.js'
 import { findRun, insertRun } from './meleteRuns.repository.js'
 import type { NewMeleteRun } from './meleteRuns.repository.js'
+// Test support
+import { defaultTestAdmin } from '../test-support/auth.js'
+
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
 
 const versionOf = ( seedKey: string ): number => {
-  const version = findLatestVersion( findProfileBySeedKey( seedKey )?.id ?? '' )
+  const version = findLatestVersion( userId, findProfileBySeedKey( userId, seedKey )?.id ?? '' )
 
   if( version === undefined ) {
     throw new Error( `The ${ seedKey } profile has no version` )

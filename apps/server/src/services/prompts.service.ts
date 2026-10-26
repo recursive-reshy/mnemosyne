@@ -40,8 +40,8 @@ const NAME_TAKEN = 'A profile with that name already exists'
 const LINKER_LOCKED = 'The linker prompt can\'t be renamed or deleted'
 const MELETE_LOCKED = 'The Melete prompts can\'t be renamed or deleted'
 
-const toProfile = ( record: ProfileRecord ): PromptProfile => {
-  const current = findLatestVersion( record.id )
+const toProfile = ( userId: string, record: ProfileRecord ): PromptProfile => {
+  const current = findLatestVersion( userId, record.id )
 
   if( current === undefined ) {
     throw new Error( `Profile ${ record.id } has no versions` )
@@ -57,8 +57,8 @@ const toProfile = ( record: ProfileRecord ): PromptProfile => {
   }
 }
 
-const requireActive = ( id: string ): ProfileRecord => {
-  const record = findProfileById( id )
+const requireActive = ( userId: string, id: string ): ProfileRecord => {
+  const record = findProfileById( userId, id )
 
   if( record === undefined || record.deleted_at !== null ) {
     throw new NotFoundError( 'Prompt profile not found' )
@@ -67,7 +67,9 @@ const requireActive = ( id: string ): ProfileRecord => {
   return record
 }
 
-const defaultProfileId = (): string => z.string().parse( getSetting( 'default_profile_id' ) )
+const defaultProfileId = ( userId: string ): string => {
+  return z.string().parse( getSetting( userId, 'default_profile_id' ) )
+}
 
 const PURPOSE_ORDER: PromptPurpose[] = [
   'summary',
@@ -77,25 +79,33 @@ const PURPOSE_ORDER: PromptPurpose[] = [
 ]
 
 // Summary profiles unless asked: the pickers use this list and know no other purpose
-export const listProfiles = ( purpose: PromptPurpose | 'all' = 'summary' ): PromptProfile[] => {
+export const listProfiles = (
+  userId: string,
+  purpose: PromptPurpose | 'all' = 'summary',
+): PromptProfile[] => {
   const purposes = purpose === 'all' ? PURPOSE_ORDER : [ purpose ]
 
-  return purposes.flatMap( ( each ) => listActiveProfiles( each ).map( toProfile ) )
+  return purposes.flatMap( ( each ) => {
+    return listActiveProfiles( userId, each ).map( ( record ) => toProfile( userId, record ) )
+  } )
 }
 
-export const findProfile = ( id: string ): PromptProfile => toProfile( requireActive( id ) )
+export const findProfile = ( userId: string, id: string ): PromptProfile => {
+  return toProfile( userId, requireActive( userId, id ) )
+}
 
-export const assertActiveProfile = ( id: string ): void => {
-  if( !listActiveProfiles().some( ( record ) => record.id === id ) ) {
+export const assertActiveProfile = ( userId: string, id: string ): void => {
+  if( !listActiveProfiles( userId ).some( ( record ) => record.id === id ) ) {
     throw new ValidationError( 'Unknown prompt profile' )
   }
 }
 
 export const createProfile = (
+  userId: string,
   { name, guidance }: { name: string, guidance: string },
 ): PromptProfile => {
   const id = crypto.randomUUID()
-  const result = insertProfile( {
+  const result = insertProfile( userId, {
     id,
     name,
     seed_key: null,
@@ -106,9 +116,9 @@ export const createProfile = (
     throw new ConflictError( NAME_TAKEN )
   }
 
-  insertVersion( id, guidance, 'edit' )
+  insertVersion( userId, id, guidance, 'edit' )
 
-  return findProfile( id )
+  return findProfile( userId, id )
 }
 
 const requireRenamable = ( record: ProfileRecord ): void => {
@@ -121,53 +131,57 @@ const requireRenamable = ( record: ProfileRecord ): void => {
   }
 }
 
-export const renameProfile = ( id: string, name: string ): PromptProfile => {
-  requireRenamable( requireActive( id ) )
+export const renameProfile = ( userId: string, id: string, name: string ): PromptProfile => {
+  requireRenamable( requireActive( userId, id ) )
 
-  if( !renameStoredProfile( id, name ).ok ) {
+  if( !renameStoredProfile( userId, id, name ).ok ) {
     throw new ConflictError( NAME_TAKEN )
   }
 
-  return findProfile( id )
+  return findProfile( userId, id )
 }
 
-export const deleteProfile = ( id: string ): void => {
-  requireRenamable( requireActive( id ) )
+export const deleteProfile = ( userId: string, id: string ): void => {
+  requireRenamable( requireActive( userId, id ) )
 
-  if( id === defaultProfileId() ) {
+  if( id === defaultProfileId( userId ) ) {
     throw new ConflictError( 'The default profile cannot be deleted' )
   }
 
-  if( countActiveProfiles() <= 1 ) {
+  if( countActiveProfiles( userId ) <= 1 ) {
     throw new ConflictError( 'The last remaining profile cannot be deleted' )
   }
 
-  markProfileDeleted( id, new Date().toISOString() )
+  markProfileDeleted( userId, id, new Date().toISOString() )
 }
 
-export const saveVersion = ( id: string, guidance: string ): PromptProfile => {
-  const profile = findProfile( id )
+export const saveVersion = ( userId: string, id: string, guidance: string ): PromptProfile => {
+  const profile = findProfile( userId, id )
 
   if( guidance.trim() === profile.current_version.guidance.trim() ) {
     return profile
   }
 
-  insertVersion( id, guidance, 'edit' )
+  insertVersion( userId, id, guidance, 'edit' )
 
-  return findProfile( id )
+  return findProfile( userId, id )
 }
 
-export const restoreVersion = ( id: string, versionId: number ): PromptProfile => {
-  requireActive( id )
-  const version = findVersionById( versionId )
+export const restoreVersion = (
+  userId: string,
+  id: string,
+  versionId: number,
+): PromptProfile => {
+  requireActive( userId, id )
+  const version = findVersionById( userId, versionId )
 
   if( version === undefined || version.profile_id !== id ) {
     throw new NotFoundError( 'Prompt version not found' )
   }
 
-  insertVersion( id, version.guidance, 'restore' )
+  insertVersion( userId, id, version.guidance, 'restore' )
 
-  return findProfile( id )
+  return findProfile( userId, id )
 }
 
 const resetGuidance = ( { purpose, seed_key }: ProfileRecord ): string | undefined => {
@@ -183,29 +197,30 @@ const resetGuidance = ( { purpose, seed_key }: ProfileRecord ): string | undefin
   }
 }
 
-export const resetProfile = ( id: string ): PromptProfile => {
-  const record = requireActive( id )
+export const resetProfile = ( userId: string, id: string ): PromptProfile => {
+  const record = requireActive( userId, id )
   const guidance = resetGuidance( record )
 
   if( guidance === undefined ) {
     throw new ConflictError( 'Only the profiles the app ships can be reset' )
   }
 
-  insertVersion( id, guidance, 'reset' )
+  insertVersion( userId, id, guidance, 'reset' )
 
-  return findProfile( id )
+  return findProfile( userId, id )
 }
 
-export const listVersions = ( id: string ): PromptVersion[] => {
-  requireActive( id )
+export const listVersions = ( userId: string, id: string ): PromptVersion[] => {
+  requireActive( userId, id )
 
-  return listStoredVersions( id )
+  return listStoredVersions( userId, id )
 }
 
 export const resolvePrompt = (
+  userId: string,
   profileId: string | null,
 ): { profile: PromptProfile, version: PromptVersion } => {
-  let record = profileId === null ? undefined : findProfileById( profileId )
+  let record = profileId === null ? undefined : findProfileById( userId, profileId )
 
   // The linker and Melete prompts are never summary prompts
   if( record !== undefined && record.purpose !== 'summary' ) {
@@ -219,42 +234,45 @@ export const resolvePrompt = (
     )
   }
 
-  record ??= findProfileById( defaultProfileId() )
+  record ??= findProfileById( userId, defaultProfileId( userId ) )
 
   if( record === undefined ) {
     throw new Error( 'The default prompt profile is missing' )
   }
 
-  const profile = toProfile( record )
+  const profile = toProfile( userId, record )
 
   return { profile, version: profile.current_version }
 }
 
-export const resolveLinkerPrompt = (): { profile: PromptProfile, version: PromptVersion } => {
-  const record = findProfileBySeedKey( LINKER_SEED_KEY )
+export const resolveLinkerPrompt = (
+  userId: string,
+): { profile: PromptProfile, version: PromptVersion } => {
+  const record = findProfileBySeedKey( userId, LINKER_SEED_KEY )
 
   if( record === undefined ) {
     throw new Error( 'The linker prompt profile is missing' )
   }
 
-  const profile = toProfile( record )
+  const profile = toProfile( userId, record )
 
   return { profile, version: profile.current_version }
 }
 
 export const resolveMeletePrompt = (
+  userId: string,
   purpose: 'melete_questions' | 'melete_grading',
 ): { profile: PromptProfile, version: PromptVersion } => {
   const seedKey = purpose === 'melete_questions'
     ? MELETE_QUESTIONS_SEED_KEY
     : MELETE_GRADING_SEED_KEY
-  const record = findProfileBySeedKey( seedKey )
+  const record = findProfileBySeedKey( userId, seedKey )
 
   if( record === undefined ) {
     throw new Error( `The ${ purpose } prompt profile is missing` )
   }
 
-  const profile = toProfile( record )
+  const profile = toProfile( userId, record )
 
   return { profile, version: profile.current_version }
 }

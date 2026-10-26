@@ -19,13 +19,13 @@ export const clearModelCache = (): void => {
   cache = undefined
 }
 
-const currentDefaultModel = (): string => {
-  const saved = getSetting( 'default_model' )
+const currentDefaultModel = ( userId: string ): string => {
+  const saved = getSetting( userId, 'default_model' )
 
   return typeof saved === 'string' ? saved : SHIPPED_DEFAULT_MODEL
 }
 
-export const listModels = async (): Promise< ListModelsResponse > => {
+export const listModels = async ( userId: string ): Promise< ListModelsResponse > => {
   if( cache !== undefined && cache.expiresAt > Date.now() ) {
     return { models: cache.models, source: 'api' }
   }
@@ -39,16 +39,16 @@ export const listModels = async (): Promise< ListModelsResponse > => {
   } catch( error ) {
     logger.error( { err: error }, 'Could not list models' )
 
-    const id = currentDefaultModel()
+    const id = currentDefaultModel( userId )
 
     return { models: [ { id, display_name: id } ], source: 'fallback' }
   }
 }
 
-export const assertKnownModel = async ( model: string ): Promise< void > => {
-  const { models } = await listModels()
+export const assertKnownModel = async ( userId: string, model: string ): Promise< void > => {
+  const { models } = await listModels( userId )
 
-  if( model !== currentDefaultModel() && !models.some( ( { id } ) => id === model ) ) {
+  if( model !== currentDefaultModel( userId ) && !models.some( ( { id } ) => id === model ) ) {
     throw new ValidationError( `Unknown model: ${ model }` )
   }
 }

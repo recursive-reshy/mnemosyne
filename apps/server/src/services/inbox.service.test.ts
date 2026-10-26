@@ -46,6 +46,14 @@ import {
   deleteProfile,
   listProfiles,
 } from './prompts.service.js'
+// Test support
+import { defaultTestAdmin } from '../test-support/auth.js'
+
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
 
 vi.mock( './models.service.js' )
 
@@ -145,7 +153,7 @@ describe( 'summarizeItems', () => {
   it( 'queues an article item for fetching and marks it queued with its job', async () => {
     const item = addItem()
 
-    const [ job ] = ( await summarizeItems( { items: feeds( item.id ) } ) ).jobs
+    const [ job ] = ( await summarizeItems( userId, { items: feeds( item.id ) } ) ).jobs
 
     expect( job ).toMatchObject( {
       url: item.link,
@@ -165,7 +173,7 @@ describe( 'summarizeItems', () => {
   it( 'queues a video item for download', async () => {
     const item = addItem( { link: 'https://www.youtube.com/watch?v=abc' } )
 
-    const { jobs } = await summarizeItems( { items: feeds( item.id ) } )
+    const { jobs } = await summarizeItems( userId, { items: feeds( item.id ) } )
 
     expect( jobs[ 0 ] ).toMatchObject( { status: 'queued', source_type: 'video' } )
   } )
@@ -173,7 +181,7 @@ describe( 'summarizeItems', () => {
   it( 'turns an item with full text into a job that is already summarizing', async () => {
     const item = addItem( { content_markdown: longText, title: 'Full post', author: 'Ada' } )
 
-    const { jobs } = await summarizeItems( { items: feeds( item.id ) } )
+    const { jobs } = await summarizeItems( userId, { items: feeds( item.id ) } )
 
     expect( jobs[ 0 ] ).toMatchObject( { status: 'summarizing', title: 'Full post' } )
     expect( findJobById( jobs[ 0 ]?.id ?? '' )?.source_document ).toEqual( {
@@ -196,7 +204,7 @@ describe( 'summarizeItems', () => {
     const one = addItem( { title: 'One' } )
     const two = addItem( { title: 'Two', link: 'https://www.youtube.com/watch?v=b' } )
 
-    const { jobs } = await summarizeItems( { items: feeds( two.id, one.id ) } )
+    const { jobs } = await summarizeItems( userId, { items: feeds( two.id, one.id ) } )
 
     expect( jobs.map( ( { url } ) => url ) ).toEqual( [ two.link, one.link ] )
     expect( [ status( one.id ), status( two.id ) ] ).toEqual( [ 'queued', 'queued' ] )
@@ -204,9 +212,9 @@ describe( 'summarizeItems', () => {
 
   describe( 'profile and model', () => {
     const profiles = () => {
-      const other = createProfile( { name: 'Feed profile', guidance: 'Be brief.' } )
+      const other = createProfile( userId, { name: 'Feed profile', guidance: 'Be brief.' } )
 
-      return { feedProfile: other.id, bodyProfile: listProfiles()[ 0 ]?.id ?? '' }
+      return { feedProfile: other.id, bodyProfile: listProfiles( userId )[ 0 ]?.id ?? '' }
     }
 
     it( 'uses the profile in the body first', async () => {
@@ -215,7 +223,10 @@ describe( 'summarizeItems', () => {
       addFeed( feed, feedProfile, 'Other' )
       const item = addItem( { feed_id: feed } )
 
-      const { jobs } = await summarizeItems( { items: feeds( item.id ), profile_id: bodyProfile } )
+      const { jobs } = await summarizeItems(
+        userId,
+        { items: feeds( item.id ), profile_id: bodyProfile },
+      )
 
       expect( jobs[ 0 ]?.prompt_profile_id ).toBe( bodyProfile )
     } )
@@ -226,7 +237,7 @@ describe( 'summarizeItems', () => {
       addFeed( feed, feedProfile, 'Other' )
       const item = addItem( { feed_id: feed } )
 
-      const { jobs } = await summarizeItems( { items: feeds( item.id ) } )
+      const { jobs } = await summarizeItems( userId, { items: feeds( item.id ) } )
 
       expect( jobs[ 0 ]?.prompt_profile_id ).toBe( feedProfile )
     } )
@@ -234,7 +245,10 @@ describe( 'summarizeItems', () => {
     it( 'then none, which means the default', async () => {
       const item = addItem()
 
-      expect( ( await summarizeItems( { items: feeds( item.id ) } ) ).jobs[ 0 ]?.prompt_profile_id )
+      expect( ( await summarizeItems(
+        userId,
+        { items: feeds( item.id ) },
+      ) ).jobs[ 0 ]?.prompt_profile_id )
         .toBeNull()
     } )
 
@@ -242,10 +256,10 @@ describe( 'summarizeItems', () => {
       const { feedProfile } = profiles()
       const feed = crypto.randomUUID()
       addFeed( feed, feedProfile, 'Other' )
-      deleteProfile( feedProfile )
+      deleteProfile( userId, feedProfile )
       const item = addItem( { feed_id: feed } )
 
-      const { jobs } = await summarizeItems( { items: feeds( item.id ) } )
+      const { jobs } = await summarizeItems( userId, { items: feeds( item.id ) } )
 
       expect( jobs[ 0 ]?.prompt_profile_id ).toBeNull()
     } )
@@ -254,10 +268,13 @@ describe( 'summarizeItems', () => {
       const one = addItem()
       const two = addItem()
 
-      const { jobs } = await summarizeItems( { items: feeds( one.id ), model: 'claude-opus-5-5' } )
+      const { jobs } = await summarizeItems(
+        userId,
+        { items: feeds( one.id ), model: 'claude-opus-5-5' },
+      )
 
       expect( jobs[ 0 ]?.summary_model ).toBe( 'claude-opus-5-5' )
-      const second = await summarizeItems( { items: feeds( two.id ) } )
+      const second = await summarizeItems( userId, { items: feeds( two.id ) } )
 
       expect( second.jobs[ 0 ]?.summary_model ).toBeNull()
     } )
@@ -269,7 +286,7 @@ describe( 'summarizeItems', () => {
       const dismissed = addItem( { status: 'dismissed' } )
       const unknown = crypto.randomUUID()
 
-      const failure = summarizeItems( { items: feeds( good.id, dismissed.id, unknown ) } )
+      const failure = summarizeItems( userId, { items: feeds( good.id, dismissed.id, unknown ) } )
 
       await expect( failure ).rejects.toThrow( ConflictError )
       await expect( failure ).rejects.toThrow( dismissed.id )
@@ -283,7 +300,7 @@ describe( 'summarizeItems', () => {
       const two = addItem()
       assertKnownModelMock.mockRejectedValue( new ValidationError( 'Unknown model: nope' ) )
 
-      await expect( summarizeItems( { items: feeds( one.id, two.id ), model: 'nope' } ) )
+      await expect( summarizeItems( userId, { items: feeds( one.id, two.id ), model: 'nope' } ) )
         .rejects.toThrow( ValidationError )
 
       expect( listJobs() ).toEqual( [] )
@@ -293,7 +310,10 @@ describe( 'summarizeItems', () => {
     it( 'refuses an unknown profile before queueing anything', async () => {
       const one = addItem()
 
-      await expect( summarizeItems( { items: feeds( one.id ), profile_id: crypto.randomUUID() } ) )
+      await expect( summarizeItems(
+        userId,
+        { items: feeds( one.id ), profile_id: crypto.randomUUID() },
+      ) )
         .rejects.toThrow( ValidationError )
 
       expect( listJobs() ).toEqual( [] )
@@ -303,7 +323,7 @@ describe( 'summarizeItems', () => {
     it( 'does not queue an item twice when the same id is sent twice', async () => {
       const one = addItem()
 
-      const { jobs } = await summarizeItems( { items: feeds( one.id, one.id ) } )
+      const { jobs } = await summarizeItems( userId, { items: feeds( one.id, one.id ) } )
 
       expect( jobs ).toHaveLength( 1 )
     } )
@@ -449,7 +469,7 @@ describe( 'newsletters in the inbox', () => {
       const source = addSource()
       const message = addMessage( source.id )
 
-      const { jobs } = await summarizeItems( { items: [ gmail( message.id ) ] } )
+      const { jobs } = await summarizeItems( userId, { items: [ gmail( message.id ) ] } )
       const link = gmailLink( { email: 'naresh@example.com', messageId: message.message_id } )
 
       expect( jobs[ 0 ] ).toMatchObject( {
@@ -482,7 +502,7 @@ describe( 'newsletters in the inbox', () => {
       const source = addSource()
       const message = addMessage( source.id )
 
-      const { jobs } = await summarizeItems( { items: [ gmail( message.id ) ] } )
+      const { jobs } = await summarizeItems( userId, { items: [ gmail( message.id ) ] } )
 
       expect( findMessagesByIds( [ message.id ] )[ 0 ] ).toMatchObject( {
         status: 'queued',
@@ -493,30 +513,33 @@ describe( 'newsletters in the inbox', () => {
     } )
 
     it( 'uses the source\'s profile, then the body\'s, and the default if deleted', async () => {
-      const sourceProfile = createProfile( { name: 'Source profile', guidance: 'Be brief.' } ).id
-      const bodyProfile = listProfiles()[ 0 ]?.id ?? ''
+      const sourceProfile = createProfile(
+        userId,
+        { name: 'Source profile', guidance: 'Be brief.' },
+      ).id
+      const bodyProfile = listProfiles( userId )[ 0 ]?.id ?? ''
       const source = addSource( { profile_id: sourceProfile } )
       const first = addMessage( source.id )
       const second = addMessage( source.id )
       const third = addMessage( source.id )
 
-      expect( ( await summarizeItems( { items: [ gmail( first.id ) ] } ) ).jobs[ 0 ] )
+      expect( ( await summarizeItems( userId, { items: [ gmail( first.id ) ] } ) ).jobs[ 0 ] )
         .toMatchObject( { prompt_profile_id: sourceProfile } )
-      expect( ( await summarizeItems( {
+      expect( ( await summarizeItems( userId, {
         items: [ gmail( second.id ) ],
         profile_id: bodyProfile,
       } ) ).jobs[ 0 ] ).toMatchObject( { prompt_profile_id: bodyProfile } )
 
-      deleteProfile( sourceProfile )
+      deleteProfile( userId, sourceProfile )
 
-      expect( ( await summarizeItems( { items: [ gmail( third.id ) ] } ) ).jobs[ 0 ] )
+      expect( ( await summarizeItems( userId, { items: [ gmail( third.id ) ] } ) ).jobs[ 0 ] )
         .toMatchObject( { prompt_profile_id: null } )
     } )
 
     it( 'uses the model in the body', async () => {
       const message = addMessage( addSource().id )
 
-      const { jobs } = await summarizeItems( {
+      const { jobs } = await summarizeItems( userId, {
         items: [ gmail( message.id ) ],
         model: 'claude-opus-5-5',
       } )
@@ -528,7 +551,10 @@ describe( 'newsletters in the inbox', () => {
       const mail = addMessage( addSource().id )
       const post = addItem( { title: 'A post' } )
 
-      const { jobs } = await summarizeItems( { items: [ gmail( mail.id ), feedRef( post.id ) ] } )
+      const { jobs } = await summarizeItems(
+        userId,
+        { items: [ gmail( mail.id ), feedRef( post.id ) ] },
+      )
 
       expect( jobs.map( ( job ) => job.url ) ).toEqual( [
         gmailLink( { email: 'naresh@example.com', messageId: mail.message_id } ),
@@ -541,7 +567,10 @@ describe( 'newsletters in the inbox', () => {
       const good = addMessage( source.id )
       const dismissed = addMessage( source.id, { status: 'dismissed' } )
 
-      const failure = summarizeItems( { items: [ gmail( good.id ), gmail( dismissed.id ) ] } )
+      const failure = summarizeItems(
+        userId,
+        { items: [ gmail( good.id ), gmail( dismissed.id ) ] },
+      )
 
       await expect( failure ).rejects.toThrow( ConflictError )
       await expect( failure ).rejects.toThrow( dismissed.id )
@@ -552,14 +581,14 @@ describe( 'newsletters in the inbox', () => {
     it( 'does not mix kinds up: a feed ref with an email id is not in the inbox', async () => {
       const message = addMessage( addSource().id )
 
-      await expect( summarizeItems( { items: feeds( message.id ) } ) )
+      await expect( summarizeItems( userId, { items: feeds( message.id ) } ) )
         .rejects.toThrow( ConflictError )
     } )
 
     it( 'queues an email once when it is sent twice', async () => {
       const message = addMessage( addSource().id )
 
-      const { jobs } = await summarizeItems( {
+      const { jobs } = await summarizeItems( userId, {
         items: [ gmail( message.id ), gmail( message.id ) ],
       } )
 
@@ -570,7 +599,7 @@ describe( 'newsletters in the inbox', () => {
       it( 'fails an email with too little text, and leaves it in the inbox', async () => {
         const message = addMessage( addSource().id, tiny )
 
-        const failure = summarizeItems( { items: [ gmail( message.id ) ] } )
+        const failure = summarizeItems( userId, { items: [ gmail( message.id ) ] } )
 
         await expect( failure ).rejects.toThrow( UnprocessableError )
         await expect( failure ).rejects.toThrow( newsletter.subject )
@@ -583,7 +612,7 @@ describe( 'newsletters in the inbox', () => {
         const huge = 'word '.repeat( ARTICLE_LIMITS.maxChars / 4 )
         const message = addMessage( addSource().id, { body_html: null, body_text: huge } )
 
-        await expect( summarizeItems( { items: [ gmail( message.id ) ] } ) )
+        await expect( summarizeItems( userId, { items: [ gmail( message.id ) ] } ) )
           .rejects.toThrow( 'too long to summarize' )
         expect( messageStatus( message.id ) ).toBe( 'inbox' )
       } )
@@ -594,7 +623,7 @@ describe( 'newsletters in the inbox', () => {
         const bad = addMessage( source.id, { ...tiny, subject: 'Too short' } )
         const post = addItem()
 
-        const { jobs } = await summarizeItems( {
+        const { jobs } = await summarizeItems( userId, {
           items: [ gmail( good.id ), gmail( bad.id ), feedRef( post.id ) ],
         } )
 
@@ -608,7 +637,7 @@ describe( 'newsletters in the inbox', () => {
         const one = addMessage( source.id, { ...tiny, subject: 'First short one' } )
         const two = addMessage( source.id, { ...tiny, subject: 'Second short one' } )
 
-        const failure = summarizeItems( { items: [ gmail( one.id ), gmail( two.id ) ] } )
+        const failure = summarizeItems( userId, { items: [ gmail( one.id ), gmail( two.id ) ] } )
 
         await expect( failure ).rejects.toThrow( UnprocessableError )
         await expect( failure ).rejects.toThrow( 'First short one' )
@@ -622,19 +651,22 @@ describe( 'newsletters in the inbox', () => {
       const source = addSource()
       const message = addMessage( source.id )
 
-      const job = await queueNewsletterMessage( source, message )
+      const job = await queueNewsletterMessage( userId, source, message )
 
       expect( job ).toMatchObject( { status: 'summarizing', gmail_source_id: source.id } )
       expect( messageStatus( message.id ) ).toBe( 'queued' )
     } )
 
     it( 'lets explicit choices win over the source\'s', async () => {
-      const sourceProfile = createProfile( { name: 'Source profile', guidance: 'Be brief.' } ).id
-      const bodyProfile = listProfiles()[ 0 ]?.id ?? ''
+      const sourceProfile = createProfile(
+        userId,
+        { name: 'Source profile', guidance: 'Be brief.' },
+      ).id
+      const bodyProfile = listProfiles( userId )[ 0 ]?.id ?? ''
       const source = addSource( { profile_id: sourceProfile } )
       const message = addMessage( source.id )
 
-      const job = await queueNewsletterMessage( source, message, {
+      const job = await queueNewsletterMessage( userId, source, message, {
         profile_id: bodyProfile,
         model: 'claude-opus-5-5',
       } )
@@ -649,7 +681,7 @@ describe( 'newsletters in the inbox', () => {
       const source = addSource()
       const message = addMessage( source.id, tiny )
 
-      await expect( queueNewsletterMessage( source, message ) )
+      await expect( queueNewsletterMessage( userId, source, message ) )
         .rejects.toThrow( new ValidationError( 'This email has too little text to summarize' ) )
       expect( messageStatus( message.id ) ).toBe( 'inbox' )
     } )

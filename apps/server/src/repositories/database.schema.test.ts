@@ -16,9 +16,6 @@ const HEALTH_TABLES = [ 'health_status', 'health_errors' ]
 // list as it adds the column (ADR 0062); task 4.6 un-skips the test that needs it empty.
 const UNCONVERTED = [
   'jobs',
-  'settings',
-  'prompt_profiles',
-  'prompt_versions',
   'summary_runs',
   'feeds',
   'feed_items',
@@ -69,10 +66,11 @@ describe( 'the schema guard', () => {
     expect( UNCONVERTED.filter( ( table ) => !tables().includes( table ) ) ).toEqual( [] )
   } )
 
-  it( 'lists every data table once, so the starting list is complete', () => {
+  it( 'lists each unconverted table once, and every data table is listed or has an owner', () => {
     expect( new Set( UNCONVERTED ).size ).toBe( UNCONVERTED.length )
-    expect( dataTables().filter( ( table ) => !UNCONVERTED.includes( table ) ) )
-      .toEqual( [] )
+    expect( dataTables().filter( ( table ) => {
+      return !UNCONVERTED.includes( table ) && userIdColumn( table ) === undefined
+    } ) ).toEqual( [] )
   } )
 
   it( 'gives users, user_modules and sessions a cascading user_id', () => {

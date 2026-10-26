@@ -10,7 +10,7 @@ import {
 // App
 import { app } from '../app.js'
 // Test support
-import { signedInRequest as request } from '../test-support/auth.js'
+import { createTestUser, signedInRequest as request } from '../test-support/auth.js'
 // Summarizer
 import { DEFAULT_LINKER_GUIDANCE, SEEDED_PROFILES } from '../summarizer/prompts.js'
 // Melete
@@ -447,5 +447,62 @@ describe( 'the Melete prompts', () => {
     expect( ( await request( app ).post( '/api/feeds' )
       .send( { url: 'https://blog.example.com/feed.xml', profile_id: id } ) ).status )
       .toBe( 400 )
+  } )
+} )
+
+describe( 'prompt profiles are per user', () => {
+  it( 'gives each user their own profiles', async () => {
+    const other = createTestUser()
+    const mine = await idOf( 'Coding' )
+    const theirs = ListPromptProfilesResponse.parse(
+      ( await request( app, other ).get( '/api/prompt-profiles' ) ).body,
+    ).profiles
+
+    expect( theirs.map( ( { name } ) => name ) )
+      .toEqual( ( await list() ).map( ( { name } ) => name ) )
+    expect( theirs.map( ( { id } ) => id ) ).not.toContain( mine )
+  } )
+
+  it( 'does not list a profile another user created', async () => {
+    const other = createTestUser()
+
+    await create( 'Private' )
+
+    const response = await request( app, other ).get( '/api/prompt-profiles' )
+
+    expect( ListPromptProfilesResponse.parse( response.body ).profiles.map( ( { name } ) => name ) )
+      .not.toContain( 'Private' )
+  } )
+
+  it( 'answers 404 for every route on another user\'s profile', async () => {
+    const other = createTestUser()
+    const profile = await create( 'Private' )
+    const version = profile.current_version.id
+    const asOther = ( ) => request( app, other )
+
+    for( const response of [
+      await asOther().patch( url( profile.id ) ).send( { name: 'Stolen' } ),
+      await asOther().delete( url( profile.id ) ),
+      await asOther().get( url( profile.id, '/versions' ) ),
+      await asOther().post( url( profile.id, '/versions' ) ).send( { guidance: 'Hijack.' } ),
+      await asOther().post( url( profile.id, `/versions/${ version }/restore` ) ),
+      await asOther().post( url( profile.id, '/reset' ) ),
+    ] ) {
+      expect( response.status ).toBe( 404 )
+    }
+
+    expect( ( await list() ).find( ( { id } ) => id === profile.id )?.name ).toBe( 'Private' )
+  } )
+
+  it( 'lets two users use the same profile name', async () => {
+    const other = createTestUser()
+
+    await create( 'Shared name' )
+
+    const response = await request( app, other )
+      .post( '/api/prompt-profiles' )
+      .send( { name: 'Shared name', guidance: 'Mine.' } )
+
+    expect( response.status ).toBe( 201 )
   } )
 } )

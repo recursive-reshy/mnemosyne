@@ -43,6 +43,7 @@ import {
 import type { FeedItemData, ParsedFeed } from '../sources/feeds.js'
 // Services
 import { recordCheck } from './health.service.js'
+import { interimOwnerId } from './interimOwner.js'
 import { queueFeedItem } from './inbox.service.js'
 import { assertActiveProfile } from './prompts.service.js'
 import { getFeedCheckInterval } from './settings.service.js'
@@ -131,14 +132,18 @@ const toStoredItem = (
 }
 
 // Items of an automatic feed skip the inbox. One that can't be queued stays there instead.
-const queueAutomatically = async ( feed: StoredFeed, items: StoredFeedItem[] ): Promise< void > => {
+const queueAutomatically = async (
+  userId: string,
+  feed: StoredFeed,
+  items: StoredFeedItem[],
+): Promise< void > => {
   if( !feed.auto_summarize ) {
     return
   }
 
   for( const item of items ) {
     try {
-      await queueFeedItem( feed, item )
+      await queueFeedItem( userId, feed, item )
     } catch( error ) {
       logger.error(
         { err: error, feed_name: feed.name, item_title: item.title },
@@ -164,9 +169,9 @@ export const previewFeed = async ( url: string ): Promise< PreviewFeedResponse >
 
 export const listFeeds = (): Feed[] => listStoredFeeds().map( toPublicFeed )
 
-export const createFeed = async ( body: CreateFeedBody ): Promise< Feed > => {
+export const createFeed = async ( userId: string, body: CreateFeedBody ): Promise< Feed > => {
   if( body.profile_id !== undefined ) {
-    assertActiveProfile( body.profile_id )
+    assertActiveProfile( userId, body.profile_id )
   }
 
   const found = await discover( body.url )
@@ -205,16 +210,16 @@ export const createFeed = async ( body: CreateFeedBody ): Promise< Feed > => {
     stored.forEach( insertItemIfNew )
   } )
 
-  await queueAutomatically( feed, stored.filter( ( { status } ) => status === 'inbox' ) )
+  await queueAutomatically( userId, feed, stored.filter( ( { status } ) => status === 'inbox' ) )
 
   return toPublicFeed( feed )
 }
 
-export const updateFeed = ( id: string, body: UpdateFeedBody ): Feed => {
+export const updateFeed = ( userId: string, id: string, body: UpdateFeedBody ): Feed => {
   requireActiveFeed( id )
 
   if( typeof body.profile_id === 'string' ) {
-    assertActiveProfile( body.profile_id )
+    assertActiveProfile( userId, body.profile_id )
   }
 
   const changes: Partial< Omit< StoredFeed, 'id' > > = {}
@@ -284,7 +289,7 @@ const fetchAndParse = async ( feed: StoredFeed ): Promise< Fetched > => {
   }
 }
 
-export const checkFeed = async ( id: string ): Promise< Feed > => {
+export const checkFeed = async ( userId: string, id: string ): Promise< Feed > => {
   const feed = requireActiveFeed( id )
 
   if( !feed.enabled ) {
@@ -340,16 +345,16 @@ export const checkFeed = async ( id: string ): Promise< Feed > => {
     recordCheck( { kind: 'feed', id }, { ok: true }, now )
   } )
 
-  await queueAutomatically( feed, added.filter( ( { status } ) => status === 'inbox' ) )
+  await queueAutomatically( userId, feed, added.filter( ( { status } ) => status === 'inbox' ) )
 
   return toPublicFeed( requireActiveFeed( id ) )
 }
 
-export const checkAllFeeds = async (): Promise< Feed[] > => {
+export const checkAllFeeds = async ( userId: string ): Promise< Feed[] > => {
   const checked: Feed[] = []
 
   for( const feed of listStoredFeeds().filter( ( { enabled } ) => enabled ) ) {
-    checked.push( await checkFeed( feed.id ) )
+    checked.push( await checkFeed( userId, feed.id ) )
   }
 
   return checked
@@ -360,11 +365,12 @@ export const checkDueFeeds = async (): Promise< number > => {
     new Date().toISOString(),
     getFeedCheckInterval(),
   )
+  const userId = interimOwnerId()
   let checked = 0
 
   for( const feed of due ) {
     try {
-      await withLogContext( { feed_id: feed.id }, () => checkFeed( feed.id ) )
+      await withLogContext( { feed_id: feed.id }, () => checkFeed( userId, feed.id ) )
       checked += 1
     } catch( error ) {
       logger.error(

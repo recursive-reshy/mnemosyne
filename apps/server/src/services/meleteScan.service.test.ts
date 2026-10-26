@@ -35,8 +35,16 @@ import {
   OWNERSHIP_NOTE,
   createMeleteVault,
 } from '../test-support/meleteVault.fixture.js'
+// Test support
+import { defaultTestAdmin } from '../test-support/auth.js'
 
-const configMock = vi.hoisted( () => ( { logLevel: 'silent', vaultPath: '' } ) )
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
+
+const configMock = vi.hoisted( () => ( { logLevel: 'silent', sessionDays: 30, vaultPath: '' } ) )
 
 vi.mock( '../config.js', () => ( { config: configMock } ) )
 vi.mock( 'node:fs/promises', async ( importOriginal ) => {
@@ -97,7 +105,7 @@ const snapshot = async ( root: string ): Promise< string[] > => {
 beforeEach( async () => {
   vault = await createMeleteVault()
   configMock.vaultPath = vault.vaultPath
-  setSetting( 'melete_learning_root', 'Learning' )
+  setSetting( userId, 'melete_learning_root', 'Learning' )
   resetScanClock()
   vi.mocked( readFile ).mockClear()
 } )
@@ -424,12 +432,12 @@ describe( 'changing the learning root', () => {
     await scan()
     const before = notes()
 
-    setSetting( 'melete_learning_root', 'Inbox' )
+    setSetting( userId, 'melete_learning_root', 'Inbox' )
     await scan( 1 )
 
     expect( notes() ).toEqual( before )
 
-    setSetting( 'melete_learning_root', 'Learning' )
+    setSetting( userId, 'melete_learning_root', 'Learning' )
     await scan( 2 )
 
     expect( notes() ).toEqual( before )
@@ -465,13 +473,13 @@ describe( 'when a scan is allowed', () => {
   } )
 
   it( 'asks for a learning root when none is set', async () => {
-    setSetting( 'melete_learning_root', null )
+    setSetting( userId, 'melete_learning_root', null )
 
     await expect( scan() ).rejects.toThrow( new ConflictError( 'Choose a learning root first' ) )
   } )
 
   it( 'refuses a learning root that is not in the vault', async () => {
-    setSetting( 'melete_learning_root', 'Nowhere' )
+    setSetting( userId, 'melete_learning_root', 'Nowhere' )
 
     await expect( scan() ).rejects.toThrow( ValidationError )
   } )

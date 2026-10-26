@@ -20,7 +20,6 @@ import { listErrors, listHealth } from '../repositories/health.repository.js'
 import type { HealthRecord } from '../repositories/health.repository.js'
 // Services
 import { runServiceChecks } from './health.service.js'
-import { isLinkingEnabled } from './settings.service.js'
 
 const SINGLETON_ID = 'default'
 const KILOBYTE = 1024
@@ -118,7 +117,7 @@ export const getStatus = (): GetStatusResponse => {
     return health.get( `${ kind }:${ id }` )
   }
 
-  const agentOff = config.agent === null || !isLinkingEnabled()
+  const agentOff = config.agent === null
   const rows: StatusRow[] = [
     toRow(
       { kind: 'agent', id: SINGLETON_ID, name: 'Agent service' },

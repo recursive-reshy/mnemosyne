@@ -94,6 +94,14 @@ import { formatTxt } from '../formatters/txt.formatter.js'
 import { transcriptFixture } from '../test-support/transcript.fixture.js'
 // Logging
 import { logger } from '../logger.js'
+// Test support
+import { defaultTestAdmin } from '../test-support/auth.js'
+
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
 
 vi.mock( '../clients/vault.client.js' )
 vi.mock( './models.service.js' )
@@ -126,7 +134,7 @@ const transcript: Transcript = {
 }
 
 const queueJobAt = async ( status: JobStatus ): Promise< string > => {
-  const { id } = await queueJob( { url } )
+  const { id } = await queueJob( userId, { url } )
   const path: JobStatus[] = [ 'downloading', 'converting', 'transcribing' ]
 
   for( const step of path ) {
@@ -166,7 +174,7 @@ afterEach( () => {
 
 describe( 'queueJob', () => {
   it( 'returns a queued public job', async () => {
-    const job = await queueJob( { url } )
+    const job = await queueJob( userId, { url } )
 
     expect( job ).toEqual( {
       id: expect.stringMatching( /^[0-9a-f-]{36}$/ ) as string,
@@ -196,17 +204,18 @@ describe( 'queueJob', () => {
   } )
 
   it( 'does not expose a transcript property', async () => {
-    expect( await queueJob( { url } ) ).not.toHaveProperty( 'transcript' )
+    expect( await queueJob( userId, { url } ) ).not.toHaveProperty( 'transcript' )
   } )
 
   it( 'produces a different id on each call', async () => {
-    expect( ( await queueJob( { url } ) ).id ).not.toBe( ( await queueJob( { url } ) ).id )
+    expect( ( await queueJob( userId, { url } ) ).id )
+      .not.toBe( ( await queueJob( userId, { url } ) ).id )
   } )
 } )
 
 describe( 'findJob', () => {
   it( 'returns the public job', async () => {
-    const { id } = await queueJob( { url } )
+    const { id } = await queueJob( userId, { url } )
 
     const job = findJob( id )
 
@@ -215,7 +224,7 @@ describe( 'findJob', () => {
   } )
 
   it( 'returns the stored fields of a job', async () => {
-    const { id } = await queueJob( { url } )
+    const { id } = await queueJob( userId, { url } )
     updateJob( id, {
       title: 'A talk',
       expires_at: laterTime.toISOString(),
@@ -236,7 +245,7 @@ describe( 'findJob', () => {
 
 describe( 'markStatus', () => {
   it( 'walks queued to transcribing', async () => {
-    const { id } = await queueJob( { url } )
+    const { id } = await queueJob( userId, { url } )
 
     expect( markStatus( id, 'downloading' ).status ).toBe( 'downloading' )
     expect( markStatus( id, 'converting' ).status ).toBe( 'converting' )
@@ -244,7 +253,7 @@ describe( 'markStatus', () => {
   } )
 
   it( 'updates updated_at and keeps created_at', async () => {
-    const { id } = await queueJob( { url } )
+    const { id } = await queueJob( userId, { url } )
     vi.setSystemTime( laterTime )
 
     const job = markStatus( id, 'downloading' )
@@ -254,7 +263,7 @@ describe( 'markStatus', () => {
   } )
 
   it( 'throws ConflictError when skipping a step', async () => {
-    const { id } = await queueJob( { url } )
+    const { id } = await queueJob( userId, { url } )
 
     expect( () => markStatus( id, 'converting' ) ).toThrow( ConflictError )
     expect( () => markStatus( id, 'converting' ) ).toThrow(
@@ -264,7 +273,7 @@ describe( 'markStatus', () => {
 
   it( 'logs a refused move with the statuses and source', async () => {
     const warnSpy = vi.spyOn( logger, 'warn' ).mockImplementation( () => undefined )
-    const { id } = await queueJob( { url } )
+    const { id } = await queueJob( userId, { url } )
 
     expect( () => markStatus( id, 'converting' ) ).toThrow( ConflictError )
 
@@ -315,7 +324,7 @@ describe( 'renderTranscript', () => {
   const queueReviewJob = async (
     outcome: 'ready_for_review' | 'summary_failed',
   ): Promise< string > => {
-    const { id } = await queueJob( { url } )
+    const { id } = await queueJob( userId, { url } )
 
     markStatus( id, 'downloading' )
     markStatus( id, 'converting' )
@@ -400,23 +409,23 @@ describe( 'findNextRunnableJob', () => {
   } )
 
   it( 'returns the oldest queued job', async () => {
-    const first = await queueJob( { url: 'https://www.youtube.com/watch?v=a' } )
-    await queueJob( { url: 'https://www.youtube.com/watch?v=b' } )
+    const first = await queueJob( userId, { url: 'https://www.youtube.com/watch?v=a' } )
+    await queueJob( userId, { url: 'https://www.youtube.com/watch?v=b' } )
 
     expect( findNextRunnableJob() ).toEqual( first )
   } )
 
   it( 'skips jobs that are no longer queued', async () => {
-    const first = await queueJob( { url: 'https://www.youtube.com/watch?v=a' } )
-    const second = await queueJob( { url: 'https://www.youtube.com/watch?v=b' } )
+    const first = await queueJob( userId, { url: 'https://www.youtube.com/watch?v=a' } )
+    const second = await queueJob( userId, { url: 'https://www.youtube.com/watch?v=b' } )
     markStatus( first.id, 'downloading' )
 
     expect( findNextRunnableJob() ).toEqual( second )
   } )
 
   it( 'returns undefined when every job has moved on', async () => {
-    const first = await queueJob( { url: 'https://www.youtube.com/watch?v=a' } )
-    const second = await queueJob( { url: 'https://www.youtube.com/watch?v=b' } )
+    const first = await queueJob( userId, { url: 'https://www.youtube.com/watch?v=a' } )
+    const second = await queueJob( userId, { url: 'https://www.youtube.com/watch?v=b' } )
     markStatus( first.id, 'downloading' )
     markStatus( second.id, 'downloading' )
 
@@ -424,7 +433,7 @@ describe( 'findNextRunnableJob', () => {
   } )
 
   it( 'returns a job without a transcript field', async () => {
-    await queueJob( { url: 'https://www.youtube.com/watch?v=a' } )
+    await queueJob( userId, { url: 'https://www.youtube.com/watch?v=a' } )
 
     expect( findNextRunnableJob() ).not.toHaveProperty( 'transcript' )
   } )
@@ -597,7 +606,7 @@ describe( 'getSource', () => {
   } )
 
   it( 'throws when the job has no transcript', async () => {
-    const { id } = await queueJob( { url } )
+    const { id } = await queueJob( userId, { url } )
 
     expect( () => getSource( id ) ).toThrow( 'has no transcript' )
   } )
@@ -605,9 +614,9 @@ describe( 'getSource', () => {
 
 describe( 'listJobs', () => {
   it( 'returns public jobs, newest first', async () => {
-    const first = await queueJob( { url } )
+    const first = await queueJob( userId, { url } )
     vi.setSystemTime( laterTime )
-    const second = await queueJob( { url } )
+    const second = await queueJob( userId, { url } )
 
     const jobs = listJobs()
 
@@ -650,11 +659,11 @@ describe( 'folder memory', () => {
     + 'created: 2020-01-01\ntags: []\n---\n\n## Summary\nEdited.\n'
 
   const profileId = ( name: string ): string => {
-    return listProfiles().find( ( profile ) => profile.name === name )?.id ?? ''
+    return listProfiles( userId ).find( ( profile ) => profile.name === name )?.id ?? ''
   }
 
   const reviewJob = async ( profile: string | null ): Promise< string > => {
-    const { id } = await queueJob( { url, profile_id: profile ?? undefined } )
+    const { id } = await queueJob( userId, { url, profile_id: profile ?? undefined } )
 
     markStatus( id, 'downloading' )
     markStatus( id, 'converting' )
@@ -669,7 +678,7 @@ describe( 'folder memory', () => {
   describe( 'default_folder', () => {
     it( 'is the profile\'s last folder for a job in review', async () => {
       const study = profileId( 'Study' )
-      setLastFolder( study, 'Learning/React' )
+      setLastFolder( userId, study, 'Learning/React' )
 
       expect( findJob( await reviewJob( study ) ).default_folder ).toBe( 'Learning/React' )
       expect( existingFolderSyncMock ).toHaveBeenCalledWith( config.vaultPath, 'Learning/React' )
@@ -682,21 +691,21 @@ describe( 'folder memory', () => {
 
     it( 'is the configured folder when the last folder is gone from the vault', async () => {
       const study = profileId( 'Study' )
-      setLastFolder( study, 'Learning/Gone' )
+      setLastFolder( userId, study, 'Learning/Gone' )
       existingFolderSyncMock.mockReturnValue( false )
 
       expect( findJob( await reviewJob( study ) ).default_folder ).toBe( 'Mnemosyne' )
     } )
 
     it( 'is the configured folder when the job has no profile', async () => {
-      setLastFolder( profileId( 'Study' ), 'Learning/React' )
+      setLastFolder( userId, profileId( 'Study' ), 'Learning/React' )
 
       expect( findJob( await reviewJob( null ) ).default_folder ).toBe( 'Mnemosyne' )
     } )
 
     it( 'keeps each profile\'s own folder', async () => {
-      setLastFolder( profileId( 'Study' ), 'Learning/React' )
-      setLastFolder( profileId( 'Coding' ), 'Projects' )
+      setLastFolder( userId, profileId( 'Study' ), 'Learning/React' )
+      setLastFolder( userId, profileId( 'Coding' ), 'Projects' )
 
       expect( findJob( await reviewJob( profileId( 'Coding' ) ) ).default_folder )
         .toBe( 'Projects' )
@@ -706,8 +715,8 @@ describe( 'folder memory', () => {
 
     it( 'is the configured folder outside review, without looking at the vault', async () => {
       const study = profileId( 'Study' )
-      setLastFolder( study, 'Learning/React' )
-      const { id } = await queueJob( { url, profile_id: study } )
+      setLastFolder( userId, study, 'Learning/React' )
+      const { id } = await queueJob( userId, { url, profile_id: study } )
 
       expect( findJob( id ).default_folder ).toBe( 'Mnemosyne' )
       expect( existingFolderSyncMock ).not.toHaveBeenCalled()
@@ -728,7 +737,7 @@ describe( 'folder memory', () => {
   describe( 'saving', () => {
     it( 'writes to the profile\'s last folder when no folder was picked', async () => {
       const study = profileId( 'Study' )
-      setLastFolder( study, 'Learning/React' )
+      setLastFolder( userId, study, 'Learning/React' )
 
       await saveJob( await reviewJob( study ) )
 
@@ -747,8 +756,8 @@ describe( 'folder memory', () => {
 
       await saveJob( id )
 
-      expect( findProfileById( study )?.last_folder ).toBe( 'Learning/Rust' )
-      expect( findProfileById( profileId( 'Coding' ) )?.last_folder ).toBeNull()
+      expect( findProfileById( userId, study )?.last_folder ).toBe( 'Learning/Rust' )
+      expect( findProfileById( userId, profileId( 'Coding' ) )?.last_folder ).toBeNull()
     } )
 
     it( 'remembers the folder it used when none was picked', async () => {
@@ -757,7 +766,7 @@ describe( 'folder memory', () => {
 
       await saveJob( id )
 
-      expect( findProfileById( study )?.last_folder ).toBe( 'Mnemosyne' )
+      expect( findProfileById( userId, study )?.last_folder ).toBe( 'Mnemosyne' )
     } )
 
     it( 'remembers nothing when the write fails', async () => {
@@ -768,7 +777,7 @@ describe( 'folder memory', () => {
 
       await expect( saveJob( id ) ).rejects.toThrow( 'EACCES' )
 
-      expect( findProfileById( study )?.last_folder ).toBeNull()
+      expect( findProfileById( userId, study )?.last_folder ).toBeNull()
     } )
 
     it( 'saves a job with no profile and remembers nothing', async () => {
@@ -777,8 +786,11 @@ describe( 'folder memory', () => {
 
       await expect( saveJob( id ) ).resolves.toBe( 'Mnemosyne/Edited title.md' )
 
-      expect( listProfiles().map( ( profile ) => findProfileById( profile.id )?.last_folder ) )
-        .toEqual( listProfiles().map( () => null ) )
+      expect( listProfiles( userId ).map( ( profile ) => findProfileById(
+        userId,
+        profile.id,
+      )?.last_folder ) )
+        .toEqual( listProfiles( userId ).map( () => null ) )
     } )
   } )
 } )
@@ -1127,7 +1139,7 @@ describe( 'updateDraft', () => {
 } )
 
 describe( 'recordSummaryRun and summary_usage', () => {
-  const version = (): number => resolvePrompt( null ).version.id
+  const version = (): number => resolvePrompt( userId, null ).version.id
 
   it( 'has no usage before the first attempt', async () => {
     expect( findJob( await queueJobAt( 'queued' ) ).summary_usage ).toBeNull()
@@ -1145,7 +1157,7 @@ describe( 'recordSummaryRun and summary_usage', () => {
     expect( findJob( id ).summary_usage ).toEqual( {
       last_run: {
         model: 'claude-sonnet-5-5',
-        profile_id: resolvePrompt( null ).profile.id,
+        profile_id: resolvePrompt( userId, null ).profile.id,
         profile_name: 'Business ideas',
         prompt_version: 1,
         input_tokens: 1_000_000,
@@ -1219,7 +1231,7 @@ describe( 'recordSummaryRun and summary_usage', () => {
   it( 'reports the latest run, the count and the totals over several runs', async () => {
     const id = await queueJobAt( 'ready_for_review' )
     const first = version()
-    saveVersion( resolvePrompt( null ).profile.id, 'A newer prompt' )
+    saveVersion( userId, resolvePrompt( userId, null ).profile.id, 'A newer prompt' )
 
     recordSummaryRun( id, {
       model: 'claude-sonnet-5-5',
@@ -1260,15 +1272,15 @@ describe( 'recordSummaryRun and summary_usage', () => {
 
   it( 'keeps the profile name after the profile is deleted', async () => {
     const id = await queueJobAt( 'ready_for_review' )
-    const { id: profileId } = createProfile( { name: 'Temporary', guidance: 'x' } )
-    const versionId = resolvePrompt( profileId ).version.id
+    const { id: profileId } = createProfile( userId, { name: 'Temporary', guidance: 'x' } )
+    const versionId = resolvePrompt( userId, profileId ).version.id
 
     recordSummaryRun( id, {
       model: 'claude-sonnet-5-5',
       promptVersionId: versionId,
       usage: { input_tokens: 1, output_tokens: 1 },
     } )
-    deleteProfile( profileId )
+    deleteProfile( userId, profileId )
 
     expect( findJob( id ).summary_usage?.last_run ).toMatchObject( {
       profile_id: profileId,
@@ -1278,14 +1290,18 @@ describe( 'recordSummaryRun and summary_usage', () => {
 } )
 
 describe( 'queueJob options', () => {
-  const codingId = (): string => listProfiles().find( ( { name } ) => name === 'Coding' )?.id ?? ''
+  const codingId = (): string => listProfiles( userId )
+    .find( ( { name } ) => name === 'Coding' )?.id ?? ''
 
   it( 'stores the model and profile when given', async () => {
     const profileId = codingId()
 
-    const job = await queueJob( { url: url, model: 'claude-opus-5-5', profile_id: profileId } )
+    const job = await queueJob(
+      userId,
+      { url: url, model: 'claude-opus-5-5', profile_id: profileId },
+    )
 
-    expect( assertKnownModelMock ).toHaveBeenCalledWith( 'claude-opus-5-5' )
+    expect( assertKnownModelMock ).toHaveBeenCalledWith( userId, 'claude-opus-5-5' )
     expect( job )
       .toMatchObject( { summary_model: 'claude-opus-5-5', prompt_profile_id: profileId } )
     expect( findJobById( job.id ) ).toMatchObject( {
@@ -1297,35 +1313,37 @@ describe( 'queueJob options', () => {
   it( 'stores null for both when no options are given', async () => {
     const none = { summary_model: null, prompt_profile_id: null }
 
-    expect( await queueJob( { url } ) ).toMatchObject( none )
-    expect( await queueJob( { url } ) ).toMatchObject( none )
+    expect( await queueJob( userId, { url } ) ).toMatchObject( none )
+    expect( await queueJob( userId, { url } ) ).toMatchObject( none )
     expect( assertKnownModelMock ).not.toHaveBeenCalled()
   } )
 
   it( 'rejects an unknown model and queues nothing', async () => {
     assertKnownModelMock.mockRejectedValue( new ValidationError( 'Unknown model: nope' ) )
 
-    await expect( queueJob( { url: url, model: 'nope' } ) ).rejects.toThrow( 'Unknown model: nope' )
+    await expect( queueJob( userId, { url: url, model: 'nope' } ) )
+      .rejects.toThrow( 'Unknown model: nope' )
     expect( listJobs() ).toEqual( [] )
   } )
 
   it( 'rejects an unknown profile', async () => {
-    await expect( queueJob( { url: url, profile_id: crypto.randomUUID() } ) )
+    await expect( queueJob( userId, { url: url, profile_id: crypto.randomUUID() } ) )
       .rejects.toThrow( ValidationError )
     expect( listJobs() ).toEqual( [] )
   } )
 
   it( 'rejects a deleted profile', async () => {
     const profileId = codingId()
-    deleteProfile( profileId )
+    deleteProfile( userId, profileId )
 
-    await expect( queueJob( { url, profile_id: profileId } ) )
+    await expect( queueJob( userId, { url, profile_id: profileId } ) )
       .rejects.toThrow( ValidationError )
   } )
 } )
 
 describe( 'regenerateSummary', () => {
-  const codingId = (): string => listProfiles().find( ( { name } ) => name === 'Coding' )?.id ?? ''
+  const codingId = (): string => listProfiles( userId )
+    .find( ( { name } ) => name === 'Coding' )?.id ?? ''
 
   const queueReviewed = async (): Promise< string > => {
     const id = await queueJobAt( 'ready_for_review' )
@@ -1339,7 +1357,7 @@ describe( 'regenerateSummary', () => {
     const id = await queueReviewed()
     const before = findJobById( id )
 
-    const job = await regenerateSummary( id, {} )
+    const job = await regenerateSummary( userId, id, {} )
 
     expect( job ).toMatchObject( {
       status: 'summarizing',
@@ -1354,9 +1372,13 @@ describe( 'regenerateSummary', () => {
   it( 'stores the new model and profile when given', async () => {
     const id = await queueReviewed()
 
-    const job = await regenerateSummary( id, { model: 'claude-opus-5-5', profile_id: codingId() } )
+    const job = await regenerateSummary(
+      userId,
+      id,
+      { model: 'claude-opus-5-5', profile_id: codingId() },
+    )
 
-    expect( assertKnownModelMock ).toHaveBeenCalledWith( 'claude-opus-5-5' )
+    expect( assertKnownModelMock ).toHaveBeenCalledWith( userId, 'claude-opus-5-5' )
     expect( job ).toMatchObject( {
       summary_model: 'claude-opus-5-5',
       prompt_profile_id: codingId(),
@@ -1365,14 +1387,17 @@ describe( 'regenerateSummary', () => {
 
   it( 'keeps the earlier choices when none are given', async () => {
     const profileId = codingId()
-    const { id } = await queueJob( { url: url, model: 'claude-opus-5-5', profile_id: profileId } )
+    const { id } = await queueJob(
+      userId,
+      { url: url, model: 'claude-opus-5-5', profile_id: profileId },
+    )
     markStatus( id, 'downloading' )
     markStatus( id, 'converting' )
     markStatus( id, 'transcribing' )
     completeAcquisition( id, { kind: 'video', ...transcript } )
     completeSummary( id, '## Summary', [] )
 
-    const job = await regenerateSummary( id, {} )
+    const job = await regenerateSummary( userId, id, {} )
 
     expect( job )
       .toMatchObject( { summary_model: 'claude-opus-5-5', prompt_profile_id: profileId } )
@@ -1388,7 +1413,7 @@ describe( 'regenerateSummary', () => {
   ] as const )( 'refuses a job that is %s', async ( status ) => {
     const id = await queueJobAt( status )
 
-    await expect( regenerateSummary( id, {} ) ).rejects.toThrow( ConflictError )
+    await expect( regenerateSummary( userId, id, {} ) ).rejects.toThrow( ConflictError )
     expect( findJob( id ).status ).toBe( status )
   } )
 
@@ -1396,7 +1421,7 @@ describe( 'regenerateSummary', () => {
     const id = await queueJobAt( 'transcribing' )
     completeAcquisition( id, { kind: 'video', ...transcript } )
 
-    await expect( regenerateSummary( id, {} ) ).rejects.toThrow( ConflictError )
+    await expect( regenerateSummary( userId, id, {} ) ).rejects.toThrow( ConflictError )
     expect( findJob( id ).status ).toBe( 'summarizing' )
   } )
 
@@ -1404,19 +1429,21 @@ describe( 'regenerateSummary', () => {
     const id = await queueReviewed()
     await saveJob( id )
 
-    await expect( regenerateSummary( id, {} ) ).rejects.toThrow( ConflictError )
+    await expect( regenerateSummary( userId, id, {} ) ).rejects.toThrow( ConflictError )
   } )
 
   it( 'throws NotFoundError for an unknown job', async () => {
-    await expect( regenerateSummary( crypto.randomUUID(), {} ) ).rejects.toThrow( NotFoundError )
+    await expect( regenerateSummary( userId, crypto.randomUUID(), {} ) )
+      .rejects.toThrow( NotFoundError )
   } )
 
   it( 'rejects an unknown model or profile and leaves the job in review', async () => {
     const id = await queueReviewed()
     assertKnownModelMock.mockRejectedValueOnce( new ValidationError( 'Unknown model: nope' ) )
 
-    await expect( regenerateSummary( id, { model: 'nope' } ) ).rejects.toThrow( ValidationError )
-    await expect( regenerateSummary( id, { profile_id: crypto.randomUUID() } ) )
+    await expect( regenerateSummary( userId, id, { model: 'nope' } ) )
+      .rejects.toThrow( ValidationError )
+    await expect( regenerateSummary( userId, id, { profile_id: crypto.randomUUID() } ) )
       .rejects.toThrow( ValidationError )
     expect( findJob( id ).status ).toBe( 'ready_for_review' )
   } )
@@ -1571,22 +1598,24 @@ describe( 'queueJob with source types', () => {
   const pasted = `# Pasted title\n\n${ 'Some pasted words. '.repeat( 20 ) }`
 
   it( 'detects a video URL and queues it', async () => {
-    expect( await queueJob( { url } ) ).toMatchObject( { source_type: 'video', status: 'queued' } )
+    expect( await queueJob( userId, { url } ) )
+      .toMatchObject( { source_type: 'video', status: 'queued' } )
   } )
 
   it( 'detects an article URL and queues it', async () => {
-    expect( await queueJob( { url: articleUrl } ) )
+    expect( await queueJob( userId, { url: articleUrl } ) )
       .toMatchObject( { source_type: 'article', status: 'queued' } )
   } )
 
   it( 'lets the body override the detected type', async () => {
-    expect( ( await queueJob( { url, source_type: 'article' } ) ).source_type ).toBe( 'article' )
-    expect( ( await queueJob( { url: articleUrl, source_type: 'video' } ) ).source_type )
+    expect( ( await queueJob( userId, { url, source_type: 'article' } ) ).source_type )
+      .toBe( 'article' )
+    expect( ( await queueJob( userId, { url: articleUrl, source_type: 'video' } ) ).source_type )
       .toBe( 'video' )
   } )
 
   it( 'stores pasted text as an article document and goes straight to summarizing', async () => {
-    const job = await queueJob( { url: articleUrl, text: pasted } )
+    const job = await queueJob( userId, { url: articleUrl, text: pasted } )
 
     expect( job ).toMatchObject( {
       source_type: 'article',
@@ -1606,19 +1635,19 @@ describe( 'queueJob with source types', () => {
   } )
 
   it( 'prefers the given title for pasted text', async () => {
-    const job = await queueJob( { url: articleUrl, text: pasted, title: 'My title' } )
+    const job = await queueJob( userId, { url: articleUrl, text: pasted, title: 'My title' } )
 
     expect( job.title ).toBe( 'My title' )
   } )
 
   it( 'refuses pasted text for a video', async () => {
-    await expect( queueJob( { url, text: pasted } ) ).rejects.toThrow( ValidationError )
+    await expect( queueJob( userId, { url, text: pasted } ) ).rejects.toThrow( ValidationError )
   } )
 
   it( 'validates the model and profile for pasted text too', async () => {
     assertKnownModelMock.mockRejectedValueOnce( new ValidationError( 'Unknown model: nope' ) )
 
-    await expect( queueJob( { url: articleUrl, text: pasted, model: 'nope' } ) )
+    await expect( queueJob( userId, { url: articleUrl, text: pasted, model: 'nope' } ) )
       .rejects.toThrow( ValidationError )
   } )
 
@@ -1637,7 +1666,7 @@ describe( 'queueJob with source types', () => {
       markdown: 'Full text from the feed.',
     }
 
-    const job = await queueJob( { url: articleUrl }, { document } )
+    const job = await queueJob( userId, { url: articleUrl }, { document } )
 
     expect( job ).toMatchObject( {
       status: 'summarizing',
@@ -1650,14 +1679,15 @@ describe( 'queueJob with source types', () => {
   it( 'stores a feed id that the caller passes', async () => {
     const feedId = crypto.randomUUID()
 
-    expect( ( await queueJob( { url: articleUrl }, { feed_id: feedId } ) ).feed_id ).toBe( feedId )
+    expect( ( await queueJob( userId, { url: articleUrl }, { feed_id: feedId } ) ).feed_id )
+      .toBe( feedId )
   } )
 
   describe( 'a Gmail source', () => {
     it( 'stores the source id and shows its name on the job', async () => {
       const source = addStoredSource( { name: 'Substacks', destination: 'newsletter' } )
 
-      const job = await queueJob( { url: articleUrl }, { gmail_source_id: source.id } )
+      const job = await queueJob( userId, { url: articleUrl }, { gmail_source_id: source.id } )
 
       expect( job ).toMatchObject( {
         gmail_source_id: source.id,
@@ -1669,12 +1699,16 @@ describe( 'queueJob with source types', () => {
     } )
 
     it( 'leaves the Gmail fields null for a job with no source', async () => {
-      expect( await queueJob( { url: articleUrl } ) )
+      expect( await queueJob( userId, { url: articleUrl } ) )
         .toMatchObject( { gmail_source_id: null, gmail_source_name: null } )
     } )
 
     it( 'refuses a source that does not exist, and stores no job', async () => {
-      await expect( queueJob( { url: articleUrl }, { gmail_source_id: crypto.randomUUID() } ) )
+      await expect( queueJob(
+        userId,
+        { url: articleUrl },
+        { gmail_source_id: crypto.randomUUID() },
+      ) )
         .rejects.toThrow( ValidationError )
       expect( listJobs() ).toEqual( [] )
     } )
@@ -1698,7 +1732,7 @@ describe( 'step rules per source type', () => {
   }
 
   it( 'moves an article job queued to fetching and nowhere else', async () => {
-    const { id } = await queueJob( { url: articleUrl } )
+    const { id } = await queueJob( userId, { url: articleUrl } )
 
     expect( () => markStatus( id, 'downloading' ) ).toThrow( ConflictError )
     expect( markStatus( id, 'fetching' ).status ).toBe( 'fetching' )
@@ -1706,13 +1740,13 @@ describe( 'step rules per source type', () => {
   } )
 
   it( 'refuses fetching for a video job', async () => {
-    const { id } = await queueJob( { url } )
+    const { id } = await queueJob( userId, { url } )
 
     expect( () => markStatus( id, 'fetching' ) ).toThrow( ConflictError )
   } )
 
   it( 'completes an article from fetching and goes to summarizing', async () => {
-    const { id } = await queueJob( { url: articleUrl } )
+    const { id } = await queueJob( userId, { url: articleUrl } )
     markStatus( id, 'fetching' )
 
     const job = completeAcquisition( id, article )
@@ -1722,13 +1756,13 @@ describe( 'step rules per source type', () => {
   } )
 
   it( 'refuses an article document for a job that is not fetching', async () => {
-    const { id } = await queueJob( { url: articleUrl } )
+    const { id } = await queueJob( userId, { url: articleUrl } )
 
     expect( () => completeAcquisition( id, article ) ).toThrow( ConflictError )
   } )
 
   it( 'refuses a video document for an article job and an article for a video job', async () => {
-    const articleJob = await queueJob( { url: articleUrl } )
+    const articleJob = await queueJob( userId, { url: articleUrl } )
     markStatus( articleJob.id, 'fetching' )
     const videoJob = await queueJobAt( 'transcribing' )
 
@@ -1738,7 +1772,7 @@ describe( 'step rules per source type', () => {
   } )
 
   it( 'fails an article job that was fetching when the server stopped', async () => {
-    const { id } = await queueJob( { url: articleUrl } )
+    const { id } = await queueJob( userId, { url: articleUrl } )
     markStatus( id, 'fetching' )
 
     expect( recoverInterruptedJobs() ).toBe( 1 )
@@ -1753,7 +1787,7 @@ describe( 'submitPastedText', () => {
   const failedArticle = async (
     options: { model?: string, profile_id?: string } = {},
   ): Promise< string > => {
-    const { id } = await queueJob( { url: articleUrl, ...options } )
+    const { id } = await queueJob( userId, { url: articleUrl, ...options } )
     markStatus( id, 'fetching' )
     failJob( id, 'The page needs a login or is paywalled' )
 
@@ -1784,7 +1818,7 @@ describe( 'submitPastedText', () => {
   } )
 
   it( 'keeps the model and the profile of the job', async () => {
-    const profileId = listProfiles()[ 0 ]?.id ?? ''
+    const profileId = listProfiles( userId )[ 0 ]?.id ?? ''
     const id = await failedArticle( { model: 'claude-opus-5-5', profile_id: profileId } )
 
     expect( submitPastedText( id, { text } ) )
@@ -1798,7 +1832,7 @@ describe( 'submitPastedText', () => {
   } )
 
   it( 'refuses an article job that has not failed', async () => {
-    const queued = await queueJob( { url: articleUrl } )
+    const queued = await queueJob( userId, { url: articleUrl } )
 
     expect( () => submitPastedText( queued.id, { text } ) ).toThrow( ConflictError )
   } )
@@ -1812,7 +1846,7 @@ describe( 'renderTranscript for articles', () => {
   const articleUrl = 'https://example.com/post'
 
   const reviewedArticle = async (): Promise< string > => {
-    const { id } = await queueJob( { url: articleUrl } )
+    const { id } = await queueJob( userId, { url: articleUrl } )
     markStatus( id, 'fetching' )
     completeAcquisition( id, {
       kind: 'article',
@@ -1869,7 +1903,7 @@ describe( 'linking', () => {
   } )
 
   const summarizing = async (): Promise< string > => {
-    const { id } = await queueJob( { url } )
+    const { id } = await queueJob( userId, { url } )
 
     markStatus( id, 'downloading' )
     markStatus( id, 'converting' )
@@ -1888,7 +1922,7 @@ describe( 'linking', () => {
   }
 
   const linkerVersion = (): { id: number, version: number } => {
-    const version = findLatestVersion( findProfileBySeedKey( 'linker' )?.id ?? '' )
+    const version = findLatestVersion( userId, findProfileBySeedKey( userId, 'linker' )?.id ?? '' )
 
     if( version === undefined ) {
       throw new Error( 'The linker profile has no version' )
@@ -1931,7 +1965,7 @@ describe( 'linking', () => {
     } )
 
     it( 'goes to review with linking off when the switch is off', async () => {
-      setSetting( 'linking_enabled', false )
+      setSetting( userId, 'linking_enabled', false )
       const id = await summarizing()
 
       expect( completeSummary( id, '## Summary', [] ) ).toMatchObject( {
@@ -2101,7 +2135,7 @@ describe( 'linking', () => {
   describe( 'recoverInterruptedJobs', () => {
     it( 'moves a linking job to review as failed, and counts it with the step jobs', async () => {
       const id = await linking()
-      const { id: downloading } = await queueJob( { url } )
+      const { id: downloading } = await queueJob( userId, { url } )
       markStatus( downloading, 'downloading' )
       const stillSummarizing = await summarizing()
 
@@ -2130,7 +2164,7 @@ describe( 'linking', () => {
       insertSuggestions( runId, id, [ suggestion( 'Beta' ) ] )
       setStatus( [ accepted?.id ?? '' ], 'accepted', startTime.toISOString() )
 
-      const job = await regenerateSummary( id, {} )
+      const job = await regenerateSummary( userId, id, {} )
 
       expect( job ).toMatchObject( { status: 'summarizing', link_state: null, link_error: null } )
       expect( listSuggestions( id ).map( ( { target, status } ) => ( { target, status } ) ) )
@@ -2157,7 +2191,8 @@ describe( 'linking', () => {
       insertSuggestions( runId, id, [ suggestion( 'Alpha' ) ] )
       assertKnownModelMock.mockRejectedValue( new ValidationError( 'Unknown model: nope' ) )
 
-      await expect( regenerateSummary( id, { model: 'nope' } ) ).rejects.toThrow( ValidationError )
+      await expect( regenerateSummary( userId, id, { model: 'nope' } ) )
+        .rejects.toThrow( ValidationError )
       expect( listSuggestions( id ).map( ( { status } ) => status ) ).toEqual( [ 'pending' ] )
     } )
   } )

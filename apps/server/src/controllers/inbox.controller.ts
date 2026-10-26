@@ -7,6 +7,8 @@ import {
   SummarizeInboxBody,
   SummarizeInboxResponse,
 } from '@mnemosyne/shared'
+// Middleware
+import { currentUser } from '../middleware/auth.js'
 // Services
 import { dismissItems, listInbox, summarizeItems } from '../services/inbox.service.js'
 
@@ -15,10 +17,12 @@ export const getInbox = ( _req: Request, res: Response< ListInboxResponse > ): v
 }
 
 export const summarizeInbox = async (
-  { body }: Request,
+  req: Request,
   res: Response< SummarizeInboxResponse >,
 ): Promise< void > => {
-  res.status( 200 ).json( await summarizeItems( SummarizeInboxBody.parse( body ) ) )
+  const body = SummarizeInboxBody.parse( req.body )
+
+  res.status( 200 ).json( await summarizeItems( currentUser( req ).id, body ) )
 }
 
 export const dismissInbox = ( { body }: Request, res: Response ): void => {

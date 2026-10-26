@@ -22,7 +22,7 @@ import {
 } from '../repositories/gmailMessages.repository.js'
 import { findSourceById } from '../repositories/gmailSources.repository.js'
 import { getHealth, listErrors } from '../repositories/health.repository.js'
-import { setSetting } from '../repositories/settings.repository.js'
+import { setAppSetting } from '../repositories/appSettings.repository.js'
 import { listJobs } from './jobs.service.js'
 // Test support
 import { buildMessage } from '../test-support/gmailMessage.fixture.js'
@@ -44,6 +44,14 @@ import { parseMessage } from '../gmail/parseMessage.js'
 // Logging
 import { logger } from '../logger.js'
 import { getLogContext } from '../logContext.js'
+// Test support
+import { defaultTestAdmin } from '../test-support/auth.js'
+
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
 
 vi.mock( '../gmail/gmail.client.js' )
 
@@ -126,7 +134,7 @@ describe( 'checkSource: reading the mailbox', () => {
   it( 'lists from two days before sync_from, at most 100', async () => {
     const source = addStoredSource( { sync_from: SYNC_FROM } )
 
-    await checkSource( source.id )
+    await checkSource( userId, source.id )
 
     expect( listMatchingIds ).toHaveBeenCalledWith(
       source.match,
@@ -140,7 +148,7 @@ describe( 'checkSource: reading the mailbox', () => {
     serve( { m1: { subject: 'One', html: '<p>one</p>', text: 'one' } } )
     vi.mocked( listMatchingIds ).mockResolvedValue( idsOf( 'm1' ) )
 
-    await checkSource( source.id )
+    await checkSource( userId, source.id )
 
     expect( getMessage ).toHaveBeenCalledWith( 'm1', 'full' )
 
@@ -165,7 +173,7 @@ describe( 'checkSource: reading the mailbox', () => {
     storeAlready( source.id, 'm1' )
     vi.mocked( listMatchingIds ).mockResolvedValue( idsOf( 'm1', 'm2' ) )
 
-    await checkSource( source.id )
+    await checkSource( userId, source.id )
 
     expect( getMessage ).toHaveBeenCalledTimes( 1 )
     expect( getMessage ).toHaveBeenCalledWith( 'm2', 'full' )
@@ -178,8 +186,8 @@ describe( 'checkSource: reading the mailbox', () => {
     serve( { m1: {} } )
     vi.mocked( listMatchingIds ).mockResolvedValue( idsOf( 'm1', 'm1' ) )
 
-    await checkSource( source.id )
-    await checkSource( source.id )
+    await checkSource( userId, source.id )
+    await checkSource( userId, source.id )
 
     expect( rowsOf( source.id ) ).toHaveLength( 1 )
     expect( getMessage ).toHaveBeenCalledTimes( 1 )
@@ -192,8 +200,8 @@ describe( 'checkSource: reading the mailbox', () => {
     serve( { m1: {} } )
     vi.mocked( listMatchingIds ).mockResolvedValue( idsOf( 'm1' ) )
 
-    await checkSource( first.id )
-    await checkSource( second.id )
+    await checkSource( userId, first.id )
+    await checkSource( userId, second.id )
 
     expect( rowsOf( first.id ) ).toHaveLength( 1 )
     expect( rowsOf( second.id ) ).toHaveLength( 1 )
@@ -202,7 +210,7 @@ describe( 'checkSource: reading the mailbox', () => {
   it( 'records the check and clears an earlier error', async () => {
     const source = addStoredSource( { last_error: 'Old problem' } )
 
-    const checked = await checkSource( source.id )
+    const checked = await checkSource( userId, source.id )
 
     expect( checked ).toMatchObject( {
       id: source.id,
@@ -216,7 +224,7 @@ describe( 'checkSource: reading the mailbox', () => {
 
     serve( { m1: {} } )
     vi.mocked( listMatchingIds ).mockResolvedValue( idsOf( 'm1' ) )
-    await checkSource( source.id )
+    await checkSource( userId, source.id )
 
     expect( findSourceById( source.id )?.sync_from ).toBe( SYNC_FROM )
   } )
@@ -236,7 +244,7 @@ describe( 'checkSource: newsletters', () => {
 
     serveMany( 3 )
 
-    const checked = await checkSource( source.id )
+    const checked = await checkSource( userId, source.id )
 
     expect( rowsOf( source.id ) ).toEqual( [
       { message_id: 'm0', status: 'inbox' },
@@ -252,7 +260,7 @@ describe( 'checkSource: newsletters', () => {
 
     serveMany( 12 )
 
-    const checked = await checkSource( source.id )
+    const checked = await checkSource( userId, source.id )
     const rows = rowsOf( source.id )
 
     expect( rows.filter( ( { status } ) => status === 'inbox' ).map( ( row ) => row.message_id ) )
@@ -275,13 +283,13 @@ describe( 'checkSource: newsletters', () => {
 
     serveMany( 2 )
 
-    expect( ( await checkSource( source.id ) ).last_skipped_count ).toBe( 0 )
+    expect( ( await checkSource( userId, source.id ) ).last_skipped_count ).toBe( 0 )
   } )
 
   it( 'keeps the skipped count when a check finds nothing new', async () => {
     const source = addStoredSource( { destination: 'newsletter', last_skipped_count: 7 } )
 
-    expect( ( await checkSource( source.id ) ).last_skipped_count ).toBe( 7 )
+    expect( ( await checkSource( userId, source.id ) ).last_skipped_count ).toBe( 7 )
   } )
 
   it( 'does not count emails it already had toward the 10', async () => {
@@ -290,7 +298,7 @@ describe( 'checkSource: newsletters', () => {
 
     ids.slice( 0, 5 ).forEach( ( id ) => storeAlready( source.id, id ) )
 
-    const checked = await checkSource( source.id )
+    const checked = await checkSource( userId, source.id )
 
     expect( checked.last_skipped_count ).toBe( 0 )
     expect( rowsOf( source.id ).filter( ( { status } ) => status === 'inbox' ) ).toHaveLength( 12 )
@@ -303,7 +311,7 @@ describe( 'checkSource: job alerts', () => {
 
     serveMany( 15 )
 
-    const checked = await checkSource( source.id )
+    const checked = await checkSource( userId, source.id )
 
     const pending = rowsOf( source.id ).filter( ( { status } ) => status === 'pending' )
 
@@ -320,15 +328,16 @@ describe( 'checkSource: not checking', () => {
   it( 'refuses a turned-off source without calling Gmail', async () => {
     const source = addStoredSource( { enabled: false } )
 
-    await expect( checkSource( source.id ) ).rejects.toBeInstanceOf( ConflictError )
+    await expect( checkSource( userId, source.id ) ).rejects.toBeInstanceOf( ConflictError )
     expect( listMatchingIds ).not.toHaveBeenCalled()
   } )
 
   it( 'does not find a deleted or unknown source', async () => {
     const gone = addStoredSource( { deleted_at: minutesAgo( 5 ) } )
 
-    await expect( checkSource( gone.id ) ).rejects.toBeInstanceOf( NotFoundError )
-    await expect( checkSource( crypto.randomUUID() ) ).rejects.toBeInstanceOf( NotFoundError )
+    await expect( checkSource( userId, gone.id ) ).rejects.toBeInstanceOf( NotFoundError )
+    await expect( checkSource( userId, crypto.randomUUID() ) )
+      .rejects.toBeInstanceOf( NotFoundError )
   } )
 
   it.each( [ 'not connected', 'reconnect needed' ] )( 'refuses while %s', async ( state ) => {
@@ -340,7 +349,7 @@ describe( 'checkSource: not checking', () => {
       setAccountStatus( 'reconnect_needed', 'revoked' )
     }
 
-    await expect( checkSource( source.id ) ).rejects.toBeInstanceOf( ConflictError )
+    await expect( checkSource( userId, source.id ) ).rejects.toBeInstanceOf( ConflictError )
     expect( listMatchingIds ).not.toHaveBeenCalled()
     expect( findSourceById( source.id )?.last_error ).toBeNull()
   } )
@@ -352,7 +361,7 @@ describe( 'checkSource: when something goes wrong', () => {
 
     vi.mocked( listMatchingIds ).mockRejectedValue( new Error( 'Gmail is down' ) )
 
-    expect( await checkSource( source.id ) ).toMatchObject( {
+    expect( await checkSource( userId, source.id ) ).toMatchObject( {
       last_error: 'Gmail is down',
       last_checked_at: NOW.toISOString(),
     } )
@@ -365,7 +374,7 @@ describe( 'checkSource: when something goes wrong', () => {
     vi.mocked( listMatchingIds ).mockResolvedValue( idsOf( 'm1', 'm2', 'm3' ) )
     // m2 is not served, so fetching it fails.
 
-    const checked = await checkSource( source.id )
+    const checked = await checkSource( userId, source.id )
 
     expect( rowsOf( source.id ).map( ( row ) => row.message_id ) ).toEqual( [ 'm1' ] )
     expect( checked.last_error ).toBe( 'unexpected message m2' )
@@ -377,10 +386,10 @@ describe( 'checkSource: when something goes wrong', () => {
 
     serve( { m1: {}, m3: {} } )
     vi.mocked( listMatchingIds ).mockResolvedValue( idsOf( 'm1', 'm2', 'm3' ) )
-    await checkSource( source.id )
+    await checkSource( userId, source.id )
 
     serve( { m2: {}, m3: {} } )
-    await checkSource( source.id )
+    await checkSource( userId, source.id )
 
     const stored = rowsOf( source.id ).map( ( row ) => row.message_id ).sort()
 
@@ -397,7 +406,7 @@ describe( 'checkSource: when something goes wrong', () => {
       .mockResolvedValueOnce( buildMessage( 'm1' ) )
       .mockRejectedValueOnce( new GmailAuthError( 'Google no longer accepts access' ) )
 
-    await expect( checkSource( source.id ) )
+    await expect( checkSource( userId, source.id ) )
       .rejects.toThrow( new ConflictError( 'Google no longer accepts access' ) )
     expect( rowsOf( source.id ) ).toEqual( [] )
     expect( findSourceById( source.id )?.last_checked_at ).toBeNull()
@@ -414,7 +423,7 @@ describe( 'checkSource: when something goes wrong', () => {
       missingLabelIds: [ 'Label_9' ],
     } )
 
-    const checked = await checkSource( source.id )
+    const checked = await checkSource( userId, source.id )
 
     expect( checked.last_error ).toBe( 'Label not found in Gmail: Label_9' )
     expect( rowsOf( source.id ) ).toHaveLength( 1 )
@@ -424,7 +433,7 @@ describe( 'checkSource: when something goes wrong', () => {
     const source = addStoredSource( { match: { kind: 'labels', label_ids: [ 'Label_9' ] } } )
 
     vi.mocked( listMatchingIds ).mockResolvedValue( { ...idsOf(), missingLabelIds: [ 'Label_9' ] } )
-    await checkSource( source.id )
+    await checkSource( userId, source.id )
 
     expect( getHealth( 'gmail_source', source.id ) ).toMatchObject( {
       last_checked_at: NOW.toISOString(),
@@ -436,7 +445,7 @@ describe( 'checkSource: when something goes wrong', () => {
       .toEqual( [ { at: NOW.toISOString(), message: 'Label not found in Gmail: Label_9' } ] )
 
     vi.mocked( listMatchingIds ).mockResolvedValue( idsOf() )
-    await checkSource( source.id )
+    await checkSource( userId, source.id )
 
     expect( getHealth( 'gmail_source', source.id ) ).toMatchObject( {
       last_success_at: NOW.toISOString(),
@@ -450,7 +459,8 @@ describe( 'checkSource: when something goes wrong', () => {
 
     vi.mocked( listMatchingIds ).mockResolvedValue( { ...idsOf(), missingLabelIds: [ 'A', 'B' ] } )
 
-    expect( ( await checkSource( source.id ) ).last_error ).toBe( 'Label not found in Gmail: A, B' )
+    expect( ( await checkSource( userId, source.id ) ).last_error )
+      .toBe( 'Label not found in Gmail: A, B' )
   } )
 } )
 
@@ -460,7 +470,7 @@ describe( 'checkAllSources', () => {
     const off = addStoredSource( { name: 'B', enabled: false } )
     const third = addStoredSource( { name: 'C' } )
 
-    const sources = await checkAllSources()
+    const sources = await checkAllSources( userId )
 
     expect( sources.map( ( { id } ) => id ) ).toEqual( [ first.id, off.id, third.id ] )
     expect( findSourceById( first.id )?.last_checked_at ).toBe( NOW.toISOString() )
@@ -473,7 +483,7 @@ describe( 'checkAllSources', () => {
     addStoredSource()
     setAccountStatus( 'reconnect_needed', 'revoked' )
 
-    await expect( checkAllSources() ).rejects.toBeInstanceOf( ConflictError )
+    await expect( checkAllSources( userId ) ).rejects.toBeInstanceOf( ConflictError )
     expect( listMatchingIds ).not.toHaveBeenCalled()
   } )
 
@@ -483,7 +493,7 @@ describe( 'checkAllSources', () => {
 
     vi.mocked( listMatchingIds ).mockRejectedValue( new GmailAuthError( 'revoked' ) )
 
-    await expect( checkAllSources() ).rejects.toBeInstanceOf( ConflictError )
+    await expect( checkAllSources( userId ) ).rejects.toBeInstanceOf( ConflictError )
     expect( listMatchingIds ).toHaveBeenCalledTimes( 1 )
     expect( findSourceById( first.id )?.last_checked_at ).toBeNull()
     expect( findSourceById( second.id )?.last_checked_at ).toBeNull()
@@ -492,7 +502,7 @@ describe( 'checkAllSources', () => {
 
 describe( 'checkDueSources', () => {
   beforeEach( () => {
-    setSetting( 'feed_check_interval_minutes', 15 )
+    setAppSetting( 'feed_check_interval_minutes', 15 )
   } )
 
   it( 'checks each due source inside a log context carrying its id', async () => {
@@ -527,7 +537,7 @@ describe( 'checkDueSources', () => {
   it( 'follows the interval in settings', async () => {
     const source = addStoredSource( { last_checked_at: minutesAgo( 20 ) } )
 
-    setSetting( 'feed_check_interval_minutes', 60 )
+    setAppSetting( 'feed_check_interval_minutes', 60 )
 
     expect( await checkDueSources() ).toBe( 0 )
     expect( findSourceById( source.id )?.last_checked_at ).toBe( minutesAgo( 20 ) )
@@ -592,7 +602,7 @@ describe( 'checkSource: automatic summaries', () => {
 
     serveReadable( [ 'm1', 'm2' ] )
 
-    const checked = await checkSource( source.id )
+    const checked = await checkSource( userId, source.id )
 
     expect( statuses( source.id ) ).toEqual( [ 'queued', 'queued' ] )
     expect( checked.inbox_count ).toBe( 0 )
@@ -608,7 +618,7 @@ describe( 'checkSource: automatic summaries', () => {
     const source = addStoredSource( { destination: 'newsletter', auto_summarize: false } )
 
     serveReadable( [ 'm1' ] )
-    await checkSource( source.id )
+    await checkSource( userId, source.id )
 
     expect( statuses( source.id ) ).toEqual( [ 'inbox' ] )
     expect( listJobs() ).toEqual( [] )
@@ -618,7 +628,7 @@ describe( 'checkSource: automatic summaries', () => {
     const source = addStoredSource( { destination: 'jobs', auto_summarize: true } )
 
     serveReadable( [ 'm1' ] )
-    await checkSource( source.id )
+    await checkSource( userId, source.id )
 
     expect( statuses( source.id ) ).toEqual( [ 'pending' ] )
     expect( listJobs() ).toEqual( [] )
@@ -628,7 +638,7 @@ describe( 'checkSource: automatic summaries', () => {
     const source = addStoredSource( { destination: 'newsletter', auto_summarize: true } )
 
     serveReadable( Array.from( { length: 12 }, ( _, index ) => `m${ index }` ) )
-    await checkSource( source.id )
+    await checkSource( userId, source.id )
 
     expect( statuses( source.id ).filter( ( status ) => status === 'queued' ) ).toHaveLength( 10 )
     expect( statuses( source.id ).filter( ( status ) => status === 'skipped' ) ).toHaveLength( 2 )
@@ -644,7 +654,7 @@ describe( 'checkSource: automatic summaries', () => {
     } )
     vi.mocked( listMatchingIds ).mockResolvedValue( idsOf( 'm1', 'm2' ) )
 
-    const checked = await checkSource( source.id )
+    const checked = await checkSource( userId, source.id )
 
     expect( statuses( source.id ).sort() ).toEqual( [ 'inbox', 'queued' ] )
     expect( checked.last_error ).toBeNull()
@@ -658,8 +668,8 @@ describe( 'checkSource: automatic summaries', () => {
     const source = addStoredSource( { destination: 'newsletter', auto_summarize: true } )
 
     serveReadable( [ 'm1' ] )
-    await checkSource( source.id )
-    await checkSource( source.id )
+    await checkSource( userId, source.id )
+    await checkSource( userId, source.id )
 
     expect( listJobs() ).toHaveLength( 1 )
   } )
@@ -667,7 +677,7 @@ describe( 'checkSource: automatic summaries', () => {
   it( 'queues the emails of every automatic source in a due pass', async () => {
     const source = addStoredSource( { destination: 'newsletter', auto_summarize: true } )
 
-    setSetting( 'feed_check_interval_minutes', 15 )
+    setAppSetting( 'feed_check_interval_minutes', 15 )
     serveReadable( [ 'm1' ] )
 
     expect( await checkDueSources() ).toBe( 1 )

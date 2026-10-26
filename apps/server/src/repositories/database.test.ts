@@ -18,7 +18,8 @@ import {
   vi,
 } from 'vitest'
 // Services
-import { seedSharedProfiles } from '../services/seedUser.service.js'
+// Test support
+import { createTestUser } from '../test-support/auth.js'
 // Repositories
 import {
   SCHEMA_BASE,
@@ -228,11 +229,13 @@ const BASELINE_COLUMNS: Record< string, string[] > = {
     'link_error',
   ],
   settings: [
+    'user_id',
     'key',
     'value',
   ],
   prompt_profiles: [
     'id',
+    'user_id',
     'name',
     'seed_key',
     'created_at',
@@ -242,6 +245,7 @@ const BASELINE_COLUMNS: Record< string, string[] > = {
   ],
   prompt_versions: [
     'id',
+    'user_id',
     'profile_id',
     'version',
     'guidance',
@@ -660,9 +664,11 @@ describe( 'the baseline schema', () => {
     it( 'are enforced', () => {
       expect( getDatabase().pragma( 'foreign_keys', { simple: true } ) ).toBe( 1 )
       expect( () => getDatabase().prepare( `INSERT INTO prompt_versions
-        ( profile_id, version, guidance, source, created_at )
-        VALUES ( 'nope', 1, 'g', 'seed', 'now' )` )
-        .run() ).toThrow( /FOREIGN KEY/ )
+        ( user_id, profile_id, version, guidance, source, created_at )
+        VALUES ( ?, 'nope', 1, 'g', 'seed', 'now' )` )
+        .run( createTestUser().id ) ).toThrow( /FOREIGN KEY/ )
+      expect( () => getDatabase().prepare( `INSERT INTO settings ( user_id, key, value )
+        VALUES ( 'nobody', 'k', '1' )` ).run() ).toThrow( /FOREIGN KEY/ )
     } )
 
     it( 'report nothing in foreign_key_check on a fresh database', () => {
@@ -672,9 +678,16 @@ describe( 'the baseline schema', () => {
 
   describe( 'constraints carried over from 0.8', () => {
     const addProfile = ( id: string, name: string, deleted: string | null = null ): void => {
-      getDatabase().prepare( `INSERT INTO prompt_profiles ( id, name, created_at, deleted_at )
-        VALUES ( ?, ?, 'now', ? )` ).run( id, name, deleted )
+      getDatabase().prepare( `INSERT INTO prompt_profiles
+        ( id, user_id, name, created_at, deleted_at ) VALUES ( ?, ?, ?, 'now', ? )` )
+        .run( id, owner, name, deleted )
     }
+
+    let owner = ''
+
+    beforeEach( () => {
+      owner = createTestUser().id
+    } )
 
     it( 'rejects a second active profile whose name differs only in case', () => {
       addProfile( 'a', 'Notes' )
@@ -718,7 +731,7 @@ describe( 'the baseline schema', () => {
     } )
 
     it( 'lets summary runs outlive their job', () => {
-      seedSharedProfiles( 'now' )
+      createTestUser()
 
       const version = getDatabase().prepare( 'SELECT id FROM prompt_versions LIMIT 1' )
         .get() as { id: number }
@@ -744,6 +757,12 @@ describe( 'a fresh database', () => {
 } )
 
 describe( 'inTransaction', () => {
+  let owner = ''
+
+  beforeEach( () => {
+    owner = createTestUser().id
+  } )
+
   const count = (): number => {
     return ( getDatabase().prepare( 'SELECT COUNT(*) AS count FROM settings' ).get() as {
       count: number
@@ -751,7 +770,8 @@ describe( 'inTransaction', () => {
   }
 
   const add = ( key: string ): void => {
-    getDatabase().prepare( 'INSERT INTO settings ( key, value ) VALUES ( ?, \'1\' )' ).run( key )
+    getDatabase().prepare( 'INSERT INTO settings ( user_id, key, value ) VALUES ( ?, ?, \'1\' )' )
+      .run( owner, key )
   }
 
   it( 'returns what the function returns and keeps its writes', () => {

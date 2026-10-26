@@ -34,6 +34,14 @@ import { summarizeJob } from './summarizeJob.js'
 import { rm } from 'node:fs/promises'
 // Logging
 import { logger } from '../logger.js'
+// Test support
+import { defaultTestAdmin } from '../test-support/auth.js'
+
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
 
 vi.mock( '../clients/ytDlp.client.js' )
 vi.mock( '../clients/ffmpeg.client.js' )
@@ -48,6 +56,7 @@ vi.mock( '../config.js', () => ( {
     whisperUrl: 'http://whisper:8178',
     whisperModel: 'test-model',
     logLevel: 'silent',
+    sessionDays: 30,
   },
 } ) )
 
@@ -72,7 +81,7 @@ const summarizeJobMock = vi.mocked( summarizeJob )
 const linkJobMock = vi.mocked( linkJob )
 
 const queue = async (): Promise< string > => {
-  return ( await queueJob( { url: 'https://www.youtube.com/watch?v=abc' } ) ).id
+  return ( await queueJob( userId, { url: 'https://www.youtube.com/watch?v=abc' } ) ).id
 }
 
 const expectClientsNotCalled = (): void => {
@@ -415,7 +424,7 @@ describe( 'runJob for articles', () => {
   } )
 
   it( 'fetches through fetching, stores the article and summarizes', async () => {
-    const { id } = await queueJob( { url: articleUrl } )
+    const { id } = await queueJob( userId, { url: articleUrl } )
     const seen: string[] = []
     fetchMock.mockImplementation( () => {
       seen.push( findJob( id ).status )
@@ -434,7 +443,7 @@ describe( 'runJob for articles', () => {
   } )
 
   it( 'fails the job with the fetch error and does not summarize', async () => {
-    const { id } = await queueJob( { url: articleUrl } )
+    const { id } = await queueJob( userId, { url: articleUrl } )
     fetchMock.mockRejectedValue( new Error( 'Not an article page' ) )
 
     await runJob( id )
@@ -445,7 +454,7 @@ describe( 'runJob for articles', () => {
 
   it( 'goes straight to summarizing for a pasted-text job without fetching', async () => {
     const text = 'Pasted words. '.repeat( 30 )
-    const { id } = await queueJob( { url: articleUrl, text } )
+    const { id } = await queueJob( userId, { url: articleUrl, text } )
 
     await runJob( id )
 

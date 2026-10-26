@@ -17,9 +17,18 @@ import { getHealth, listErrors } from '../repositories/health.repository.js'
 import { setSetting } from '../repositories/settings.repository.js'
 // Services
 import { recordCheck, runServiceChecks } from './health.service.js'
+// Test support
+import { defaultTestAdmin } from '../test-support/auth.js'
+
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
 
 const configMock = vi.hoisted( () => ( {
   logLevel: 'silent',
+  sessionDays: 30,
   whisperUrl: 'http://whisper.test:8178',
   agent: null as { url: string } | null,
 } ) )
@@ -134,13 +143,13 @@ describe( 'runServiceChecks', () => {
     expect( getHealth( 'whisper', 'default' ) ).toBeDefined()
   } )
 
-  it( 'skips the agent when linking is switched off', async () => {
-    setSetting( 'linking_enabled', false )
+  it( 'still checks the agent when a user switched linking off', async () => {
+    setSetting( userId, 'linking_enabled', false )
 
     await runServiceChecks()
 
-    expect( checkHealth ).not.toHaveBeenCalled()
-    expect( getHealth( 'agent', 'default' ) ).toBeUndefined()
+    expect( checkHealth ).toHaveBeenCalled()
+    expect( getHealth( 'agent', 'default' ) ).toMatchObject( { last_error: null } )
   } )
 
   it( 'still checks whisper-server when the agent check throws', async () => {

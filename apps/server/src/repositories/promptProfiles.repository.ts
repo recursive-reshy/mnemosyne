@@ -44,84 +44,107 @@ const writeProfile = ( write: () => void ): WriteResult => {
   return { ok: true }
 }
 
-export const listActiveProfiles = ( purpose: ProfilePurpose = 'summary' ): ProfileRecord[] => {
+export const listActiveProfiles = (
+  userId: string,
+  purpose: ProfilePurpose = 'summary',
+): ProfileRecord[] => {
   return z.array( ProfileRecord ).parse( getDatabase()
-    .prepare( `SELECT * FROM prompt_profiles WHERE deleted_at IS NULL AND purpose = ?
+    .prepare( `SELECT * FROM prompt_profiles
+      WHERE user_id = ? AND deleted_at IS NULL AND purpose = ?
       ORDER BY lower( name ), rowid` )
-    .all( purpose ) )
+    .all( userId, purpose ) )
 }
 
-export const findProfileById = ( id: string ): ProfileRecord | undefined => {
-  const row = getDatabase().prepare( 'SELECT * FROM prompt_profiles WHERE id = ?' ).get( id )
-
-  return row === undefined ? undefined : ProfileRecord.parse( row )
-}
-
-export const findProfileBySeedKey = ( seedKey: string ): ProfileRecord | undefined => {
+export const findProfileById = ( userId: string, id: string ): ProfileRecord | undefined => {
   const row = getDatabase()
-    .prepare( 'SELECT * FROM prompt_profiles WHERE seed_key = ? AND deleted_at IS NULL' )
-    .get( seedKey )
+    .prepare( 'SELECT * FROM prompt_profiles WHERE id = ? AND user_id = ?' )
+    .get( id, userId )
 
   return row === undefined ? undefined : ProfileRecord.parse( row )
 }
 
-export const insertProfile = ( profile: NewProfile ): WriteResult => {
+export const findProfileBySeedKey = (
+  userId: string,
+  seedKey: string,
+): ProfileRecord | undefined => {
+  const row = getDatabase()
+    .prepare( `SELECT * FROM prompt_profiles
+      WHERE seed_key = ? AND user_id = ? AND deleted_at IS NULL` )
+    .get( seedKey, userId )
+
+  return row === undefined ? undefined : ProfileRecord.parse( row )
+}
+
+export const insertProfile = ( userId: string, profile: NewProfile ): WriteResult => {
   return writeProfile( () => {
     getDatabase()
-      .prepare( `INSERT INTO prompt_profiles ( id, name, seed_key, purpose, created_at )
-        VALUES ( @id, @name, @seed_key, @purpose, @created_at )` )
-      .run( { purpose: 'summary', ...profile } )
+      .prepare( `INSERT INTO prompt_profiles ( id, user_id, name, seed_key, purpose, created_at )
+        VALUES ( @id, @user_id, @name, @seed_key, @purpose, @created_at )` )
+      .run( { purpose: 'summary', ...profile, user_id: userId } )
   } )
 }
 
-export const renameProfile = ( id: string, name: string ): WriteResult => {
+export const renameProfile = ( userId: string, id: string, name: string ): WriteResult => {
   return writeProfile( () => {
-    getDatabase().prepare( 'UPDATE prompt_profiles SET name = ? WHERE id = ?' ).run( name, id )
+    getDatabase()
+      .prepare( 'UPDATE prompt_profiles SET name = ? WHERE id = ? AND user_id = ?' )
+      .run( name, id, userId )
   } )
 }
 
-export const setLastFolder = ( profileId: string, folder: string ): void => {
+export const setLastFolder = ( userId: string, profileId: string, folder: string ): void => {
   getDatabase()
-    .prepare( 'UPDATE prompt_profiles SET last_folder = ? WHERE id = ?' )
-    .run( folder, profileId )
+    .prepare( 'UPDATE prompt_profiles SET last_folder = ? WHERE id = ? AND user_id = ?' )
+    .run( folder, profileId, userId )
 }
 
-export const markProfileDeleted = ( id: string, deletedAt: string ): void => {
+export const markProfileDeleted = ( userId: string, id: string, deletedAt: string ): void => {
   getDatabase()
-    .prepare( 'UPDATE prompt_profiles SET deleted_at = ? WHERE id = ?' )
-    .run( deletedAt, id )
+    .prepare( 'UPDATE prompt_profiles SET deleted_at = ? WHERE id = ? AND user_id = ?' )
+    .run( deletedAt, id, userId )
 }
 
-export const countActiveProfiles = ( purpose: ProfilePurpose = 'summary' ): number => {
+export const countActiveProfiles = (
+  userId: string,
+  purpose: ProfilePurpose = 'summary',
+): number => {
   const row = getDatabase()
     .prepare( `SELECT COUNT(*) AS count FROM prompt_profiles
-      WHERE deleted_at IS NULL AND purpose = ?` )
-    .get( purpose ) as { count: number }
+      WHERE user_id = ? AND deleted_at IS NULL AND purpose = ?` )
+    .get( userId, purpose ) as { count: number }
 
   return row.count
 }
 
-export const findLatestVersion = ( profileId: string ): PromptVersion | undefined => {
+export const findLatestVersion = (
+  userId: string,
+  profileId: string,
+): PromptVersion | undefined => {
   const row = getDatabase()
-    .prepare( 'SELECT * FROM prompt_versions WHERE profile_id = ? ORDER BY version DESC LIMIT 1' )
-    .get( profileId )
+    .prepare( `SELECT * FROM prompt_versions WHERE profile_id = ? AND user_id = ?
+      ORDER BY version DESC LIMIT 1` )
+    .get( profileId, userId )
 
   return row === undefined ? undefined : PromptVersion.parse( row )
 }
 
-export const listVersions = ( profileId: string ): PromptVersion[] => {
+export const listVersions = ( userId: string, profileId: string ): PromptVersion[] => {
   return z.array( PromptVersion ).parse( getDatabase()
-    .prepare( 'SELECT * FROM prompt_versions WHERE profile_id = ? ORDER BY version DESC' )
-    .all( profileId ) )
+    .prepare( `SELECT * FROM prompt_versions WHERE profile_id = ? AND user_id = ?
+      ORDER BY version DESC` )
+    .all( profileId, userId ) )
 }
 
-export const findVersionById = ( id: number ): PromptVersion | undefined => {
-  const row = getDatabase().prepare( 'SELECT * FROM prompt_versions WHERE id = ?' ).get( id )
+export const findVersionById = ( userId: string, id: number ): PromptVersion | undefined => {
+  const row = getDatabase()
+    .prepare( 'SELECT * FROM prompt_versions WHERE id = ? AND user_id = ?' )
+    .get( id, userId )
 
   return row === undefined ? undefined : PromptVersion.parse( row )
 }
 
 export const insertVersion = (
+  userId: string,
   profileId: string,
   guidance: string,
   source: PromptVersionSource,
@@ -129,17 +152,26 @@ export const insertVersion = (
   const db = getDatabase()
 
   return db.transaction( () => {
+    const owned = db
+      .prepare( 'SELECT 1 FROM prompt_profiles WHERE id = ? AND user_id = ?' )
+      .get( profileId, userId )
+
+    if( owned === undefined ) {
+      throw new Error( `Profile ${ profileId } not found for the user` )
+    }
+
     const { next } = db
       .prepare( `SELECT COALESCE( MAX( version ), 0 ) + 1 AS next
-        FROM prompt_versions WHERE profile_id = ?` )
-      .get( profileId ) as { next: number }
+        FROM prompt_versions WHERE profile_id = ? AND user_id = ?` )
+      .get( profileId, userId ) as { next: number }
     const { lastInsertRowid } = db
-      .prepare( `INSERT INTO prompt_versions ( profile_id, version, guidance, source, created_at )
-        VALUES ( ?, ?, ?, ?, ? )` )
-      .run( profileId, next, guidance, source, new Date().toISOString() )
+      .prepare( `INSERT INTO prompt_versions
+        ( user_id, profile_id, version, guidance, source, created_at )
+        VALUES ( ?, ?, ?, ?, ?, ? )` )
+      .run( userId, profileId, next, guidance, source, new Date().toISOString() )
 
-    return PromptVersion.parse(
-      db.prepare( 'SELECT * FROM prompt_versions WHERE id = ?' ).get( lastInsertRowid ),
-    )
+    return PromptVersion.parse( db
+      .prepare( 'SELECT * FROM prompt_versions WHERE id = ? AND user_id = ?' )
+      .get( lastInsertRowid, userId ) )
   } )()
 }

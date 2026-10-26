@@ -56,9 +56,18 @@ import { logger } from '../logger.js'
 // Test support
 import { addQuestion } from '../test-support/meleteData.fixture.js'
 import { MeleteVault, createMeleteVault } from '../test-support/meleteVault.fixture.js'
+// Test support
+import { defaultTestAdmin } from '../test-support/auth.js'
+
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
 
 const configMock = vi.hoisted( () => ( {
   logLevel: 'silent',
+  sessionDays: 30,
   vaultPath: '',
   timeZone: 'Asia/Singapore',
   obsidianVaultName: undefined as string | undefined,
@@ -122,8 +131,8 @@ beforeEach( async () => {
   configMock.vaultPath = vault.vaultPath
   configMock.obsidianVaultName = undefined
   configMock.melete.dayStartHour = 4
-  setSetting( 'melete_learning_root', 'Learning' )
-  setSetting( 'melete_grading_model', 'claude-haiku-5-5' )
+  setSetting( userId, 'melete_learning_root', 'Learning' )
+  setSetting( userId, 'melete_grading_model', 'claude-haiku-5-5' )
   grade.mockReset()
   resetScanClock()
   await scanLearningRoot( { force: true, now: at( -60 ) } )
@@ -137,7 +146,7 @@ afterEach( async () => {
 
 describe( 'getNextReview', () => {
   it( 'asks for a learning root first', async () => {
-    setSetting( 'melete_learning_root', null )
+    setSetting( userId, 'melete_learning_root', null )
 
     await expect( getNextReview( { now: at( 0 ) } ) ).rejects.toThrow( ConflictError )
   } )
@@ -314,7 +323,7 @@ describe( 'getNextReview', () => {
   it( 'refuses a subject that is no longer in the learning root', async () => {
     const rust = subjectId( 'Rust' )
 
-    setSetting( 'melete_learning_root', 'Inbox' )
+    setSetting( userId, 'melete_learning_root', 'Inbox' )
     resetScanClock()
 
     await expect( getNextReview( { subjectId: rust, now: at( 0 ) } ) )
@@ -376,12 +385,12 @@ describe( 'gradeAnswer', () => {
     const id = reviewable()
     getDatabase().prepare( 'UPDATE melete_questions SET passage = ? WHERE id = ?' )
       .run( 'The passage.', id )
-    setSetting( 'melete_grading_model', 'claude-sonnet-5-5' )
+    setSetting( userId, 'melete_grading_model', 'claude-sonnet-5-5' )
     grade.mockResolvedValue( { output: graded, usage } )
 
     const response = await gradeAnswer( id, { answer: 'My answer' }, at( 0 ) )
 
-    const { version } = resolveMeletePrompt( 'melete_grading' )
+    const { version } = resolveMeletePrompt( userId, 'melete_grading' )
     const [ run ] = runs()
 
     expect( GradeAnswerResponse.parse( response ) ).toEqual( {
@@ -582,13 +591,13 @@ describe( 'recordReview', () => {
 
   it( 'remembers the mode only when it changes', async () => {
     const id = reviewable()
-    setSetting( 'melete_review_mode', 'typed' )
+    setSetting( userId, 'melete_review_mode', 'typed' )
 
     await recordReview( id, { ...body, mode: 'typed' }, at( 0 ), exact )
-    expect( getSetting( 'melete_review_mode' ) ).toBe( 'typed' )
+    expect( getSetting( userId, 'melete_review_mode' ) ).toBe( 'typed' )
 
     await recordReview( id, { ...body, mode: 'quick' }, at( 1 ), exact )
-    expect( getSetting( 'melete_review_mode' ) ).toBe( 'quick' )
+    expect( getSetting( userId, 'melete_review_mode' ) ).toBe( 'quick' )
   } )
 
   it( 'accepts the grading run for this question', async () => {
@@ -607,7 +616,7 @@ describe( 'recordReview', () => {
     async ( which ) => {
       const id = reviewable()
       const other = reviewable( { position: 2 } )
-      const { version } = resolveMeletePrompt( 'melete_grading' )
+      const { version } = resolveMeletePrompt( userId, 'melete_grading' )
       const run = ( kind: 'grade' | 'generate', questionId: string | null ) => insertRun( {
         kind,
         note_id: null,

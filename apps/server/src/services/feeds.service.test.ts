@@ -28,7 +28,7 @@ import {
 import { findItemsByIds, listInbox } from '../repositories/feedItems.repository.js'
 import { getDatabase } from '../repositories/database.js'
 import { clearJobs } from '../repositories/jobStore.repository.js'
-import { setSetting } from '../repositories/settings.repository.js'
+import { setAppSetting } from '../repositories/appSettings.repository.js'
 // Services
 import {
   checkAllFeeds,
@@ -49,6 +49,14 @@ import { seedCheck } from '../test-support/health.fixture.js'
 // Logging
 import { logger } from '../logger.js'
 import { getLogContext } from '../logContext.js'
+// Test support
+import { defaultTestAdmin } from '../test-support/auth.js'
+
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
 
 vi.mock( './inbox.service.js', async ( importOriginal ) => {
   const original = await importOriginal< typeof import( './inbox.service.js' ) >()
@@ -186,7 +194,7 @@ describe( 'previewFeed', () => {
 describe( 'createFeed', () => {
   it( 'records the first read as a success in health_status', async () => {
     serve( { [ feedUrl ]: { body: rssWith( 2 ) } } )
-    const feed = await createFeed( { url: feedUrl } )
+    const feed = await createFeed( userId, { url: feedUrl } )
 
     expect( getHealth( 'feed', feed.id ) ).toMatchObject( {
       last_checked_at: NOW.toISOString(),
@@ -196,7 +204,7 @@ describe( 'createFeed', () => {
   } )
 
   it( 'stores the feed with its title as the name and the check recorded', async () => {
-    const feed = await createFeed( { url: feedUrl } )
+    const feed = await createFeed( userId, { url: feedUrl } )
 
     expect( feed ).toMatchObject( {
       url: feedUrl,
@@ -225,21 +233,21 @@ describe( 'createFeed', () => {
       [ feedUrl ]: { body: fixture( 'rss-blog.xml' ) },
     } )
 
-    const feed = await createFeed( { url: 'https://blog.example.com/' } )
+    const feed = await createFeed( userId, { url: 'https://blog.example.com/' } )
 
     expect( feed ).toMatchObject( { url: 'https://blog.example.com/', feed_url: feedUrl } )
   } )
 
   it( 'uses the given name, profile and auto_summarize', async () => {
-    const profile = listProfiles()[ 1 ]?.id ?? ''
+    const profile = listProfiles( userId )[ 1 ]?.id ?? ''
 
-    const feed = await createFeed( { url: feedUrl, name: 'Mine', profile_id: profile } )
+    const feed = await createFeed( userId, { url: feedUrl, name: 'Mine', profile_id: profile } )
 
     expect( feed ).toMatchObject( { name: 'Mine', profile_id: profile } )
   } )
 
   it( 'stores the current items as baseline, the newest going to the inbox', async () => {
-    const feed = await createFeed( { url: feedUrl } )
+    const feed = await createFeed( userId, { url: feedUrl } )
 
     expect( statusesOf( feed.id ) ).toEqual( { baseline: 2, inbox: 1 } )
     expect( itemTitles() ).toEqual( [ 'Newest post' ] )
@@ -247,7 +255,7 @@ describe( 'createFeed', () => {
   } )
 
   it( 'keeps full text only for the item in the inbox', async () => {
-    const feed = await createFeed( { url: feedUrl } )
+    const feed = await createFeed( userId, { url: feedUrl } )
     const rows = getDatabase()
       .prepare( 'SELECT status, content_markdown FROM feed_items WHERE feed_id = ?' )
       .all( feed.id ) as { status: string, content_markdown: string | null }[]
@@ -262,28 +270,28 @@ describe( 'createFeed', () => {
     const body = '<rss version="2.0"><channel><title>E</title></channel></rss>'
     serve( { [ feedUrl ]: { body } } )
 
-    const feed = await createFeed( { url: feedUrl } )
+    const feed = await createFeed( userId, { url: feedUrl } )
 
     expect( feed.inbox_count ).toBe( 0 )
     expect( statusesOf( feed.id ) ).toEqual( {} )
   } )
 
   it( 'refuses a second active feed with the same feed URL', async () => {
-    await createFeed( { url: feedUrl } )
+    await createFeed( userId, { url: feedUrl } )
 
-    await expect( createFeed( { url: feedUrl } ) ).rejects.toThrow( ConflictError )
+    await expect( createFeed( userId, { url: feedUrl } ) ).rejects.toThrow( ConflictError )
   } )
 
   it( 'allows the feed again once the first one was deleted', async () => {
-    const first = await createFeed( { url: feedUrl } )
+    const first = await createFeed( userId, { url: feedUrl } )
     deleteFeed( first.id, { removeInboxItems: false } )
 
-    await expect( createFeed( { url: feedUrl } ) )
+    await expect( createFeed( userId, { url: feedUrl } ) )
       .resolves.toMatchObject( { name: 'Example Blog' } )
   } )
 
   it( 'refuses a profile that does not exist, and stores nothing', async () => {
-    await expect( createFeed( { url: feedUrl, profile_id: crypto.randomUUID() } ) )
+    await expect( createFeed( userId, { url: feedUrl, profile_id: crypto.randomUUID() } ) )
       .rejects.toThrow( ValidationError )
     expect( listStoredFeeds() ).toEqual( [] )
   } )
@@ -291,16 +299,16 @@ describe( 'createFeed', () => {
   it( 'stores nothing when the address has no feed or is unreachable', async () => {
     serve( { [ feedUrl ]: { error: new UnreachableError() } } )
 
-    await expect( createFeed( { url: feedUrl } ) ).rejects.toThrow( BadGatewayError )
+    await expect( createFeed( userId, { url: feedUrl } ) ).rejects.toThrow( BadGatewayError )
     expect( listStoredFeeds() ).toEqual( [] )
   } )
 } )
 
 describe( 'listFeeds, updateFeed and deleteFeed', () => {
   it( 'lists active feeds by name with their inbox counts', async () => {
-    const one = await createFeed( { url: feedUrl, name: 'b feed' } )
+    const one = await createFeed( userId, { url: feedUrl, name: 'b feed' } )
     serve( { 'https://two.example/feed': { body: rssWith( 3 ) } } )
-    await createFeed( { url: 'https://two.example/feed', name: 'a feed' } )
+    await createFeed( userId, { url: 'https://two.example/feed', name: 'a feed' } )
 
     expect( listFeeds().map( ( { name, inbox_count } ) => [ name, inbox_count ] ) )
       .toEqual( [ [ 'a feed', 1 ], [ 'b feed', 1 ] ] )
@@ -309,10 +317,10 @@ describe( 'listFeeds, updateFeed and deleteFeed', () => {
   } )
 
   it( 'updates the name, profile, enabled and auto_summarize', async () => {
-    const feed = await createFeed( { url: feedUrl } )
-    const profile = listProfiles()[ 0 ]?.id ?? ''
+    const feed = await createFeed( userId, { url: feedUrl } )
+    const profile = listProfiles( userId )[ 0 ]?.id ?? ''
 
-    const updated = updateFeed( feed.id, {
+    const updated = updateFeed( userId, feed.id, {
       name: 'Renamed',
       profile_id: profile,
       enabled: false,
@@ -325,23 +333,24 @@ describe( 'listFeeds, updateFeed and deleteFeed', () => {
       enabled: false,
       auto_summarize: true,
     } )
-    expect( updateFeed( feed.id, { profile_id: null } ).profile_id ).toBeNull()
+    expect( updateFeed( userId, feed.id, { profile_id: null } ).profile_id ).toBeNull()
   } )
 
   it( 'refuses an unknown profile and an unknown or deleted feed', async () => {
-    const feed = await createFeed( { url: feedUrl } )
+    const feed = await createFeed( userId, { url: feedUrl } )
 
-    expect( () => updateFeed( feed.id, { profile_id: crypto.randomUUID() } ) )
+    expect( () => updateFeed( userId, feed.id, { profile_id: crypto.randomUUID() } ) )
       .toThrow( ValidationError )
-    expect( () => updateFeed( crypto.randomUUID(), { name: 'x' } ) ).toThrow( NotFoundError )
+    expect( () => updateFeed( userId, crypto.randomUUID(), { name: 'x' } ) )
+      .toThrow( NotFoundError )
 
     deleteFeed( feed.id, { removeInboxItems: false } )
 
-    expect( () => updateFeed( feed.id, { name: 'x' } ) ).toThrow( NotFoundError )
+    expect( () => updateFeed( userId, feed.id, { name: 'x' } ) ).toThrow( NotFoundError )
   } )
 
   it( 'soft-deletes a feed and leaves its inbox items when asked to', async () => {
-    const feed = await createFeed( { url: feedUrl } )
+    const feed = await createFeed( userId, { url: feedUrl } )
 
     deleteFeed( feed.id, { removeInboxItems: false } )
 
@@ -350,7 +359,7 @@ describe( 'listFeeds, updateFeed and deleteFeed', () => {
   } )
 
   it( 'dismisses its inbox items when asked to', async () => {
-    const feed = await createFeed( { url: feedUrl } )
+    const feed = await createFeed( userId, { url: feedUrl } )
 
     deleteFeed( feed.id, { removeInboxItems: true } )
 
@@ -367,7 +376,7 @@ describe( 'listFeeds, updateFeed and deleteFeed', () => {
 describe( 'checkFeed', () => {
   const afterBaseline = async ( count = 3 ) => {
     serve( { [ feedUrl ]: { body: rssWith( count ), etag: '"v1"' } } )
-    const feed = await createFeed( { url: feedUrl } )
+    const feed = await createFeed( userId, { url: feedUrl } )
     vi.setSystemTime( new Date( NOW.getTime() + 3_600_000 ) )
 
     return feed
@@ -377,7 +386,7 @@ describe( 'checkFeed', () => {
     const feed = await afterBaseline()
     fetchMock.mockClear()
 
-    await checkFeed( feed.id )
+    await checkFeed( userId, feed.id )
 
     expect( fetchMock ).toHaveBeenCalledWith( feedUrl, expect.objectContaining( {
       etag: '"v1"',
@@ -389,7 +398,7 @@ describe( 'checkFeed', () => {
     const feed = await afterBaseline()
     const before = statusesOf( feed.id )
 
-    const checked = await checkFeed( feed.id )
+    const checked = await checkFeed( userId, feed.id )
 
     expect( checked.last_checked_at ).toBe( new Date( NOW.getTime() + 3_600_000 ).toISOString() )
     expect( checked.last_error ).toBeNull()
@@ -400,7 +409,7 @@ describe( 'checkFeed', () => {
     const feed = await afterBaseline( 3 )
     serve( { [ feedUrl ]: { body: rssWith( 5 ), etag: '"v2"' } } )
 
-    const checked = await checkFeed( feed.id )
+    const checked = await checkFeed( userId, feed.id )
 
     expect( statusesOf( feed.id ) ).toEqual( { baseline: 2, inbox: 3 } )
     expect( checked.inbox_count ).toBe( 3 )
@@ -410,7 +419,7 @@ describe( 'checkFeed', () => {
   it( 'lists the inbox in feed order, newest first, when several arrive together', async () => {
     const feed = await afterBaseline( 3 )
     serve( { [ feedUrl ]: { body: rssWith( 5 ), etag: '"v2"' } } )
-    await checkFeed( feed.id )
+    await checkFeed( userId, feed.id )
 
     expect( itemTitles().slice( 0, 2 ) ).toEqual( [ 'Item 3', 'Item 4' ] )
   } )
@@ -421,7 +430,7 @@ describe( 'checkFeed', () => {
     const reordered = edited.replace( /(<item>.*?<\/item>)(<item>.*?<\/item>)/s, '$2$1' )
     serve( { [ feedUrl ]: { body: reordered, etag: '"v2"' } } )
 
-    await checkFeed( feed.id )
+    await checkFeed( userId, feed.id )
 
     expect( statusesOf( feed.id ) ).toEqual( { baseline: 2, inbox: 1 } )
   } )
@@ -433,7 +442,7 @@ describe( 'checkFeed', () => {
       .run( item?.id )
     serve( { [ feedUrl ]: { body: rssWith( 3 ), etag: '"v2"' } } )
 
-    await checkFeed( feed.id )
+    await checkFeed( userId, feed.id )
 
     expect( findItemsByIds( [ item?.id ?? '' ] )[ 0 ]?.status ).toBe( 'dismissed' )
     expect( listInbox() ).toEqual( [] )
@@ -443,7 +452,7 @@ describe( 'checkFeed', () => {
     const feed = await afterBaseline( 2 )
     serve( { [ feedUrl ]: { body: rssWith( 16 ), etag: '"v2"' } } )
 
-    const checked = await checkFeed( feed.id )
+    const checked = await checkFeed( userId, feed.id )
 
     // The baseline's newest item is already in the inbox, so 11 in all.
     expect( statusesOf( feed.id ) ).toEqual( { baseline: 1, inbox: 11, skipped: 4 } )
@@ -454,10 +463,10 @@ describe( 'checkFeed', () => {
   it( 'resets the skipped count on a check with no overflow', async () => {
     const feed = await afterBaseline( 2 )
     serve( { [ feedUrl ]: { body: rssWith( 16 ), etag: '"v2"' } } )
-    await checkFeed( feed.id )
+    await checkFeed( userId, feed.id )
     serve( { [ feedUrl ]: { body: rssWith( 17 ), etag: '"v3"' } } )
 
-    expect( ( await checkFeed( feed.id ) ).last_skipped_count ).toBe( 0 )
+    expect( ( await checkFeed( userId, feed.id ) ).last_skipped_count ).toBe( 0 )
   } )
 
   it( 'keeps full text only for items that went to the inbox', async () => {
@@ -468,7 +477,7 @@ describe( 'checkFeed', () => {
       .replace( /<\/item>/g, `${ long }</item>` )
     serve( { [ feedUrl ]: { body, etag: '"v2"' } } )
 
-    await checkFeed( feed.id )
+    await checkFeed( userId, feed.id )
 
     const withContent = getDatabase()
       .prepare( `SELECT status, COUNT(*) AS count FROM feed_items
@@ -482,7 +491,7 @@ describe( 'checkFeed', () => {
     const feed = await afterBaseline( 3 )
     serve( { [ feedUrl ]: { error: new HttpStatusError( 500 ) } } )
 
-    const checked = await checkFeed( feed.id )
+    const checked = await checkFeed( userId, feed.id )
 
     expect( checked ).toMatchObject( {
       last_error: 'The site answered 500',
@@ -496,7 +505,7 @@ describe( 'checkFeed', () => {
     const feed = await afterBaseline( 3 )
     serve( { [ feedUrl ]: { error: new HttpStatusError( 500 ) } } )
 
-    await checkFeed( feed.id )
+    await checkFeed( userId, feed.id )
 
     expect( getHealth( 'feed', feed.id ) ).toMatchObject( {
       last_success_at: NOW.toISOString(),
@@ -511,7 +520,7 @@ describe( 'checkFeed', () => {
     const feed = await afterBaseline( 3 )
     serve( { [ feedUrl ]: { body: rssWith( 3 ), etag: '"v2"' } } )
 
-    await checkFeed( feed.id )
+    await checkFeed( userId, feed.id )
 
     expect( getHealth( 'feed', feed.id ) ).toMatchObject( {
       last_checked_at: new Date( NOW.getTime() + 3_600_000 ).toISOString(),
@@ -526,28 +535,29 @@ describe( 'checkFeed', () => {
     const feed = await afterBaseline( 3 )
     serve( { [ feedUrl ]: { body: '<html>moved</html>' } } )
 
-    expect( ( await checkFeed( feed.id ) ).last_error ).toBe( 'No feed found at this address' )
+    expect( ( await checkFeed( userId, feed.id ) ).last_error )
+      .toBe( 'No feed found at this address' )
   } )
 
   it( 'clears the error after a good check', async () => {
     const feed = await afterBaseline( 3 )
     serve( { [ feedUrl ]: { error: new HttpStatusError( 500 ) } } )
-    await checkFeed( feed.id )
+    await checkFeed( userId, feed.id )
     serve( { [ feedUrl ]: { body: rssWith( 3 ), etag: '"v2"' } } )
 
-    expect( ( await checkFeed( feed.id ) ).last_error ).toBeNull()
+    expect( ( await checkFeed( userId, feed.id ) ).last_error ).toBeNull()
   } )
 
   it( 'refuses a feed that is turned off or deleted, and an unknown one', async () => {
     const feed = await afterBaseline()
-    updateFeed( feed.id, { enabled: false } )
+    updateFeed( userId, feed.id, { enabled: false } )
 
-    await expect( checkFeed( feed.id ) ).rejects.toThrow( ConflictError )
+    await expect( checkFeed( userId, feed.id ) ).rejects.toThrow( ConflictError )
 
     deleteFeed( feed.id, { removeInboxItems: false } )
 
-    await expect( checkFeed( feed.id ) ).rejects.toThrow( NotFoundError )
-    await expect( checkFeed( crypto.randomUUID() ) ).rejects.toThrow( NotFoundError )
+    await expect( checkFeed( userId, feed.id ) ).rejects.toThrow( NotFoundError )
+    await expect( checkFeed( userId, crypto.randomUUID() ) ).rejects.toThrow( NotFoundError )
   } )
 } )
 
@@ -588,7 +598,7 @@ describe( 'checkAllFeeds and checkDueFeeds', () => {
     addFeed( 'c', 'https://c.example/f', { enabled: false } )
     addFeed( 'd', 'https://d.example/f', { deleted_at: NOW.toISOString() } )
 
-    const feeds = await checkAllFeeds()
+    const feeds = await checkAllFeeds( userId )
 
     expect( fetchMock ).toHaveBeenCalledTimes( 1 )
     expect( feeds.map( ( { id } ) => id ) ).toEqual( [ 'a' ] )
@@ -612,7 +622,7 @@ describe( 'checkAllFeeds and checkDueFeeds', () => {
   } )
 
   it( 'checks the due feeds one at a time, the least recently checked first', async () => {
-    setSetting( 'feed_check_interval_minutes', 60 )
+    setAppSetting( 'feed_check_interval_minutes', 60 )
     const old = new Date( NOW.getTime() - 3 * 3_600_000 ).toISOString()
     const older = new Date( NOW.getTime() - 5 * 3_600_000 ).toISOString()
     addFeed( 'a', 'https://a.example/f', { last_checked_at: old } )
@@ -629,11 +639,11 @@ describe( 'checkAllFeeds and checkDueFeeds', () => {
     const checked = new Date( NOW.getTime() - 30 * 60_000 ).toISOString()
     addFeed( 'a', 'https://a.example/f', { last_checked_at: checked } )
 
-    setSetting( 'feed_check_interval_minutes', 60 )
+    setAppSetting( 'feed_check_interval_minutes', 60 )
 
     expect( await checkDueFeeds() ).toBe( 0 )
 
-    setSetting( 'feed_check_interval_minutes', 15 )
+    setAppSetting( 'feed_check_interval_minutes', 15 )
 
     expect( await checkDueFeeds() ).toBe( 1 )
   } )
@@ -680,7 +690,7 @@ describe( 'automatic feeds', () => {
   it( 'queues the newest item of a new automatic feed, not the inbox', async () => {
     serve( { [ feedUrl ]: { body: richFeed( 3 ) } } )
 
-    const feed = await createFeed( { url: feedUrl, auto_summarize: true } )
+    const feed = await createFeed( userId, { url: feedUrl, auto_summarize: true } )
 
     expect( feed.inbox_count ).toBe( 0 )
     expect( statusesOf( feed.id ) ).toEqual( { baseline: 2, queued: 1 } )
@@ -695,11 +705,11 @@ describe( 'automatic feeds', () => {
 
   it( 'queues new items on a check, still capped at 10 per check', async () => {
     serve( { [ feedUrl ]: { body: richFeed( 2 ), etag: '"v1"' } } )
-    const feed = await createFeed( { url: feedUrl, auto_summarize: true } )
+    const feed = await createFeed( userId, { url: feedUrl, auto_summarize: true } )
     clearJobs()
     serve( { [ feedUrl ]: { body: richFeed( 16 ), etag: '"v2"' } } )
 
-    const checked = await checkFeed( feed.id )
+    const checked = await checkFeed( userId, feed.id )
 
     expect( checked ).toMatchObject( { inbox_count: 0, last_skipped_count: 4 } )
     expect( statusesOf( feed.id ) ).toEqual( { baseline: 1, queued: 11, skipped: 4 } )
@@ -709,7 +719,7 @@ describe( 'automatic feeds', () => {
   it( 'leaves items in the inbox for a feed that is not automatic', async () => {
     serve( { [ feedUrl ]: { body: richFeed( 3 ) } } )
 
-    await createFeed( { url: feedUrl } )
+    await createFeed( userId, { url: feedUrl } )
 
     expect( listJobs() ).toEqual( [] )
   } )
@@ -719,7 +729,7 @@ describe( 'automatic feeds', () => {
     const errorSpy = vi.spyOn( logger, 'error' ).mockImplementation( () => undefined )
     vi.mocked( queueFeedItem ).mockRejectedValueOnce( new Error( 'boom' ) )
 
-    const feed = await createFeed( { url: feedUrl, auto_summarize: true } )
+    const feed = await createFeed( userId, { url: feedUrl, auto_summarize: true } )
 
     expect( feed.inbox_count ).toBe( 1 )
     expect( errorSpy ).toHaveBeenCalledOnce()

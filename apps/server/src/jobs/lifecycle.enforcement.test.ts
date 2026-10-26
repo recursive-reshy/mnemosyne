@@ -41,6 +41,14 @@ import { formatNote } from '../formatters/note.formatter.js'
 import { assertMove } from './lifecycle.js'
 // Fixtures
 import { transcriptFixture } from '../test-support/transcript.fixture.js'
+// Test support
+import { defaultTestAdmin } from '../test-support/auth.js'
+
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
 
 // The services hold no status checks of their own: a move the lifecycle table refuses is
 // refused, even from the state each function normally accepts (ADR 0048).
@@ -106,7 +114,7 @@ const CASES: Array< [ string, JobStatus, ( id: string ) => unknown, SourceType? 
   [ 'failLinking', 'linking', ( id ) => failLinking( id, 'x' ) ],
   [ 'failSummary', 'summarizing', ( id ) => failSummary( id, 'x' ) ],
   [ 'retrySummary', 'summary_failed', ( id ) => retrySummary( id ) ],
-  [ 'regenerateSummary', 'ready_for_review', ( id ) => regenerateSummary( id, {} ) ],
+  [ 'regenerateSummary', 'ready_for_review', ( id ) => regenerateSummary( userId, id, {} ) ],
   [ 'runLinking', 'ready_for_review', ( id ) => runLinking( id, {} ) ],
   [
     'submitPastedText',

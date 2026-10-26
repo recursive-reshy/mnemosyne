@@ -77,12 +77,15 @@ CREATE TABLE jobs (
 );
 
 CREATE TABLE settings (
-  key TEXT PRIMARY KEY,
-  value TEXT NOT NULL
+  user_id TEXT NOT NULL REFERENCES users ( id ) ON DELETE CASCADE,
+  key TEXT NOT NULL,
+  value TEXT NOT NULL,
+  PRIMARY KEY ( user_id, key )
 );
 
 CREATE TABLE prompt_profiles (
   id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users ( id ) ON DELETE CASCADE,
   name TEXT NOT NULL,
   seed_key TEXT,
   created_at TEXT NOT NULL,
@@ -91,10 +94,11 @@ CREATE TABLE prompt_profiles (
   last_folder TEXT
 );
 CREATE UNIQUE INDEX prompt_profiles_active_name
-  ON prompt_profiles ( purpose, lower( name ) ) WHERE deleted_at IS NULL;
+  ON prompt_profiles ( user_id, purpose, lower( name ) ) WHERE deleted_at IS NULL;
 
 CREATE TABLE prompt_versions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL REFERENCES users ( id ) ON DELETE CASCADE,
   profile_id TEXT NOT NULL REFERENCES prompt_profiles ( id ),
   version INTEGER NOT NULL,
   guidance TEXT NOT NULL,

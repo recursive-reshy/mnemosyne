@@ -45,6 +45,7 @@ import type { StoredGmailSource } from '../repositories/gmailSources.repository.
 import { countPostingsForSource } from '../repositories/postings.repository.js'
 // Services
 import { recordCheck } from './health.service.js'
+import { interimOwnerId } from './interimOwner.js'
 import { queueNewsletterMessage } from './inbox.service.js'
 import { assertActiveProfile } from './prompts.service.js'
 import { getFeedCheckInterval } from './settings.service.js'
@@ -328,6 +329,7 @@ const collectStarting = async (
 // The emails of an automatic newsletter source skip the inbox. One that can't be queued stays
 // there instead. A backfill is never queued, so it costs nothing until it is picked from the inbox.
 const queueAutomatically = async (
+  userId: string,
   source: StoredGmailSource,
   rows: StoredGmailMessage[],
 ): Promise< void > => {
@@ -339,7 +341,7 @@ const queueAutomatically = async (
 
   for( const row of waiting ) {
     try {
-      await queueNewsletterMessage( source, row )
+      await queueNewsletterMessage( userId, source, row )
     } catch( error ) {
       logger.error(
         { err: error, source_name: source.name, subject: row.subject },
@@ -349,7 +351,10 @@ const queueAutomatically = async (
   }
 }
 
-export const createSource = async ( body: CreateGmailSourceBody ): Promise< GmailSource > => {
+export const createSource = async (
+  userId: string,
+  body: CreateGmailSourceBody,
+): Promise< GmailSource > => {
   // Job-alert intake is deferred (ADR 0041); stored jobs sources are still read.
   if( body.destination === 'jobs' ) {
     throw new ValidationError( 'Freelance jobs sources aren\'t available yet' )
@@ -358,7 +363,7 @@ export const createSource = async ( body: CreateGmailSourceBody ): Promise< Gmai
   requireConnectedGmail()
 
   if( body.profile_id !== undefined ) {
-    assertActiveProfile( body.profile_id )
+    assertActiveProfile( userId, body.profile_id )
   }
 
   const now = new Date()
@@ -386,12 +391,13 @@ export const createSource = async ( body: CreateGmailSourceBody ): Promise< Gmai
     rows.forEach( insertMessageIfNew )
   } )
 
-  await queueAutomatically( source, rows )
+  await queueAutomatically( userId, source, rows )
 
   return presentSource( source )
 }
 
 export const updateSource = async (
+  userId: string,
   id: string,
   body: UpdateGmailSourceBody,
 ): Promise< GmailSource > => {
@@ -403,7 +409,7 @@ export const updateSource = async (
   }
 
   if( typeof body.profile_id === 'string' ) {
-    assertActiveProfile( body.profile_id )
+    assertActiveProfile( userId, body.profile_id )
   }
 
   const changes: Partial< Omit< StoredGmailSource, 'id' > > = {}
@@ -493,7 +499,10 @@ const readNewMessages = async (
 }
 
 // Returns the rows this check added, for what follows a check (extraction, task 9.3).
-const runCheck = async ( source: StoredGmailSource ): Promise< StoredGmailMessage[] > => {
+const runCheck = async (
+  userId: string,
+  source: StoredGmailSource,
+): Promise< StoredGmailMessage[] > => {
   const now = new Date()
   const { messages, missingLabelIds, failure } = await readNewMessages( source )
   const newest = [ ...messages ]
@@ -534,12 +543,12 @@ const runCheck = async ( source: StoredGmailSource ): Promise< StoredGmailMessag
     )
   } )
 
-  await queueAutomatically( source, added )
+  await queueAutomatically( userId, source, added )
 
   return added
 }
 
-export const checkSource = async ( id: string ): Promise< GmailSource > => {
+export const checkSource = async ( userId: string, id: string ): Promise< GmailSource > => {
   const source = requireActiveSource( id )
 
   if( !source.enabled ) {
@@ -547,16 +556,16 @@ export const checkSource = async ( id: string ): Promise< GmailSource > => {
   }
 
   requireConnectedGmail()
-  await asConflict( () => runCheck( source ) )
+  await asConflict( () => runCheck( userId, source ) )
 
   return presentSource( requireActiveSource( id ) )
 }
 
-export const checkAllSources = async (): Promise< GmailSource[] > => {
+export const checkAllSources = async ( userId: string ): Promise< GmailSource[] > => {
   requireConnectedGmail()
 
   for( const source of listStoredSources().filter( ( { enabled } ) => enabled ) ) {
-    await asConflict( () => runCheck( source ) )
+    await asConflict( () => runCheck( userId, source ) )
   }
 
   return listGmailSources()
@@ -571,11 +580,12 @@ export const checkDueSources = async (): Promise< number > => {
     new Date().toISOString(),
     getFeedCheckInterval(),
   )
+  const userId = interimOwnerId()
   let checked = 0
 
   for( const source of due ) {
     try {
-      await withLogContext( { gmail_source_id: source.id }, () => runCheck( source ) )
+      await withLogContext( { gmail_source_id: source.id }, () => runCheck( userId, source ) )
       checked += 1
     } catch( error ) {
       if( error instanceof GmailAuthError ) {

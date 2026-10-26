@@ -14,6 +14,7 @@ import { resolveExistingFolder } from '../clients/vault.client.js'
 // Config
 import { config } from '../config.js'
 // Repositories
+import { getAppSetting, setAppSetting } from '../repositories/appSettings.repository.js'
 import { findProfileBySeedKey } from '../repositories/promptProfiles.repository.js'
 import { getSetting, setSetting } from '../repositories/settings.repository.js'
 // Melete
@@ -29,6 +30,7 @@ import { SHIPPED_DEFAULT_MODEL } from '../summarizer/models.js'
 import { LOCKED_INSTRUCTIONS_ARTICLE, LOCKED_INSTRUCTIONS_VIDEO } from '../summarizer/prompts.js'
 // Services
 import { assertKnownModel, listModels } from './models.service.js'
+import { NotFoundError } from '../errors.js'
 import {
   assertActiveProfile,
   resolveLinkerPrompt,
@@ -39,38 +41,38 @@ import { logger } from '../logger.js'
 
 const DEFAULT_FEED_INTERVAL = 60
 
-const storedModel = ( key: string ): string | undefined => {
-  const stored = getSetting( key )
+const storedModel = ( userId: string, key: string ): string | undefined => {
+  const stored = getSetting( userId, key )
 
   return typeof stored === 'string' ? stored : undefined
 }
 
-export const getDefaultModel = (): string => {
-  return storedModel( 'default_model' ) ?? SHIPPED_DEFAULT_MODEL
+export const getDefaultModel = ( userId: string ): string => {
+  return storedModel( userId, 'default_model' ) ?? SHIPPED_DEFAULT_MODEL
 }
 
 export const getFeedCheckInterval = (): FeedCheckInterval => {
-  const interval = FeedCheckInterval.safeParse( getSetting( 'feed_check_interval_minutes' ) )
+  const interval = FeedCheckInterval.safeParse( getAppSetting( 'feed_check_interval_minutes' ) )
 
   return interval.success ? interval.data : DEFAULT_FEED_INTERVAL
 }
 
-export const isLinkingEnabled = (): boolean => {
-  const stored = z.boolean().safeParse( getSetting( 'linking_enabled' ) )
+export const isLinkingEnabled = ( userId: string ): boolean => {
+  const stored = z.boolean().safeParse( getSetting( userId, 'linking_enabled' ) )
 
   return stored.success ? stored.data : true
 }
 
 // The model list comes newest first, so the first Haiku is the newest one (ADR 0047)
-const resolveHaikuModel = async ( key: string ): Promise< string > => {
-  const stored = storedModel( key )
+const resolveHaikuModel = async ( userId: string, key: string ): Promise< string > => {
+  const stored = storedModel( userId, key )
 
   if( stored !== undefined ) {
     return stored
   }
 
   try {
-    const { models } = await listModels()
+    const { models } = await listModels( userId )
 
     return models.find( ( { id } ) => id.includes( 'haiku' ) )?.id ?? SHIPPED_DEFAULT_MODEL
   } catch( error ) {
@@ -80,22 +82,25 @@ const resolveHaikuModel = async ( key: string ): Promise< string > => {
   }
 }
 
-export const resolveLinkingModel = (): Promise< string > => resolveHaikuModel( 'linking_model' )
-
-export const resolveMeleteQuestionModel = (): Promise< string > => {
-  return resolveHaikuModel( 'melete_question_model' )
+export const resolveLinkingModel = ( userId: string ): Promise< string > => {
+  return resolveHaikuModel( userId, 'linking_model' )
 }
 
-export const resolveMeleteGradingModel = (): Promise< string > => {
-  return resolveHaikuModel( 'melete_grading_model' )
+export const resolveMeleteQuestionModel = ( userId: string ): Promise< string > => {
+  return resolveHaikuModel( userId, 'melete_question_model' )
 }
 
-export const getLearningRoot = (): string | null => {
-  return z.string().min( 1 ).nullable().catch( null ).parse( getSetting( 'melete_learning_root' ) )
+export const resolveMeleteGradingModel = ( userId: string ): Promise< string > => {
+  return resolveHaikuModel( userId, 'melete_grading_model' )
 }
 
-const meleteProfileId = ( seedKey: string ): string => {
-  const record = findProfileBySeedKey( seedKey )
+export const getLearningRoot = ( userId: string ): string | null => {
+  return z.string().min( 1 ).nullable().catch( null )
+    .parse( getSetting( userId, 'melete_learning_root' ) )
+}
+
+const meleteProfileId = ( userId: string, seedKey: string ): string => {
+  const record = findProfileBySeedKey( userId, seedKey )
 
   if( record === undefined ) {
     throw new Error( `The ${ seedKey } prompt profile is missing` )
@@ -104,22 +109,22 @@ const meleteProfileId = ( seedKey: string ): string => {
   return record.id
 }
 
-export const getSettings = async (): Promise< Settings > => {
+export const getSettings = async ( userId: string ): Promise< Settings > => {
   return {
-    default_model: getDefaultModel(),
-    extraction_model: storedModel( 'extraction_model' ) ?? SHIPPED_DEFAULT_MODEL,
-    default_profile_id: resolvePrompt( null ).profile.id,
+    default_model: getDefaultModel( userId ),
+    extraction_model: storedModel( userId, 'extraction_model' ) ?? SHIPPED_DEFAULT_MODEL,
+    default_profile_id: resolvePrompt( userId, null ).profile.id,
     feed_check_interval_minutes: getFeedCheckInterval(),
-    linking_enabled: isLinkingEnabled(),
-    linking_model: await resolveLinkingModel(),
-    linker_profile_id: resolveLinkerPrompt().profile.id,
-    melete_learning_root: getLearningRoot(),
-    melete_question_model: await resolveMeleteQuestionModel(),
-    melete_grading_model: await resolveMeleteGradingModel(),
+    linking_enabled: isLinkingEnabled( userId ),
+    linking_model: await resolveLinkingModel( userId ),
+    linker_profile_id: resolveLinkerPrompt( userId ).profile.id,
+    melete_learning_root: getLearningRoot( userId ),
+    melete_question_model: await resolveMeleteQuestionModel( userId ),
+    melete_grading_model: await resolveMeleteGradingModel( userId ),
     melete_review_mode: MeleteReviewMode.catch( 'typed' )
-      .parse( getSetting( 'melete_review_mode' ) ),
-    melete_question_profile_id: meleteProfileId( MELETE_QUESTIONS_SEED_KEY ),
-    melete_grading_profile_id: meleteProfileId( MELETE_GRADING_SEED_KEY ),
+      .parse( getSetting( userId, 'melete_review_mode' ) ),
+    melete_question_profile_id: meleteProfileId( userId, MELETE_QUESTIONS_SEED_KEY ),
+    melete_grading_profile_id: meleteProfileId( userId, MELETE_GRADING_SEED_KEY ),
   }
 }
 
@@ -153,37 +158,46 @@ const agentSection = async (): Promise<
 }
 
 // A down or misbehaving agent never fails the settings request
-export const getSettingsResponse = async (): Promise< GetSettingsResponse > => {
+export const getSettingsResponse = async ( userId: string ): Promise< GetSettingsResponse > => {
   return {
-    settings: await getSettings(),
+    settings: await getSettings( userId ),
     locked_instructions: getLockedInstructions(),
     ...await agentSection(),
   }
 }
 
-export const updateSettings = async ( body: UpdateSettingsBody ): Promise< Settings > => {
+// The feed interval is the app's, not a user's: only the admin may set it (ADR 0065)
+export const updateSettings = async (
+  userId: string,
+  isAdmin: boolean,
+  body: UpdateSettingsBody,
+): Promise< Settings > => {
+  if( body.feed_check_interval_minutes !== undefined && !isAdmin ) {
+    throw new NotFoundError( 'Not Found' )
+  }
+
   if( body.default_model !== undefined ) {
-    await assertKnownModel( body.default_model )
+    await assertKnownModel( userId, body.default_model )
   }
 
   if( body.extraction_model !== undefined ) {
-    await assertKnownModel( body.extraction_model )
+    await assertKnownModel( userId, body.extraction_model )
   }
 
   if( body.linking_model !== undefined ) {
-    await assertKnownModel( body.linking_model )
+    await assertKnownModel( userId, body.linking_model )
   }
 
   if( body.melete_question_model !== undefined ) {
-    await assertKnownModel( body.melete_question_model )
+    await assertKnownModel( userId, body.melete_question_model )
   }
 
   if( body.melete_grading_model !== undefined ) {
-    await assertKnownModel( body.melete_grading_model )
+    await assertKnownModel( userId, body.melete_grading_model )
   }
 
   if( body.default_profile_id !== undefined ) {
-    assertActiveProfile( body.default_profile_id )
+    assertActiveProfile( userId, body.default_profile_id )
   }
 
   if( typeof body.melete_learning_root === 'string' ) {
@@ -191,45 +205,45 @@ export const updateSettings = async ( body: UpdateSettingsBody ): Promise< Setti
   }
 
   if( body.default_model !== undefined ) {
-    setSetting( 'default_model', body.default_model )
+    setSetting( userId, 'default_model', body.default_model )
   }
 
   if( body.extraction_model !== undefined ) {
-    setSetting( 'extraction_model', body.extraction_model )
+    setSetting( userId, 'extraction_model', body.extraction_model )
   }
 
   if( body.linking_model !== undefined ) {
-    setSetting( 'linking_model', body.linking_model )
+    setSetting( userId, 'linking_model', body.linking_model )
   }
 
   if( body.linking_enabled !== undefined ) {
-    setSetting( 'linking_enabled', body.linking_enabled )
+    setSetting( userId, 'linking_enabled', body.linking_enabled )
   }
 
   if( body.default_profile_id !== undefined ) {
-    setSetting( 'default_profile_id', body.default_profile_id )
+    setSetting( userId, 'default_profile_id', body.default_profile_id )
   }
 
   if( body.feed_check_interval_minutes !== undefined ) {
-    setSetting( 'feed_check_interval_minutes', body.feed_check_interval_minutes )
+    setAppSetting( 'feed_check_interval_minutes', body.feed_check_interval_minutes )
   }
 
   if( body.melete_question_model !== undefined ) {
-    setSetting( 'melete_question_model', body.melete_question_model )
+    setSetting( userId, 'melete_question_model', body.melete_question_model )
   }
 
   if( body.melete_grading_model !== undefined ) {
-    setSetting( 'melete_grading_model', body.melete_grading_model )
+    setSetting( userId, 'melete_grading_model', body.melete_grading_model )
   }
 
   if( body.melete_review_mode !== undefined ) {
-    setSetting( 'melete_review_mode', body.melete_review_mode )
+    setSetting( userId, 'melete_review_mode', body.melete_review_mode )
   }
 
   if( body.melete_learning_root !== undefined ) {
-    setSetting( 'melete_learning_root', body.melete_learning_root )
+    setSetting( userId, 'melete_learning_root', body.melete_learning_root )
     resetScanClock()
   }
 
-  return getSettings()
+  return getSettings( userId )
 }

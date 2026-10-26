@@ -11,6 +11,8 @@ import { getDefaultModel } from '../services/settings.service.js'
 // Clients
 import { SummaryError, summarizeSource } from '../clients/claude.client.js'
 import type { SummaryOutcome } from '../clients/claude.client.js'
+// Services
+import { interimOwnerId } from '../services/interimOwner.js'
 // Formatters
 import { cleanSummary } from '../formatters/summary.cleanup.js'
 import { formatSummary } from '../formatters/summary.formatter.js'
@@ -19,8 +21,9 @@ export const summarizeJob = async ( jobId: string ): Promise< void > => {
   try {
     const job = findJob( jobId )
     const document = getSource( jobId )
-    const { version } = resolvePrompt( job.prompt_profile_id )
-    const model = job.summary_model ?? getDefaultModel()
+    const userId = interimOwnerId()
+    const { version } = resolvePrompt( userId, job.prompt_profile_id )
+    const model = job.summary_model ?? getDefaultModel( userId )
     const promptVersionId = version.id
 
     let outcome: SummaryOutcome

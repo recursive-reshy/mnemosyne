@@ -29,6 +29,7 @@ const addUser = ( id: string, role: 'admin' | 'member' = 'member' ): string => {
 }
 
 type ProfileRow = {
+  user_id: string
   name: string
   seed_key: string
   purpose: string
@@ -37,28 +38,28 @@ type ProfileRow = {
   source: string
 }
 
-const profiles = (): ProfileRow[] => {
-  return getDatabase().prepare( `SELECT
-      p.name, p.seed_key, p.purpose, v.guidance, v.version, v.source
+const profiles = ( userId?: string ): ProfileRow[] => {
+  const rows = getDatabase().prepare( `SELECT
+      p.user_id, p.name, p.seed_key, p.purpose, v.guidance, v.version, v.source
     FROM prompt_profiles p JOIN prompt_versions v ON v.profile_id = p.id
     ORDER BY p.rowid` ).all() as ProfileRow[]
+
+  return userId === undefined ? rows : rows.filter( ( row ) => row.user_id === userId )
 }
 
-// The test setup seeds a throwaway user (see database.setup.ts); start these tests from nothing.
-const clearSeeded = (): void => {
-  getDatabase().exec( `DELETE FROM prompt_versions; DELETE FROM prompt_profiles;
-    DELETE FROM settings;` )
+const settingsOf = ( userId: string ): unknown[] => {
+  return getDatabase().prepare( 'SELECT key, value FROM settings WHERE user_id = ?' ).all( userId )
 }
 
 describe( 'seedUser', () => {
-  it( 'creates each seeded profile once, at version 1', () => {
-    clearSeeded()
+  it( 'creates each seeded profile once, at version 1, owned by the user', () => {
     seedUser( addUser( 'a' ), NOW )
 
-    const rows = profiles()
+    const rows = profiles( 'a' )
 
     for( const seeded of SEEDED_PROFILES ) {
       expect( rows.filter( ( { seed_key } ) => seed_key === seeded.seedKey ) ).toEqual( [ {
+        user_id: 'a',
         name: seeded.name,
         seed_key: seeded.seedKey,
         purpose: 'summary',
@@ -87,20 +88,18 @@ describe( 'seedUser', () => {
   } )
 
   it( 'makes Business ideas the default profile and sets nothing else', () => {
-    clearSeeded()
     seedUser( addUser( 'a' ), NOW )
 
     const business = getDatabase()
-      .prepare( "SELECT id FROM prompt_profiles WHERE seed_key = 'business'" )
+      .prepare( "SELECT id FROM prompt_profiles WHERE seed_key = 'business' AND user_id = 'a'" )
       .get() as { id: string }
 
-    expect( getDatabase().prepare( 'SELECT key, value FROM settings' ).all() ).toEqual( [
+    expect( settingsOf( 'a' ) ).toEqual( [
       { key: 'default_profile_id', value: JSON.stringify( business.id ) },
     ] )
   } )
 
   it( 'stamps the profiles with the time it is given and uuid ids', () => {
-    clearSeeded()
     seedUser( addUser( 'a' ), NOW )
 
     const row = getDatabase().prepare( 'SELECT id, created_at FROM prompt_profiles LIMIT 1' )
@@ -110,36 +109,46 @@ describe( 'seedUser', () => {
     expect( row.created_at ).toBe( NOW )
   } )
 
-  it( 'adds nothing a second time or for a second user, until profiles have owners', () => {
-    clearSeeded()
+  it( 'gives a second user their own profiles and default, leaving the first alone', () => {
     seedUser( addUser( 'a' ), NOW )
 
-    const before = profiles()
+    const before = profiles( 'a' )
+    const settingsBefore = settingsOf( 'a' )
 
-    seedUser( 'a', NOW )
     seedUser( addUser( 'b' ), NOW )
 
-    expect( profiles() ).toEqual( before )
+    expect( profiles( 'a' ) ).toEqual( before )
+    expect( settingsOf( 'a' ) ).toEqual( settingsBefore )
+    expect( profiles( 'b' ) ).toHaveLength( before.length )
+    expect( settingsOf( 'b' ) ).not.toEqual( settingsBefore )
+  } )
+
+  it( 'adds nothing when run again for the same user', () => {
+    seedUser( addUser( 'a' ), NOW )
+
+    const before = profiles( 'a' )
+
+    seedUser( 'a', NOW )
+
+    expect( profiles( 'a' ) ).toEqual( before )
   } )
 
   it( 'does not overwrite a changed default_profile_id', () => {
-    clearSeeded()
     seedUser( addUser( 'a' ), NOW )
     getDatabase().prepare( `UPDATE settings SET value = '"other"'
-      WHERE key = 'default_profile_id'` ).run()
+      WHERE key = 'default_profile_id' AND user_id = 'a'` ).run()
 
-    seedUser( addUser( 'b' ), NOW )
+    seedUser( 'a', NOW )
 
-    expect( getDatabase().prepare( `SELECT value FROM settings
-      WHERE key = 'default_profile_id'` ).get() ).toEqual( { value: '"other"' } )
+    expect( settingsOf( 'a' ) ).toEqual( [ { key: 'default_profile_id', value: '"other"' } ] )
   } )
 
   it( 'suffixes a seeded name that a user profile already holds', () => {
-    clearSeeded()
-    getDatabase().prepare( `INSERT INTO prompt_profiles ( id, name, created_at )
-      VALUES ( 'mine', 'Study', 'now' )` ).run()
+    addUser( 'a' )
+    getDatabase().prepare( `INSERT INTO prompt_profiles ( id, user_id, name, created_at )
+      VALUES ( 'mine', 'a', 'Study', 'now' )` ).run()
 
-    seedUser( addUser( 'a' ), NOW )
+    seedUser( 'a', NOW )
 
     expect( getDatabase().prepare( "SELECT name FROM prompt_profiles WHERE seed_key = 'study'" )
       .all() ).toEqual( [ { name: 'Study (seeded)' } ] )
@@ -147,33 +156,30 @@ describe( 'seedUser', () => {
       .toEqual( { name: 'Study' } )
   } )
 
-  it( 'skips a profile whose seed key already exists, even if renamed', () => {
-    clearSeeded()
-    getDatabase().prepare( `INSERT INTO prompt_profiles ( id, name, seed_key, created_at )
-      VALUES ( 'mine', 'Renamed', 'study', 'now' )` ).run()
+  it( 'skips a profile whose seed key the user already has, even if renamed', () => {
+    addUser( 'a' )
+    getDatabase().prepare( `INSERT INTO prompt_profiles ( id, user_id, name, seed_key, created_at )
+      VALUES ( 'mine', 'a', 'Renamed', 'study', 'now' )` ).run()
 
-    seedUser( addUser( 'a' ), NOW )
+    seedUser( 'a', NOW )
 
     expect( getDatabase().prepare( `SELECT COUNT(*) AS count FROM prompt_profiles
       WHERE seed_key = 'study'` ).get() ).toEqual( { count: 1 } )
   } )
 
   it( 'writes nothing when it fails part-way', () => {
-    clearSeeded()
+    addUser( 'a' )
     getDatabase().exec( `CREATE TRIGGER fail_linker BEFORE INSERT ON prompt_profiles
       WHEN NEW.seed_key = 'linker' BEGIN SELECT RAISE( ABORT, 'boom' ); END;` )
 
-    expect( () => seedUser( addUser( 'a' ), NOW ) ).toThrow( 'boom' )
+    expect( () => seedUser( 'a', NOW ) ).toThrow( 'boom' )
     expect( profiles() ).toEqual( [] )
-    expect( getDatabase().prepare( 'SELECT COUNT(*) AS count FROM settings' ).get() )
-      .toEqual( { count: 0 } )
+    expect( settingsOf( 'a' ) ).toEqual( [] )
   } )
 } )
 
 describe( 'seedUser for an unknown user', () => {
   it( 'throws not found and seeds nothing', () => {
-    clearSeeded()
-
     expect( () => seedUser( 'ghost', NOW ) ).toThrow( 'User not found' )
     expect( profiles() ).toEqual( [] )
   } )

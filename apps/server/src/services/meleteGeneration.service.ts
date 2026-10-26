@@ -21,6 +21,7 @@ import { findSubject } from '../repositories/meleteSubjects.repository.js'
 import { scanLearningRoot } from './meleteScan.service.js'
 import { resolveMeletePrompt } from './prompts.service.js'
 import { resolveMeleteQuestionModel } from './settings.service.js'
+import { interimOwnerId } from './interimOwner.js'
 // Logging
 import { logger } from '../logger.js'
 
@@ -123,8 +124,9 @@ export const generateForNote = async ( noteId: string, now = new Date() ): Promi
       return
     }
 
-    const model = await resolveMeleteQuestionModel()
-    const { version } = resolveMeletePrompt( 'melete_questions' )
+    const userId = interimOwnerId()
+    const model = await resolveMeleteQuestionModel( userId )
+    const { version } = resolveMeletePrompt( userId, 'melete_questions' )
     const run = { noteId, model, promptVersionId: version.id, now }
 
     if( current.body.length > MAX_BODY_CHARACTERS ) {

@@ -29,6 +29,14 @@ import { getDatabase } from '../repositories/database.js'
 // Services
 import { clearModelCache } from '../services/models.service.js'
 import { listProfiles } from '../services/prompts.service.js'
+// Test support
+import { defaultTestAdmin } from '../test-support/auth.js'
+
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
 
 vi.mock( '../clients/anthropicModels.client.js' )
 vi.mock( '../clients/http.client.js', async ( importOriginal ) => ( {
@@ -135,7 +143,7 @@ describe( 'POST /api/feeds', () => {
   } )
 
   it( 'takes a name, a profile and auto_summarize', async () => {
-    const profile = listProfiles()[ 0 ]?.id ?? ''
+    const profile = listProfiles( userId )[ 0 ]?.id ?? ''
 
     const response = await request( app )
       .post( '/api/feeds' )

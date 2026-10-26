@@ -45,8 +45,16 @@ import {
   MeleteVault,
   createMeleteVault,
 } from '../test-support/meleteVault.fixture.js'
+// Test support
+import { defaultTestAdmin } from '../test-support/auth.js'
 
-const configMock = vi.hoisted( () => ( { logLevel: 'silent', vaultPath: '' } ) )
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
+
+const configMock = vi.hoisted( () => ( { logLevel: 'silent', sessionDays: 30, vaultPath: '' } ) )
 
 vi.mock( '../config.js', () => ( { config: configMock } ) )
 vi.mock( '../clients/claude.client.js' )
@@ -112,8 +120,8 @@ const snapshot = async ( root: string ): Promise< string[] > => {
 beforeEach( async () => {
   vault = await createMeleteVault()
   configMock.vaultPath = vault.vaultPath
-  setSetting( 'melete_learning_root', 'Learning' )
-  setSetting( 'melete_question_model', 'claude-sonnet-5-5' )
+  setSetting( userId, 'melete_learning_root', 'Learning' )
+  setSetting( userId, 'melete_question_model', 'claude-sonnet-5-5' )
   resetScanClock()
   generate.mockReset()
   generate.mockResolvedValue( reply() )
@@ -149,7 +157,7 @@ describe( 'generateForNote', () => {
 
     await generateForNote( id, T0 )
 
-    const { version } = resolveMeletePrompt( 'melete_questions' )
+    const { version } = resolveMeletePrompt( userId, 'melete_questions' )
 
     expect( generate ).toHaveBeenCalledWith( {
       model: 'claude-sonnet-5-5',
@@ -168,7 +176,7 @@ describe( 'generateForNote', () => {
     await generateForNote( id, T0 )
 
     const [ run ] = runs() as { id: number }[]
-    const { version } = resolveMeletePrompt( 'melete_questions' )
+    const { version } = resolveMeletePrompt( userId, 'melete_questions' )
 
     expect( runs() ).toHaveLength( 1 )
     expect( findRun( run?.id ?? 0 ) ).toMatchObject( {
@@ -199,10 +207,10 @@ describe( 'generateForNote', () => {
   it( 'follows the edited question prompt', async () => {
     const id = await claimed()
 
-    const { profile } = resolveMeletePrompt( 'melete_questions' )
+    const { profile } = resolveMeletePrompt( userId, 'melete_questions' )
     const { saveVersion } = await import( './prompts.service.js' )
 
-    saveVersion( profile.id, 'Ask about edge cases.' )
+    saveVersion( userId, profile.id, 'Ask about edge cases.' )
     await generateForNote( id, T0 )
 
     expect( generate.mock.calls[ 0 ]?.[ 0 ].system )

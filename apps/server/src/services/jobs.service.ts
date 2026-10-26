@@ -78,6 +78,7 @@ import { STATES, assertMove as assertTableMove } from '../jobs/lifecycle.js'
 import { assertKnownModel } from './models.service.js'
 import { assertActiveProfile } from './prompts.service.js'
 import { isLinkingEnabled } from './settings.service.js'
+import { interimOwnerId } from './interimOwner.js'
 // Logging
 import { logger } from '../logger.js'
 
@@ -102,6 +103,7 @@ const expiryFromNow = (): string => {
   return new Date( Date.now() + config.reviewTtlHours * HOUR_MS ).toISOString()
 }
 
+// Until 4.2 gives jobs an owner, the profiles behind a job are looked up as the interim owner's
 const toSummaryUsage = ( jobId: string ): SummaryUsage | null => {
   const runs = listRunsForJob( jobId )
   const last = runs.at( -1 )
@@ -110,8 +112,9 @@ const toSummaryUsage = ( jobId: string ): SummaryUsage | null => {
     return null
   }
 
-  const version = findVersionById( last.prompt_version_id )
-  const profile = version === undefined ? undefined : findProfileById( version.profile_id )
+  const userId = interimOwnerId()
+  const version = findVersionById( userId, last.prompt_version_id )
+  const profile = version === undefined ? undefined : findProfileById( userId, version.profile_id )
 
   if( version === undefined || profile === undefined ) {
     throw new Error( `Summary run for job ${ jobId } points at a missing prompt version` )
@@ -146,7 +149,7 @@ const toSummaryUsage = ( jobId: string ): SummaryUsage | null => {
 export const defaultFolderFor = ( job: { prompt_profile_id: string | null } ): string => {
   const lastFolder = job.prompt_profile_id === null
     ? null
-    : findProfileById( job.prompt_profile_id )?.last_folder ?? null
+    : findProfileById( interimOwnerId(), job.prompt_profile_id )?.last_folder ?? null
 
   if( lastFolder !== null && existingFolderSync( config.vaultPath, lastFolder ) ) {
     return lastFolder
@@ -255,24 +258,28 @@ const assertFrom = ( job: StoredJob, from: JobStatus, to: JobStatus ): void => {
 
 type SummaryChoices = { model?: string | undefined, profile_id?: string | undefined }
 
-const validateChoices = async ( { model, profile_id }: SummaryChoices ): Promise< void > => {
+const validateChoices = async (
+  userId: string,
+  { model, profile_id }: SummaryChoices,
+): Promise< void > => {
   if( model !== undefined ) {
-    await assertKnownModel( model )
+    await assertKnownModel( userId, model )
   }
 
   if( profile_id !== undefined ) {
-    assertActiveProfile( profile_id )
+    assertActiveProfile( userId, profile_id )
   }
 }
 
 export const queueJob = async (
+  userId: string,
   body: CreateJobBody,
   extra: { feed_id?: string, gmail_source_id?: string, document?: ArticleSource } = {},
 ): Promise< Job > => {
   const { url, text, title } = body
   const sourceType = body.source_type ?? detectSourceType( url )
 
-  await validateChoices( body )
+  await validateChoices( userId, body )
 
   if( ( text !== undefined || extra.document !== undefined ) && sourceType !== 'article' ) {
     throw new ValidationError( 'Pasted text is only for articles' )
@@ -363,7 +370,7 @@ export const completeSummary = (
 
   const document = getSource( id )
 
-  const linking = config.agent !== null && isLinkingEnabled()
+  const linking = config.agent !== null && isLinkingEnabled( interimOwnerId() )
 
   return moveTo( job, linking ? 'linking' : 'ready_for_review', {
     note_markdown: formatNote( {
@@ -471,6 +478,7 @@ export const retrySummary = ( id: string ): Job => {
 }
 
 export const regenerateSummary = async (
+  userId: string,
   id: string,
   choices: SummaryChoices,
 ): Promise< Job > => {
@@ -478,7 +486,7 @@ export const regenerateSummary = async (
 
   assertFrom( job, 'ready_for_review', 'summarizing' )
 
-  await validateChoices( choices )
+  await validateChoices( userId, choices )
 
   supersedePending( id )
 
@@ -721,7 +729,7 @@ export const saveJob = async ( id: string ): Promise< string > => {
   )
 
   if( job.prompt_profile_id !== null ) {
-    setLastFolder( job.prompt_profile_id, folder )
+    setLastFolder( interimOwnerId(), job.prompt_profile_id, folder )
   }
 
   moveTo( job, 'saved', {
