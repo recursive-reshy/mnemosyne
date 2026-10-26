@@ -130,6 +130,12 @@ export const setVaultDir = ( id: string, vaultDir: string ): VaultResult => {
   }
 }
 
+export const listClaimedVaultDirs = (): string[] => {
+  return getDatabase().prepare( 'SELECT vault_dir FROM users WHERE vault_dir IS NOT NULL' )
+    .all()
+    .map( ( row ) => z.object( { vault_dir: z.string() } ).parse( row ).vault_dir )
+}
+
 export const clearVaultDir = ( id: string ): boolean => {
   return getDatabase().prepare( 'UPDATE users SET vault_dir = NULL WHERE id = ?' )
     .run( id ).changes > 0

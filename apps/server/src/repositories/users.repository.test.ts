@@ -9,6 +9,7 @@ import {
   findUserByEmail,
   findUserById,
   insertUser,
+  listClaimedVaultDirs,
   listUsers,
   setVaultDir,
   touchSignIn,
@@ -104,6 +105,23 @@ describe( 'bindGoogleSub', () => {
 
     expect( bindGoogleSub( second.id, 'sub-1' ) ).toEqual( { ok: false, reason: 'sub_taken' } )
     expect( findUserById( second.id )?.google_sub ).toBeNull()
+  } )
+} )
+
+describe( 'listClaimedVaultDirs', () => {
+  it( 'lists every vault folder someone holds, and nothing for users without one', () => {
+    const first = buildUser( { email: 'a@x.test' } )
+    const second = buildUser( { email: 'b@x.test' } )
+    const third = buildUser( { email: 'c@x.test' } )
+
+    insertUser( first )
+    insertUser( second )
+    insertUser( third )
+    setVaultDir( first.id, 'naresh' )
+    setVaultDir( second.id, 'brother' )
+    clearVaultDir( second.id )
+
+    expect( listClaimedVaultDirs() ).toEqual( [ 'naresh' ] )
   } )
 } )
 
