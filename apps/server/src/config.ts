@@ -163,11 +163,10 @@ const EnvSchema = z
     cleanupIntervalMinutes: env.CLEANUP_INTERVAL_MINUTES,
     statusCheckIntervalMinutes: env.STATUS_CHECK_INTERVAL_MINUTES,
     logLevel: env.LOG_LEVEL,
-    // The callback is derived per origin from 4.3 on; until then Gmail keeps its localhost callback
+    // The OAuth callback is derived from the request's origin (TRD §4.2), not configured
     gmail: {
       clientId: env.GOOGLE_CLIENT_ID,
       clientSecret: env.GOOGLE_CLIENT_SECRET,
-      redirectUri: `http://localhost:${ env.PORT }/api/gmail/oauth/callback`,
       encryptionKey: env.TOKEN_ENCRYPTION_KEY,
     },
     agent: env.AGENT_SECRET === undefined

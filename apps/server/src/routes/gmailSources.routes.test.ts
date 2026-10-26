@@ -35,6 +35,14 @@ import {
   connectGmail,
   idsOf,
 } from '../test-support/gmailSources.fixture.js'
+// Test support
+import { defaultTestAdmin } from '../test-support/auth.js'
+
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
 
 vi.mock( '../gmail/gmail.client.js' )
 
@@ -64,21 +72,24 @@ const inboxCount = (): number => {
 
 beforeEach( () => {
   vi.resetAllMocks()
-  connectGmail()
+  connectGmail( userId )
   configMock.gmail = { clientId: 'id' }
   vi.mocked( listLabels ).mockResolvedValue( [ { id: 'Label_1', name: 'Upwork', type: 'user' } ] )
   vi.mocked( listMatchingIds ).mockResolvedValue( idsOf() )
   vi.mocked( countMatches ).mockResolvedValue( { ...idsOf(), count: 0, capped: false } )
-  vi.mocked( getMessage ).mockImplementation( ( id, format = 'full' ) => {
+  vi.mocked( getMessage ).mockImplementation( ( _userId, id, format = 'full' ) => {
     return Promise.resolve( buildMessage( id, {}, format ) )
   } )
 } )
 
 describe( 'GET /api/gmail/sources', () => {
   it( 'lists the sources by name', async () => {
-    addStoredSource( { name: 'Beta' } )
-    addStoredSource( { name: 'Alpha', match: { kind: 'labels', label_ids: [ 'Label_1' ] } } )
-    addStoredSource( { name: 'Gone', deleted_at: '2026-10-19T10:00:00.000Z' } )
+    addStoredSource( userId, { name: 'Beta' } )
+    addStoredSource(
+      userId,
+      { name: 'Alpha', match: { kind: 'labels', label_ids: [ 'Label_1' ] } },
+    )
+    addStoredSource( userId, { name: 'Gone', deleted_at: '2026-10-19T10:00:00.000Z' } )
 
     const response = await request( app ).get( '/api/gmail/sources' )
 
@@ -91,8 +102,8 @@ describe( 'GET /api/gmail/sources', () => {
   } )
 
   it( 'answers while Gmail is not connected', async () => {
-    addStoredSource()
-    setAccountStatus( 'reconnect_needed', 'revoked' )
+    addStoredSource( userId )
+    setAccountStatus( userId, 'reconnect_needed', 'revoked' )
 
     const response = await request( app ).get( '/api/gmail/sources' )
 
@@ -112,7 +123,7 @@ describe( 'GET /api/gmail/sources', () => {
 
 describe( 'POST /api/gmail/sources/preview', () => {
   it( 'returns the count, the newest email and the overlaps', async () => {
-    const other = addStoredSource( { name: 'Same search', match: queryBody as never } )
+    const other = addStoredSource( userId, { name: 'Same search', match: queryBody as never } )
 
     vi.mocked( countMatches ).mockResolvedValue( { ...idsOf( 'm1' ), count: 1, capped: false } )
 
@@ -140,7 +151,7 @@ describe( 'POST /api/gmail/sources/preview', () => {
   } )
 
   it( 'answers 409 while Gmail is not connected', async () => {
-    setAccountStatus( 'reconnect_needed', 'revoked' )
+    setAccountStatus( userId, 'reconnect_needed', 'revoked' )
 
     const response = await request( app )
       .post( '/api/gmail/sources/preview' )
@@ -178,7 +189,7 @@ describe( 'POST /api/gmail/sources', () => {
       label_names: [ 'Upwork' ],
       enabled: true,
     } )
-    expect( findSourceById( source.id ) ).toBeDefined()
+    expect( findSourceById( userId, source.id ) ).toBeDefined()
   } )
 
   it( 'refuses a jobs source with 400, collecting and storing nothing', async () => {
@@ -245,7 +256,7 @@ describe( 'POST /api/gmail/sources', () => {
   } )
 
   it( 'answers 409 while Gmail is not connected', async () => {
-    setAccountStatus( 'reconnect_needed', 'revoked' )
+    setAccountStatus( userId, 'reconnect_needed', 'revoked' )
 
     const response = await request( app )
       .post( '/api/gmail/sources' )
@@ -268,7 +279,7 @@ describe( 'POST /api/gmail/sources', () => {
 
 describe( 'PATCH /api/gmail/sources/:id', () => {
   it( 'changes the given fields', async () => {
-    const source = addStoredSource( { name: 'Old' } )
+    const source = addStoredSource( userId, { name: 'Old' } )
 
     const response = await request( app )
       .patch( `/api/gmail/sources/${ source.id }` )
@@ -282,9 +293,9 @@ describe( 'PATCH /api/gmail/sources/:id', () => {
   } )
 
   it( 'works while Gmail is not connected', async () => {
-    const source = addStoredSource()
+    const source = addStoredSource( userId )
 
-    setAccountStatus( 'reconnect_needed', 'revoked' )
+    setAccountStatus( userId, 'reconnect_needed', 'revoked' )
 
     const response = await request( app )
       .patch( `/api/gmail/sources/${ source.id }` )
@@ -298,7 +309,7 @@ describe( 'PATCH /api/gmail/sources/:id', () => {
     [ 'a blank name', { name: ' ' } ],
     [ 'an unknown field only', { destination: 'newsletter' } ],
   ] )( 'refuses %s with 400', async ( _name, body ) => {
-    const source = addStoredSource()
+    const source = addStoredSource( userId )
 
     const response = await request( app ).patch( `/api/gmail/sources/${ source.id }` ).send( body )
 
@@ -306,7 +317,7 @@ describe( 'PATCH /api/gmail/sources/:id', () => {
   } )
 
   it( 'refuses newsletter-only fields on a jobs source with 400', async () => {
-    const source = addStoredSource()
+    const source = addStoredSource( userId )
 
     const response = await request( app )
       .patch( `/api/gmail/sources/${ source.id }` )
@@ -316,7 +327,7 @@ describe( 'PATCH /api/gmail/sources/:id', () => {
   } )
 
   it( 'answers 404 for an unknown or deleted source', async () => {
-    const gone = addStoredSource( { deleted_at: '2026-10-19T10:00:00.000Z' } )
+    const gone = addStoredSource( userId, { deleted_at: '2026-10-19T10:00:00.000Z' } )
 
     for( const id of [ unknownId, gone.id ] ) {
       const response = await request( app )
@@ -346,7 +357,7 @@ describe( 'DELETE /api/gmail/sources/:id', () => {
     const response = await request( app ).delete( `/api/gmail/sources/${ id }` )
 
     expect( response.status ).toBe( 204 )
-    expect( findSourceById( id )?.deleted_at ).not.toBeNull()
+    expect( findSourceById( userId, id )?.deleted_at ).not.toBeNull()
     expect( getDatabase().prepare( 'SELECT status FROM gmail_messages' ).all() )
       .toEqual( [ { status: 'inbox' } ] )
   } )
@@ -368,7 +379,7 @@ describe( 'DELETE /api/gmail/sources/:id', () => {
   } )
 
   it( 'refuses an invalid remove_inbox_items with 400', async () => {
-    const source = addStoredSource()
+    const source = addStoredSource( userId )
 
     const response = await request( app )
       .delete( `/api/gmail/sources/${ source.id }?remove_inbox_items=maybe` )
@@ -383,9 +394,9 @@ describe( 'DELETE /api/gmail/sources/:id', () => {
   } )
 
   it( 'works while Gmail is not connected', async () => {
-    const source = addStoredSource()
+    const source = addStoredSource( userId )
 
-    setAccountStatus( 'reconnect_needed', 'revoked' )
+    setAccountStatus( userId, 'reconnect_needed', 'revoked' )
 
     const response = await request( app ).delete( `/api/gmail/sources/${ source.id }` )
 
@@ -395,7 +406,7 @@ describe( 'DELETE /api/gmail/sources/:id', () => {
 
 describe( 'POST /api/gmail/sources/:id/check', () => {
   it( 'checks the source and returns it', async () => {
-    const source = addStoredSource()
+    const source = addStoredSource( userId )
 
     vi.mocked( listMatchingIds ).mockResolvedValue( idsOf( 'm1' ) )
 
@@ -418,7 +429,7 @@ describe( 'POST /api/gmail/sources/:id/check', () => {
   } )
 
   it( 'answers 409 for a turned-off source', async () => {
-    const source = addStoredSource( { enabled: false } )
+    const source = addStoredSource( userId, { enabled: false } )
 
     const response = await request( app ).post( `/api/gmail/sources/${ source.id }/check` )
 
@@ -426,9 +437,9 @@ describe( 'POST /api/gmail/sources/:id/check', () => {
   } )
 
   it( 'answers 409 while Gmail is not connected', async () => {
-    const source = addStoredSource()
+    const source = addStoredSource( userId )
 
-    setAccountStatus( 'reconnect_needed', 'revoked' )
+    setAccountStatus( userId, 'reconnect_needed', 'revoked' )
 
     const response = await request( app ).post( `/api/gmail/sources/${ source.id }/check` )
 
@@ -437,7 +448,7 @@ describe( 'POST /api/gmail/sources/:id/check', () => {
   } )
 
   it( 'answers 409 when Google rejects the access during the check', async () => {
-    const source = addStoredSource()
+    const source = addStoredSource( userId )
 
     vi.mocked( listMatchingIds ).mockRejectedValue( new GmailAuthError( 'Google says no' ) )
 
@@ -450,8 +461,8 @@ describe( 'POST /api/gmail/sources/:id/check', () => {
 
 describe( 'POST /api/gmail/sources/check', () => {
   it( 'checks every turned-on source and returns the list', async () => {
-    const first = addStoredSource( { name: 'A' } )
-    const off = addStoredSource( { name: 'B', enabled: false } )
+    const first = addStoredSource( userId, { name: 'A' } )
+    const off = addStoredSource( userId, { name: 'B', enabled: false } )
 
     const response = await request( app ).post( '/api/gmail/sources/check' )
 
@@ -465,7 +476,7 @@ describe( 'POST /api/gmail/sources/check', () => {
   } )
 
   it( 'answers 409 while Gmail is not connected', async () => {
-    setAccountStatus( 'reconnect_needed', 'revoked' )
+    setAccountStatus( userId, 'reconnect_needed', 'revoked' )
 
     expect( ( await request( app ).post( '/api/gmail/sources/check' ) ).status ).toBe( 409 )
   } )
@@ -473,7 +484,7 @@ describe( 'POST /api/gmail/sources/check', () => {
 
 describe( 'what the sources routes return', () => {
   it( 'carries no email content or token', async () => {
-    const source = addStoredSource()
+    const source = addStoredSource( userId )
 
     vi.mocked( listMatchingIds ).mockResolvedValue( idsOf( 'm1' ) )
     vi.mocked( getMessage ).mockResolvedValue( buildMessage( 'm1', { text: 'SECRET-BODY' } ) )

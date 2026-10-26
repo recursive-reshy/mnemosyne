@@ -62,7 +62,7 @@ const addFeed = async (): Promise< void > => {
 }
 
 const addEmail = ( overrides: Partial< StoredGmailMessage > = {} ): StoredGmailMessage => {
-  const source = addStoredSource( { name: 'Idea digest', destination: 'newsletter' } )
+  const source = addStoredSource( userId, { name: 'Idea digest', destination: 'newsletter' } )
   const message: StoredGmailMessage = {
     id: crypto.randomUUID(),
     source_id: source.id,
@@ -82,7 +82,7 @@ const addEmail = ( overrides: Partial< StoredGmailMessage > = {} ): StoredGmailM
     ...overrides,
   }
 
-  insertMessageIfNew( message )
+  insertMessageIfNew( userId, message )
 
   return message
 }
@@ -102,7 +102,7 @@ beforeEach( () => {
   clearJobs( userId )
   clearModelCache()
   getDatabase().exec( 'DELETE FROM feed_items; DELETE FROM feeds' )
-  connectGmail()
+  connectGmail( userId )
   vi.mocked( fetchResource ).mockResolvedValue( {
     status: 200,
     finalUrl: feedUrl,

@@ -90,7 +90,7 @@ export const queueFeedItem = async (
   const extra = { feed_id: feed.id, ...document === undefined ? {} : { document } }
   const job = await queueJob( userId, body, extra )
 
-  setItemStatus( [ item.id ], 'queued', job.id )
+  setItemStatus( userId, [ item.id ], 'queued', job.id )
 
   return job
 }
@@ -111,7 +111,8 @@ export const queueNewsletterMessage = async (
     throw new ValidationError( 'This email is too long to summarize' )
   }
 
-  const link = gmailLink( { email: findAccount()?.email ?? null, messageId: row.message_id } )
+  const email = findAccount( userId )?.email ?? null
+  const link = gmailLink( { email, messageId: row.message_id } )
   const profile = choices.profile_id ?? remembered( userId, source.profile_id )
   const body = {
     url: link,
@@ -129,14 +130,14 @@ export const queueNewsletterMessage = async (
   } )
   const job = await queueJob( userId, body, { gmail_source_id: source.id, document } )
 
-  setMessageStatus( [ row.id ], 'queued', job.id )
+  setMessageStatus( userId, [ row.id ], 'queued', job.id )
 
   return job
 }
 
-export const listInbox = (): InboxItem[] => {
-  const email = findAccount()?.email ?? null
-  const feedItems = listFeedInbox().map( ( item ): InboxItem => ( {
+export const listInbox = ( userId: string ): InboxItem[] => {
+  const email = findAccount( userId )?.email ?? null
+  const feedItems = listFeedInbox( userId ).map( ( item ): InboxItem => ( {
     kind: 'feed',
     id: item.id,
     feed_id: item.feed_id,
@@ -147,7 +148,7 @@ export const listInbox = (): InboxItem[] => {
     source_type: detectSourceType( item.link ),
     added_at: item.added_at,
   } ) )
-  const emails = listNewsletterInbox().map( ( row ): InboxItem => ( {
+  const emails = listNewsletterInbox( userId ).map( ( row ): InboxItem => ( {
     kind: 'gmail',
     id: row.id,
     source_id: row.source_id,
@@ -183,7 +184,7 @@ const queueOne = async (
   choices: Choices,
 ): Promise< Job > => {
   if( queued.kind === 'feed' ) {
-    const feed = findFeedById( queued.item.feed_id )
+    const feed = findFeedById( userId, queued.item.feed_id )
 
     if( feed === undefined ) {
       throw new ConflictError( 'Feed not found' )
@@ -192,7 +193,7 @@ const queueOne = async (
     return queueFeedItem( userId, feed, queued.item, choices )
   }
 
-  const source = findSourceById( queued.row.source_id )
+  const source = findSourceById( userId, queued.row.source_id )
 
   if( source === undefined ) {
     throw new ConflictError( 'Gmail source not found' )
@@ -212,19 +213,19 @@ const unique = ( refs: InboxItemRef[] ): InboxItemRef[] => {
 }
 
 // What is in the inbox among the refs, by ref, so that a feed ref never reads an email.
-const findInInbox = ( refs: InboxItemRef[] ): Map< string, Queued > => {
+const findInInbox = ( userId: string, refs: InboxItemRef[] ): Map< string, Queued > => {
   const ids = ( kind: InboxItemRef[ 'kind' ] ): string[] => {
     return refs.filter( ( ref ) => ref.kind === kind ).map( ( { id } ) => id )
   }
   const found = new Map< string, Queued >()
 
-  for( const item of findItemsByIds( ids( 'feed' ) ) ) {
+  for( const item of findItemsByIds( userId, ids( 'feed' ) ) ) {
     if( item.status === 'inbox' ) {
       found.set( `feed:${ item.id }`, { kind: 'feed', item } )
     }
   }
 
-  for( const row of findMessagesByIds( ids( 'gmail' ) ) ) {
+  for( const row of findMessagesByIds( userId, ids( 'gmail' ) ) ) {
     if( row.status === 'inbox' ) {
       found.set( `gmail:${ row.id }`, { kind: 'gmail', row } )
     }
@@ -238,7 +239,7 @@ export const summarizeItems = async (
   { items, model, profile_id }: SummarizeInboxBody,
 ): Promise< SummarizeInboxResponse > => {
   const refs = unique( items )
-  const inbox = findInInbox( refs )
+  const inbox = findInInbox( userId, refs )
   const bad = refs.filter( ( { kind, id } ) => !inbox.has( `${ kind }:${ id }` ) )
 
   if( bad.length > 0 ) {
@@ -276,14 +277,16 @@ export const summarizeItems = async (
   return { jobs }
 }
 
-export const dismissItems = ( items: InboxItemRef[] ): void => {
-  const inbox = [ ...findInInbox( unique( items ) ).values() ]
+export const dismissItems = ( userId: string, items: InboxItemRef[] ): void => {
+  const inbox = [ ...findInInbox( userId, unique( items ) ).values() ]
 
   setItemStatus(
+    userId,
     inbox.flatMap( ( queued ) => queued.kind === 'feed' ? [ queued.item.id ] : [] ),
     'dismissed',
   )
   setMessageStatus(
+    userId,
     inbox.flatMap( ( queued ) => queued.kind === 'gmail' ? [ queued.row.id ] : [] ),
     'dismissed',
   )

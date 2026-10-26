@@ -31,19 +31,19 @@ const DeleteQuery = z.object( {
 } )
 
 export const getGmailSources = async (
-  _req: Request,
+  req: Request,
   res: Response< ListGmailSourcesResponse >,
 ): Promise< void > => {
-  res.status( 200 ).json( { sources: await listGmailSources() } )
+  res.status( 200 ).json( { sources: await listGmailSources( currentUser( req ).id ) } )
 }
 
 export const previewGmailSource = async (
-  { body }: Request,
+  req: Request,
   res: Response< PreviewGmailSourceResponse >,
 ): Promise< void > => {
-  const { match } = PreviewGmailSourceBody.parse( body )
+  const { match } = PreviewGmailSourceBody.parse( req.body )
 
-  res.status( 200 ).json( await previewSource( match ) )
+  res.status( 200 ).json( await previewSource( currentUser( req ).id, match ) )
 }
 
 export const addGmailSource = async (
@@ -71,11 +71,12 @@ export const patchGmailSource = async (
   res.status( 200 ).json( { source } )
 }
 
-export const removeGmailSource = ( { params, query }: Request, res: Response ): void => {
-  const { remove_inbox_items } = DeleteQuery.parse( query )
+export const removeGmailSource = ( req: Request, res: Response ): void => {
+  const { remove_inbox_items } = DeleteQuery.parse( req.query )
 
   deleteSource(
-    SourceId.parse( params.id ),
+    currentUser( req ).id,
+    SourceId.parse( req.params.id ),
     { removeInboxItems: remove_inbox_items === 'true' },
   )
 

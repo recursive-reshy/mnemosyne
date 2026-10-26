@@ -30,8 +30,11 @@ export interface MatchCount extends MatchingIds {
   capped: boolean
 }
 
-export const listLabels = async (): Promise< GmailLabel[] > => {
-  const { data } = await withGmail( ( client ) => client.users.labels.list( { userId: 'me' } ) )
+export const listLabels = async ( userId: string ): Promise< GmailLabel[] > => {
+  const { data } = await withGmail(
+    userId,
+    ( client ) => client.users.labels.list( { userId: 'me' } ),
+  )
 
   return ( data.labels ?? [] ).flatMap( ( { id, name, type } ): GmailLabel[] => {
     if( !id || !name ) {
@@ -51,6 +54,7 @@ const buildQuery = ( q: string | undefined, after: Date | undefined ): string | 
 }
 
 export const listMessageIds = async (
+  userId: string,
   { labelId, q, after, max }: MessageIdQuery,
 ): Promise< string[] > => {
   const query = buildQuery( q, after )
@@ -58,7 +62,7 @@ export const listMessageIds = async (
   let pageToken: string | undefined
 
   do {
-    const { data }: ListPage = await withGmail( ( client ) => {
+    const { data }: ListPage = await withGmail( userId, ( client ) => {
       return client.users.messages.list( {
         userId: 'me',
         ...labelId === undefined ? {} : { labelIds: [ labelId ] },
@@ -77,10 +81,11 @@ export const listMessageIds = async (
 }
 
 export const getMessage = async (
+  userId: string,
   id: string,
   format: 'full' | 'metadata' = 'full',
 ): Promise< gmail_v1.Schema$Message > => {
-  const { data } = await withGmail( ( client ) => {
+  const { data } = await withGmail( userId, ( client ) => {
     return client.users.messages.get( { userId: 'me', id, format } )
   } )
 
@@ -90,22 +95,23 @@ export const getMessage = async (
 // Gmail's labelIds filter means "all of these labels", so each label is listed on its own and
 // the ids merged: an email with any of the labels matches (ADR 0035).
 export const listMatchingIds = async (
+  userId: string,
   match: GmailMatch,
   { after, max }: { after?: Date, max: number },
 ): Promise< MatchingIds > => {
   if( match.kind === 'query' ) {
-    const ids = await listMessageIds( { q: match.query, after, max } )
+    const ids = await listMessageIds( userId, { q: match.query, after, max } )
 
     return { ids, heads: ids.slice( 0, 1 ), missingLabelIds: [] }
   }
 
-  const known = new Set( ( await listLabels() ).map( ( { id } ) => id ) )
+  const known = new Set( ( await listLabels( userId ) ).map( ( { id } ) => id ) )
   const missingLabelIds = match.label_ids.filter( ( id ) => !known.has( id ) )
   const merged = new Set< string >()
   const heads = new Set< string >()
 
   for( const labelId of match.label_ids.filter( ( id ) => known.has( id ) ) ) {
-    const ids = await listMessageIds( { labelId, after, max } )
+    const ids = await listMessageIds( userId, { labelId, after, max } )
 
     ids.forEach( ( id ) => merged.add( id ) )
     ids.slice( 0, 1 ).forEach( ( id ) => heads.add( id ) )
@@ -114,9 +120,12 @@ export const listMatchingIds = async (
   return { ids: [ ...merged ], heads: [ ...heads ], missingLabelIds }
 }
 
-export const countMatches = async ( match: GmailMatch ): Promise< MatchCount > => {
+export const countMatches = async (
+  userId: string,
+  match: GmailMatch,
+): Promise< MatchCount > => {
   // One more than the limit tells "exactly 500" from "more than 500".
-  const matching = await listMatchingIds( match, { max: COUNT_LIMIT + 1 } )
+  const matching = await listMatchingIds( userId, match, { max: COUNT_LIMIT + 1 } )
   const { ids } = matching
 
   return {

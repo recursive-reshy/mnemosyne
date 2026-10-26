@@ -1,91 +1,61 @@
-// Packages
-import { z } from 'zod'
 // Repositories
 import { getDatabase, inTransaction } from './database.js'
 import { deleteHealth } from './health.repository.js'
+import {
+  SELECT_FEED,
+  StoredFeed,
+  toRow,
+  toStoredFeed,
+} from './feedRows.js'
+import type { FeedFetch } from './feedRows.js'
 
-export const StoredFeed = z.object( {
-  id: z.string(),
-  url: z.string(),
-  feed_url: z.string(),
-  name: z.string(),
-  profile_id: z.string().nullable(),
-  enabled: z.boolean(),
-  auto_summarize: z.boolean(),
-  etag: z.string().nullable(),
-  last_modified: z.string().nullable(),
-  last_checked_at: z.string().nullable(),
-  last_error: z.string().nullable(),
-  last_skipped_count: z.number().int(),
-  created_at: z.string(),
-  deleted_at: z.string().nullable(),
-} )
-export type StoredFeed = z.infer< typeof StoredFeed >
+export { StoredFeed }
+export type { FeedFetch }
 
-export type FeedFetch = Pick< StoredFeed, 'etag' | 'last_modified' | 'last_skipped_count' >
-
-// last_checked_at and last_error belong to health_status (ADR 0050); reads get them by a join.
-const SELECT_FEED = `SELECT feeds.*, h.last_checked_at, h.last_error FROM feeds
-  LEFT JOIN health_status h ON h.kind = 'feed' AND h.subject_id = feeds.id`
-
-const toStoredFeed = ( raw: unknown ): StoredFeed => {
-  const row = z.object( {
-    enabled: z.number(),
-    auto_summarize: z.number(),
-  } ).loose().parse( raw )
-
-  return StoredFeed.parse( {
-    ...row,
-    enabled: row.enabled === 1,
-    auto_summarize: row.auto_summarize === 1,
-  } )
-}
-
-const toRow = ( feed: StoredFeed ): Record< string, string | number | null > => {
-  return {
-    ...feed,
-    enabled: feed.enabled ? 1 : 0,
-    auto_summarize: feed.auto_summarize ? 1 : 0,
-  }
-}
-
-export const insertFeed = ( feed: StoredFeed ): void => {
+export const insertFeed = ( userId: string, feed: StoredFeed ): void => {
   getDatabase().prepare( `INSERT INTO feeds (
-      id, url, feed_url, name, profile_id, enabled, auto_summarize, etag, last_modified,
-      last_skipped_count, created_at, deleted_at
+      id, user_id, url, feed_url, name, profile_id, enabled, auto_summarize, etag,
+      last_modified, last_skipped_count, created_at, deleted_at
     ) VALUES (
-      @id, @url, @feed_url, @name, @profile_id, @enabled, @auto_summarize, @etag, @last_modified,
-      @last_skipped_count, @created_at, @deleted_at
-    )` ).run( toRow( feed ) )
+      @id, @user_id, @url, @feed_url, @name, @profile_id, @enabled, @auto_summarize, @etag,
+      @last_modified, @last_skipped_count, @created_at, @deleted_at
+    )` ).run( { ...toRow( feed ), user_id: userId } )
 }
 
-export const findFeedById = ( id: string ): StoredFeed | undefined => {
-  const row = getDatabase().prepare( `${ SELECT_FEED } WHERE feeds.id = ?` ).get( id )
-
-  return row === undefined ? undefined : toStoredFeed( row )
-}
-
-export const findActiveFeedByFeedUrl = ( feedUrl: string ): StoredFeed | undefined => {
+export const findFeedById = ( userId: string, id: string ): StoredFeed | undefined => {
   const row = getDatabase()
-    .prepare( `${ SELECT_FEED } WHERE feeds.feed_url = ? AND feeds.deleted_at IS NULL` )
-    .get( feedUrl )
+    .prepare( `${ SELECT_FEED } WHERE feeds.id = ? AND feeds.user_id = ?` )
+    .get( id, userId )
 
   return row === undefined ? undefined : toStoredFeed( row )
 }
 
-export const listFeeds = (): StoredFeed[] => {
+export const findActiveFeedByFeedUrl = (
+  userId: string,
+  feedUrl: string,
+): StoredFeed | undefined => {
+  const row = getDatabase()
+    .prepare( `${ SELECT_FEED }
+      WHERE feeds.feed_url = ? AND feeds.user_id = ? AND feeds.deleted_at IS NULL` )
+    .get( feedUrl, userId )
+
+  return row === undefined ? undefined : toStoredFeed( row )
+}
+
+export const listFeeds = ( userId: string ): StoredFeed[] => {
   return getDatabase()
-    .prepare( `${ SELECT_FEED } WHERE feeds.deleted_at IS NULL
+    .prepare( `${ SELECT_FEED } WHERE feeds.user_id = ? AND feeds.deleted_at IS NULL
       ORDER BY lower( feeds.name ), feeds.rowid` )
-    .all()
+    .all( userId )
     .map( toStoredFeed )
 }
 
 export const updateFeed = (
+  userId: string,
   id: string,
   changes: Partial< Omit< StoredFeed, 'id' > >,
 ): StoredFeed | undefined => {
-  const feed = findFeedById( id )
+  const feed = findFeedById( userId, id )
 
   if( feed === undefined ) {
     return undefined
@@ -98,32 +68,25 @@ export const updateFeed = (
       enabled = @enabled, auto_summarize = @auto_summarize, etag = @etag,
       last_modified = @last_modified, last_skipped_count = @last_skipped_count,
       created_at = @created_at, deleted_at = @deleted_at
-    WHERE id = @id` ).run( toRow( updated ) )
+    WHERE id = @id AND user_id = @user_id` ).run( { ...toRow( updated ), user_id: userId } )
 
   return updated
 }
 
-export const markFeedDeleted = ( id: string, now: string ): void => {
+export const markFeedDeleted = ( userId: string, id: string, now: string ): void => {
   inTransaction( () => {
-    getDatabase().prepare( 'UPDATE feeds SET deleted_at = ? WHERE id = ?' ).run( now, id )
-    deleteHealth( 'feed', id )
+    const { changes } = getDatabase()
+      .prepare( 'UPDATE feeds SET deleted_at = ? WHERE id = ? AND user_id = ?' )
+      .run( now, id, userId )
+
+    if( changes > 0 ) {
+      deleteHealth( 'feed', id )
+    }
   } )
 }
 
-export const listDueFeeds = ( now: string, intervalMinutes: number ): StoredFeed[] => {
-  const cutoff = new Date( new Date( now ).getTime() - intervalMinutes * 60_000 ).toISOString()
-
-  return getDatabase()
-    .prepare( `${ SELECT_FEED }
-      WHERE feeds.enabled = 1 AND feeds.deleted_at IS NULL
-        AND ( h.last_checked_at IS NULL OR h.last_checked_at <= ? )
-      ORDER BY h.last_checked_at IS NOT NULL, h.last_checked_at, feeds.rowid` )
-    .all( cutoff )
-    .map( toStoredFeed )
-}
-
-export const recordFeedFetch = ( id: string, fetch: FeedFetch ): void => {
+export const recordFeedFetch = ( userId: string, id: string, fetch: FeedFetch ): void => {
   getDatabase().prepare( `UPDATE feeds SET
       etag = @etag, last_modified = @last_modified, last_skipped_count = @last_skipped_count
-    WHERE id = @id` ).run( { ...fetch, id } )
+    WHERE id = @id AND user_id = @user_id` ).run( { ...fetch, id, user_id: userId } )
 }

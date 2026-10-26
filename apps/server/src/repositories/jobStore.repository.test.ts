@@ -199,9 +199,10 @@ describe( 'source type, feed and source document', () => {
   } as const
 
   const addFeed = ( id: string, name: string, deletedAt: string | null = null ): void => {
-    getDatabase().prepare( `INSERT INTO feeds ( id, url, feed_url, name, created_at, deleted_at )
-      VALUES ( ?, 'https://a.example', ?, ?, '2026-10-18T10:00:00.000Z', ? )` )
-      .run( id, `https://a.example/${ id }`, name, deletedAt )
+    getDatabase().prepare( `INSERT INTO feeds
+      ( id, user_id, url, feed_url, name, created_at, deleted_at )
+      VALUES ( ?, ?, 'https://a.example', ?, ?, '2026-10-18T10:00:00.000Z', ? )` )
+      .run( id, userId, `https://a.example/${ id }`, name, deletedAt )
   }
 
   it( 'round-trips an article document, its source type and its feed id', () => {
@@ -293,9 +294,9 @@ describe( 'source type, feed and source document', () => {
 
   const addGmailSource = ( id: string, name: string, deletedAt: string | null = null ): void => {
     getDatabase().prepare( `INSERT INTO gmail_sources (
-        id, name, match_kind, label_ids, destination, sync_from, created_at, deleted_at
-      ) VALUES ( ?, ?, 'labels', '["L1"]', 'newsletter', '2026-10-18T10:00:00.000Z',
-        '2026-10-18T10:00:00.000Z', ? )` ).run( id, name, deletedAt )
+        id, user_id, name, match_kind, label_ids, destination, sync_from, created_at, deleted_at
+      ) VALUES ( ?, ?, ?, 'labels', '["L1"]', 'newsletter', '2026-10-18T10:00:00.000Z',
+        '2026-10-18T10:00:00.000Z', ? )` ).run( id, userId, name, deletedAt )
   }
 
   it( 'round-trips the Gmail source id and name', () => {

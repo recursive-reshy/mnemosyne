@@ -19,16 +19,19 @@ export type ExtractionRunRecord = z.infer< typeof ExtractionRunRecord >
 const StoredExtractionRun = ExtractionRunRecord.extend( { id: z.int() } )
 export type StoredExtractionRun = z.infer< typeof StoredExtractionRun >
 
-export const insertExtractionRun = ( run: ExtractionRunRecord ): StoredExtractionRun => {
+export const insertExtractionRun = (
+  userId: string,
+  run: ExtractionRunRecord,
+): StoredExtractionRun => {
   const { lastInsertRowid } = getDatabase()
     .prepare( `INSERT INTO extraction_runs (
-        gmail_message_row, model, input_tokens, output_tokens, cost_usd, outcome,
+        user_id, gmail_message_row, model, input_tokens, output_tokens, cost_usd, outcome,
         postings_count, error, created_at
       ) VALUES (
-        @gmail_message_row, @model, @input_tokens, @output_tokens, @cost_usd, @outcome,
+        @user_id, @gmail_message_row, @model, @input_tokens, @output_tokens, @cost_usd, @outcome,
         @postings_count, @error, @created_at
       )` )
-    .run( run )
+    .run( { ...run, user_id: userId } )
 
   return StoredExtractionRun.parse( getDatabase()
     .prepare( 'SELECT * FROM extraction_runs WHERE id = ?' )

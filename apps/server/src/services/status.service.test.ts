@@ -22,7 +22,7 @@ import { getHealthErrors, getStatus, refreshStatus } from './status.service.js'
 // Test support
 import { addStoredSource } from '../test-support/gmailSources.fixture.js'
 // Test support
-import { defaultTestAdmin } from '../test-support/auth.js'
+import { createTestUser, defaultTestAdmin } from '../test-support/auth.js'
 
 let userId = ''
 
@@ -76,7 +76,7 @@ const buildFeed = ( overrides: Partial< StoredFeed > = {} ): StoredFeed => {
 }
 
 const connectGmail = (): void => {
-  saveAccount( {
+  saveAccount( userId, {
     email: 'naresh@example.com',
     refresh_token_enc: 'v1:x',
     scope: 'scope',
@@ -86,8 +86,11 @@ const connectGmail = (): void => {
   } )
 }
 
-const rowOf = ( kind: string, id = 'default' ): StatusRow => {
-  const row = getStatus().rows.find( ( found ) => found.kind === kind && found.id === id )
+const rowOf = (
+  kind: string,
+  id = kind === 'gmail_connection' ? userId : 'default',
+): StatusRow => {
+  const row = getStatus( userId ).rows.find( ( found ) => found.kind === kind && found.id === id )
 
   if( row === undefined ) {
     throw new Error( `No ${ kind } row` )
@@ -104,16 +107,16 @@ beforeEach( () => {
 
 describe( 'getStatus', () => {
   it( 'has the singleton rows even when nothing was ever checked', () => {
-    const { rows, failing_count } = getStatus()
+    const { rows, failing_count } = getStatus( userId )
 
     expect( rows.map( ( { kind } ) => kind ) )
       .toEqual( [ 'agent', 'whisper', 'backup', 'gmail_connection' ] )
     expect( failing_count ).toBe( 0 )
-    expect( GetStatusResponse.parse( getStatus() ) ).toEqual( getStatus() )
+    expect( GetStatusResponse.parse( getStatus( userId ) ) ).toEqual( getStatus( userId ) )
   } )
 
   it( 'names the singletons', () => {
-    expect( getStatus().rows.map( ( { name } ) => name ) )
+    expect( getStatus( userId ).rows.map( ( { name } ) => name ) )
       .toEqual( [ 'Agent service', 'whisper-server', 'Backups', 'Gmail connection' ] )
   } )
 
@@ -142,7 +145,7 @@ describe( 'getStatus', () => {
       last_error: 'Could not reach whisper-server',
       failing_since: at( 2 ),
     } )
-    expect( getStatus().failing_count ).toBe( 1 )
+    expect( getStatus( userId ).failing_count ).toBe( 1 )
   } )
 
   it( 'never marks whisper-server off', () => {
@@ -164,7 +167,7 @@ describe( 'getStatus', () => {
       setSetting( userId, 'linking_enabled', false )
 
       expect( rowOf( 'agent' ) ).toMatchObject( { state: 'failing', last_error: 'down' } )
-      expect( getStatus().failing_count ).toBe( 1 )
+      expect( getStatus( userId ).failing_count ).toBe( 1 )
     } )
 
     it( 'is failing when its check failed and linking is on', () => {
@@ -193,19 +196,19 @@ describe( 'getStatus', () => {
 
     it( 'is failing with the account\'s error when it needs a reconnect', () => {
       connectGmail()
-      setAccountStatus( 'reconnect_needed', 'Google no longer accepts the access' )
+      setAccountStatus( userId, 'reconnect_needed', 'Google no longer accepts the access' )
 
       expect( rowOf( 'gmail_connection' ) ).toMatchObject( {
         state: 'failing',
         last_error: 'Google no longer accepts the access',
       } )
-      expect( getStatus().failing_count ).toBe( 1 )
+      expect( getStatus( userId ).failing_count ).toBe( 1 )
     } )
 
     it( 'prefers the health error when there is one', () => {
       connectGmail()
-      setAccountStatus( 'reconnect_needed', 'from the account' )
-      recordFailure( 'gmail_connection', 'default', at( 3 ), 'from the check' )
+      setAccountStatus( userId, 'reconnect_needed', 'from the account' )
+      recordFailure( 'gmail_connection', userId, at( 3 ), 'from the check' )
 
       expect( rowOf( 'gmail_connection' ).last_error ).toBe( 'from the check' )
     } )
@@ -262,7 +265,7 @@ describe( 'getStatus', () => {
     it( 'lists feeds with their name, state and times', () => {
       const feed = buildFeed( { name: 'My blog' } )
 
-      insertFeed( feed )
+      insertFeed( userId, feed )
       recordSuccess( 'feed', feed.id, at( 4 ) )
 
       expect( rowOf( 'feed', feed.id ) ).toEqual( {
@@ -281,7 +284,7 @@ describe( 'getStatus', () => {
     it( 'is ok with null times for a feed that was never checked', () => {
       const feed = buildFeed()
 
-      insertFeed( feed )
+      insertFeed( userId, feed )
 
       expect( rowOf( 'feed', feed.id ) ).toMatchObject( {
         state: 'ok',
@@ -293,7 +296,7 @@ describe( 'getStatus', () => {
     it( 'is failing with the error for a feed whose check failed', () => {
       const feed = buildFeed()
 
-      insertFeed( feed )
+      insertFeed( userId, feed )
       recordFailure( 'feed', feed.id, at( 4 ), 'The site answered 500' )
 
       expect( rowOf( 'feed', feed.id ) ).toMatchObject( {
@@ -305,52 +308,53 @@ describe( 'getStatus', () => {
 
     it( 'is off for a disabled feed or source, without an old error', () => {
       const feed = buildFeed( { enabled: false } )
-      const source = addStoredSource( { enabled: false } )
+      const source = addStoredSource( userId, { enabled: false } )
 
-      insertFeed( feed )
+      insertFeed( userId, feed )
       recordFailure( 'feed', feed.id, at( 1 ), 'x' )
       recordFailure( 'gmail_source', source.id, at( 1 ), 'y' )
 
       expect( rowOf( 'feed', feed.id ) ).toMatchObject( { state: 'off', last_error: null } )
       expect( rowOf( 'gmail_source', source.id ) )
         .toMatchObject( { state: 'off', last_error: null } )
-      expect( getStatus().failing_count ).toBe( 0 )
+      expect( getStatus( userId ).failing_count ).toBe( 0 )
     } )
 
     it( 'leaves out deleted feeds and sources', () => {
-      insertFeed( buildFeed( { deleted_at: at( 9 ) } ) )
+      insertFeed( userId, buildFeed( { deleted_at: at( 9 ) } ) )
 
-      expect( getStatus().rows.filter( ( { kind } ) => kind === 'feed' ) ).toEqual( [] )
+      expect( getStatus( userId ).rows.filter( ( { kind } ) => kind === 'feed' ) ).toEqual( [] )
     } )
 
     it( 'orders services, backup, connection, Gmail sources, then feeds, each by name', () => {
-      insertFeed( buildFeed( { name: 'zeta' } ) )
-      insertFeed( buildFeed( { name: 'Alpha' } ) )
-      addStoredSource( { name: 'Beta alerts' } )
-      addStoredSource( { name: 'alpha alerts' } )
+      insertFeed( userId, buildFeed( { name: 'zeta' } ) )
+      insertFeed( userId, buildFeed( { name: 'Alpha' } ) )
+      addStoredSource( userId, { name: 'Beta alerts' } )
+      addStoredSource( userId, { name: 'alpha alerts' } )
 
-      expect( getStatus().rows.map( ( { kind, name } ) => `${ kind }:${ name }` ) ).toEqual( [
-        'agent:Agent service',
-        'whisper:whisper-server',
-        'backup:Backups',
-        'gmail_connection:Gmail connection',
-        'gmail_source:alpha alerts',
-        'gmail_source:Beta alerts',
-        'feed:Alpha',
-        'feed:zeta',
-      ] )
+      expect( getStatus( userId ).rows.map( ( { kind, name } ) => `${ kind }:${ name }` ) )
+        .toEqual( [
+          'agent:Agent service',
+          'whisper:whisper-server',
+          'backup:Backups',
+          'gmail_connection:Gmail connection',
+          'gmail_source:alpha alerts',
+          'gmail_source:Beta alerts',
+          'feed:Alpha',
+          'feed:zeta',
+        ] )
     } )
 
     it( 'counts every failing row', () => {
       const feed = buildFeed()
-      const source = addStoredSource()
+      const source = addStoredSource( userId )
 
-      insertFeed( feed )
+      insertFeed( userId, feed )
       recordFailure( 'feed', feed.id, at( 1 ), 'a' )
       recordFailure( 'gmail_source', source.id, at( 1 ), 'b' )
       recordFailure( 'whisper', 'default', at( 1 ), 'c' )
 
-      expect( getStatus().failing_count ).toBe( 3 )
+      expect( getStatus( userId ).failing_count ).toBe( 3 )
     } )
   } )
 } )
@@ -363,7 +367,7 @@ describe( 'refreshStatus', () => {
       return Promise.resolve()
     } )
 
-    const status = await refreshStatus()
+    const status = await refreshStatus( userId )
 
     expect( runServiceChecks ).toHaveBeenCalledTimes( 1 )
     expect( status.rows.find( ( { kind } ) => kind === 'whisper' )?.state ).toBe( 'failing' )
@@ -375,35 +379,76 @@ describe( 'getHealthErrors', () => {
   it( 'returns the newest errors first for a feed', () => {
     const feed = buildFeed()
 
-    insertFeed( feed )
+    insertFeed( userId, feed )
     recordFailure( 'feed', feed.id, at( 1 ), 'first' )
     recordFailure( 'feed', feed.id, at( 2 ), 'second' )
 
-    expect( getHealthErrors( 'feed', feed.id ) ).toEqual( [
+    expect( getHealthErrors( userId, 'feed', feed.id ) ).toEqual( [
       { at: at( 2 ), message: 'second' },
       { at: at( 1 ), message: 'first' },
     ] )
   } )
 
   it( 'returns an empty list for a live subject with no errors', () => {
-    const source = addStoredSource()
+    const source = addStoredSource( userId )
 
-    expect( getHealthErrors( 'gmail_source', source.id ) ).toEqual( [] )
-    expect( getHealthErrors( 'whisper', 'default' ) ).toEqual( [] )
+    expect( getHealthErrors( userId, 'gmail_source', source.id ) ).toEqual( [] )
+    expect( getHealthErrors( userId, 'whisper', 'default' ) ).toEqual( [] )
   } )
 
   it( 'refuses a feed or source that is unknown or deleted', () => {
     const feed = buildFeed( { deleted_at: at( 9 ) } )
 
-    insertFeed( feed )
+    insertFeed( userId, feed )
 
-    expect( () => getHealthErrors( 'feed', feed.id ) ).toThrow( NotFoundError )
-    expect( () => getHealthErrors( 'feed', 'nope' ) ).toThrow( NotFoundError )
-    expect( () => getHealthErrors( 'gmail_source', 'nope' ) ).toThrow( NotFoundError )
+    expect( () => getHealthErrors( userId, 'feed', feed.id ) ).toThrow( NotFoundError )
+    expect( () => getHealthErrors( userId, 'feed', 'nope' ) ).toThrow( NotFoundError )
+    expect( () => getHealthErrors( userId, 'gmail_source', 'nope' ) ).toThrow( NotFoundError )
   } )
 
   it( 'refuses a singleton with any id but default', () => {
-    expect( () => getHealthErrors( 'agent', 'other' ) ).toThrow( NotFoundError )
-    expect( () => getHealthErrors( 'backup', 'x' ) ).toThrow( NotFoundError )
+    expect( () => getHealthErrors( userId, 'agent', 'other' ) ).toThrow( NotFoundError )
+    expect( () => getHealthErrors( userId, 'backup', 'x' ) ).toThrow( NotFoundError )
+  } )
+} )
+
+describe( 'getStatus for two users', () => {
+  it( 'shows each user only their own feeds, sources and Gmail connection', () => {
+    const other = createTestUser().id
+
+    insertFeed( userId, buildFeed( { name: 'Mine' } ) )
+    insertFeed( other, buildFeed( { name: 'Theirs' } ) )
+    addStoredSource( other, { name: 'Their source' } )
+    connectGmail()
+
+    const mine = getStatus( userId ).rows
+    const theirs = getStatus( other ).rows
+
+    expect( mine.map( ( { name } ) => name ) )
+      .toEqual( [ 'Agent service', 'whisper-server', 'Backups', 'Gmail connection', 'Mine' ] )
+    expect( theirs.map( ( { name } ) => name ) ).toEqual( [
+      'Agent service',
+      'whisper-server',
+      'Backups',
+      'Gmail connection',
+      'Their source',
+      'Theirs',
+    ] )
+    expect( mine.find( ( { kind } ) => kind === 'gmail_connection' ) )
+      .toMatchObject( { id: userId, state: 'ok' } )
+    expect( theirs.find( ( { kind } ) => kind === 'gmail_connection' ) )
+      .toMatchObject( { id: other, state: 'off' } )
+  } )
+
+  it( 'refuses the errors of another user\'s feed, source or connection', () => {
+    const other = createTestUser().id
+    const feed = buildFeed( { name: 'Theirs' } )
+
+    insertFeed( other, feed )
+
+    expect( () => getHealthErrors( userId, 'feed', feed.id ) ).toThrow( NotFoundError )
+    expect( () => getHealthErrors( userId, 'gmail_connection', other ) ).toThrow( NotFoundError )
+    expect( getHealthErrors( other, 'feed', feed.id ) ).toEqual( [] )
+    expect( getHealthErrors( other, 'gmail_connection', other ) ).toEqual( [] )
   } )
 } )

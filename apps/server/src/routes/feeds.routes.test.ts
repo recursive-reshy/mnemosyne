@@ -240,7 +240,7 @@ describe( 'DELETE /api/feeds/:id', () => {
     const response = await request( app ).delete( `/api/feeds/${ id }` )
 
     expect( response.status ).toBe( 204 )
-    expect( findFeedById( id )?.deleted_at ).not.toBeNull()
+    expect( findFeedById( userId, id )?.deleted_at ).not.toBeNull()
     expect( await inboxCount() ).toBe( 1 )
   } )
 

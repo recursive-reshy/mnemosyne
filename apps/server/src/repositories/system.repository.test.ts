@@ -9,12 +9,21 @@ import {
   updateJob,
 } from './jobStore.repository.js'
 import type { StoredJob } from './jobStore.repository.js'
+import { insertFeed } from './feeds.repository.js'
+import type { StoredFeed } from './feeds.repository.js'
+import { saveAccount, setAccountStatus } from './gmailAccount.repository.js'
+import { insertSource } from './gmailSources.repository.js'
+import type { StoredGmailSource } from './gmailSources.repository.js'
 import {
   findExpiredJobs,
   findNextRunnableJob,
+  listDueFeeds,
+  listDueGmailSources,
   markInterruptedJobs,
   markInterruptedLinkingJobs,
 } from './system.repository.js'
+// Test support
+import { seedCheck } from '../test-support/health.fixture.js'
 
 const buildJob = ( overrides: Partial< StoredJob > = {} ): StoredJob => {
   return {
@@ -265,5 +274,172 @@ describe( 'findExpiredJobs', () => {
 
     expect( findExpiredJobs( now ).map( ( { id, user_id } ) => [ id, user_id ] ).toSorted() )
       .toEqual( [ [ one.id, first ], [ two.id, second ] ].toSorted() )
+  } )
+} )
+
+const buildFeed = ( overrides: Partial< StoredFeed > = {} ): StoredFeed => {
+  const id = overrides.id ?? crypto.randomUUID()
+
+  return {
+    id,
+    url: 'https://example.com',
+    feed_url: `https://example.com/${ id }.xml`,
+    name: 'A blog',
+    profile_id: null,
+    enabled: true,
+    auto_summarize: false,
+    etag: null,
+    last_modified: null,
+    last_checked_at: null,
+    last_error: null,
+    last_skipped_count: 0,
+    created_at: '2026-10-18T10:00:00.000Z',
+    deleted_at: null,
+    ...overrides,
+  }
+}
+
+const addFeed = ( userId: string, feed: StoredFeed ): StoredFeed => {
+  insertFeed( userId, feed )
+  seedCheck( 'feed', feed.id, feed.last_checked_at, feed.last_error )
+
+  return feed
+}
+
+describe( 'listDueFeeds', () => {
+  const now = '2026-10-18T12:00:00.000Z'
+
+  it( 'returns enabled feeds never checked or last checked before now minus the interval', () => {
+    const { id: userId } = createTestUser()
+
+    for( const feed of [
+      buildFeed( { name: 'never' } ),
+      buildFeed( { name: 'old', last_checked_at: '2026-10-18T10:59:59.000Z' } ),
+      buildFeed( { name: 'edge', last_checked_at: '2026-10-18T11:00:00.000Z' } ),
+      buildFeed( { name: 'recent', last_checked_at: '2026-10-18T11:30:00.000Z' } ),
+    ] ) {
+      addFeed( userId, feed )
+    }
+
+    expect( listDueFeeds( now, 60 ).map( ( { name } ) => name ).sort() )
+      .toEqual( [ 'edge', 'never', 'old' ] )
+  } )
+
+  it( 'leaves out disabled and deleted feeds', () => {
+    const { id: userId } = createTestUser()
+
+    addFeed( userId, buildFeed( { enabled: false } ) )
+    addFeed( userId, buildFeed( { deleted_at: '2026-10-18T12:00:00.000Z' } ) )
+
+    expect( listDueFeeds( now, 60 ) ).toEqual( [] )
+  } )
+
+  it( 'honours the interval it is given', () => {
+    const { id: userId } = createTestUser()
+
+    addFeed( userId, buildFeed( { last_checked_at: '2026-10-18T11:30:00.000Z' } ) )
+
+    expect( listDueFeeds( now, 60 ) ).toHaveLength( 0 )
+    expect( listDueFeeds( now, 15 ) ).toHaveLength( 1 )
+  } )
+
+  it( 'returns the least recently checked first, across users, each with its owner', () => {
+    const first = createTestUser().id
+    const second = createTestUser().id
+
+    addFeed( first, buildFeed( { name: 'b', last_checked_at: '2026-10-18T09:00:00.000Z' } ) )
+    addFeed( second, buildFeed( { name: 'a', last_checked_at: '2026-10-18T08:00:00.000Z' } ) )
+    addFeed( first, buildFeed( { name: 'never' } ) )
+
+    expect( listDueFeeds( now, 60 ).map( ( { name, user_id } ) => [ name, user_id ] ) )
+      .toEqual( [ [ 'never', first ], [ 'a', second ], [ 'b', first ] ] )
+  } )
+} )
+
+const buildSource = ( overrides: Partial< StoredGmailSource > = {} ): StoredGmailSource => {
+  return {
+    id: crypto.randomUUID(),
+    name: 'Upwork alerts',
+    match: { kind: 'labels', label_ids: [ 'Label_1' ] },
+    destination: 'jobs',
+    profile_id: null,
+    enabled: true,
+    auto_summarize: false,
+    sync_from: '2026-10-19T10:00:00.000Z',
+    last_checked_at: null,
+    last_error: null,
+    last_skipped_count: 0,
+    created_at: '2026-10-19T10:00:00.000Z',
+    deleted_at: null,
+    ...overrides,
+  }
+}
+
+const connect = ( userId: string ): void => {
+  saveAccount( userId, {
+    email: `${ userId }@example.com`,
+    refresh_token_enc: 'v1:x',
+    scope: 'https://www.googleapis.com/auth/gmail.readonly',
+    status: 'connected',
+    error: null,
+    connected_at: '2026-10-19T10:00:00.000Z',
+  } )
+}
+
+const addSource = ( userId: string, source: StoredGmailSource ): StoredGmailSource => {
+  insertSource( userId, source )
+  seedCheck( 'gmail_source', source.id, source.last_checked_at, source.last_error )
+
+  return source
+}
+
+describe( 'listDueGmailSources', () => {
+  const now = '2026-10-19T12:00:00.000Z'
+
+  it( 'returns sources never checked or last checked at least one interval ago', () => {
+    const { id: userId } = createTestUser()
+
+    connect( userId )
+
+    for( const source of [
+      buildSource( { name: 'recent', last_checked_at: '2026-10-19T11:30:00.000Z' } ),
+      buildSource( { name: 'old', last_checked_at: '2026-10-19T09:00:00.000Z' } ),
+      buildSource( { name: 'exact', last_checked_at: '2026-10-19T11:00:00.000Z' } ),
+      buildSource( { name: 'never' } ),
+      buildSource( { name: 'disabled', enabled: false } ),
+      buildSource( { name: 'deleted', deleted_at: '2026-10-19T08:00:00.000Z' } ),
+    ] ) {
+      addSource( userId, source )
+    }
+
+    expect( listDueGmailSources( now, 60 ).map( ( { name } ) => name ) )
+      .toEqual( [ 'never', 'old', 'exact' ] )
+  } )
+
+  it( 'honours the interval', () => {
+    const { id: userId } = createTestUser()
+
+    connect( userId )
+    addSource( userId, buildSource( { last_checked_at: '2026-10-19T11:30:00.000Z' } ) )
+
+    expect( listDueGmailSources( now, 60 ) ).toHaveLength( 0 )
+    expect( listDueGmailSources( now, 30 ) ).toHaveLength( 1 )
+  } )
+
+  it( 'only returns sources whose owner has a connected Gmail account', () => {
+    const connected = createTestUser().id
+    const broken = createTestUser().id
+    const never = createTestUser().id
+
+    connect( connected )
+    connect( broken )
+    setAccountStatus( broken, 'reconnect_needed', 'Revoked' )
+
+    addSource( connected, buildSource( { name: 'ok' } ) )
+    addSource( broken, buildSource( { name: 'broken' } ) )
+    addSource( never, buildSource( { name: 'never connected' } ) )
+
+    expect( listDueGmailSources( now, 60 ).map( ( { name, user_id } ) => [ name, user_id ] ) )
+      .toEqual( [ [ 'ok', connected ] ] )
   } )
 } )

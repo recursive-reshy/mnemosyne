@@ -1,11 +1,15 @@
 // Packages
-import { describe, it, expect } from 'vitest'
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+} from 'vitest'
 // Repositories
 import {
   findSourceById,
   insertSource as insertSourceRow,
   listActiveSourcesByMatch,
-  listDueSources,
   listSources,
   markSourceDeleted,
   recordSourceFetch,
@@ -20,10 +24,18 @@ import {
 } from './health.repository.js'
 // Test support
 import { seedCheck } from '../test-support/health.fixture.js'
+// Test support
+import { createTestUser, defaultTestAdmin } from '../test-support/auth.js'
+
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
 
 // Check data lives in health_status; the stored source shows it through a join.
 const insertSource = ( source: StoredGmailSource ): void => {
-  insertSourceRow( source )
+  insertSourceRow( userId, source )
   seedCheck( 'gmail_source', source.id, source.last_checked_at, source.last_error )
 }
 
@@ -52,7 +64,7 @@ describe( 'insertSource and findSourceById', () => {
 
     insertSource( source )
 
-    expect( findSourceById( source.id ) ).toEqual( source )
+    expect( findSourceById( userId, source.id ) ).toEqual( source )
   } )
 
   it( 'round-trips a search match and a newsletter source with a profile', () => {
@@ -69,11 +81,11 @@ describe( 'insertSource and findSourceById', () => {
 
     insertSource( source )
 
-    expect( findSourceById( source.id ) ).toEqual( source )
+    expect( findSourceById( userId, source.id ) ).toEqual( source )
   } )
 
   it( 'returns undefined for an unknown id', () => {
-    expect( findSourceById( crypto.randomUUID() ) ).toBeUndefined()
+    expect( findSourceById( userId, crypto.randomUUID() ) ).toBeUndefined()
   } )
 
   it( 'finds a deleted source too', () => {
@@ -81,7 +93,7 @@ describe( 'insertSource and findSourceById', () => {
 
     insertSource( source )
 
-    expect( findSourceById( source.id )?.deleted_at ).toBe( '2026-10-20T10:00:00.000Z' )
+    expect( findSourceById( userId, source.id )?.deleted_at ).toBe( '2026-10-20T10:00:00.000Z' )
   } )
 } )
 
@@ -92,11 +104,12 @@ describe( 'listSources', () => {
     insertSource( buildSource( { name: 'gone', deleted_at: '2026-10-20T10:00:00.000Z' } ) )
     insertSource( buildSource( { name: 'alpha' } ) )
 
-    expect( listSources().map( ( { name } ) => name ) ).toEqual( [ 'Alpha', 'alpha', 'beta' ] )
+    expect( listSources( userId ).map( ( { name } ) => name ) )
+      .toEqual( [ 'Alpha', 'alpha', 'beta' ] )
   } )
 
   it( 'is empty when there are no sources', () => {
-    expect( listSources() ).toEqual( [] )
+    expect( listSources( userId ) ).toEqual( [] )
   } )
 } )
 
@@ -105,14 +118,14 @@ describe( 'updateSource', () => {
     const source = buildSource()
     insertSource( source )
 
-    const updated = updateSource( source.id, {
+    const updated = updateSource( userId, source.id, {
       name: 'Renamed',
       match: { kind: 'query', query: 'label:jobs' },
       enabled: false,
       profile_id: crypto.randomUUID(),
     } )
 
-    expect( updated ).toEqual( findSourceById( source.id ) )
+    expect( updated ).toEqual( findSourceById( userId, source.id ) )
     expect( updated?.name ).toBe( 'Renamed' )
     expect( updated?.match ).toEqual( { kind: 'query', query: 'label:jobs' } )
     expect( updated?.enabled ).toBe( false )
@@ -123,14 +136,15 @@ describe( 'updateSource', () => {
     const source = buildSource()
     insertSource( source )
 
-    updateSource( source.id, { match: { kind: 'query', query: 'a' } } )
-    updateSource( source.id, { match: { kind: 'labels', label_ids: [ 'L9' ] } } )
+    updateSource( userId, source.id, { match: { kind: 'query', query: 'a' } } )
+    updateSource( userId, source.id, { match: { kind: 'labels', label_ids: [ 'L9' ] } } )
 
-    expect( findSourceById( source.id )?.match ).toEqual( { kind: 'labels', label_ids: [ 'L9' ] } )
+    expect( findSourceById( userId, source.id )?.match )
+      .toEqual( { kind: 'labels', label_ids: [ 'L9' ] } )
   } )
 
   it( 'returns undefined for an unknown id', () => {
-    expect( updateSource( crypto.randomUUID(), { name: 'x' } ) ).toBeUndefined()
+    expect( updateSource( userId, crypto.randomUUID(), { name: 'x' } ) ).toBeUndefined()
   } )
 } )
 
@@ -139,58 +153,31 @@ describe( 'markSourceDeleted', () => {
     const source = buildSource()
     insertSource( source )
 
-    markSourceDeleted( source.id, '2026-10-20T10:00:00.000Z' )
+    markSourceDeleted( userId, source.id, '2026-10-20T10:00:00.000Z' )
 
-    expect( findSourceById( source.id )?.deleted_at ).toBe( '2026-10-20T10:00:00.000Z' )
-    expect( listSources() ).toEqual( [] )
-  } )
-} )
-
-describe( 'listDueSources', () => {
-  const now = '2026-10-19T12:00:00.000Z'
-
-  it( 'returns sources never checked or last checked at least one interval ago', () => {
-    const never = buildSource( { name: 'never' } )
-    const exact = buildSource( { name: 'exact', last_checked_at: '2026-10-19T11:00:00.000Z' } )
-    const old = buildSource( { name: 'old', last_checked_at: '2026-10-19T09:00:00.000Z' } )
-    const recent = buildSource( { name: 'recent', last_checked_at: '2026-10-19T11:30:00.000Z' } )
-    const disabled = buildSource( { name: 'disabled', enabled: false } )
-    const deleted = buildSource( { name: 'deleted', deleted_at: '2026-10-19T08:00:00.000Z' } )
-
-    for( const source of [ recent, old, exact, never, disabled, deleted ] ) {
-      insertSource( source )
-    }
-
-    expect( listDueSources( now, 60 ).map( ( { name } ) => name ) )
-      .toEqual( [ 'never', 'old', 'exact' ] )
-  } )
-
-  it( 'honours the interval', () => {
-    insertSource( buildSource( { last_checked_at: '2026-10-19T11:30:00.000Z' } ) )
-
-    expect( listDueSources( now, 60 ) ).toHaveLength( 0 )
-    expect( listDueSources( now, 30 ) ).toHaveLength( 1 )
+    expect( findSourceById( userId, source.id )?.deleted_at ).toBe( '2026-10-20T10:00:00.000Z' )
+    expect( listSources( userId ) ).toEqual( [] )
   } )
 } )
 
 describe( 'check data from health_status', () => {
   it( 'shows the last check and error of the health row', () => {
     const source = buildSource()
-    insertSourceRow( source )
+    insertSourceRow( userId, source )
     recordFailure( 'gmail_source', source.id, '2026-10-19T12:00:00.000Z', 'Label not found' )
 
-    expect( findSourceById( source.id ) ).toMatchObject( {
+    expect( findSourceById( userId, source.id ) ).toMatchObject( {
       last_checked_at: '2026-10-19T12:00:00.000Z',
       last_error: 'Label not found',
     } )
-    expect( listSources()[ 0 ] ).toMatchObject( { last_error: 'Label not found' } )
+    expect( listSources( userId )[ 0 ] ).toMatchObject( { last_error: 'Label not found' } )
   } )
 
   it( 'shows nulls for a source that was never checked', () => {
     const source = buildSource()
-    insertSourceRow( source )
+    insertSourceRow( userId, source )
 
-    expect( findSourceById( source.id ) ).toMatchObject( {
+    expect( findSourceById( userId, source.id ) ).toMatchObject( {
       last_checked_at: null,
       last_error: null,
     } )
@@ -198,19 +185,19 @@ describe( 'check data from health_status', () => {
 
   it( 'does not mix up a source and a feed with the same id', () => {
     const source = buildSource()
-    insertSourceRow( source )
+    insertSourceRow( userId, source )
     recordSuccess( 'feed', source.id, '2026-10-19T12:00:00.000Z' )
 
-    expect( findSourceById( source.id )?.last_checked_at ).toBeNull()
+    expect( findSourceById( userId, source.id )?.last_checked_at ).toBeNull()
   } )
 
   it( 'does not write the check fields when a source is inserted or updated', () => {
     const source = buildSource( { last_checked_at: '2026-10-19T12:00:00.000Z', last_error: 'x' } )
-    insertSourceRow( source )
-    updateSource( source.id, { name: 'Renamed', last_error: 'y' } )
+    insertSourceRow( userId, source )
+    updateSource( userId, source.id, { name: 'Renamed', last_error: 'y' } )
 
     expect( getHealth( 'gmail_source', source.id ) ).toBeUndefined()
-    expect( findSourceById( source.id ) ).toMatchObject( {
+    expect( findSourceById( userId, source.id ) ).toMatchObject( {
       name: 'Renamed',
       last_checked_at: null,
       last_error: null,
@@ -219,10 +206,10 @@ describe( 'check data from health_status', () => {
 
   it( 'removes the health row and its errors when a source is deleted', () => {
     const source = buildSource()
-    insertSourceRow( source )
+    insertSourceRow( userId, source )
     recordFailure( 'gmail_source', source.id, '2026-10-19T12:00:00.000Z', 'x' )
 
-    markSourceDeleted( source.id, '2026-10-20T10:00:00.000Z' )
+    markSourceDeleted( userId, source.id, '2026-10-20T10:00:00.000Z' )
 
     expect( getHealth( 'gmail_source', source.id ) ).toBeUndefined()
     expect( listErrors( 'gmail_source', source.id ) ).toEqual( [] )
@@ -234,9 +221,9 @@ describe( 'recordSourceFetch', () => {
     const source = buildSource()
     insertSource( source )
 
-    recordSourceFetch( source.id, { last_skipped_count: 3 } )
+    recordSourceFetch( userId, source.id, { last_skipped_count: 3 } )
 
-    expect( findSourceById( source.id ) ).toEqual( { ...source, last_skipped_count: 3 } )
+    expect( findSourceById( userId, source.id ) ).toEqual( { ...source, last_skipped_count: 3 } )
   } )
 } )
 
@@ -253,6 +240,25 @@ describe( 'listActiveSourcesByMatch', () => {
     insertSource( query )
     insertSource( buildSource( { name: 'gone', deleted_at: '2026-10-20T10:00:00.000Z' } ) )
 
-    expect( listActiveSourcesByMatch() ).toEqual( [ query, labels ] )
+    expect( listActiveSourcesByMatch( userId ) ).toEqual( [ query, labels ] )
+  } )
+} )
+
+describe( 'ownership', () => {
+  it( 'does not show, change or delete another user\'s source', () => {
+    const other = createTestUser().id
+    const source = buildSource()
+
+    insertSource( source )
+
+    expect( findSourceById( other, source.id ) ).toBeUndefined()
+    expect( listSources( other ) ).toEqual( [] )
+    expect( listActiveSourcesByMatch( other ) ).toEqual( [] )
+    expect( updateSource( other, source.id, { name: 'Stolen' } ) ).toBeUndefined()
+
+    markSourceDeleted( other, source.id, '2026-10-20T00:00:00.000Z' )
+    recordSourceFetch( other, source.id, { last_skipped_count: 9 } )
+
+    expect( findSourceById( userId, source.id ) ).toEqual( source )
   } )
 } )

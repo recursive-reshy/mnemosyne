@@ -64,7 +64,7 @@ const feedId = crypto.randomUUID()
 const longText = `# Full text\n\n${ 'Words from the feed. '.repeat( 40 ) }`
 
 const addFeed = ( id = feedId, profileId: string | null = null, name = 'A blog' ): void => {
-  insertFeed( {
+  insertFeed( userId, {
     id,
     url: 'https://blog.example.com',
     feed_url: `https://blog.example.com/${ id }.xml`,
@@ -99,7 +99,7 @@ const addItem = ( overrides: Partial< StoredFeedItem > = {} ): StoredFeedItem =>
     ...overrides,
   }
 
-  insertItemIfNew( item )
+  insertItemIfNew( userId, item )
 
   return item
 }
@@ -107,7 +107,7 @@ const addItem = ( overrides: Partial< StoredFeedItem > = {} ): StoredFeedItem =>
 const feedRef = ( id: string ): InboxItemRef => ( { kind: 'feed', id } )
 const feeds = ( ...ids: string[] ): InboxItemRef[] => ids.map( feedRef )
 
-const status = ( id: string ): string | undefined => findItemsByIds( [ id ] )[ 0 ]?.status
+const status = ( id: string ): string | undefined => findItemsByIds( userId, [ id ] )[ 0 ]?.status
 
 beforeEach( () => {
   vi.useFakeTimers()
@@ -132,7 +132,7 @@ describe( 'listInbox', () => {
     } )
     addItem( { status: 'dismissed' } )
 
-    expect( listInbox() ).toEqual( [
+    expect( listInbox( userId ) ).toEqual( [
       {
         kind: 'feed',
         id: video.id,
@@ -164,7 +164,7 @@ describe( 'summarizeItems', () => {
       prompt_profile_id: null,
       summary_model: null,
     } )
-    expect( findItemsByIds( [ item.id ] )[ 0 ] ).toMatchObject( {
+    expect( findItemsByIds( userId, [ item.id ] )[ 0 ] ).toMatchObject( {
       status: 'queued',
       job_id: job?.id,
     } )
@@ -197,7 +197,7 @@ describe( 'summarizeItems', () => {
       },
       markdown: longText.trim(),
     } )
-    expect( findItemsByIds( [ item.id ] )[ 0 ]?.content_markdown ).toBeNull()
+    expect( findItemsByIds( userId, [ item.id ] )[ 0 ]?.content_markdown ).toBeNull()
   } )
 
   it( 'handles several items at once, in the order given', async () => {
@@ -334,9 +334,9 @@ describe( 'dismissItems', () => {
   it( 'dismisses inbox items and drops their full text', () => {
     const one = addItem( { content_markdown: longText } )
 
-    dismissItems( [ feedRef( one.id ) ] )
+    dismissItems( userId, [ feedRef( one.id ) ] )
 
-    expect( findItemsByIds( [ one.id ] )[ 0 ] ).toMatchObject( {
+    expect( findItemsByIds( userId, [ one.id ] )[ 0 ] ).toMatchObject( {
       status: 'dismissed',
       content_markdown: null,
     } )
@@ -348,7 +348,7 @@ describe( 'dismissItems', () => {
 
     const ids = [ queued.id, baseline.id, crypto.randomUUID() ]
 
-    expect( () => dismissItems( feeds( ...ids ) ) ).not.toThrow()
+    expect( () => dismissItems( userId, feeds( ...ids ) ) ).not.toThrow()
     expect( [ status( queued.id ), status( baseline.id ) ] ).toEqual( [ 'queued', 'baseline' ] )
   } )
 } )
@@ -358,7 +358,7 @@ describe( 'newsletters in the inbox', () => {
   const sourceName = 'Idea digest'
 
   const addSource = ( overrides: Partial< StoredGmailSource > = {} ): StoredGmailSource => {
-    return addStoredSource( { name: sourceName, destination: 'newsletter', ...overrides } )
+    return addStoredSource( userId, { name: sourceName, destination: 'newsletter', ...overrides } )
   }
 
   const addMessage = (
@@ -384,19 +384,19 @@ describe( 'newsletters in the inbox', () => {
       ...overrides,
     }
 
-    insertMessageIfNew( message )
+    insertMessageIfNew( userId, message )
 
     return message
   }
 
   const gmail = ( id: string ): InboxItemRef => ( { kind: 'gmail', id } )
   const messageStatus = ( id: string ): string | undefined => {
-    return findMessagesByIds( [ id ] )[ 0 ]?.status
+    return findMessagesByIds( userId, [ id ] )[ 0 ]?.status
   }
   const tiny = { body_html: '<p>Hi.</p>', body_text: 'Hi.' }
 
   beforeEach( () => {
-    connectGmail()
+    connectGmail( userId )
   } )
 
   describe( 'listInbox', () => {
@@ -404,7 +404,7 @@ describe( 'newsletters in the inbox', () => {
       const source = addSource()
       const message = addMessage( source.id, { added_at: '2026-10-18T11:00:00.000Z' } )
 
-      expect( listInbox() ).toEqual( [ {
+      expect( listInbox( userId ) ).toEqual( [ {
         kind: 'gmail',
         id: message.id,
         source_id: source.id,
@@ -424,7 +424,7 @@ describe( 'newsletters in the inbox', () => {
       const mail = addMessage( source.id, { added_at: '2026-10-18T10:00:00.000Z' } )
       const recent = addItem( { added_at: '2026-10-18T11:00:00.000Z' } )
 
-      expect( listInbox().map( ( { kind, id } ) => `${ kind }:${ id }` ) ).toEqual( [
+      expect( listInbox( userId ).map( ( { kind, id } ) => `${ kind }:${ id }` ) ).toEqual( [
         `feed:${ recent.id }`,
         `gmail:${ mail.id }`,
         `feed:${ old.id }`,
@@ -433,32 +433,32 @@ describe( 'newsletters in the inbox', () => {
 
     it( 'leaves out emails that are dismissed, queued or skipped, and job alerts', () => {
       const source = addSource()
-      const jobs = addStoredSource( { destination: 'jobs' } )
+      const jobs = addStoredSource( userId, { destination: 'jobs' } )
 
       addMessage( source.id, { status: 'dismissed' } )
       addMessage( source.id, { status: 'queued' } )
       addMessage( source.id, { status: 'skipped' } )
       addMessage( jobs.id, { status: 'pending' } )
 
-      expect( listInbox() ).toEqual( [] )
+      expect( listInbox( userId ) ).toEqual( [] )
     } )
 
     it( 'still lists the emails of a source that was deleted', () => {
       const source = addSource()
 
       addMessage( source.id )
-      markSourceDeleted( source.id, NOW.toISOString() )
+      markSourceDeleted( userId, source.id, NOW.toISOString() )
 
-      expect( listInbox() ).toHaveLength( 1 )
+      expect( listInbox( userId ) ).toHaveLength( 1 )
     } )
 
     it( 'links to the first signed-in account once Gmail has been disconnected', () => {
       const source = addSource()
       const message = addMessage( source.id )
 
-      deleteAccount()
+      deleteAccount( userId )
 
-      expect( listInbox()[ 0 ] ).toMatchObject( {
+      expect( listInbox( userId )[ 0 ] ).toMatchObject( {
         link: gmailLink( { email: null, messageId: message.message_id } ),
       } )
     } )
@@ -504,7 +504,7 @@ describe( 'newsletters in the inbox', () => {
 
       const { jobs } = await summarizeItems( userId, { items: [ gmail( message.id ) ] } )
 
-      expect( findMessagesByIds( [ message.id ] )[ 0 ] ).toMatchObject( {
+      expect( findMessagesByIds( userId, [ message.id ] )[ 0 ] ).toMatchObject( {
         status: 'queued',
         job_id: jobs[ 0 ]?.id,
         body_html: null,
@@ -691,9 +691,9 @@ describe( 'newsletters in the inbox', () => {
     it( 'dismisses emails and drops their bodies', () => {
       const message = addMessage( addSource().id )
 
-      dismissItems( [ gmail( message.id ) ] )
+      dismissItems( userId, [ gmail( message.id ) ] )
 
-      expect( findMessagesByIds( [ message.id ] )[ 0 ] ).toMatchObject( {
+      expect( findMessagesByIds( userId, [ message.id ] )[ 0 ] ).toMatchObject( {
         status: 'dismissed',
         body_html: null,
         body_text: null,
@@ -704,7 +704,7 @@ describe( 'newsletters in the inbox', () => {
       const message = addMessage( addSource().id )
       const post = addItem()
 
-      dismissItems( [ gmail( message.id ), feedRef( post.id ) ] )
+      dismissItems( userId, [ gmail( message.id ), feedRef( post.id ) ] )
 
       expect( [ messageStatus( message.id ), status( post.id ) ] ).toEqual( [
         'dismissed',
@@ -715,7 +715,7 @@ describe( 'newsletters in the inbox', () => {
     it( 'ignores emails that are not in the inbox, and unknown ids', () => {
       const queued = addMessage( addSource().id, { status: 'queued' } )
 
-      expect( () => dismissItems( [ gmail( queued.id ), gmail( crypto.randomUUID() ) ] ) )
+      expect( () => dismissItems( userId, [ gmail( queued.id ), gmail( crypto.randomUUID() ) ] ) )
         .not.toThrow()
       expect( messageStatus( queued.id ) ).toBe( 'queued' )
     } )
@@ -723,7 +723,7 @@ describe( 'newsletters in the inbox', () => {
     it( 'does not touch an email through a feed ref', () => {
       const message = addMessage( addSource().id )
 
-      dismissItems( [ feedRef( message.id ) ] )
+      dismissItems( userId, [ feedRef( message.id ) ] )
 
       expect( messageStatus( message.id ) ).toBe( 'inbox' )
     } )

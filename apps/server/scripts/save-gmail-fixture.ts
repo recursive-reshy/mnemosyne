@@ -11,6 +11,7 @@ import { stripFixture } from '#src/gmail/stripFixture.js'
 // Repositories
 import { closeDatabase, openDatabase } from '#src/repositories/database.js'
 import { findAccount } from '#src/repositories/gmailAccount.repository.js'
+import { listUsers } from '#src/repositories/users.repository.js'
 
 const [ messageId, name, ownerName ] = process.argv.slice( 2 )
 
@@ -28,13 +29,15 @@ await mkdir( config.dataDir, { recursive: true } )
 openDatabase( join( config.dataDir, 'mnemosyne.db' ) )
 
 try {
-  const account = findAccount()
+  // The fixture comes from the admin's mailbox
+  const admin = listUsers().find( ( { role } ) => role === 'admin' )
+  const account = admin === undefined ? undefined : findAccount( admin.id )
 
-  if( account === undefined ) {
+  if( admin === undefined || account === undefined ) {
     throw new Error( 'Gmail isn\'t connected. Connect it in Settings first.' )
   }
 
-  const { data } = await getGmailClient().users.messages.get( {
+  const { data } = await getGmailClient( admin.id ).users.messages.get( {
     userId: 'me',
     id: messageId,
     format: 'full',

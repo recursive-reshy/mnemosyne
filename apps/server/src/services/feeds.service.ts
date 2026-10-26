@@ -26,13 +26,13 @@ import {
   findActiveFeedByFeedUrl,
   findFeedById,
   insertFeed,
-  listDueFeeds,
   listFeeds as listStoredFeeds,
   markFeedDeleted,
   recordFeedFetch,
   updateFeed as updateStoredFeed,
 } from '../repositories/feeds.repository.js'
 import type { StoredFeed } from '../repositories/feeds.repository.js'
+import { listDueFeeds } from '../repositories/system.repository.js'
 // Sources
 import {
   discoverFeed,
@@ -43,7 +43,6 @@ import {
 import type { FeedItemData, ParsedFeed } from '../sources/feeds.js'
 // Services
 import { recordCheck } from './health.service.js'
-import { interimOwnerId } from './interimOwner.js'
 import { queueFeedItem } from './inbox.service.js'
 import { assertActiveProfile } from './prompts.service.js'
 import { getFeedCheckInterval } from './settings.service.js'
@@ -67,7 +66,7 @@ const discover = async ( url: string ): ReturnType< typeof discoverFeed > => {
   }
 }
 
-const toPublicFeed = ( feed: StoredFeed ): Feed => {
+const toPublicFeed = ( userId: string, feed: StoredFeed ): Feed => {
   return {
     id: feed.id,
     url: feed.url,
@@ -79,13 +78,13 @@ const toPublicFeed = ( feed: StoredFeed ): Feed => {
     last_checked_at: feed.last_checked_at,
     last_error: feed.last_error,
     last_skipped_count: feed.last_skipped_count,
-    inbox_count: countInbox( feed.id ),
+    inbox_count: countInbox( userId, feed.id ),
     created_at: feed.created_at,
   }
 }
 
-const requireActiveFeed = ( id: string ): StoredFeed => {
-  const feed = findFeedById( id )
+const requireActiveFeed = ( userId: string, id: string ): StoredFeed => {
+  const feed = findFeedById( userId, id )
 
   if( feed === undefined || feed.deleted_at !== null ) {
     throw new NotFoundError( 'Feed not found' )
@@ -167,7 +166,9 @@ export const previewFeed = async ( url: string ): Promise< PreviewFeedResponse >
   }
 }
 
-export const listFeeds = (): Feed[] => listStoredFeeds().map( toPublicFeed )
+export const listFeeds = ( userId: string ): Feed[] => {
+  return listStoredFeeds( userId ).map( ( feed ) => toPublicFeed( userId, feed ) )
+}
 
 export const createFeed = async ( userId: string, body: CreateFeedBody ): Promise< Feed > => {
   if( body.profile_id !== undefined ) {
@@ -176,7 +177,7 @@ export const createFeed = async ( userId: string, body: CreateFeedBody ): Promis
 
   const found = await discover( body.url )
 
-  if( findActiveFeedByFeedUrl( found.feedUrl ) !== undefined ) {
+  if( findActiveFeedByFeedUrl( userId, found.feedUrl ) !== undefined ) {
     throw new ConflictError( 'This feed was already added' )
   }
 
@@ -205,18 +206,18 @@ export const createFeed = async ( userId: string, body: CreateFeedBody ): Promis
   } )
 
   inTransaction( () => {
-    insertFeed( feed )
+    insertFeed( userId, feed )
     recordCheck( { kind: 'feed', id: feed.id }, { ok: true }, now )
-    stored.forEach( insertItemIfNew )
+    stored.forEach( ( item ) => insertItemIfNew( userId, item ) )
   } )
 
   await queueAutomatically( userId, feed, stored.filter( ( { status } ) => status === 'inbox' ) )
 
-  return toPublicFeed( feed )
+  return toPublicFeed( userId, feed )
 }
 
 export const updateFeed = ( userId: string, id: string, body: UpdateFeedBody ): Feed => {
-  requireActiveFeed( id )
+  requireActiveFeed( userId, id )
 
   if( typeof body.profile_id === 'string' ) {
     assertActiveProfile( userId, body.profile_id )
@@ -240,27 +241,28 @@ export const updateFeed = ( userId: string, id: string, body: UpdateFeedBody ): 
     changes.auto_summarize = body.auto_summarize
   }
 
-  const updated = updateStoredFeed( id, changes )
+  const updated = updateStoredFeed( userId, id, changes )
 
   if( updated === undefined ) {
     throw new NotFoundError( 'Feed not found' )
   }
 
-  return toPublicFeed( updated )
+  return toPublicFeed( userId, updated )
 }
 
 export const deleteFeed = (
+  userId: string,
   id: string,
   { removeInboxItems }: { removeInboxItems: boolean },
 ): void => {
-  requireActiveFeed( id )
+  requireActiveFeed( userId, id )
 
   inTransaction( () => {
     if( removeInboxItems ) {
-      dismissInboxForFeed( id )
+      dismissInboxForFeed( userId, id )
     }
 
-    markFeedDeleted( id, new Date().toISOString() )
+    markFeedDeleted( userId, id, new Date().toISOString() )
   } )
 }
 
@@ -290,7 +292,7 @@ const fetchAndParse = async ( feed: StoredFeed ): Promise< Fetched > => {
 }
 
 export const checkFeed = async ( userId: string, id: string ): Promise< Feed > => {
-  const feed = requireActiveFeed( id )
+  const feed = requireActiveFeed( userId, id )
 
   if( !feed.enabled ) {
     throw new ConflictError( 'This feed is turned off' )
@@ -308,7 +310,7 @@ export const checkFeed = async ( userId: string, id: string ): Promise< Feed > =
       now,
     )
 
-    return toPublicFeed( requireActiveFeed( id ) )
+    return toPublicFeed( userId, requireActiveFeed( userId, id ) )
   }
 
   let skipped = feed.last_skipped_count
@@ -329,7 +331,7 @@ export const checkFeed = async ( userId: string, id: string ): Promise< Feed > =
 
         const stored = toStoredItem( id, item, status, addedAt )
 
-        if( insertItemIfNew( stored ) ) {
+        if( insertItemIfNew( userId, stored ) ) {
           inbox += status === 'inbox' ? 1 : 0
           overflow += status === 'skipped' ? 1 : 0
           added.push( stored )
@@ -341,36 +343,36 @@ export const checkFeed = async ( userId: string, id: string ): Promise< Feed > =
   }
 
   inTransaction( () => {
-    recordFeedFetch( id, { ...outcome.check, last_skipped_count: skipped } )
+    recordFeedFetch( userId, id, { ...outcome.check, last_skipped_count: skipped } )
     recordCheck( { kind: 'feed', id }, { ok: true }, now )
   } )
 
   await queueAutomatically( userId, feed, added.filter( ( { status } ) => status === 'inbox' ) )
 
-  return toPublicFeed( requireActiveFeed( id ) )
+  return toPublicFeed( userId, requireActiveFeed( userId, id ) )
 }
 
 export const checkAllFeeds = async ( userId: string ): Promise< Feed[] > => {
   const checked: Feed[] = []
 
-  for( const feed of listStoredFeeds().filter( ( { enabled } ) => enabled ) ) {
+  for( const feed of listStoredFeeds( userId ).filter( ( { enabled } ) => enabled ) ) {
     checked.push( await checkFeed( userId, feed.id ) )
   }
 
   return checked
 }
 
+// Serves every user: each due feed is checked for its owner
 export const checkDueFeeds = async (): Promise< number > => {
-  const due = listDueFeeds(
-    new Date().toISOString(),
-    getFeedCheckInterval(),
-  )
-  const userId = interimOwnerId()
+  const due = listDueFeeds( new Date().toISOString(), getFeedCheckInterval() )
   let checked = 0
 
-  for( const feed of due ) {
+  for( const { user_id: userId, ...feed } of due ) {
     try {
-      await withLogContext( { feed_id: feed.id }, () => checkFeed( userId, feed.id ) )
+      await withLogContext(
+        { feed_id: feed.id, user_id: userId },
+        () => checkFeed( userId, feed.id ),
+      )
       checked += 1
     } catch( error ) {
       logger.error(

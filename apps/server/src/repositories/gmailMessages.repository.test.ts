@@ -1,5 +1,10 @@
 // Packages
-import { describe, it, expect } from 'vitest'
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+} from 'vitest'
 // Repositories
 import {
   countInbox,
@@ -17,6 +22,14 @@ import type { StoredGmailMessage } from './gmailMessages.repository.js'
 import { insertSource } from './gmailSources.repository.js'
 import type { StoredGmailSource } from './gmailSources.repository.js'
 import { upsertPosting } from './postings.repository.js'
+// Test support
+import { createTestUser, defaultTestAdmin } from '../test-support/auth.js'
+
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
 
 const addSource = ( overrides: Partial< StoredGmailSource > = {} ): StoredGmailSource => {
   const source: StoredGmailSource = {
@@ -36,7 +49,7 @@ const addSource = ( overrides: Partial< StoredGmailSource > = {} ): StoredGmailS
     ...overrides,
   }
 
-  insertSource( source )
+  insertSource( userId, source )
 
   return source
 }
@@ -71,7 +84,7 @@ const addMessage = (
 ): StoredGmailMessage => {
   const message = buildMessage( sourceId, overrides )
 
-  insertMessageIfNew( message )
+  insertMessageIfNew( userId, message )
 
   return message
 }
@@ -81,19 +94,22 @@ describe( 'insertMessageIfNew and findMessagesByIds', () => {
     const source = addSource()
     const message = buildMessage( source.id )
 
-    expect( insertMessageIfNew( message ) ).toBe( true )
-    expect( insertMessageIfNew( { ...message, id: crypto.randomUUID(), subject: 'Other' } ) )
+    expect( insertMessageIfNew( userId, message ) ).toBe( true )
+    expect( insertMessageIfNew(
+      userId,
+      { ...message, id: crypto.randomUUID(), subject: 'Other' },
+    ) )
       .toBe( false )
-    expect( findMessagesByIds( [ message.id ] ) ).toEqual( [ message ] )
+    expect( findMessagesByIds( userId, [ message.id ] ) ).toEqual( [ message ] )
   } )
 
   it( 'keeps the first row when the same Gmail id arrives again', () => {
     const source = addSource()
     const message = addMessage( source.id )
 
-    insertMessageIfNew( { ...message, id: crypto.randomUUID(), subject: 'Changed' } )
+    insertMessageIfNew( userId, { ...message, id: crypto.randomUUID(), subject: 'Changed' } )
 
-    expect( findMessagesByIds( [ message.id ] )[ 0 ]?.subject ).toBe( 'A subject' )
+    expect( findMessagesByIds( userId, [ message.id ] )[ 0 ]?.subject ).toBe( 'A subject' )
   } )
 
   it( 'accepts the same Gmail id for a different source', () => {
@@ -101,9 +117,12 @@ describe( 'insertMessageIfNew and findMessagesByIds', () => {
     const second = addSource()
     const message = buildMessage( first.id )
 
-    insertMessageIfNew( message )
+    insertMessageIfNew( userId, message )
 
-    expect( insertMessageIfNew( buildMessage( second.id, { message_id: message.message_id } ) ) )
+    expect( insertMessageIfNew(
+      userId,
+      buildMessage( second.id, { message_id: message.message_id } ),
+    ) )
       .toBe( true )
   } )
 
@@ -117,7 +136,7 @@ describe( 'insertMessageIfNew and findMessagesByIds', () => {
       status: 'queued',
     } )
 
-    expect( findMessagesByIds( [ message.id ] ) ).toEqual( [ message ] )
+    expect( findMessagesByIds( userId, [ message.id ] ) ).toEqual( [ message ] )
   } )
 
   it( 'returns only the rows asked for, and nothing for no ids', () => {
@@ -125,8 +144,8 @@ describe( 'insertMessageIfNew and findMessagesByIds', () => {
     const first = addMessage( source.id )
     addMessage( source.id )
 
-    expect( findMessagesByIds( [ first.id, crypto.randomUUID() ] ) ).toEqual( [ first ] )
-    expect( findMessagesByIds( [] ) ).toEqual( [] )
+    expect( findMessagesByIds( userId, [ first.id, crypto.randomUUID() ] ) ).toEqual( [ first ] )
+    expect( findMessagesByIds( userId, [] ) ).toEqual( [] )
   } )
 } )
 
@@ -136,7 +155,7 @@ describe( 'listNewsletterInbox', () => {
     const older = addMessage( source.id, { added_at: '2026-10-19T10:00:00.000Z' } )
     const newer = addMessage( source.id, { added_at: '2026-10-19T11:00:00.000Z' } )
 
-    expect( listNewsletterInbox() ).toEqual( [
+    expect( listNewsletterInbox( userId ) ).toEqual( [
       { ...newer, source_name: 'Lenny' },
       { ...older, source_name: 'Lenny' },
     ] )
@@ -147,7 +166,8 @@ describe( 'listNewsletterInbox', () => {
     const first = addMessage( source.id )
     const second = addMessage( source.id )
 
-    expect( listNewsletterInbox().map( ( { id } ) => id ) ).toEqual( [ second.id, first.id ] )
+    expect( listNewsletterInbox( userId ).map( ( { id } ) => id ) )
+      .toEqual( [ second.id, first.id ] )
   } )
 
   it( 'leaves out other statuses and rows of jobs sources', () => {
@@ -159,14 +179,14 @@ describe( 'listNewsletterInbox', () => {
     addMessage( newsletter.id, { status: 'skipped' } )
     addMessage( jobs.id, { status: 'inbox' } )
 
-    expect( listNewsletterInbox() ).toEqual( [] )
+    expect( listNewsletterInbox( userId ) ).toEqual( [] )
   } )
 
   it( 'still lists rows of a deleted source', () => {
     const source = addSource( { deleted_at: '2026-10-20T10:00:00.000Z' } )
     const message = addMessage( source.id )
 
-    expect( listNewsletterInbox().map( ( { id } ) => id ) ).toEqual( [ message.id ] )
+    expect( listNewsletterInbox( userId ).map( ( { id } ) => id ) ).toEqual( [ message.id ] )
   } )
 } )
 
@@ -178,9 +198,9 @@ describe( 'setMessageStatus', () => {
     const other = addMessage( source.id )
     const jobId = crypto.randomUUID()
 
-    setMessageStatus( [ first.id, second.id ], 'queued', jobId )
+    setMessageStatus( userId, [ first.id, second.id ], 'queued', jobId )
 
-    const rows = findMessagesByIds( [ first.id, second.id, other.id ] )
+    const rows = findMessagesByIds( userId, [ first.id, second.id, other.id ] )
     expect( rows.map( ( { status, job_id } ) => [ status, job_id ] ) )
       .toEqual( [ [ 'queued', jobId ], [ 'queued', jobId ], [ 'inbox', null ] ] )
   } )
@@ -189,9 +209,9 @@ describe( 'setMessageStatus', () => {
     const source = addSource()
     const message = addMessage( source.id )
 
-    setMessageStatus( [ message.id ], 'dismissed' )
+    setMessageStatus( userId, [ message.id ], 'dismissed' )
 
-    expect( findMessagesByIds( [ message.id ] )[ 0 ] )
+    expect( findMessagesByIds( userId, [ message.id ] )[ 0 ] )
       .toMatchObject( { status: 'dismissed', body_html: null, body_text: null } )
   } )
 
@@ -199,9 +219,9 @@ describe( 'setMessageStatus', () => {
     const source = addSource()
     const message = addMessage( source.id )
 
-    setMessageStatus( [ message.id ], 'inbox' )
+    setMessageStatus( userId, [ message.id ], 'inbox' )
 
-    expect( findMessagesByIds( [ message.id ] )[ 0 ] )
+    expect( findMessagesByIds( userId, [ message.id ] )[ 0 ] )
       .toMatchObject( { body_html: '<p>Hello</p>', body_text: 'Hello' } )
   } )
 
@@ -209,14 +229,14 @@ describe( 'setMessageStatus', () => {
     const source = addSource( { destination: 'jobs' } )
     const message = addMessage( source.id, { status: 'pending' } )
 
-    setMessageStatus( [ message.id ], 'extracted' )
+    setMessageStatus( userId, [ message.id ], 'extracted' )
 
-    expect( findMessagesByIds( [ message.id ] )[ 0 ] )
+    expect( findMessagesByIds( userId, [ message.id ] )[ 0 ] )
       .toMatchObject( { status: 'extracted', body_html: '<p>Hello</p>', body_text: 'Hello' } )
   } )
 
   it( 'does nothing for no ids', () => {
-    expect( () => setMessageStatus( [], 'dismissed' ) ).not.toThrow()
+    expect( () => setMessageStatus( userId, [], 'dismissed' ) ).not.toThrow()
   } )
 } )
 
@@ -238,7 +258,7 @@ describe( 'listPendingAlerts', () => {
     addMessage( source.id, { status: 'no_jobs' } )
     addMessage( source.id, { status: 'skipped' } )
 
-    expect( listPendingAlerts( source.id, 20 ).map( ( { id } ) => id ) )
+    expect( listPendingAlerts( userId, source.id, 20 ).map( ( { id } ) => id ) )
       .toEqual( [ retry.id, pending.id ] )
   } )
 
@@ -255,8 +275,8 @@ describe( 'listPendingAlerts', () => {
 
     addMessage( other.id, { status: 'pending' } )
 
-    expect( listPendingAlerts( source.id, 2 ) ).toHaveLength( 2 )
-    expect( listPendingAlerts( other.id, 20 ) ).toHaveLength( 1 )
+    expect( listPendingAlerts( userId, source.id, 2 ) ).toHaveLength( 2 )
+    expect( listPendingAlerts( userId, other.id, 20 ) ).toHaveLength( 1 )
   } )
 } )
 
@@ -265,10 +285,10 @@ describe( 'recordAttempt', () => {
     const source = addSource( { destination: 'jobs' } )
     const message = addMessage( source.id, { status: 'pending' } )
 
-    recordAttempt( message.id, { status: 'failed', error: 'Malformed output' } )
-    recordAttempt( message.id, { status: 'extracted', error: null } )
+    recordAttempt( userId, message.id, { status: 'failed', error: 'Malformed output' } )
+    recordAttempt( userId, message.id, { status: 'extracted', error: null } )
 
-    expect( findMessagesByIds( [ message.id ] )[ 0 ] )
+    expect( findMessagesByIds( userId, [ message.id ] )[ 0 ] )
       .toMatchObject( { status: 'extracted', error: null, attempts: 2 } )
   } )
 } )
@@ -276,6 +296,7 @@ describe( 'recordAttempt', () => {
 describe( 'listAlertEmails', () => {
   const addPosting = ( messageRowId: string, key: string ): void => {
     upsertPosting(
+      userId,
       {
         id: crypto.randomUUID(),
         platform: 'upwork',
@@ -314,7 +335,7 @@ describe( 'listAlertEmails', () => {
     addPosting( older.id, 'upwork:1' )
     addPosting( older.id, 'upwork:2' )
 
-    const { rows, total } = listAlertEmails( { limit: 50, offset: 0 } )
+    const { rows, total } = listAlertEmails( userId, { limit: 50, offset: 0 } )
 
     expect( total ).toBe( 2 )
     expect( rows ).toEqual( [
@@ -354,7 +375,7 @@ describe( 'listAlertEmails', () => {
     addMessage( source.id, { status: 'extracted' } )
     addMessage( source.id, { status: 'extracted' } )
 
-    const { rows, total } = listAlertEmails( { status: 'failed', limit: 50, offset: 0 } )
+    const { rows, total } = listAlertEmails( userId, { status: 'failed', limit: 50, offset: 0 } )
 
     expect( total ).toBe( 1 )
     expect( rows ).toHaveLength( 1 )
@@ -372,7 +393,7 @@ describe( 'listAlertEmails', () => {
       } )
     }
 
-    const { rows, total } = listAlertEmails( { limit: 2, offset: 1 } )
+    const { rows, total } = listAlertEmails( userId, { limit: 2, offset: 1 } )
 
     expect( total ).toBe( 5 )
     expect( rows.map( ( { subject } ) => subject ) ).toEqual( [ 'Mail 4', 'Mail 3' ] )
@@ -389,8 +410,8 @@ describe( 'countInbox', () => {
     addMessage( source.id, { status: 'dismissed' } )
     addMessage( other.id )
 
-    expect( countInbox( source.id ) ).toBe( 2 )
-    expect( countInbox( crypto.randomUUID() ) ).toBe( 0 )
+    expect( countInbox( userId, source.id ) ).toBe( 2 )
+    expect( countInbox( userId, crypto.randomUUID() ) ).toBe( 0 )
   } )
 } )
 
@@ -402,12 +423,12 @@ describe( 'dismissInboxForSource', () => {
     const queued = addMessage( source.id, { status: 'queued', body_html: null, body_text: null } )
     const kept = addMessage( other.id )
 
-    dismissInboxForSource( source.id )
+    dismissInboxForSource( userId, source.id )
 
-    expect( findMessagesByIds( [ inbox.id ] )[ 0 ] )
+    expect( findMessagesByIds( userId, [ inbox.id ] )[ 0 ] )
       .toMatchObject( { status: 'dismissed', body_html: null, body_text: null } )
-    expect( findMessagesByIds( [ queued.id ] )[ 0 ]?.status ).toBe( 'queued' )
-    expect( findMessagesByIds( [ kept.id ] )[ 0 ]?.status ).toBe( 'inbox' )
+    expect( findMessagesByIds( userId, [ queued.id ] )[ 0 ]?.status ).toBe( 'queued' )
+    expect( findMessagesByIds( userId, [ kept.id ] )[ 0 ]?.status ).toBe( 'inbox' )
   } )
 } )
 
@@ -420,12 +441,12 @@ describe( 'findStoredMessageIds', () => {
     addMessage( source.id, { message_id: 'g2', status: 'skipped' } )
     addMessage( other.id, { message_id: 'g3' } )
 
-    expect( findStoredMessageIds( source.id, [ 'g1', 'g2', 'g3', 'g4' ] ) )
+    expect( findStoredMessageIds( userId, source.id, [ 'g1', 'g2', 'g3', 'g4' ] ) )
       .toEqual( new Set( [ 'g1', 'g2' ] ) )
   } )
 
   it( 'returns nothing for no ids', () => {
-    expect( findStoredMessageIds( addSource().id, [] ) ).toEqual( new Set() )
+    expect( findStoredMessageIds( userId, addSource().id, [] ) ).toEqual( new Set() )
   } )
 
   it( 'handles more ids than SQLite takes as parameters in one statement', () => {
@@ -434,6 +455,34 @@ describe( 'findStoredMessageIds', () => {
 
     addMessage( source.id, { message_id: 'g1499' } )
 
-    expect( findStoredMessageIds( source.id, ids ) ).toEqual( new Set( [ 'g1499' ] ) )
+    expect( findStoredMessageIds( userId, source.id, ids ) ).toEqual( new Set( [ 'g1499' ] ) )
+  } )
+} )
+
+describe( 'ownership', () => {
+  it( 'keeps each user\'s messages, inbox and counts apart', () => {
+    const other = createTestUser().id
+    const source = addSource()
+    const message = addMessage( source.id )
+
+    expect( findMessagesByIds( other, [ message.id ] ) ).toEqual( [] )
+    expect( findStoredMessageIds( other, source.id, [ message.message_id ] ).size ).toBe( 0 )
+    expect( listNewsletterInbox( other ) ).toEqual( [] )
+    expect( listPendingAlerts( other, source.id, 10 ) ).toEqual( [] )
+    expect( listAlertEmails( other, { limit: 10, offset: 0 } ).total ).toBe( 0 )
+    expect( countInbox( other, source.id ) ).toBe( 0 )
+    expect( listNewsletterInbox( userId ).map( ( { id } ) => id ) ).toEqual( [ message.id ] )
+  } )
+
+  it( 'does not change another user\'s messages', () => {
+    const other = createTestUser().id
+    const source = addSource()
+    const message = addMessage( source.id )
+
+    setMessageStatus( other, [ message.id ], 'dismissed' )
+    recordAttempt( other, message.id, { status: 'failed', error: 'x' } )
+    dismissInboxForSource( other, source.id )
+
+    expect( findMessagesByIds( userId, [ message.id ] ) ).toEqual( [ message ] )
   } )
 } )

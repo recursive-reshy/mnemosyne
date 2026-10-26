@@ -28,6 +28,14 @@ import {
 import { saveAccount, setAccountStatus } from '../repositories/gmailAccount.repository.js'
 // Logging
 import { logger } from '../logger.js'
+// Test support
+import { defaultTestAdmin } from '../test-support/auth.js'
+
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
 
 vi.mock( '../gmail/auth.js', async ( importOriginal ) => ( {
   ...await importOriginal< typeof import( '../gmail/auth.js' ) >(),
@@ -49,11 +57,12 @@ vi.mock( '../config.js', async ( importOriginal ) => {
   return { config: Object.assign( configMock, config, { gmail: configMock.gmail } ) }
 } )
 
+const ORIGIN_HOST = 'localhost:3100'
 const consentUrl = 'https://accounts.google.com/o/oauth2/v2/auth?state=abc'
 const refreshToken = 'v1:secret-ciphertext'
 
 const connect = (): void => {
-  saveAccount( {
+  saveAccount( userId, {
     email: 'naresh@example.com',
     refresh_token_enc: refreshToken,
     scope: 'https://www.googleapis.com/auth/gmail.readonly',
@@ -68,7 +77,7 @@ const configured = (): void => {
 }
 
 const listLabelsWith = ( labels: { id: string, name: string, type: string }[] ): void => {
-  vi.mocked( withGmail ).mockImplementation( ( run ) => run( {
+  vi.mocked( withGmail ).mockImplementation( ( _userId, run ) => run( {
     users: { labels: { list: () => Promise.resolve( { data: { labels } } ) } },
   } as never ) )
 }
@@ -114,7 +123,7 @@ describe( 'GET /api/gmail/account', () => {
 
   it( 'is reconnect_needed with the reason', async () => {
     connect()
-    setAccountStatus( 'reconnect_needed', 'Google no longer accepts access' )
+    setAccountStatus( userId, 'reconnect_needed', 'Google no longer accepts access' )
 
     const response = await request( app ).get( '/api/gmail/account' )
 
@@ -139,16 +148,36 @@ describe( 'GET /api/gmail/connect', () => {
   it( 'redirects to the consent URL', async () => {
     vi.mocked( createConsentUrl ).mockReturnValue( consentUrl )
 
-    const response = await request( app ).get( '/api/gmail/connect' )
+    const response = await request( app ).get( '/api/gmail/connect' ).set( 'Host', ORIGIN_HOST )
 
     expect( response.status ).toBe( 302 )
     expect( response.headers.location ).toBe( consentUrl )
+    expect( createConsentUrl ).toHaveBeenCalledWith( userId, `http://${ ORIGIN_HOST }` )
+  } )
+
+  it( 'asks for consent with the origin the request came to', async () => {
+    vi.mocked( createConsentUrl ).mockReturnValue( consentUrl )
+
+    await request( app )
+      .get( '/api/gmail/connect' )
+      .set( 'X-Forwarded-Proto', 'http' )
+      .set( 'X-Forwarded-Host', ORIGIN_HOST )
+      .set( 'Host', ORIGIN_HOST )
+
+    expect( createConsentUrl ).toHaveBeenCalledWith( userId, `http://${ ORIGIN_HOST }` )
+  } )
+
+  it( 'is 400 for an address that is not in APP_ORIGINS', async () => {
+    const response = await request( app ).get( '/api/gmail/connect' ).set( 'Host', 'evil.example' )
+
+    expect( response.status ).toBe( 400 )
+    expect( createConsentUrl ).not.toHaveBeenCalled()
   } )
 
   it( 'is 409 when Gmail is not configured', async () => {
     configMock.gmail = null
 
-    const response = await request( app ).get( '/api/gmail/connect' )
+    const response = await request( app ).get( '/api/gmail/connect' ).set( 'Host', ORIGIN_HOST )
 
     expect( response.status ).toBe( 409 )
     expect( response.body ).toEqual( { error: 'Gmail isn\'t configured' } )
@@ -163,7 +192,8 @@ describe( 'GET /api/gmail/oauth/callback', () => {
 
     expect( response.status ).toBe( 302 )
     expect( response.headers.location ).toBe( '/settings?gmail=connected' )
-    expect( completeConsent ).toHaveBeenCalledWith( { code: 'the-code', state: 'the-state' } )
+    expect( completeConsent )
+      .toHaveBeenCalledWith( userId, { code: 'the-code', state: 'the-state' } )
   } )
 
   it.each( [

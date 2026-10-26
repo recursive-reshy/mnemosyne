@@ -37,6 +37,7 @@ const toStoredPosting = ( raw: unknown ): StoredPosting => {
 const escapeLike = ( text: string ): string => text.replace( /[\\%_]/g, '\\$&' )
 
 export const upsertPosting = (
+  userId: string,
   posting: PostingRow,
   messageRowId: string,
   seenAt: string,
@@ -45,12 +46,12 @@ export const upsertPosting = (
 
   const { id } = z.object( { id: z.string() } ).parse(
     db.prepare( `INSERT INTO job_postings (
-        id, platform, platform_job_id, dedupe_key, title, url, posted_at,
+        id, user_id, platform, platform_job_id, dedupe_key, title, url, posted_at,
         first_seen_at, last_seen_at, details
       ) VALUES (
-        @id, @platform, @platform_job_id, @dedupe_key, @title, @url, @posted_at,
+        @id, @user_id, @platform, @platform_job_id, @dedupe_key, @title, @url, @posted_at,
         @seen_at, @seen_at, @details
-      ) ON CONFLICT ( dedupe_key ) DO UPDATE SET
+      ) ON CONFLICT ( user_id, dedupe_key ) DO UPDATE SET
         title = excluded.title,
         url = excluded.url,
         posted_at = excluded.posted_at,
@@ -60,31 +61,33 @@ export const upsertPosting = (
       ...posting,
       details: JSON.stringify( posting.details ),
       seen_at: seenAt,
+      user_id: userId,
     } ),
   )
 
-  db.prepare( `INSERT INTO posting_sightings ( posting_id, gmail_message_row, seen_at )
-    VALUES ( ?, ?, ? ) ON CONFLICT DO NOTHING` ).run( id, messageRowId, seenAt )
+  db.prepare( `INSERT INTO posting_sightings ( user_id, posting_id, gmail_message_row, seen_at )
+    VALUES ( ?, ?, ?, ? ) ON CONFLICT DO NOTHING` ).run( userId, id, messageRowId, seenAt )
 
   return id
 }
 
 export const listPostings = (
+  userId: string,
   { q, platform, limit, offset }: PostingsFilter & PostingsPage,
 ): { rows: StoredPosting[], total: number, filtered: number } => {
   const db = getDatabase()
   const pattern = q === undefined || q === '' ? null : `%${ escapeLike( q ) }%`
-  const where = `WHERE ( @platform IS NULL OR platform = @platform )
+  const where = `WHERE user_id = @user_id AND ( @platform IS NULL OR platform = @platform )
     AND ( @pattern IS NULL
       OR title LIKE @pattern ESCAPE '\\'
       OR json_extract( details, '$.description' ) LIKE @pattern ESCAPE '\\'
       OR EXISTS ( SELECT 1 FROM json_each( details, '$.skills' )
         WHERE value LIKE @pattern ESCAPE '\\' ) )`
-  const filter = { platform: platform ?? null, pattern }
+  const filter = { platform: platform ?? null, pattern, user_id: userId }
   const count = z.object( { count: z.number() } )
 
   const { count: total } = count.parse(
-    db.prepare( 'SELECT COUNT(*) AS count FROM job_postings' ).get(),
+    db.prepare( 'SELECT COUNT(*) AS count FROM job_postings WHERE user_id = ?' ).get( userId ),
   )
   const { count: filtered } = count.parse(
     db.prepare( `SELECT COUNT(*) AS count FROM job_postings ${ where }` ).get( filter ),
@@ -100,30 +103,34 @@ export const listPostings = (
   return { rows, total, filtered }
 }
 
-export const listPlatforms = (): string[] => {
+export const listPlatforms = ( userId: string ): string[] => {
   return z.array( z.string() ).parse(
     getDatabase()
-      .prepare( 'SELECT DISTINCT platform FROM job_postings ORDER BY platform' )
+      .prepare( `SELECT DISTINCT platform FROM job_postings WHERE user_id = ?
+        ORDER BY platform` )
       .pluck()
-      .all(),
+      .all( userId ),
   )
 }
 
-export const listSightings = ( postingId: string ): StoredAlertEmail[] => {
+export const listSightings = ( userId: string, postingId: string ): StoredAlertEmail[] => {
   return z.array( StoredAlertEmail ).parse(
     getDatabase().prepare( `${ ALERT_EMAIL_SELECT }
-      WHERE gmail_messages.id IN (
-        SELECT gmail_message_row FROM posting_sightings WHERE posting_id = ? )
-      ORDER BY gmail_messages.received_at DESC, gmail_messages.rowid DESC` ).all( postingId ),
+      WHERE gmail_messages.user_id = ? AND gmail_messages.id IN (
+        SELECT gmail_message_row FROM posting_sightings
+        WHERE user_id = ? AND posting_id = ? )
+      ORDER BY gmail_messages.received_at DESC, gmail_messages.rowid DESC` )
+      .all( userId, userId, postingId ),
   )
 }
 
-export const countPostingsForSource = ( sourceId: string ): number => {
+export const countPostingsForSource = ( userId: string, sourceId: string ): number => {
   const { count } = z.object( { count: z.number() } ).parse(
     getDatabase().prepare( `SELECT COUNT(DISTINCT posting_sightings.posting_id) AS count
       FROM posting_sightings
         JOIN gmail_messages ON gmail_messages.id = posting_sightings.gmail_message_row
-      WHERE gmail_messages.source_id = ?` ).get( sourceId ),
+      WHERE posting_sightings.user_id = ? AND gmail_messages.source_id = ?` )
+      .get( userId, sourceId ),
   )
 
   return count

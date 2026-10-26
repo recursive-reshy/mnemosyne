@@ -127,6 +127,7 @@ CREATE INDEX summary_runs_job ON summary_runs ( job_id, id );
 
 CREATE TABLE feeds (
   id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users ( id ) ON DELETE CASCADE,
   url TEXT NOT NULL,
   feed_url TEXT NOT NULL,
   name TEXT NOT NULL,
@@ -139,10 +140,12 @@ CREATE TABLE feeds (
   created_at TEXT NOT NULL,
   deleted_at TEXT
 );
-CREATE UNIQUE INDEX feeds_active_url ON feeds ( feed_url ) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX feeds_active_url
+  ON feeds ( user_id, feed_url ) WHERE deleted_at IS NULL;
 
 CREATE TABLE feed_items (
   id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users ( id ) ON DELETE CASCADE,
   feed_id TEXT NOT NULL REFERENCES feeds ( id ),
   item_key TEXT NOT NULL,
   title TEXT NOT NULL,
@@ -155,10 +158,10 @@ CREATE TABLE feed_items (
   added_at TEXT NOT NULL,
   UNIQUE ( feed_id, item_key )
 );
-CREATE INDEX feed_items_inbox ON feed_items ( status, added_at );
+CREATE INDEX feed_items_inbox ON feed_items ( user_id, status, added_at );
 
 CREATE TABLE gmail_account (
-  id INTEGER PRIMARY KEY CHECK ( id = 1 ),
+  user_id TEXT NOT NULL PRIMARY KEY REFERENCES users ( id ) ON DELETE CASCADE,
   email TEXT NOT NULL,
   refresh_token_enc TEXT NOT NULL,
   scope TEXT NOT NULL,
@@ -169,6 +172,7 @@ CREATE TABLE gmail_account (
 
 CREATE TABLE gmail_sources (
   id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users ( id ) ON DELETE CASCADE,
   name TEXT NOT NULL,
   match_kind TEXT NOT NULL,
   label_ids TEXT,
@@ -185,6 +189,7 @@ CREATE TABLE gmail_sources (
 
 CREATE TABLE gmail_messages (
   id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users ( id ) ON DELETE CASCADE,
   source_id TEXT NOT NULL REFERENCES gmail_sources ( id ),
   message_id TEXT NOT NULL,
   subject TEXT NOT NULL,
@@ -201,23 +206,26 @@ CREATE TABLE gmail_messages (
   added_at TEXT NOT NULL,
   UNIQUE ( source_id, message_id )
 );
-CREATE INDEX gmail_messages_status ON gmail_messages ( status, added_at );
+CREATE INDEX gmail_messages_status ON gmail_messages ( user_id, status, added_at );
 
 CREATE TABLE job_postings (
   id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users ( id ) ON DELETE CASCADE,
   platform TEXT NOT NULL,
   platform_job_id TEXT,
-  dedupe_key TEXT NOT NULL UNIQUE,
+  dedupe_key TEXT NOT NULL,
   title TEXT NOT NULL,
   url TEXT NOT NULL,
   posted_at TEXT,
   first_seen_at TEXT NOT NULL,
   last_seen_at TEXT NOT NULL,
-  details TEXT NOT NULL
+  details TEXT NOT NULL,
+  UNIQUE ( user_id, dedupe_key )
 );
-CREATE INDEX job_postings_seen ON job_postings ( first_seen_at );
+CREATE INDEX job_postings_seen ON job_postings ( user_id, first_seen_at );
 
 CREATE TABLE posting_sightings (
+  user_id TEXT NOT NULL REFERENCES users ( id ) ON DELETE CASCADE,
   posting_id TEXT NOT NULL REFERENCES job_postings ( id ),
   gmail_message_row TEXT NOT NULL REFERENCES gmail_messages ( id ),
   seen_at TEXT NOT NULL,
@@ -226,6 +234,7 @@ CREATE TABLE posting_sightings (
 
 CREATE TABLE extraction_runs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL REFERENCES users ( id ) ON DELETE CASCADE,
   gmail_message_row TEXT NOT NULL,
   model TEXT NOT NULL,
   input_tokens INTEGER,

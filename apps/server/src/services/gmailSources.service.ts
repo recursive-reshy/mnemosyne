@@ -35,7 +35,6 @@ import {
   findSourceById,
   insertSource,
   listActiveSourcesByMatch,
-  listDueSources,
   listSources as listStoredSources,
   markSourceDeleted,
   recordSourceFetch,
@@ -43,9 +42,9 @@ import {
 } from '../repositories/gmailSources.repository.js'
 import type { StoredGmailSource } from '../repositories/gmailSources.repository.js'
 import { countPostingsForSource } from '../repositories/postings.repository.js'
+import { listDueGmailSources } from '../repositories/system.repository.js'
 // Services
 import { recordCheck } from './health.service.js'
-import { interimOwnerId } from './interimOwner.js'
 import { queueNewsletterMessage } from './inbox.service.js'
 import { assertActiveProfile } from './prompts.service.js'
 import { getFeedCheckInterval } from './settings.service.js'
@@ -67,12 +66,12 @@ const BACKFILL_DAYS: Record< Backfill, number | null > = {
 
 type MessageStatus = StoredGmailMessage[ 'status' ]
 
-export const requireConnectedGmail = (): void => {
+export const requireConnectedGmail = ( userId: string ): void => {
   if( config.gmail === null ) {
     throw new ConflictError( 'Gmail isn\'t configured' )
   }
 
-  const account = findAccount()
+  const account = findAccount( userId )
 
   if( account === undefined ) {
     throw new ConflictError( 'Gmail isn\'t connected' )
@@ -129,8 +128,12 @@ export const stampNewestFirst = (
     } )
 }
 
-const fetchParsed = async ( id: string, format: 'full' | 'metadata' ): Promise< ParsedMessage > => {
-  return parseMessage( await getMessage( id, format ) )
+const fetchParsed = async (
+  userId: string,
+  id: string,
+  format: 'full' | 'metadata',
+): Promise< ParsedMessage > => {
+  return parseMessage( await getMessage( userId, id, format ) )
 }
 
 const newestOf = ( messages: ParsedMessage[] ): ParsedMessage | null => {
@@ -139,11 +142,14 @@ const newestOf = ( messages: ParsedMessage[] ): ParsedMessage | null => {
   }, null )
 }
 
-const newestAmong = async ( heads: string[] ): Promise< ParsedMessage | null > => {
+const newestAmong = async (
+  userId: string,
+  heads: string[],
+): Promise< ParsedMessage | null > => {
   const parsed: ParsedMessage[] = []
 
   for( const id of heads ) {
-    parsed.push( await fetchParsed( id, 'metadata' ) )
+    parsed.push( await fetchParsed( userId, id, 'metadata' ) )
   }
 
   return newestOf( parsed )
@@ -164,28 +170,36 @@ const sharesMatch = ( first: GmailMatch, second: GmailMatch ): boolean => {
 }
 
 const findOverlaps = (
+  userId: string,
   match: GmailMatch,
   excludeId?: string,
 ): PreviewGmailSourceResponse[ 'overlaps' ] => {
-  return listActiveSourcesByMatch()
+  return listActiveSourcesByMatch( userId )
     .filter( ( source ) => source.id !== excludeId && sharesMatch( match, source.match ) )
     .map( ( { id, name } ) => ( { id, name } ) )
 }
 
 // The names are a convenience: when Gmail can't give them, the list shows the ids instead.
-const loadLabelNames = async ( sources: StoredGmailSource[] ): Promise< Map< string, string > > => {
+const loadLabelNames = async (
+  userId: string,
+  sources: StoredGmailSource[],
+): Promise< Map< string, string > > => {
   if( !sources.some( ( { match } ) => match.kind === 'labels' ) ) {
     return new Map()
   }
 
   try {
-    return new Map( ( await listLabels() ).map( ( { id, name } ) => [ id, name ] ) )
+    return new Map( ( await listLabels( userId ) ).map( ( { id, name } ) => [ id, name ] ) )
   } catch{
     return new Map()
   }
 }
 
-const toPublicSource = ( source: StoredGmailSource, names: Map< string, string > ): GmailSource => {
+const toPublicSource = (
+  userId: string,
+  source: StoredGmailSource,
+  names: Map< string, string >,
+): GmailSource => {
   return {
     id: source.id,
     name: source.name,
@@ -201,26 +215,32 @@ const toPublicSource = ( source: StoredGmailSource, names: Map< string, string >
     last_checked_at: source.last_checked_at,
     last_error: source.last_error,
     last_skipped_count: source.last_skipped_count,
-    inbox_count: countInbox( source.id ),
-    postings_count: countPostingsForSource( source.id ),
+    inbox_count: countInbox( userId, source.id ),
+    postings_count: countPostingsForSource( userId, source.id ),
     created_at: source.created_at,
   }
 }
 
-export const presentSources = async ( sources: StoredGmailSource[] ): Promise< GmailSource[] > => {
-  const names = await loadLabelNames( sources )
+export const presentSources = async (
+  userId: string,
+  sources: StoredGmailSource[],
+): Promise< GmailSource[] > => {
+  const names = await loadLabelNames( userId, sources )
 
-  return sources.map( ( source ) => toPublicSource( source, names ) )
+  return sources.map( ( source ) => toPublicSource( userId, source, names ) )
 }
 
-export const presentSource = async ( source: StoredGmailSource ): Promise< GmailSource > => {
-  const [ presented ] = await presentSources( [ source ] )
+export const presentSource = async (
+  userId: string,
+  source: StoredGmailSource,
+): Promise< GmailSource > => {
+  const [ presented ] = await presentSources( userId, [ source ] )
 
   return presented
 }
 
-export const requireActiveSource = ( id: string ): StoredGmailSource => {
-  const source = findSourceById( id )
+export const requireActiveSource = ( userId: string, id: string ): StoredGmailSource => {
+  const source = findSourceById( userId, id )
 
   if( source === undefined || source.deleted_at !== null ) {
     throw new NotFoundError( 'Gmail source not found' )
@@ -229,8 +249,8 @@ export const requireActiveSource = ( id: string ): StoredGmailSource => {
   return source
 }
 
-export const listGmailSources = async (): Promise< GmailSource[] > => {
-  return presentSources( listStoredSources() )
+export const listGmailSources = async ( userId: string ): Promise< GmailSource[] > => {
+  return presentSources( userId, listStoredSources( userId ) )
 }
 
 // A lost connection reaches a route as a conflict, so the web app can say so.
@@ -243,13 +263,14 @@ const asConflict = async < T >( run: () => Promise< T > ): Promise< T > => {
 }
 
 export const previewSource = async (
+  userId: string,
   match: GmailMatch,
   excludeId?: string,
 ): Promise< PreviewGmailSourceResponse > => {
-  requireConnectedGmail()
+  requireConnectedGmail( userId )
 
-  const { count, capped, heads } = await asConflict( () => countMatches( match ) )
-  const newest = await asConflict( () => newestAmong( heads ) )
+  const { count, capped, heads } = await asConflict( () => countMatches( userId, match ) )
+  const newest = await asConflict( () => newestAmong( userId, heads ) )
 
   return {
     count,
@@ -257,7 +278,7 @@ export const previewSource = async (
     newest: newest === null
       ? null
       : { subject: newest.subject, from: newest.sender, received_at: newest.receivedAt },
-    overlaps: findOverlaps( match, excludeId ),
+    overlaps: findOverlaps( userId, match, excludeId ),
   }
 }
 
@@ -271,19 +292,21 @@ interface Collected {
 // every check looks that far back (ADR 0035): the ones that don't go to the inbox are stored as
 // skipped, so the first check doesn't collect them.
 const collectStarting = async (
+  userId: string,
   body: CreateGmailSourceBody,
   now: Date,
 ): Promise< Collected[] > => {
   const collected: Collected[] = []
   const margin = async ( except: string | null ): Promise< void > => {
     const { ids } = await listMatchingIds(
+      userId,
       body.match,
       { after: marginStart( now ), max: LIST_MAX },
     )
 
     for( const id of [ ...new Set( ids ) ].filter( ( found ) => found !== except ) ) {
       collected.push( {
-        parsed: await fetchParsed( id, 'metadata' ),
+        parsed: await fetchParsed( userId, id, 'metadata' ),
         status: 'skipped',
         backfilled: false,
       } )
@@ -299,13 +322,13 @@ const collectStarting = async (
   const days = BACKFILL_DAYS[ body.backfill ?? 'none' ]
 
   if( days === 0 ) {
-    const { heads } = await listMatchingIds( body.match, { max: 1 } )
-    const newest = heads.length > 1 ? await newestAmong( heads ) : null
+    const { heads } = await listMatchingIds( userId, body.match, { max: 1 } )
+    const newest = heads.length > 1 ? await newestAmong( userId, heads ) : null
     const newestId = newest?.messageId ?? heads[ 0 ] ?? null
 
     if( newestId !== null ) {
       collected.push( {
-        parsed: await fetchParsed( newestId, 'full' ),
+        parsed: await fetchParsed( userId, newestId, 'full' ),
         status: 'inbox',
         backfilled: false,
       } )
@@ -317,10 +340,14 @@ const collectStarting = async (
   }
 
   const after = days === null ? undefined : new Date( now.getTime() - days * DAY_MS )
-  const { ids } = await listMatchingIds( body.match, { after, max: BACKFILL_MAX } )
+  const { ids } = await listMatchingIds( userId, body.match, { after, max: BACKFILL_MAX } )
 
   for( const id of [ ...new Set( ids ) ].slice( 0, BACKFILL_MAX ) ) {
-    collected.push( { parsed: await fetchParsed( id, 'full' ), status: 'inbox', backfilled: true } )
+    collected.push( {
+      parsed: await fetchParsed( userId, id, 'full' ),
+      status: 'inbox',
+      backfilled: true,
+    } )
   }
 
   return collected
@@ -360,14 +387,14 @@ export const createSource = async (
     throw new ValidationError( 'Freelance jobs sources aren\'t available yet' )
   }
 
-  requireConnectedGmail()
+  requireConnectedGmail( userId )
 
   if( body.profile_id !== undefined ) {
     assertActiveProfile( userId, body.profile_id )
   }
 
   const now = new Date()
-  const collected = await asConflict( () => collectStarting( body, now ) )
+  const collected = await asConflict( () => collectStarting( userId, body, now ) )
   const source: StoredGmailSource = {
     id: crypto.randomUUID(),
     name: body.name,
@@ -387,13 +414,13 @@ export const createSource = async (
   const rows = stampNewestFirst( collected, now, source.id )
 
   inTransaction( () => {
-    insertSource( source )
-    rows.forEach( insertMessageIfNew )
+    insertSource( userId, source )
+    rows.forEach( ( row ) => insertMessageIfNew( userId, row ) )
   } )
 
   await queueAutomatically( userId, source, rows )
 
-  return presentSource( source )
+  return presentSource( userId, source )
 }
 
 export const updateSource = async (
@@ -401,7 +428,7 @@ export const updateSource = async (
   id: string,
   body: UpdateGmailSourceBody,
 ): Promise< GmailSource > => {
-  const source = requireActiveSource( id )
+  const source = requireActiveSource( userId, id )
 
   if( source.destination === 'jobs'
     && ( body.profile_id !== undefined || body.auto_summarize !== undefined ) ) {
@@ -434,27 +461,28 @@ export const updateSource = async (
     changes.auto_summarize = body.auto_summarize
   }
 
-  const updated = updateStoredSource( id, changes )
+  const updated = updateStoredSource( userId, id, changes )
 
   if( updated === undefined ) {
     throw new NotFoundError( 'Gmail source not found' )
   }
 
-  return presentSource( updated )
+  return presentSource( userId, updated )
 }
 
 export const deleteSource = (
+  userId: string,
   id: string,
   { removeInboxItems }: { removeInboxItems: boolean },
 ): void => {
-  requireActiveSource( id )
+  requireActiveSource( userId, id )
 
   inTransaction( () => {
     if( removeInboxItems ) {
-      dismissInboxForSource( id )
+      dismissInboxForSource( userId, id )
     }
 
-    markSourceDeleted( id, new Date().toISOString() )
+    markSourceDeleted( userId, id, new Date().toISOString() )
   } )
 }
 
@@ -463,6 +491,7 @@ const withoutBodies = ( parsed: ParsedMessage ): ParsedMessage => {
 }
 
 const readNewMessages = async (
+  userId: string,
   source: StoredGmailSource,
 ): Promise< { messages: ParsedMessage[], missingLabelIds: string[], failure: string | null } > => {
   const messages: ParsedMessage[] = []
@@ -470,16 +499,17 @@ const readNewMessages = async (
 
   try {
     const found = await listMatchingIds(
+      userId,
       source.match,
       { after: marginStart( new Date( source.sync_from ) ), max: LIST_MAX },
     )
     const ids = [ ...new Set( found.ids ) ]
-    const stored = findStoredMessageIds( source.id, ids )
+    const stored = findStoredMessageIds( userId, source.id, ids )
 
     missingLabelIds = found.missingLabelIds
 
     for( const id of ids.filter( ( found ) => !stored.has( found ) ) ) {
-      messages.push( await fetchParsed( id, 'full' ) )
+      messages.push( await fetchParsed( userId, id, 'full' ) )
     }
 
     return { messages, missingLabelIds, failure: null }
@@ -504,7 +534,7 @@ const runCheck = async (
   source: StoredGmailSource,
 ): Promise< StoredGmailMessage[] > => {
   const now = new Date()
-  const { messages, missingLabelIds, failure } = await readNewMessages( source )
+  const { messages, missingLabelIds, failure } = await readNewMessages( userId, source )
   const newest = [ ...messages ]
     .sort( ( first, second ) => second.receivedAt.localeCompare( first.receivedAt ) )
   const collected: Collected[] = newest.map( ( parsed, index ) => {
@@ -521,12 +551,12 @@ const runCheck = async (
 
   inTransaction( () => {
     stampNewestFirst( collected, now, source.id ).forEach( ( row ) => {
-      if( insertMessageIfNew( row ) ) {
+      if( insertMessageIfNew( userId, row ) ) {
         added.push( row )
       }
     } )
 
-    recordSourceFetch( source.id, {
+    recordSourceFetch( userId, source.id, {
       last_skipped_count: source.destination === 'newsletter' && messages.length > 0
         ? overflow
         : source.last_skipped_count,
@@ -549,48 +579,58 @@ const runCheck = async (
 }
 
 export const checkSource = async ( userId: string, id: string ): Promise< GmailSource > => {
-  const source = requireActiveSource( id )
+  const source = requireActiveSource( userId, id )
 
   if( !source.enabled ) {
     throw new ConflictError( 'This source is turned off' )
   }
 
-  requireConnectedGmail()
+  requireConnectedGmail( userId )
   await asConflict( () => runCheck( userId, source ) )
 
-  return presentSource( requireActiveSource( id ) )
+  return presentSource( userId, requireActiveSource( userId, id ) )
 }
 
 export const checkAllSources = async ( userId: string ): Promise< GmailSource[] > => {
-  requireConnectedGmail()
+  requireConnectedGmail( userId )
 
-  for( const source of listStoredSources().filter( ( { enabled } ) => enabled ) ) {
+  for( const source of listStoredSources( userId ).filter( ( { enabled } ) => enabled ) ) {
     await asConflict( () => runCheck( userId, source ) )
   }
 
-  return listGmailSources()
+  return listGmailSources( userId )
 }
 
+// Serves every user: each due source is checked for its owner, and a user whose Gmail access
+// has gone is skipped for the rest of the pass without holding the others back
 export const checkDueSources = async (): Promise< number > => {
-  if( config.gmail === null || findAccount()?.status !== 'connected' ) {
+  if( config.gmail === null ) {
     return 0
   }
 
-  const due = listDueSources(
-    new Date().toISOString(),
-    getFeedCheckInterval(),
-  )
-  const userId = interimOwnerId()
+  const due = listDueGmailSources( new Date().toISOString(), getFeedCheckInterval() )
+  const paused = new Set< string >()
   let checked = 0
 
-  for( const source of due ) {
+  for( const { user_id: userId, ...source } of due ) {
+    if( paused.has( userId ) ) {
+      continue
+    }
+
     try {
-      await withLogContext( { gmail_source_id: source.id }, () => runCheck( userId, source ) )
+      await withLogContext(
+        { gmail_source_id: source.id, user_id: userId },
+        () => runCheck( userId, source ),
+      )
       checked += 1
     } catch( error ) {
       if( error instanceof GmailAuthError ) {
-        logger.warn( 'Gmail sources paused: Google no longer accepts the stored access' )
-        break
+        logger.warn(
+          { user_id: userId },
+          'Gmail sources paused: Google no longer accepts the stored access',
+        )
+        paused.add( userId )
+        continue
       }
 
       logger.error(

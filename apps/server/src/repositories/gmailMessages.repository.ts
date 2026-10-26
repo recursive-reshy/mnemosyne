@@ -70,48 +70,55 @@ const toStoredMessage = ( raw: unknown ): StoredGmailMessage => {
   return StoredGmailMessage.parse( { ...row, backfilled: row.backfilled === 1 } )
 }
 
-export const insertMessageIfNew = ( message: StoredGmailMessage ): boolean => {
+export const insertMessageIfNew = ( userId: string, message: StoredGmailMessage ): boolean => {
   const { changes } = getDatabase().prepare( `INSERT INTO gmail_messages (
-      id, source_id, message_id, subject, sender, sender_address, received_at, body_html,
+      id, user_id, source_id, message_id, subject, sender, sender_address, received_at, body_html,
       body_text, status, backfilled, attempts, error, job_id, added_at
     ) VALUES (
-      @id, @source_id, @message_id, @subject, @sender, @sender_address, @received_at,
+      @id, @user_id, @source_id, @message_id, @subject, @sender, @sender_address, @received_at,
       @body_html, @body_text, @status, @backfilled, @attempts, @error, @job_id, @added_at
     ) ON CONFLICT ( source_id, message_id ) DO NOTHING` )
-    .run( { ...message, backfilled: message.backfilled ? 1 : 0 } )
+    .run( { ...message, backfilled: message.backfilled ? 1 : 0, user_id: userId } )
 
   return changes > 0
 }
 
-export const findMessagesByIds = ( ids: string[] ): StoredGmailMessage[] => {
+export const findMessagesByIds = ( userId: string, ids: string[] ): StoredGmailMessage[] => {
   if( ids.length === 0 ) {
     return []
   }
 
   return getDatabase()
-    .prepare( `SELECT * FROM gmail_messages WHERE id IN ( ${ placeholders( ids ) } )
+    .prepare( `SELECT * FROM gmail_messages
+      WHERE user_id = ? AND id IN ( ${ placeholders( ids ) } )
       ORDER BY rowid` )
-    .all( ...ids )
+    .all( userId, ...ids )
     .map( toStoredMessage )
 }
 
-export const findStoredMessageIds = ( sourceId: string, messageIds: string[] ): Set< string > => {
+export const findStoredMessageIds = (
+  userId: string,
+  sourceId: string,
+  messageIds: string[],
+): Set< string > => {
   const rows = getDatabase()
     .prepare( `SELECT message_id FROM gmail_messages
-      WHERE source_id = ? AND message_id IN ( SELECT value FROM json_each( ? ) )` )
-    .all( sourceId, JSON.stringify( messageIds ) )
+      WHERE user_id = ? AND source_id = ?
+        AND message_id IN ( SELECT value FROM json_each( ? ) )` )
+    .all( userId, sourceId, JSON.stringify( messageIds ) )
 
   return new Set( z.array( z.object( { message_id: z.string() } ) ).parse( rows )
     .map( ( { message_id } ) => message_id ) )
 }
 
-export const listNewsletterInbox = (): NewsletterInboxRow[] => {
+export const listNewsletterInbox = ( userId: string ): NewsletterInboxRow[] => {
   return getDatabase()
     .prepare( `SELECT gmail_messages.*, gmail_sources.name AS source_name
       FROM gmail_messages JOIN gmail_sources ON gmail_sources.id = gmail_messages.source_id
-      WHERE gmail_messages.status = 'inbox' AND gmail_sources.destination = 'newsletter'
+      WHERE gmail_messages.user_id = ? AND gmail_messages.status = 'inbox'
+        AND gmail_sources.destination = 'newsletter'
       ORDER BY gmail_messages.added_at DESC, gmail_messages.rowid DESC` )
-    .all()
+    .all( userId )
     .map( ( row ) => ( {
       ...toStoredMessage( row ),
       ...z.object( { source_name: z.string() } ).parse( row ),
@@ -119,6 +126,7 @@ export const listNewsletterInbox = (): NewsletterInboxRow[] => {
 }
 
 export const setMessageStatus = (
+  userId: string,
   ids: string[],
   status: GmailMessageStatus,
   jobId: string | null = null,
@@ -133,35 +141,44 @@ export const setMessageStatus = (
   getDatabase().prepare( `UPDATE gmail_messages SET status = ?, job_id = ?,
       body_html = CASE WHEN ${ clears } THEN NULL ELSE body_html END,
       body_text = CASE WHEN ${ clears } THEN NULL ELSE body_text END
-    WHERE id IN ( ${ placeholders( ids ) } )` )
-    .run( status, jobId, status, status, ...ids )
+    WHERE user_id = ? AND id IN ( ${ placeholders( ids ) } )` )
+    .run( status, jobId, status, status, userId, ...ids )
 }
 
-export const listPendingAlerts = ( sourceId: string, limit: number ): StoredGmailMessage[] => {
+export const listPendingAlerts = (
+  userId: string,
+  sourceId: string,
+  limit: number,
+): StoredGmailMessage[] => {
   return getDatabase()
     .prepare( `SELECT * FROM gmail_messages
-      WHERE source_id = ? AND ( status = 'pending' OR ( status = 'failed' AND attempts < 3 ) )
+      WHERE user_id = ? AND source_id = ?
+        AND ( status = 'pending' OR ( status = 'failed' AND attempts < 3 ) )
       ORDER BY received_at, rowid LIMIT ?` )
-    .all( sourceId, limit )
+    .all( userId, sourceId, limit )
     .map( toStoredMessage )
 }
 
 export const recordAttempt = (
+  userId: string,
   id: string,
   result: { status: GmailMessageStatus, error: string | null },
 ): void => {
   getDatabase().prepare( `UPDATE gmail_messages SET status = @status, error = @error,
-      attempts = attempts + 1 WHERE id = @id` ).run( { ...result, id } )
+      attempts = attempts + 1 WHERE id = @id AND user_id = @user_id` )
+    .run( { ...result, id, user_id: userId } )
 }
 
 export const listAlertEmails = (
+  userId: string,
   { status, limit, offset }: { status?: AlertEmailStatus, limit: number, offset: number },
 ): { rows: StoredAlertEmail[], total: number } => {
   const db = getDatabase()
-  const where = `WHERE gmail_sources.destination = 'jobs'
+  const where = `WHERE gmail_messages.user_id = @user_id
+    AND gmail_sources.destination = 'jobs'
     AND gmail_messages.status IN ( 'pending', 'extracted', 'no_jobs', 'failed' )
     AND ( @status IS NULL OR gmail_messages.status = @status )`
-  const params = { status: status ?? null }
+  const params = { status: status ?? null, user_id: userId }
 
   const { total } = z.object( { total: z.number() } ).parse(
     db.prepare( `SELECT COUNT(*) AS total FROM gmail_messages
@@ -178,19 +195,19 @@ export const listAlertEmails = (
   return { rows, total }
 }
 
-export const countInbox = ( sourceId: string ): number => {
+export const countInbox = ( userId: string, sourceId: string ): number => {
   const { count } = z.object( { count: z.number() } ).parse(
     getDatabase()
       .prepare( `SELECT COUNT(*) AS count FROM gmail_messages
-        WHERE source_id = ? AND status = 'inbox'` )
-      .get( sourceId ),
+        WHERE user_id = ? AND source_id = ? AND status = 'inbox'` )
+      .get( userId, sourceId ),
   )
 
   return count
 }
 
-export const dismissInboxForSource = ( sourceId: string ): void => {
+export const dismissInboxForSource = ( userId: string, sourceId: string ): void => {
   getDatabase().prepare( `UPDATE gmail_messages SET status = 'dismissed',
       body_html = NULL, body_text = NULL
-    WHERE source_id = ? AND status = 'inbox'` ).run( sourceId )
+    WHERE user_id = ? AND source_id = ? AND status = 'inbox'` ).run( userId, sourceId )
 }

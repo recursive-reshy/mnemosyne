@@ -12,8 +12,8 @@ import { currentUser } from '../middleware/auth.js'
 // Services
 import { dismissItems, listInbox, summarizeItems } from '../services/inbox.service.js'
 
-export const getInbox = ( _req: Request, res: Response< ListInboxResponse > ): void => {
-  res.status( 200 ).json( { items: listInbox() } )
+export const getInbox = ( req: Request, res: Response< ListInboxResponse > ): void => {
+  res.status( 200 ).json( { items: listInbox( currentUser( req ).id ) } )
 }
 
 export const summarizeInbox = async (
@@ -25,8 +25,8 @@ export const summarizeInbox = async (
   res.status( 200 ).json( await summarizeItems( currentUser( req ).id, body ) )
 }
 
-export const dismissInbox = ( { body }: Request, res: Response ): void => {
-  dismissItems( DismissInboxBody.parse( body ).items )
+export const dismissInbox = ( req: Request, res: Response ): void => {
+  dismissItems( currentUser( req ).id, DismissInboxBody.parse( req.body ).items )
 
   res.status( 204 ).end()
 }

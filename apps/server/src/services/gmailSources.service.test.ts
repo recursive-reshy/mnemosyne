@@ -84,7 +84,7 @@ const idsOf = ( ...ids: string[] ): Matching => {
 }
 
 const connect = (): void => {
-  saveAccount( {
+  saveAccount( userId, {
     email: 'naresh@example.com',
     refresh_token_enc: 'v1:x',
     scope: 'https://www.googleapis.com/auth/gmail.readonly',
@@ -139,7 +139,7 @@ beforeEach( () => {
     { id: 'Label_2', name: 'Freelancer', type: 'user' },
   ] )
   vi.mocked( listMatchingIds ).mockResolvedValue( idsOf() )
-  vi.mocked( getMessage ).mockImplementation( ( id, format = 'full' ) => {
+  vi.mocked( getMessage ).mockImplementation( ( _userId, id, format = 'full' ) => {
     const options = messages[ id ]
 
     return options === undefined
@@ -154,13 +154,13 @@ afterEach( () => {
 
 describe( 'requireConnectedGmail', () => {
   it( 'passes when Gmail is configured and connected', () => {
-    expect( () => requireConnectedGmail() ).not.toThrow()
+    expect( () => requireConnectedGmail( userId ) ).not.toThrow()
   } )
 
   it( 'refuses with a conflict when Gmail is not configured', () => {
     configMock.gmail = null
 
-    expect( () => requireConnectedGmail() )
+    expect( () => requireConnectedGmail( userId ) )
       .toThrow( new ConflictError( 'Gmail isn\'t configured' ) )
 
     configMock.gmail = { clientId: 'id' }
@@ -169,21 +169,22 @@ describe( 'requireConnectedGmail', () => {
   it( 'refuses when there is no account', () => {
     getDatabase().prepare( 'DELETE FROM gmail_account' ).run()
 
-    expect( () => requireConnectedGmail() ).toThrow( new ConflictError( 'Gmail isn\'t connected' ) )
+    expect( () => requireConnectedGmail( userId ) )
+      .toThrow( new ConflictError( 'Gmail isn\'t connected' ) )
   } )
 
   it( 'refuses when the account needs a reconnect', () => {
-    setAccountStatus( 'reconnect_needed', 'revoked' )
+    setAccountStatus( userId, 'reconnect_needed', 'revoked' )
 
-    expect( () => requireConnectedGmail() ).toThrow( ConflictError )
+    expect( () => requireConnectedGmail( userId ) ).toThrow( ConflictError )
   } )
 } )
 
 describe( 'listGmailSources', () => {
   it( 'returns public sources with label names and counts', async () => {
-    insertSource( buildSource( { name: 'Alerts', match: labelMatch } ) )
+    insertSource( userId, buildSource( { name: 'Alerts', match: labelMatch } ) )
 
-    const sources = await listGmailSources()
+    const sources = await listGmailSources( userId )
 
     expect( sources ).toHaveLength( 1 )
     expect( sources[ 0 ] ).toMatchObject( {
@@ -196,36 +197,38 @@ describe( 'listGmailSources', () => {
   } )
 
   it( 'leaves label_names empty for a search source', async () => {
-    insertSource( buildSource() )
+    insertSource( userId, buildSource() )
 
-    expect( ( await listGmailSources() )[ 0 ]?.label_names ).toEqual( [] )
+    expect( ( await listGmailSources( userId ) )[ 0 ]?.label_names ).toEqual( [] )
   } )
 
   it( 'falls back to the ids when the labels cannot be read', async () => {
     vi.mocked( listLabels ).mockRejectedValue( new GmailAuthError( 'revoked' ) )
-    insertSource( buildSource( { match: twoLabels } ) )
+    insertSource( userId, buildSource( { match: twoLabels } ) )
 
-    expect( ( await listGmailSources() )[ 0 ]?.label_names ).toEqual( [ 'Label_1', 'Label_9' ] )
+    expect( ( await listGmailSources( userId ) )[ 0 ]?.label_names )
+      .toEqual( [ 'Label_1', 'Label_9' ] )
   } )
 
   it( 'falls back to the id for a label that no longer exists', async () => {
-    insertSource( buildSource( { match: twoLabels } ) )
+    insertSource( userId, buildSource( { match: twoLabels } ) )
 
-    expect( ( await listGmailSources() )[ 0 ]?.label_names ).toEqual( [ 'Upwork', 'Label_9' ] )
+    expect( ( await listGmailSources( userId ) )[ 0 ]?.label_names )
+      .toEqual( [ 'Upwork', 'Label_9' ] )
   } )
 
   it( 'does not ask Gmail for labels when no source uses them', async () => {
-    insertSource( buildSource() )
+    insertSource( userId, buildSource() )
 
-    await listGmailSources()
+    await listGmailSources( userId )
 
     expect( listLabels ).not.toHaveBeenCalled()
   } )
 
   it( 'leaves out deleted sources', async () => {
-    insertSource( buildSource( { deleted_at: daysAgo( 1 ) } ) )
+    insertSource( userId, buildSource( { deleted_at: daysAgo( 1 ) } ) )
 
-    expect( await listGmailSources() ).toEqual( [] )
+    expect( await listGmailSources( userId ) ).toEqual( [] )
   } )
 } )
 
@@ -239,9 +242,9 @@ describe( 'previewSource', () => {
   } )
 
   it( 'needs Gmail to be connected', async () => {
-    setAccountStatus( 'reconnect_needed', 'revoked' )
+    setAccountStatus( userId, 'reconnect_needed', 'revoked' )
 
-    await expect( previewSource( queryMatch ) ).rejects.toBeInstanceOf( ConflictError )
+    await expect( previewSource( userId, queryMatch ) ).rejects.toBeInstanceOf( ConflictError )
   } )
 
   it( 'returns the count and the newest message', async () => {
@@ -251,13 +254,13 @@ describe( 'previewSource', () => {
       receivedAt: daysAgo( 1 ),
     } } )
 
-    expect( await previewSource( queryMatch ) ).toEqual( {
+    expect( await previewSource( userId, queryMatch ) ).toEqual( {
       count: 2,
       count_capped: false,
       newest: { subject: 'Newest', from: 'Upwork', received_at: daysAgo( 1 ) },
       overlaps: [],
     } )
-    expect( getMessage ).toHaveBeenCalledWith( 'm1', 'metadata' )
+    expect( getMessage ).toHaveBeenCalledWith( userId, 'm1', 'metadata' )
   } )
 
   it( 'picks the newest of the heads of several labels', async () => {
@@ -273,7 +276,10 @@ describe( 'previewSource', () => {
       b: { subject: 'Newer', receivedAt: daysAgo( 2 ) },
     } )
 
-    const preview = await previewSource( { kind: 'labels', label_ids: [ 'Label_1', 'Label_2' ] } )
+    const preview = await previewSource(
+      userId,
+      { kind: 'labels', label_ids: [ 'Label_1', 'Label_2' ] },
+    )
 
     expect( preview.newest?.subject ).toBe( 'Newer' )
   } )
@@ -282,13 +288,14 @@ describe( 'previewSource', () => {
     vi.mocked( countMatches ).mockResolvedValue( { ...idsOf( 'm1' ), count: 500, capped: true } )
     serve( { m1: {} } )
 
-    expect( await previewSource( queryMatch ) ).toMatchObject( { count: 500, count_capped: true } )
+    expect( await previewSource( userId, queryMatch ) )
+      .toMatchObject( { count: 500, count_capped: true } )
   } )
 
   it( 'has no newest message when nothing matches', async () => {
     vi.mocked( countMatches ).mockResolvedValue( { ...idsOf(), count: 0, capped: false } )
 
-    expect( await previewSource( queryMatch ) ).toMatchObject( { count: 0, newest: null } )
+    expect( await previewSource( userId, queryMatch ) ).toMatchObject( { count: 0, newest: null } )
     expect( getMessage ).not.toHaveBeenCalled()
   } )
 
@@ -303,9 +310,9 @@ describe( 'previewSource', () => {
         match: { kind: 'query', query: 'from:a  OR  from:b' },
       } )
 
-      insertSource( other )
+      insertSource( userId, other )
 
-      const preview = await previewSource( { kind: 'query', query: '  from:a OR from:b ' } )
+      const preview = await previewSource( userId, { kind: 'query', query: '  from:a OR from:b ' } )
 
       expect( preview.overlaps ).toEqual( [ { id: other.id, name: 'Same' } ] )
     } )
@@ -316,13 +323,13 @@ describe( 'previewSource', () => {
         match: { kind: 'labels', label_ids: [ 'Label_2', 'Label_1' ] },
       } )
 
-      insertSource( other )
-      insertSource( buildSource( {
+      insertSource( userId, other )
+      insertSource( userId, buildSource( {
         name: 'Other',
         match: { kind: 'labels', label_ids: [ 'Label_3' ] },
       } ) )
 
-      const preview = await previewSource( { kind: 'labels', label_ids: [ 'Label_1' ] } )
+      const preview = await previewSource( userId, { kind: 'labels', label_ids: [ 'Label_1' ] } )
 
       expect( preview.overlaps ).toEqual( [ { id: other.id, name: 'Shares' } ] )
     } )
@@ -330,26 +337,26 @@ describe( 'previewSource', () => {
     it( 'counts a turned-off source but not a deleted one', async () => {
       const off = buildSource( { name: 'Off', enabled: false } )
 
-      insertSource( off )
-      insertSource( buildSource( { name: 'Gone', deleted_at: daysAgo( 1 ) } ) )
+      insertSource( userId, off )
+      insertSource( userId, buildSource( { name: 'Gone', deleted_at: daysAgo( 1 ) } ) )
 
-      const { overlaps } = await previewSource( queryMatch )
+      const { overlaps } = await previewSource( userId, queryMatch )
 
       expect( overlaps ).toEqual( [ { id: off.id, name: 'Off' } ] )
     } )
 
     it( 'never compares a label match with a search', async () => {
-      insertSource( buildSource( { match: { kind: 'query', query: 'Label_1' } } ) )
+      insertSource( userId, buildSource( { match: { kind: 'query', query: 'Label_1' } } ) )
 
-      expect( ( await previewSource( labelMatch ) ).overlaps ).toEqual( [] )
+      expect( ( await previewSource( userId, labelMatch ) ).overlaps ).toEqual( [] )
     } )
 
     it( 'leaves out the source being edited', async () => {
       const own = buildSource()
 
-      insertSource( own )
+      insertSource( userId, own )
 
-      expect( ( await previewSource( queryMatch, own.id ) ).overlaps ).toEqual( [] )
+      expect( ( await previewSource( userId, queryMatch, own.id ) ).overlaps ).toEqual( [] )
     } )
   } )
 } )
@@ -365,16 +372,16 @@ describe( 'createSource: newsletter', () => {
   } )
 
   it( 'needs Gmail to be connected', async () => {
-    setAccountStatus( 'reconnect_needed', 'revoked' )
+    setAccountStatus( userId, 'reconnect_needed', 'revoked' )
 
     await expect( createSource( userId, body() ) ).rejects.toBeInstanceOf( ConflictError )
-    expect( await listGmailSources() ).toEqual( [] )
+    expect( await listGmailSources( userId ) ).toEqual( [] )
   } )
 
   it( 'refuses an unknown profile and stores nothing', async () => {
     await expect( createSource( userId, body( { profile_id: crypto.randomUUID() } ) ) )
       .rejects.toBeInstanceOf( ValidationError )
-    expect( await listGmailSources() ).toEqual( [] )
+    expect( await listGmailSources( userId ) ).toEqual( [] )
   } )
 
   it( 'stores the source starting now, with the given profile and auto-summarize', async () => {
@@ -398,16 +405,16 @@ describe( 'createSource: newsletter', () => {
       last_error: null,
       last_skipped_count: 0,
     } )
-    expect( findSourceById( source.id ) ).toBeDefined()
+    expect( findSourceById( userId, source.id ) ).toBeDefined()
   } )
 
   describe( 'automatic summaries', () => {
     const readable = `<p>${ 'Words worth reading, one after another. '.repeat( 12 ) }</p>`
 
     it( 'queues the newest email of an automatic source that has no backfill', async () => {
-      vi.mocked( listMatchingIds ).mockImplementation( ( _match, { after } ) => Promise.resolve(
-        after === undefined ? idsOf( 'new' ) : idsOf( 'new' ),
-      ) )
+      vi.mocked( listMatchingIds ).mockImplementation( ( _userId, _match, { after } ) => {
+        return Promise.resolve( after === undefined ? idsOf( 'new' ) : idsOf( 'new' ) )
+      } )
       serve( { new: { html: readable } } )
 
       const source = await createSource(
@@ -433,9 +440,9 @@ describe( 'createSource: newsletter', () => {
 
   describe( 'with no backfill', () => {
     it( 'puts only the newest email in the inbox, with its body', async () => {
-      vi.mocked( listMatchingIds ).mockImplementation( ( _match, { after } ) => Promise.resolve(
-        after === undefined ? idsOf( 'new' ) : idsOf( 'new', 'old' ),
-      ) )
+      vi.mocked( listMatchingIds ).mockImplementation( ( _userId, _match, { after } ) => {
+        return Promise.resolve( after === undefined ? idsOf( 'new' ) : idsOf( 'new', 'old' ) )
+      } )
       serve( {
         new: { subject: 'Newest', html: '<p>Body</p>', receivedAt: daysAgo( 1 ) },
         old: { subject: 'Older', receivedAt: daysAgo( 1.5 ) },
@@ -450,7 +457,7 @@ describe( 'createSource: newsletter', () => {
       ] )
       expect( source.inbox_count ).toBe( 1 )
 
-      const [ inbox ] = listNewsletterInbox()
+      const [ inbox ] = listNewsletterInbox( userId )
 
       expect( inbox ).toMatchObject( {
         subject: 'Newest',
@@ -465,19 +472,20 @@ describe( 'createSource: newsletter', () => {
     it( 'asks for the newest email with no date limit, then the 2-day margin', async () => {
       await createSource( userId, body() )
 
-      expect( listMatchingIds ).toHaveBeenCalledWith( labelMatch, { max: 1 } )
+      expect( listMatchingIds ).toHaveBeenCalledWith( userId, labelMatch, { max: 1 } )
       expect( listMatchingIds ).toHaveBeenCalledWith(
+        userId,
         labelMatch,
         { after: new Date( NOW.getTime() - 2 * DAY ), max: 100 },
       )
     } )
 
     it( 'takes the newest among the heads of several labels', async () => {
-      vi.mocked( listMatchingIds ).mockImplementation( ( _match, { after } ) => Promise.resolve(
-        after === undefined
+      vi.mocked( listMatchingIds ).mockImplementation( ( _userId, _match, { after } ) => {
+        return Promise.resolve( after === undefined
           ? { ids: [ 'a', 'b' ], heads: [ 'a', 'b' ], missingLabelIds: [] }
-          : idsOf(),
-      ) )
+          : idsOf() )
+      } )
       serve( {
         a: { receivedAt: daysAgo( 9 ) },
         b: { receivedAt: daysAgo( 4 ) },
@@ -498,16 +506,16 @@ describe( 'createSource: newsletter', () => {
     } )
 
     it( 'does not fetch the bodies of the skipped emails', async () => {
-      vi.mocked( listMatchingIds ).mockImplementation( ( _match, { after } ) => Promise.resolve(
-        after === undefined ? idsOf( 'new' ) : idsOf( 'new', 'old' ),
-      ) )
+      vi.mocked( listMatchingIds ).mockImplementation( ( _userId, _match, { after } ) => {
+        return Promise.resolve( after === undefined ? idsOf( 'new' ) : idsOf( 'new', 'old' ) )
+      } )
       serve( { new: {}, old: {} } )
 
       await createSource( userId, body() )
 
-      expect( getMessage ).toHaveBeenCalledWith( 'old', 'metadata' )
-      expect( getMessage ).not.toHaveBeenCalledWith( 'old', 'full' )
-      expect( getMessage ).not.toHaveBeenCalledWith( 'old' )
+      expect( getMessage ).toHaveBeenCalledWith( userId, 'old', 'metadata' )
+      expect( getMessage ).not.toHaveBeenCalledWith( userId, 'old', 'full' )
+      expect( getMessage ).not.toHaveBeenCalledWith( userId, 'old' )
     } )
   } )
 
@@ -525,10 +533,11 @@ describe( 'createSource: newsletter', () => {
       const source = await createSource( userId, body( { backfill } ) )
 
       expect( listMatchingIds ).toHaveBeenCalledWith(
+        userId,
         labelMatch,
         { after: new Date( NOW.getTime() - days * DAY ), max: 200 },
       )
-      expect( listNewsletterInbox().map( ( row ) => [ row.subject, row.backfilled ] ) )
+      expect( listNewsletterInbox( userId ).map( ( row ) => [ row.subject, row.backfilled ] ) )
         .toEqual( [ [ 'B', true ], [ 'A', true ] ] )
       expect( source.inbox_count ).toBe( 2 )
     } )
@@ -540,14 +549,15 @@ describe( 'createSource: newsletter', () => {
 
     await createSource( userId, body( { backfill: 'all' } ) )
 
-    expect( listMatchingIds ).toHaveBeenCalledWith( labelMatch, { max: 200 } )
+    expect( listMatchingIds ).toHaveBeenCalledWith( userId, labelMatch, { max: 200 } )
   } )
 
   it( 'keeps only the first 200 emails when several labels return more', async () => {
     const ids = Array.from( { length: 250 }, ( _, index ) => `m${ index }` )
 
     vi.mocked( listMatchingIds ).mockResolvedValue( idsOf( ...ids ) )
-    vi.mocked( getMessage ).mockImplementation( ( id ) => Promise.resolve( buildMessage( id ) ) )
+    vi.mocked( getMessage )
+      .mockImplementation( ( _userId, id ) => Promise.resolve( buildMessage( id ) ) )
 
     const source = await createSource( userId, body( { backfill: 'all' } ) )
 
@@ -572,7 +582,7 @@ describe( 'createSource: newsletter', () => {
     await expect( createSource( userId, body( { backfill: '30d' } ) ) )
       .rejects.toBeInstanceOf( ConflictError )
 
-    expect( await listGmailSources() ).toEqual( [] )
+    expect( await listGmailSources( userId ) ).toEqual( [] )
     expect( countRows() ).toBe( 0 )
   } )
 } )
@@ -591,12 +601,12 @@ describe( 'createSource: jobs', () => {
     await expect( createSource( userId, body ) )
       .rejects.toThrow( new ValidationError( 'Freelance jobs sources aren\'t available yet' ) )
     expect( listMatchingIds ).not.toHaveBeenCalled()
-    expect( await listGmailSources() ).toEqual( [] )
+    expect( await listGmailSources( userId ) ).toEqual( [] )
     expect( countRows() ).toBe( 0 )
   } )
 
   it( 'is refused as invalid even while Gmail is not connected', async () => {
-    setAccountStatus( 'reconnect_needed', 'revoked' )
+    setAccountStatus( userId, 'reconnect_needed', 'revoked' )
 
     await expect( createSource( userId, body ) ).rejects.toBeInstanceOf( ValidationError )
   } )
@@ -606,7 +616,7 @@ describe( 'updateSource', () => {
   it( 'changes the given fields only', async () => {
     const source = buildSource( { destination: 'newsletter' } )
 
-    insertSource( source )
+    insertSource( userId, source )
 
     const updated = await updateSource( userId, source.id, {
       name: 'Renamed',
@@ -629,7 +639,7 @@ describe( 'updateSource', () => {
     const source = buildSource( { destination: 'newsletter' } )
     const profile = listProfiles( userId )[ 1 ]?.id ?? ''
 
-    insertSource( source )
+    insertSource( userId, source )
 
     const set = await updateSource( userId, source.id, { profile_id: profile } )
 
@@ -641,7 +651,7 @@ describe( 'updateSource', () => {
   it( 'refuses an unknown profile', async () => {
     const source = buildSource( { destination: 'newsletter' } )
 
-    insertSource( source )
+    insertSource( userId, source )
 
     await expect( updateSource( userId, source.id, { profile_id: crypto.randomUUID() } ) )
       .rejects.toBeInstanceOf( ValidationError )
@@ -650,7 +660,7 @@ describe( 'updateSource', () => {
   it( 'refuses newsletter-only fields on a jobs source', async () => {
     const source = buildSource()
 
-    insertSource( source )
+    insertSource( userId, source )
 
     await expect( updateSource( userId, source.id, { auto_summarize: true } ) )
       .rejects.toBeInstanceOf( ValidationError )
@@ -660,13 +670,13 @@ describe( 'updateSource', () => {
       { profile_id: listProfiles( userId )[ 1 ]?.id },
     ) )
       .rejects.toBeInstanceOf( ValidationError )
-    expect( findSourceById( source.id )?.auto_summarize ).toBe( false )
+    expect( findSourceById( userId, source.id )?.auto_summarize ).toBe( false )
   } )
 
   it( 'can rename and turn off a jobs source', async () => {
     const source = buildSource()
 
-    insertSource( source )
+    insertSource( userId, source )
 
     expect( await updateSource( userId, source.id, { name: 'New', enabled: false } ) )
       .toMatchObject( { name: 'New', enabled: false } )
@@ -675,7 +685,7 @@ describe( 'updateSource', () => {
   it( 'does not find an unknown or deleted source', async () => {
     const gone = buildSource( { deleted_at: daysAgo( 1 ) } )
 
-    insertSource( gone )
+    insertSource( userId, gone )
 
     await expect( updateSource( userId, crypto.randomUUID(), { name: 'x' } ) )
       .rejects.toBeInstanceOf( NotFoundError )
@@ -695,17 +705,17 @@ describe( 'deleteSource', () => {
   it( 'soft-deletes the source and leaves its inbox items', async () => {
     const { id } = await withInboxItem()
 
-    deleteSource( id, { removeInboxItems: false } )
+    deleteSource( userId, id, { removeInboxItems: false } )
 
-    expect( findSourceById( id )?.deleted_at ).toBe( NOW.toISOString() )
+    expect( findSourceById( userId, id )?.deleted_at ).toBe( NOW.toISOString() )
     expect( storedFor( id ).map( ( row ) => row.status ) ).toEqual( [ 'inbox' ] )
-    expect( await listGmailSources() ).toEqual( [] )
+    expect( await listGmailSources( userId ) ).toEqual( [] )
   } )
 
   it( 'dismisses the inbox items when asked', async () => {
     const { id } = await withInboxItem()
 
-    deleteSource( id, { removeInboxItems: true } )
+    deleteSource( userId, id, { removeInboxItems: true } )
 
     expect( storedFor( id ).map( ( row ) => row.status ) ).toEqual( [ 'dismissed' ] )
   } )
@@ -713,19 +723,20 @@ describe( 'deleteSource', () => {
   it( 'does not find an unknown or already deleted source', () => {
     const gone = buildSource( { deleted_at: daysAgo( 1 ) } )
 
-    insertSource( gone )
+    insertSource( userId, gone )
 
-    expect( () => deleteSource( crypto.randomUUID(), { removeInboxItems: false } ) )
+    expect( () => deleteSource( userId, crypto.randomUUID(), { removeInboxItems: false } ) )
       .toThrow( NotFoundError )
-    expect( () => deleteSource( gone.id, { removeInboxItems: false } ) ).toThrow( NotFoundError )
+    expect( () => deleteSource( userId, gone.id, { removeInboxItems: false } ) )
+      .toThrow( NotFoundError )
   } )
 
   it( 'works while Gmail is not connected', () => {
     const source = buildSource()
 
-    insertSource( source )
-    setAccountStatus( 'reconnect_needed', 'revoked' )
+    insertSource( userId, source )
+    setAccountStatus( userId, 'reconnect_needed', 'revoked' )
 
-    expect( () => deleteSource( source.id, { removeInboxItems: false } ) ).not.toThrow()
+    expect( () => deleteSource( userId, source.id, { removeInboxItems: false } ) ).not.toThrow()
   } )
 } )

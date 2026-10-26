@@ -41,7 +41,6 @@ describe( 'loadConfig', () => {
       gmail: {
         clientId: google.GOOGLE_CLIENT_ID,
         clientSecret: 'secret',
-        redirectUri: 'http://localhost:3100/api/gmail/oauth/callback',
         encryptionKey: Buffer.alloc( 32, 7 ),
       },
       adminEmail: 'admin@example.com',
@@ -103,7 +102,6 @@ describe( 'loadConfig', () => {
       gmail: {
         clientId: google.GOOGLE_CLIENT_ID,
         clientSecret: 'secret',
-        redirectUri: 'http://localhost:4000/api/gmail/oauth/callback',
         encryptionKey: Buffer.alloc( 32, 7 ),
       },
       adminEmail: 'admin@example.com',
@@ -435,7 +433,6 @@ describe( 'loadConfig', () => {
       expect( gmail ).toEqual( {
         clientId: google.GOOGLE_CLIENT_ID,
         clientSecret: 'secret',
-        redirectUri: 'http://localhost:4000/api/gmail/oauth/callback',
         encryptionKey: Buffer.alloc( 32, 7 ),
       } )
       expect( gmail.encryptionKey ).toHaveLength( 32 )
@@ -444,7 +441,7 @@ describe( 'loadConfig', () => {
     it( 'ignores GOOGLE_REDIRECT_URI, even an invalid one', () => {
       const { gmail } = loadConfig( { ...base, GOOGLE_REDIRECT_URI: 'nope' } )
 
-      expect( gmail.redirectUri ).toBe( 'http://localhost:3100/api/gmail/oauth/callback' )
+      expect( gmail ).not.toHaveProperty( 'redirectUri' )
     } )
 
     it.each( [

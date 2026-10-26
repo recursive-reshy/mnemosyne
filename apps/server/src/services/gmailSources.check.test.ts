@@ -45,7 +45,7 @@ import { parseMessage } from '../gmail/parseMessage.js'
 import { logger } from '../logger.js'
 import { getLogContext } from '../logContext.js'
 // Test support
-import { defaultTestAdmin } from '../test-support/auth.js'
+import { createTestUser, defaultTestAdmin } from '../test-support/auth.js'
 
 let userId = ''
 
@@ -103,20 +103,20 @@ const storeAlready = ( sourceId: string, gmailId: string ): void => {
   const parsed = parseMessage( buildMessage( gmailId, messages[ gmailId ] ?? {} ) )
 
   stampNewestFirst( [ { parsed, status: 'inbox', backfilled: false } ], NOW, sourceId )
-    .forEach( insertMessageIfNew )
+    .forEach( ( row ) => insertMessageIfNew( userId, row ) )
 }
 
 beforeEach( () => {
   vi.useFakeTimers()
   vi.setSystemTime( NOW )
   vi.resetAllMocks()
-  connectGmail()
+  connectGmail( userId )
   serve( {} )
   vi.spyOn( logger, 'error' ).mockImplementation( () => undefined )
   vi.spyOn( logger, 'warn' ).mockImplementation( () => undefined )
   vi.mocked( listLabels ).mockResolvedValue( [] )
   vi.mocked( listMatchingIds ).mockResolvedValue( idsOf() )
-  vi.mocked( getMessage ).mockImplementation( ( id, format = 'full' ) => {
+  vi.mocked( getMessage ).mockImplementation( ( _userId, id, format = 'full' ) => {
     const options = messages[ id ]
 
     return options === undefined
@@ -132,27 +132,28 @@ afterEach( () => {
 
 describe( 'checkSource: reading the mailbox', () => {
   it( 'lists from two days before sync_from, at most 100', async () => {
-    const source = addStoredSource( { sync_from: SYNC_FROM } )
+    const source = addStoredSource( userId, { sync_from: SYNC_FROM } )
 
     await checkSource( userId, source.id )
 
     expect( listMatchingIds ).toHaveBeenCalledWith(
+      userId,
       source.match,
       { after: new Date( Date.parse( SYNC_FROM ) - 2 * DAY_MS ), max: 100 },
     )
   } )
 
   it( 'fetches and stores each new email in full', async () => {
-    const source = addStoredSource()
+    const source = addStoredSource( userId )
 
     serve( { m1: { subject: 'One', html: '<p>one</p>', text: 'one' } } )
     vi.mocked( listMatchingIds ).mockResolvedValue( idsOf( 'm1' ) )
 
     await checkSource( userId, source.id )
 
-    expect( getMessage ).toHaveBeenCalledWith( 'm1', 'full' )
+    expect( getMessage ).toHaveBeenCalledWith( userId, 'm1', 'full' )
 
-    const [ stored ] = findMessagesByIds( rowIdsOf( source.id ) )
+    const [ stored ] = findMessagesByIds( userId, rowIdsOf( source.id ) )
 
     expect( stored ).toMatchObject( {
       message_id: 'm1',
@@ -167,7 +168,7 @@ describe( 'checkSource: reading the mailbox', () => {
   } )
 
   it( 'does not fetch an email the source already has', async () => {
-    const source = addStoredSource()
+    const source = addStoredSource( userId )
 
     serve( { m1: {}, m2: {} } )
     storeAlready( source.id, 'm1' )
@@ -176,12 +177,12 @@ describe( 'checkSource: reading the mailbox', () => {
     await checkSource( userId, source.id )
 
     expect( getMessage ).toHaveBeenCalledTimes( 1 )
-    expect( getMessage ).toHaveBeenCalledWith( 'm2', 'full' )
+    expect( getMessage ).toHaveBeenCalledWith( userId, 'm2', 'full' )
     expect( rowsOf( source.id ) ).toHaveLength( 2 )
   } )
 
   it( 'stores an email once however often a check sees it', async () => {
-    const source = addStoredSource()
+    const source = addStoredSource( userId )
 
     serve( { m1: {} } )
     vi.mocked( listMatchingIds ).mockResolvedValue( idsOf( 'm1', 'm1' ) )
@@ -194,8 +195,8 @@ describe( 'checkSource: reading the mailbox', () => {
   } )
 
   it( 'lets two sources each keep the same email', async () => {
-    const first = addStoredSource( { name: 'A' } )
-    const second = addStoredSource( { name: 'B' } )
+    const first = addStoredSource( userId, { name: 'A' } )
+    const second = addStoredSource( userId, { name: 'B' } )
 
     serve( { m1: {} } )
     vi.mocked( listMatchingIds ).mockResolvedValue( idsOf( 'm1' ) )
@@ -208,7 +209,7 @@ describe( 'checkSource: reading the mailbox', () => {
   } )
 
   it( 'records the check and clears an earlier error', async () => {
-    const source = addStoredSource( { last_error: 'Old problem' } )
+    const source = addStoredSource( userId, { last_error: 'Old problem' } )
 
     const checked = await checkSource( userId, source.id )
 
@@ -220,13 +221,13 @@ describe( 'checkSource: reading the mailbox', () => {
   } )
 
   it( 'leaves sync_from where it was', async () => {
-    const source = addStoredSource( { sync_from: SYNC_FROM } )
+    const source = addStoredSource( userId, { sync_from: SYNC_FROM } )
 
     serve( { m1: {} } )
     vi.mocked( listMatchingIds ).mockResolvedValue( idsOf( 'm1' ) )
     await checkSource( userId, source.id )
 
-    expect( findSourceById( source.id )?.sync_from ).toBe( SYNC_FROM )
+    expect( findSourceById( userId, source.id )?.sync_from ).toBe( SYNC_FROM )
   } )
 } )
 
@@ -240,7 +241,7 @@ const rowIdsOf = ( sourceId: string ): string[] => {
 
 describe( 'checkSource: newsletters', () => {
   it( 'puts new emails in the inbox, newest first', async () => {
-    const source = addStoredSource( { destination: 'newsletter' } )
+    const source = addStoredSource( userId, { destination: 'newsletter' } )
 
     serveMany( 3 )
 
@@ -251,12 +252,13 @@ describe( 'checkSource: newsletters', () => {
       { message_id: 'm1', status: 'inbox' },
       { message_id: 'm2', status: 'inbox' },
     ] )
-    expect( listNewsletterInbox().map( ( row ) => row.message_id ) ).toEqual( [ 'm0', 'm1', 'm2' ] )
+    expect( listNewsletterInbox( userId ).map( ( row ) => row.message_id ) )
+      .toEqual( [ 'm0', 'm1', 'm2' ] )
     expect( checked ).toMatchObject( { inbox_count: 3, last_skipped_count: 0 } )
   } )
 
   it( 'takes the 10 newest into the inbox and skips the rest, bodies dropped', async () => {
-    const source = addStoredSource( { destination: 'newsletter' } )
+    const source = addStoredSource( userId, { destination: 'newsletter' } )
 
     serveMany( 12 )
 
@@ -269,7 +271,7 @@ describe( 'checkSource: newsletters', () => {
       .toEqual( [ 'm10', 'm11' ] )
     expect( checked ).toMatchObject( { inbox_count: 10, last_skipped_count: 2 } )
 
-    const skipped = findMessagesByIds( rowIdsOf( source.id ) )
+    const skipped = findMessagesByIds( userId, rowIdsOf( source.id ) )
       .filter( ( { status } ) => status === 'skipped' )
 
     expect( skipped ).toHaveLength( 2 )
@@ -279,7 +281,7 @@ describe( 'checkSource: newsletters', () => {
   } )
 
   it( 'counts only the emails of this check as skipped, and resets the count', async () => {
-    const source = addStoredSource( { destination: 'newsletter', last_skipped_count: 7 } )
+    const source = addStoredSource( userId, { destination: 'newsletter', last_skipped_count: 7 } )
 
     serveMany( 2 )
 
@@ -287,13 +289,13 @@ describe( 'checkSource: newsletters', () => {
   } )
 
   it( 'keeps the skipped count when a check finds nothing new', async () => {
-    const source = addStoredSource( { destination: 'newsletter', last_skipped_count: 7 } )
+    const source = addStoredSource( userId, { destination: 'newsletter', last_skipped_count: 7 } )
 
     expect( ( await checkSource( userId, source.id ) ).last_skipped_count ).toBe( 7 )
   } )
 
   it( 'does not count emails it already had toward the 10', async () => {
-    const source = addStoredSource( { destination: 'newsletter' } )
+    const source = addStoredSource( userId, { destination: 'newsletter' } )
     const ids = serveMany( 12 )
 
     ids.slice( 0, 5 ).forEach( ( id ) => storeAlready( source.id, id ) )
@@ -307,7 +309,7 @@ describe( 'checkSource: newsletters', () => {
 
 describe( 'checkSource: job alerts', () => {
   it( 'stores every new email as pending, with no cap, bodies kept', async () => {
-    const source = addStoredSource( { destination: 'jobs', last_skipped_count: 4 } )
+    const source = addStoredSource( userId, { destination: 'jobs', last_skipped_count: 4 } )
 
     serveMany( 15 )
 
@@ -318,7 +320,7 @@ describe( 'checkSource: job alerts', () => {
     expect( pending ).toHaveLength( 15 )
     expect( checked ).toMatchObject( { inbox_count: 0, last_skipped_count: 4 } )
 
-    const [ row ] = findMessagesByIds( rowIdsOf( source.id ) )
+    const [ row ] = findMessagesByIds( userId, rowIdsOf( source.id ) )
 
     expect( row?.body_html ).not.toBeNull()
   } )
@@ -326,14 +328,14 @@ describe( 'checkSource: job alerts', () => {
 
 describe( 'checkSource: not checking', () => {
   it( 'refuses a turned-off source without calling Gmail', async () => {
-    const source = addStoredSource( { enabled: false } )
+    const source = addStoredSource( userId, { enabled: false } )
 
     await expect( checkSource( userId, source.id ) ).rejects.toBeInstanceOf( ConflictError )
     expect( listMatchingIds ).not.toHaveBeenCalled()
   } )
 
   it( 'does not find a deleted or unknown source', async () => {
-    const gone = addStoredSource( { deleted_at: minutesAgo( 5 ) } )
+    const gone = addStoredSource( userId, { deleted_at: minutesAgo( 5 ) } )
 
     await expect( checkSource( userId, gone.id ) ).rejects.toBeInstanceOf( NotFoundError )
     await expect( checkSource( userId, crypto.randomUUID() ) )
@@ -341,23 +343,23 @@ describe( 'checkSource: not checking', () => {
   } )
 
   it.each( [ 'not connected', 'reconnect needed' ] )( 'refuses while %s', async ( state ) => {
-    const source = addStoredSource()
+    const source = addStoredSource( userId )
 
     if( state === 'not connected' ) {
       getDatabase().prepare( 'DELETE FROM gmail_account' ).run()
     } else {
-      setAccountStatus( 'reconnect_needed', 'revoked' )
+      setAccountStatus( userId, 'reconnect_needed', 'revoked' )
     }
 
     await expect( checkSource( userId, source.id ) ).rejects.toBeInstanceOf( ConflictError )
     expect( listMatchingIds ).not.toHaveBeenCalled()
-    expect( findSourceById( source.id )?.last_error ).toBeNull()
+    expect( findSourceById( userId, source.id )?.last_error ).toBeNull()
   } )
 } )
 
 describe( 'checkSource: when something goes wrong', () => {
   it( 'records a failed listing and keeps going on the next check', async () => {
-    const source = addStoredSource()
+    const source = addStoredSource( userId )
 
     vi.mocked( listMatchingIds ).mockRejectedValue( new Error( 'Gmail is down' ) )
 
@@ -368,7 +370,7 @@ describe( 'checkSource: when something goes wrong', () => {
   } )
 
   it( 'keeps the emails read before a fetch failed, and records the failure', async () => {
-    const source = addStoredSource()
+    const source = addStoredSource( userId )
 
     serve( { m1: {}, m3: {} } )
     vi.mocked( listMatchingIds ).mockResolvedValue( idsOf( 'm1', 'm2', 'm3' ) )
@@ -378,11 +380,11 @@ describe( 'checkSource: when something goes wrong', () => {
 
     expect( rowsOf( source.id ).map( ( row ) => row.message_id ) ).toEqual( [ 'm1' ] )
     expect( checked.last_error ).toBe( 'unexpected message m2' )
-    expect( getMessage ).not.toHaveBeenCalledWith( 'm3', 'full' )
+    expect( getMessage ).not.toHaveBeenCalledWith( userId, 'm3', 'full' )
   } )
 
   it( 'picks up the rest on the next check', async () => {
-    const source = addStoredSource()
+    const source = addStoredSource( userId )
 
     serve( { m1: {}, m3: {} } )
     vi.mocked( listMatchingIds ).mockResolvedValue( idsOf( 'm1', 'm2', 'm3' ) )
@@ -394,11 +396,11 @@ describe( 'checkSource: when something goes wrong', () => {
     const stored = rowsOf( source.id ).map( ( row ) => row.message_id ).sort()
 
     expect( stored ).toEqual( [ 'm1', 'm2', 'm3' ] )
-    expect( findSourceById( source.id )?.last_error ).toBeNull()
+    expect( findSourceById( userId, source.id )?.last_error ).toBeNull()
   } )
 
   it( 'turns an auth failure into a conflict, recording and storing nothing', async () => {
-    const source = addStoredSource()
+    const source = addStoredSource( userId )
 
     serve( { m1: {} } )
     vi.mocked( listMatchingIds ).mockResolvedValue( idsOf( 'm1', 'm2' ) )
@@ -409,11 +411,11 @@ describe( 'checkSource: when something goes wrong', () => {
     await expect( checkSource( userId, source.id ) )
       .rejects.toThrow( new ConflictError( 'Google no longer accepts access' ) )
     expect( rowsOf( source.id ) ).toEqual( [] )
-    expect( findSourceById( source.id )?.last_checked_at ).toBeNull()
+    expect( findSourceById( userId, source.id )?.last_checked_at ).toBeNull()
   } )
 
   it( 'names a label Gmail no longer has, and still reads the others', async () => {
-    const source = addStoredSource( {
+    const source = addStoredSource( userId, {
       match: { kind: 'labels', label_ids: [ 'Label_1', 'Label_9' ] },
     } )
 
@@ -430,7 +432,10 @@ describe( 'checkSource: when something goes wrong', () => {
   } )
 
   it( 'records a missing label as a failure, then a clean check as a success', async () => {
-    const source = addStoredSource( { match: { kind: 'labels', label_ids: [ 'Label_9' ] } } )
+    const source = addStoredSource(
+      userId,
+      { match: { kind: 'labels', label_ids: [ 'Label_9' ] } },
+    )
 
     vi.mocked( listMatchingIds ).mockResolvedValue( { ...idsOf(), missingLabelIds: [ 'Label_9' ] } )
     await checkSource( userId, source.id )
@@ -455,7 +460,7 @@ describe( 'checkSource: when something goes wrong', () => {
   } )
 
   it( 'lists every missing label', async () => {
-    const source = addStoredSource( { match: { kind: 'labels', label_ids: [ 'A', 'B' ] } } )
+    const source = addStoredSource( userId, { match: { kind: 'labels', label_ids: [ 'A', 'B' ] } } )
 
     vi.mocked( listMatchingIds ).mockResolvedValue( { ...idsOf(), missingLabelIds: [ 'A', 'B' ] } )
 
@@ -466,37 +471,37 @@ describe( 'checkSource: when something goes wrong', () => {
 
 describe( 'checkAllSources', () => {
   it( 'checks the turned-on sources in order and returns the list', async () => {
-    const first = addStoredSource( { name: 'A' } )
-    const off = addStoredSource( { name: 'B', enabled: false } )
-    const third = addStoredSource( { name: 'C' } )
+    const first = addStoredSource( userId, { name: 'A' } )
+    const off = addStoredSource( userId, { name: 'B', enabled: false } )
+    const third = addStoredSource( userId, { name: 'C' } )
 
     const sources = await checkAllSources( userId )
 
     expect( sources.map( ( { id } ) => id ) ).toEqual( [ first.id, off.id, third.id ] )
-    expect( findSourceById( first.id )?.last_checked_at ).toBe( NOW.toISOString() )
-    expect( findSourceById( third.id )?.last_checked_at ).toBe( NOW.toISOString() )
-    expect( findSourceById( off.id )?.last_checked_at ).toBeNull()
+    expect( findSourceById( userId, first.id )?.last_checked_at ).toBe( NOW.toISOString() )
+    expect( findSourceById( userId, third.id )?.last_checked_at ).toBe( NOW.toISOString() )
+    expect( findSourceById( userId, off.id )?.last_checked_at ).toBeNull()
     expect( listMatchingIds ).toHaveBeenCalledTimes( 2 )
   } )
 
   it( 'needs Gmail to be connected', async () => {
-    addStoredSource()
-    setAccountStatus( 'reconnect_needed', 'revoked' )
+    addStoredSource( userId )
+    setAccountStatus( userId, 'reconnect_needed', 'revoked' )
 
     await expect( checkAllSources( userId ) ).rejects.toBeInstanceOf( ConflictError )
     expect( listMatchingIds ).not.toHaveBeenCalled()
   } )
 
   it( 'stops at an auth failure and leaves the later sources alone', async () => {
-    const first = addStoredSource( { name: 'A' } )
-    const second = addStoredSource( { name: 'B' } )
+    const first = addStoredSource( userId, { name: 'A' } )
+    const second = addStoredSource( userId, { name: 'B' } )
 
     vi.mocked( listMatchingIds ).mockRejectedValue( new GmailAuthError( 'revoked' ) )
 
     await expect( checkAllSources( userId ) ).rejects.toBeInstanceOf( ConflictError )
     expect( listMatchingIds ).toHaveBeenCalledTimes( 1 )
-    expect( findSourceById( first.id )?.last_checked_at ).toBeNull()
-    expect( findSourceById( second.id )?.last_checked_at ).toBeNull()
+    expect( findSourceById( userId, first.id )?.last_checked_at ).toBeNull()
+    expect( findSourceById( userId, second.id )?.last_checked_at ).toBeNull()
   } )
 } )
 
@@ -506,8 +511,8 @@ describe( 'checkDueSources', () => {
   } )
 
   it( 'checks each due source inside a log context carrying its id', async () => {
-    const one = addStoredSource( { name: 'One' } )
-    const two = addStoredSource( { name: 'Two' } )
+    const one = addStoredSource( userId, { name: 'One' } )
+    const two = addStoredSource( userId, { name: 'Two' } )
     const seen: ( string | undefined )[] = []
     vi.mocked( listMatchingIds ).mockImplementation( () => {
       seen.push( getLogContext()?.gmail_source_id )
@@ -522,47 +527,47 @@ describe( 'checkDueSources', () => {
   } )
 
   it( 'checks the sources not checked within the interval, and counts them', async () => {
-    const never = addStoredSource( { name: 'Never' } )
-    const stale = addStoredSource( { name: 'Stale', last_checked_at: minutesAgo( 20 ) } )
-    const fresh = addStoredSource( { name: 'Fresh', last_checked_at: minutesAgo( 5 ) } )
-    const off = addStoredSource( { name: 'Off', enabled: false } )
+    const never = addStoredSource( userId, { name: 'Never' } )
+    const stale = addStoredSource( userId, { name: 'Stale', last_checked_at: minutesAgo( 20 ) } )
+    const fresh = addStoredSource( userId, { name: 'Fresh', last_checked_at: minutesAgo( 5 ) } )
+    const off = addStoredSource( userId, { name: 'Off', enabled: false } )
 
     expect( await checkDueSources() ).toBe( 2 )
-    expect( findSourceById( never.id )?.last_checked_at ).toBe( NOW.toISOString() )
-    expect( findSourceById( stale.id )?.last_checked_at ).toBe( NOW.toISOString() )
-    expect( findSourceById( fresh.id )?.last_checked_at ).toBe( minutesAgo( 5 ) )
-    expect( findSourceById( off.id )?.last_checked_at ).toBeNull()
+    expect( findSourceById( userId, never.id )?.last_checked_at ).toBe( NOW.toISOString() )
+    expect( findSourceById( userId, stale.id )?.last_checked_at ).toBe( NOW.toISOString() )
+    expect( findSourceById( userId, fresh.id )?.last_checked_at ).toBe( minutesAgo( 5 ) )
+    expect( findSourceById( userId, off.id )?.last_checked_at ).toBeNull()
   } )
 
   it( 'follows the interval in settings', async () => {
-    const source = addStoredSource( { last_checked_at: minutesAgo( 20 ) } )
+    const source = addStoredSource( userId, { last_checked_at: minutesAgo( 20 ) } )
 
     setAppSetting( 'feed_check_interval_minutes', 60 )
 
     expect( await checkDueSources() ).toBe( 0 )
-    expect( findSourceById( source.id )?.last_checked_at ).toBe( minutesAgo( 20 ) )
+    expect( findSourceById( userId, source.id )?.last_checked_at ).toBe( minutesAgo( 20 ) )
   } )
 
   it( 'counts a source whose check failed, which records its error', async () => {
-    const source = addStoredSource()
+    const source = addStoredSource( userId )
 
     vi.mocked( listMatchingIds ).mockRejectedValue( new Error( 'Gmail is down' ) )
 
     expect( await checkDueSources() ).toBe( 1 )
-    expect( findSourceById( source.id )?.last_error ).toBe( 'Gmail is down' )
+    expect( findSourceById( userId, source.id )?.last_error ).toBe( 'Gmail is down' )
   } )
 
   it.each( [ 'not configured', 'not connected', 'reconnect needed' ] )(
     'does nothing while Gmail is %s',
     async ( state ) => {
-      addStoredSource()
+      addStoredSource( userId )
 
       if( state === 'not configured' ) {
         configMock.gmail = null
       } else if( state === 'not connected' ) {
         getDatabase().prepare( 'DELETE FROM gmail_account' ).run()
       } else {
-        setAccountStatus( 'reconnect_needed', 'revoked' )
+        setAccountStatus( userId, 'reconnect_needed', 'revoked' )
       }
 
       expect( await checkDueSources() ).toBe( 0 )
@@ -573,15 +578,15 @@ describe( 'checkDueSources', () => {
   )
 
   it( 'stops at an auth failure and leaves the later sources alone', async () => {
-    const first = addStoredSource( { name: 'A' } )
-    const second = addStoredSource( { name: 'B' } )
+    const first = addStoredSource( userId, { name: 'A' } )
+    const second = addStoredSource( userId, { name: 'B' } )
 
     vi.mocked( listMatchingIds ).mockRejectedValue( new GmailAuthError( 'revoked' ) )
 
     expect( await checkDueSources() ).toBe( 0 )
     expect( listMatchingIds ).toHaveBeenCalledTimes( 1 )
-    expect( findSourceById( first.id )?.last_checked_at ).toBeNull()
-    expect( findSourceById( second.id )?.last_checked_at ).toBeNull()
+    expect( findSourceById( userId, first.id )?.last_checked_at ).toBeNull()
+    expect( findSourceById( userId, second.id )?.last_checked_at ).toBeNull()
   } )
 } )
 
@@ -598,7 +603,7 @@ describe( 'checkSource: automatic summaries', () => {
   const statuses = ( sourceId: string ): string[] => rowsOf( sourceId ).map( ( row ) => row.status )
 
   it( 'queues the new emails of an automatic newsletter source', async () => {
-    const source = addStoredSource( { destination: 'newsletter', auto_summarize: true } )
+    const source = addStoredSource( userId, { destination: 'newsletter', auto_summarize: true } )
 
     serveReadable( [ 'm1', 'm2' ] )
 
@@ -615,7 +620,7 @@ describe( 'checkSource: automatic summaries', () => {
   } )
 
   it( 'leaves the emails of a source that is not automatic in the inbox', async () => {
-    const source = addStoredSource( { destination: 'newsletter', auto_summarize: false } )
+    const source = addStoredSource( userId, { destination: 'newsletter', auto_summarize: false } )
 
     serveReadable( [ 'm1' ] )
     await checkSource( userId, source.id )
@@ -625,7 +630,7 @@ describe( 'checkSource: automatic summaries', () => {
   } )
 
   it( 'queues nothing for a jobs source', async () => {
-    const source = addStoredSource( { destination: 'jobs', auto_summarize: true } )
+    const source = addStoredSource( userId, { destination: 'jobs', auto_summarize: true } )
 
     serveReadable( [ 'm1' ] )
     await checkSource( userId, source.id )
@@ -635,7 +640,7 @@ describe( 'checkSource: automatic summaries', () => {
   } )
 
   it( 'queues the ten that reached the inbox, not the ones it skipped', async () => {
-    const source = addStoredSource( { destination: 'newsletter', auto_summarize: true } )
+    const source = addStoredSource( userId, { destination: 'newsletter', auto_summarize: true } )
 
     serveReadable( Array.from( { length: 12 }, ( _, index ) => `m${ index }` ) )
     await checkSource( userId, source.id )
@@ -646,7 +651,7 @@ describe( 'checkSource: automatic summaries', () => {
   } )
 
   it( 'leaves an email it cannot queue in the inbox, logs it, and queues the others', async () => {
-    const source = addStoredSource( { destination: 'newsletter', auto_summarize: true } )
+    const source = addStoredSource( userId, { destination: 'newsletter', auto_summarize: true } )
 
     serve( {
       m1: { html: readable, receivedAt: minutesAgo( 60 ) },
@@ -665,7 +670,7 @@ describe( 'checkSource: automatic summaries', () => {
   } )
 
   it( 'does not queue an email again on the next check', async () => {
-    const source = addStoredSource( { destination: 'newsletter', auto_summarize: true } )
+    const source = addStoredSource( userId, { destination: 'newsletter', auto_summarize: true } )
 
     serveReadable( [ 'm1' ] )
     await checkSource( userId, source.id )
@@ -675,12 +680,88 @@ describe( 'checkSource: automatic summaries', () => {
   } )
 
   it( 'queues the emails of every automatic source in a due pass', async () => {
-    const source = addStoredSource( { destination: 'newsletter', auto_summarize: true } )
+    const source = addStoredSource( userId, { destination: 'newsletter', auto_summarize: true } )
 
     setAppSetting( 'feed_check_interval_minutes', 15 )
     serveReadable( [ 'm1' ] )
 
     expect( await checkDueSources() ).toBe( 1 )
     expect( statuses( source.id ) ).toEqual( [ 'queued' ] )
+  } )
+} )
+
+describe( 'checkDueSources for two users', () => {
+  beforeEach( () => {
+    setAppSetting( 'feed_check_interval_minutes', 15 )
+  } )
+
+  it( 'checks each user\'s due sources for them, with their own Gmail', async () => {
+    const other = createTestUser().id
+    const mine = addStoredSource( userId, { name: 'Mine' } )
+    const theirs = addStoredSource( other, { name: 'Theirs' } )
+    const callers: string[] = []
+
+    connectGmail( other )
+    vi.mocked( listMatchingIds ).mockImplementation( ( caller ) => {
+      callers.push( caller )
+
+      return Promise.resolve( idsOf() )
+    } )
+
+    expect( await checkDueSources() ).toBe( 2 )
+    expect( callers.sort() ).toEqual( [ userId, other ].sort() )
+    expect( findSourceById( userId, mine.id )?.last_checked_at ).toBe( NOW.toISOString() )
+    expect( findSourceById( other, theirs.id )?.last_checked_at ).toBe( NOW.toISOString() )
+  } )
+
+  it( 'skips users whose Gmail is not connected without touching the others', async () => {
+    const broken = createTestUser().id
+    const unconnected = createTestUser().id
+    const mine = addStoredSource( userId, { name: 'Mine' } )
+    const lost = addStoredSource( broken, { name: 'Lost' } )
+    const never = addStoredSource( unconnected, { name: 'Never' } )
+
+    connectGmail( broken )
+    setAccountStatus( broken, 'reconnect_needed', 'revoked' )
+
+    expect( await checkDueSources() ).toBe( 1 )
+    expect( findSourceById( userId, mine.id )?.last_checked_at ).toBe( NOW.toISOString() )
+    expect( findSourceById( broken, lost.id )?.last_checked_at ).toBeNull()
+    expect( findSourceById( unconnected, never.id )?.last_checked_at ).toBeNull()
+  } )
+
+  it( 'pauses only the user whose access Google rejected', async () => {
+    const other = createTestUser().id
+    const first = addStoredSource( other, { name: 'A' } )
+    const second = addStoredSource( other, { name: 'B' } )
+    const mine = addStoredSource( userId, { name: 'Mine' } )
+
+    connectGmail( other )
+    vi.mocked( listMatchingIds ).mockImplementation( ( caller ) => {
+      return caller === other
+        ? Promise.reject( new GmailAuthError( 'revoked' ) )
+        : Promise.resolve( idsOf() )
+    } )
+
+    expect( await checkDueSources() ).toBe( 1 )
+    expect( findSourceById( userId, mine.id )?.last_checked_at ).toBe( NOW.toISOString() )
+    expect( findSourceById( other, first.id )?.last_checked_at ).toBeNull()
+    expect( findSourceById( other, second.id )?.last_checked_at ).toBeNull()
+    expect( vi.mocked( listMatchingIds ).mock.calls.filter( ( [ caller ] ) => caller === other ) )
+      .toHaveLength( 1 )
+  } )
+
+  it( 'checks a user\'s sources only through checkAllSources for that user', async () => {
+    const other = createTestUser().id
+
+    connectGmail( other )
+    addStoredSource( userId, { name: 'Mine' } )
+    addStoredSource( other, { name: 'Theirs' } )
+
+    const sources = await checkAllSources( other )
+
+    expect( sources.map( ( { name } ) => name ) ).toEqual( [ 'Theirs' ] )
+    expect( vi.mocked( listMatchingIds ).mock.calls.every( ( [ caller ] ) => caller === other ) )
+      .toBe( true )
   } )
 } )

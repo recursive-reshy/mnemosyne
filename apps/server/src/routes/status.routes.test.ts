@@ -17,6 +17,14 @@ import { insertFeed } from '../repositories/feeds.repository.js'
 import { recordFailure } from '../repositories/health.repository.js'
 // Services
 import { runServiceChecks } from '../services/health.service.js'
+// Test support
+import { defaultTestAdmin } from '../test-support/auth.js'
+
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
 
 vi.mock( '../services/health.service.js', async ( importOriginal ) => ( {
   ...await importOriginal< typeof import( '../services/health.service.js' ) >(),
@@ -30,7 +38,7 @@ const at = ( minute: number ): string => {
 }
 
 const addFeed = (): void => {
-  insertFeed( {
+  insertFeed( userId, {
     id: feedId,
     url: 'https://example.com',
     feed_url: 'https://example.com/feed.xml',

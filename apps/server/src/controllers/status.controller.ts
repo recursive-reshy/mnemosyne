@@ -4,27 +4,29 @@ import { Request, Response } from 'express'
 import { z } from 'zod'
 // Shared
 import { GetHealthErrorsResponse, GetStatusResponse, HealthKind } from '@mnemosyne/shared'
+// Middleware
+import { currentUser } from '../middleware/auth.js'
 // Services
 import { getHealthErrors, getStatus, refreshStatus } from '../services/status.service.js'
 
 const ErrorsParams = z.object( { kind: HealthKind, id: z.string().min( 1 ) } )
 
-export const readStatus = ( _req: Request, res: Response< GetStatusResponse > ): void => {
-  res.status( 200 ).json( getStatus() )
+export const readStatus = ( req: Request, res: Response< GetStatusResponse > ): void => {
+  res.status( 200 ).json( getStatus( currentUser( req ).id ) )
 }
 
 export const refreshAllStatus = async (
-  _req: Request,
+  req: Request,
   res: Response< GetStatusResponse >,
 ): Promise< void > => {
-  res.status( 200 ).json( await refreshStatus() )
+  res.status( 200 ).json( await refreshStatus( currentUser( req ).id ) )
 }
 
 export const readHealthErrors = (
-  { params }: Request,
+  req: Request,
   res: Response< GetHealthErrorsResponse >,
 ): void => {
-  const { kind, id } = ErrorsParams.parse( params )
+  const { kind, id } = ErrorsParams.parse( req.params )
 
-  res.status( 200 ).json( { errors: getHealthErrors( kind, id ) } )
+  res.status( 200 ).json( { errors: getHealthErrors( currentUser( req ).id, kind, id ) } )
 }

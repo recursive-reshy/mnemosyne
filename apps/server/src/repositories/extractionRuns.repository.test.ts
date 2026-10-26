@@ -1,8 +1,22 @@
 // Packages
-import { describe, it, expect } from 'vitest'
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+} from 'vitest'
 // Repositories
+import { getDatabase } from './database.js'
 import { insertExtractionRun } from './extractionRuns.repository.js'
 import type { ExtractionRunRecord } from './extractionRuns.repository.js'
+// Test support
+import { createTestUser, defaultTestAdmin } from '../test-support/auth.js'
+
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
 
 const buildRun = ( overrides: Partial< ExtractionRunRecord > = {} ): ExtractionRunRecord => {
   return {
@@ -23,12 +37,15 @@ describe( 'insertExtractionRun', () => {
   it( 'returns the stored run with an id', () => {
     const run = buildRun()
 
-    expect( insertExtractionRun( run ) ).toEqual( { id: 1, ...run } )
+    expect( insertExtractionRun( userId, run ) ).toEqual( { id: 1, ...run } )
   } )
 
   it( 'numbers the runs in order', () => {
-    const first = insertExtractionRun( buildRun() )
-    const second = insertExtractionRun( buildRun( { outcome: 'no_jobs', postings_count: 0 } ) )
+    const first = insertExtractionRun( userId, buildRun() )
+    const second = insertExtractionRun(
+      userId,
+      buildRun( { outcome: 'no_jobs', postings_count: 0 } ),
+    )
 
     expect( [ first.id, second.id ] ).toEqual( [ 1, 2 ] )
   } )
@@ -43,6 +60,18 @@ describe( 'insertExtractionRun', () => {
       error: 'Malformed output',
     } )
 
-    expect( insertExtractionRun( run ) ).toEqual( { id: 1, ...run } )
+    expect( insertExtractionRun( userId, run ) ).toEqual( { id: 1, ...run } )
+  } )
+} )
+
+describe( 'ownership', () => {
+  it( 'stamps each run with the user it belongs to', () => {
+    const other = createTestUser().id
+
+    insertExtractionRun( userId, buildRun() )
+    insertExtractionRun( other, buildRun() )
+
+    expect( getDatabase().prepare( 'SELECT user_id FROM extraction_runs ORDER BY id' ).all() )
+      .toEqual( [ { user_id: userId }, { user_id: other } ] )
   } )
 } )

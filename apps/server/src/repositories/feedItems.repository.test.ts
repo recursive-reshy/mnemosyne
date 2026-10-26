@@ -3,6 +3,7 @@ import {
   describe,
   it,
   expect,
+  beforeEach,
 } from 'vitest'
 // Repositories
 import { insertFeed } from './feeds.repository.js'
@@ -15,11 +16,19 @@ import {
   setItemStatus,
 } from './feedItems.repository.js'
 import type { StoredFeedItem } from './feedItems.repository.js'
+// Test support
+import { createTestUser, defaultTestAdmin } from '../test-support/auth.js'
+
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
 
 const addFeed = ( name = 'A blog' ): string => {
   const id = crypto.randomUUID()
 
-  insertFeed( {
+  insertFeed( userId, {
     id,
     url: 'https://example.com',
     feed_url: `https://example.com/${ id }.xml`,
@@ -63,8 +72,8 @@ describe( 'insertItemIfNew', () => {
     const feedId = addFeed()
     const item = buildItem( feedId, { content_markdown: 'Full text', author: 'Ada' } )
 
-    expect( insertItemIfNew( item ) ).toBe( true )
-    expect( findItemsByIds( [ item.id ] ) ).toEqual( [ item ] )
+    expect( insertItemIfNew( userId, item ) ).toBe( true )
+    expect( findItemsByIds( userId, [ item.id ] ) ).toEqual( [ item ] )
   } )
 
   it( 'returns false and keeps the first row when the key was already seen in the feed', () => {
@@ -72,28 +81,28 @@ describe( 'insertItemIfNew', () => {
     const first = buildItem( feedId, { item_key: 'same', title: 'First' } )
     const again = buildItem( feedId, { item_key: 'same', title: 'Edited', status: 'baseline' } )
 
-    insertItemIfNew( first )
+    insertItemIfNew( userId, first )
 
-    expect( insertItemIfNew( again ) ).toBe( false )
-    expect( findItemsByIds( [ again.id ] ) ).toEqual( [] )
-    expect( findItemsByIds( [ first.id ] )[ 0 ]?.title ).toBe( 'First' )
+    expect( insertItemIfNew( userId, again ) ).toBe( false )
+    expect( findItemsByIds( userId, [ again.id ] ) ).toEqual( [] )
+    expect( findItemsByIds( userId, [ first.id ] )[ 0 ]?.title ).toBe( 'First' )
   } )
 
   it( 'treats the same key in another feed as new', () => {
     const one = buildItem( addFeed(), { item_key: 'same' } )
     const two = buildItem( addFeed(), { item_key: 'same' } )
 
-    expect( insertItemIfNew( one ) ).toBe( true )
-    expect( insertItemIfNew( two ) ).toBe( true )
+    expect( insertItemIfNew( userId, one ) ).toBe( true )
+    expect( insertItemIfNew( userId, two ) ).toBe( true )
   } )
 
   it( 'still sees a dismissed item as seen', () => {
     const feedId = addFeed()
     const item = buildItem( feedId, { item_key: 'same' } )
-    insertItemIfNew( item )
-    setItemStatus( [ item.id ], 'dismissed' )
+    insertItemIfNew( userId, item )
+    setItemStatus( userId, [ item.id ], 'dismissed' )
 
-    expect( insertItemIfNew( buildItem( feedId, { item_key: 'same' } ) ) ).toBe( false )
+    expect( insertItemIfNew( userId, buildItem( feedId, { item_key: 'same' } ) ) ).toBe( false )
   } )
 } )
 
@@ -103,30 +112,30 @@ describe( 'listInbox', () => {
     const older = buildItem( feedId, { title: 'older', added_at: '2026-10-18T10:00:00.000Z' } )
     const newer = buildItem( feedId, { title: 'newer', added_at: '2026-10-18T11:00:00.000Z' } )
 
-    insertItemIfNew( older )
-    insertItemIfNew( newer )
-    insertItemIfNew( buildItem( feedId, { status: 'baseline' } ) )
-    insertItemIfNew( buildItem( feedId, { status: 'dismissed' } ) )
-    insertItemIfNew( buildItem( feedId, { status: 'queued' } ) )
-    insertItemIfNew( buildItem( feedId, { status: 'skipped' } ) )
+    insertItemIfNew( userId, older )
+    insertItemIfNew( userId, newer )
+    insertItemIfNew( userId, buildItem( feedId, { status: 'baseline' } ) )
+    insertItemIfNew( userId, buildItem( feedId, { status: 'dismissed' } ) )
+    insertItemIfNew( userId, buildItem( feedId, { status: 'queued' } ) )
+    insertItemIfNew( userId, buildItem( feedId, { status: 'skipped' } ) )
 
-    expect( listInbox().map( ( { title, feed_name } ) => [ title, feed_name ] ) )
+    expect( listInbox( userId ).map( ( { title, feed_name } ) => [ title, feed_name ] ) )
       .toEqual( [ [ 'newer', 'Blog' ], [ 'older', 'Blog' ] ] )
   } )
 
   it( 'keeps the items of a deleted or disabled feed', () => {
     const feedId = addFeed()
-    insertItemIfNew( buildItem( feedId ) )
+    insertItemIfNew( userId, buildItem( feedId ) )
 
-    expect( listInbox() ).toHaveLength( 1 )
+    expect( listInbox( userId ) ).toHaveLength( 1 )
   } )
 
   it( 'breaks ties on added_at by insertion order, newest first', () => {
     const feedId = addFeed()
-    insertItemIfNew( buildItem( feedId, { title: 'first' } ) )
-    insertItemIfNew( buildItem( feedId, { title: 'second' } ) )
+    insertItemIfNew( userId, buildItem( feedId, { title: 'first' } ) )
+    insertItemIfNew( userId, buildItem( feedId, { title: 'second' } ) )
 
-    expect( listInbox().map( ( { title } ) => title ) ).toEqual( [ 'second', 'first' ] )
+    expect( listInbox( userId ).map( ( { title } ) => title ) ).toEqual( [ 'second', 'first' ] )
   } )
 } )
 
@@ -135,16 +144,16 @@ describe( 'findItemsByIds', () => {
     const feedId = addFeed()
     const inbox = buildItem( feedId )
     const dismissed = buildItem( feedId, { status: 'dismissed' } )
-    insertItemIfNew( inbox )
-    insertItemIfNew( dismissed )
+    insertItemIfNew( userId, inbox )
+    insertItemIfNew( userId, dismissed )
 
-    const found = findItemsByIds( [ inbox.id, dismissed.id, crypto.randomUUID() ] )
+    const found = findItemsByIds( userId, [ inbox.id, dismissed.id, crypto.randomUUID() ] )
 
     expect( found.map( ( { id } ) => id ).sort() ).toEqual( [ inbox.id, dismissed.id ].sort() )
   } )
 
   it( 'returns nothing for an empty list', () => {
-    expect( findItemsByIds( [] ) ).toEqual( [] )
+    expect( findItemsByIds( userId, [] ) ).toEqual( [] )
   } )
 } )
 
@@ -153,15 +162,16 @@ describe( 'setItemStatus', () => {
     const feedId = addFeed()
     const one = buildItem( feedId )
     const two = buildItem( feedId )
-    insertItemIfNew( one )
-    insertItemIfNew( two )
+    insertItemIfNew( userId, one )
+    insertItemIfNew( userId, two )
     const jobId = crypto.randomUUID()
 
-    setItemStatus( [ one.id ], 'queued', jobId )
-    setItemStatus( [ two.id ], 'dismissed' )
+    setItemStatus( userId, [ one.id ], 'queued', jobId )
+    setItemStatus( userId, [ two.id ], 'dismissed' )
 
-    expect( findItemsByIds( [ one.id ] )[ 0 ] ).toMatchObject( { status: 'queued', job_id: jobId } )
-    expect( findItemsByIds( [ two.id ] )[ 0 ] )
+    expect( findItemsByIds( userId, [ one.id ] )[ 0 ] )
+      .toMatchObject( { status: 'queued', job_id: jobId } )
+    expect( findItemsByIds( userId, [ two.id ] )[ 0 ] )
       .toMatchObject( { status: 'dismissed', job_id: null } )
   } )
 
@@ -169,18 +179,18 @@ describe( 'setItemStatus', () => {
     const feedId = addFeed()
     const leaving = buildItem( feedId, { content_markdown: 'Full text' } )
     const staying = buildItem( feedId, { content_markdown: 'Full text' } )
-    insertItemIfNew( leaving )
-    insertItemIfNew( staying )
+    insertItemIfNew( userId, leaving )
+    insertItemIfNew( userId, staying )
 
-    setItemStatus( [ leaving.id ], 'queued', crypto.randomUUID() )
-    setItemStatus( [ staying.id ], 'inbox' )
+    setItemStatus( userId, [ leaving.id ], 'queued', crypto.randomUUID() )
+    setItemStatus( userId, [ staying.id ], 'inbox' )
 
-    expect( findItemsByIds( [ leaving.id ] )[ 0 ]?.content_markdown ).toBeNull()
-    expect( findItemsByIds( [ staying.id ] )[ 0 ]?.content_markdown ).toBe( 'Full text' )
+    expect( findItemsByIds( userId, [ leaving.id ] )[ 0 ]?.content_markdown ).toBeNull()
+    expect( findItemsByIds( userId, [ staying.id ] )[ 0 ]?.content_markdown ).toBe( 'Full text' )
   } )
 
   it( 'does nothing for an empty list', () => {
-    expect( () => setItemStatus( [], 'dismissed' ) ).not.toThrow()
+    expect( () => setItemStatus( userId, [], 'dismissed' ) ).not.toThrow()
   } )
 } )
 
@@ -188,14 +198,14 @@ describe( 'countInbox', () => {
   it( 'counts the inbox items of one feed', () => {
     const one = addFeed()
     const two = addFeed()
-    insertItemIfNew( buildItem( one ) )
-    insertItemIfNew( buildItem( one ) )
-    insertItemIfNew( buildItem( one, { status: 'dismissed' } ) )
-    insertItemIfNew( buildItem( two ) )
+    insertItemIfNew( userId, buildItem( one ) )
+    insertItemIfNew( userId, buildItem( one ) )
+    insertItemIfNew( userId, buildItem( one, { status: 'dismissed' } ) )
+    insertItemIfNew( userId, buildItem( two ) )
 
-    expect( countInbox( one ) ).toBe( 2 )
-    expect( countInbox( two ) ).toBe( 1 )
-    expect( countInbox( crypto.randomUUID() ) ).toBe( 0 )
+    expect( countInbox( userId, one ) ).toBe( 2 )
+    expect( countInbox( userId, two ) ).toBe( 1 )
+    expect( countInbox( userId, crypto.randomUUID() ) ).toBe( 0 )
   } )
 } )
 
@@ -206,17 +216,68 @@ describe( 'dismissInboxForFeed', () => {
     const inbox = buildItem( one, { content_markdown: 'Full text' } )
     const queued = buildItem( one, { status: 'queued' } )
     const other = buildItem( two )
-    insertItemIfNew( inbox )
-    insertItemIfNew( queued )
-    insertItemIfNew( other )
+    insertItemIfNew( userId, inbox )
+    insertItemIfNew( userId, queued )
+    insertItemIfNew( userId, other )
 
-    dismissInboxForFeed( one )
+    dismissInboxForFeed( userId, one )
 
-    expect( findItemsByIds( [ inbox.id ] )[ 0 ] ).toMatchObject( {
+    expect( findItemsByIds( userId, [ inbox.id ] )[ 0 ] ).toMatchObject( {
       status: 'dismissed',
       content_markdown: null,
     } )
-    expect( findItemsByIds( [ queued.id ] )[ 0 ]?.status ).toBe( 'queued' )
-    expect( findItemsByIds( [ other.id ] )[ 0 ]?.status ).toBe( 'inbox' )
+    expect( findItemsByIds( userId, [ queued.id ] )[ 0 ]?.status ).toBe( 'queued' )
+    expect( findItemsByIds( userId, [ other.id ] )[ 0 ]?.status ).toBe( 'inbox' )
+  } )
+} )
+
+describe( 'ownership', () => {
+  const addOtherFeed = ( other: string ): string => {
+    const id = crypto.randomUUID()
+
+    insertFeed( other, {
+      id,
+      url: 'https://example.com',
+      feed_url: `https://example.com/${ id }.xml`,
+      name: 'Theirs',
+      profile_id: null,
+      enabled: true,
+      auto_summarize: false,
+      etag: null,
+      last_modified: null,
+      last_checked_at: null,
+      last_error: null,
+      last_skipped_count: 0,
+      created_at: '2026-10-18T10:00:00.000Z',
+      deleted_at: null,
+    } )
+
+    return id
+  }
+
+  it( 'keeps each user\'s inbox, counts and lookups apart', () => {
+    const other = createTestUser().id
+    const mine = buildItem( addFeed() )
+    const theirs = buildItem( addOtherFeed( other ) )
+
+    insertItemIfNew( userId, mine )
+    insertItemIfNew( other, theirs )
+
+    expect( listInbox( userId ).map( ( { id } ) => id ) ).toEqual( [ mine.id ] )
+    expect( listInbox( other ).map( ( { id } ) => id ) ).toEqual( [ theirs.id ] )
+    expect( findItemsByIds( other, [ mine.id ] ) ).toEqual( [] )
+    expect( countInbox( other, mine.feed_id ) ).toBe( 0 )
+  } )
+
+  it( 'does not change or dismiss another user\'s items', () => {
+    const other = createTestUser().id
+    const item = buildItem( addFeed() )
+
+    insertItemIfNew( userId, item )
+    setItemStatus( other, [ item.id ], 'dismissed' )
+    dismissInboxForFeed( other, item.feed_id )
+
+    expect( findItemsByIds( userId, [ item.id ] )[ 0 ]?.status ).toBe( 'inbox' )
+    expect( countInbox( userId, item.feed_id ) ).toBe( 1 )
   } )
 } )

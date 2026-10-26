@@ -16,6 +16,14 @@ import {
   listMatchingIds,
   listMessageIds,
 } from './gmail.client.js'
+// Test support
+import { defaultTestAdmin } from '../test-support/auth.js'
+
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
 
 vi.mock( './auth.js', async ( importOriginal ) => ( {
   ...await importOriginal< typeof import( './auth.js' ) >(),
@@ -45,7 +53,7 @@ const numbered = ( prefix: string, count: number ): string[] => {
 
 beforeEach( () => {
   vi.resetAllMocks()
-  vi.mocked( withGmail ).mockImplementation( ( run ) => run( fakeClient ) )
+  vi.mocked( withGmail ).mockImplementation( ( _userId, run ) => run( fakeClient ) )
 } )
 
 describe( 'listLabels', () => {
@@ -58,7 +66,7 @@ describe( 'listLabels', () => {
       { id: 'Label_2' },
     ] } } )
 
-    expect( await listLabels() ).toEqual( [
+    expect( await listLabels( userId ) ).toEqual( [
       { id: 'Label_1', name: 'Jobs', type: 'user' },
       { id: 'INBOX', name: 'INBOX', type: 'system' },
       { id: 'CHAT', name: 'CHAT', type: 'system' },
@@ -69,7 +77,7 @@ describe( 'listLabels', () => {
   it( 'returns nothing when Gmail has no labels', async () => {
     labelsList.mockResolvedValue( { data: {} } )
 
-    expect( await listLabels() ).toEqual( [] )
+    expect( await listLabels( userId ) ).toEqual( [] )
   } )
 } )
 
@@ -77,7 +85,8 @@ describe( 'listMessageIds', () => {
   it( 'lists by label, leaving out spam and trash', async () => {
     messagesList.mockResolvedValue( pageOf( [ 'a', 'b' ] ) )
 
-    expect( await listMessageIds( { labelId: 'Label_1', max: 10 } ) ).toEqual( [ 'a', 'b' ] )
+    expect( await listMessageIds( userId, { labelId: 'Label_1', max: 10 } ) )
+      .toEqual( [ 'a', 'b' ] )
     expect( messagesList ).toHaveBeenCalledWith( expect.objectContaining( {
       userId: 'me',
       labelIds: [ 'Label_1' ],
@@ -89,7 +98,7 @@ describe( 'listMessageIds', () => {
   it( 'lists by query as written', async () => {
     messagesList.mockResolvedValue( pageOf( [ 'a' ] ) )
 
-    await listMessageIds( { q: 'from:donotreply@upwork.com', max: 10 } )
+    await listMessageIds( userId, { q: 'from:donotreply@upwork.com', max: 10 } )
 
     expect( messagesList ).toHaveBeenCalledWith( expect.objectContaining( {
       q: 'from:donotreply@upwork.com',
@@ -100,7 +109,7 @@ describe( 'listMessageIds', () => {
   it( 'appends after:<unix seconds> to the query', async () => {
     messagesList.mockResolvedValue( pageOf( [] ) )
 
-    await listMessageIds( {
+    await listMessageIds( userId, {
       q: 'from:a@b.c',
       after: new Date( '2026-10-01T00:00:00.500Z' ),
       max: 10,
@@ -114,7 +123,7 @@ describe( 'listMessageIds', () => {
   it( 'uses after alone when there is no query', async () => {
     messagesList.mockResolvedValue( pageOf( [] ) )
 
-    await listMessageIds( {
+    await listMessageIds( userId, {
       labelId: 'Label_1',
       after: new Date( '2026-10-01T00:00:00Z' ),
       max: 10,
@@ -131,7 +140,7 @@ describe( 'listMessageIds', () => {
       .mockResolvedValueOnce( pageOf( [ 'a', 'b', 'c' ], 'next-1' ) )
       .mockResolvedValueOnce( pageOf( [ 'd', 'e', 'f' ], 'next-2' ) )
 
-    const ids = await listMessageIds( { labelId: 'L', max: 5 } )
+    const ids = await listMessageIds( userId, { labelId: 'L', max: 5 } )
 
     expect( ids ).toEqual( [ 'a', 'b', 'c', 'd', 'e' ] )
     expect( messagesList ).toHaveBeenCalledTimes( 2 )
@@ -144,14 +153,14 @@ describe( 'listMessageIds', () => {
     messagesList.mockResolvedValueOnce( pageOf( [ 'a' ], 'next' ) )
     messagesList.mockResolvedValueOnce( pageOf( [ 'b' ] ) )
 
-    expect( await listMessageIds( { labelId: 'L', max: 50 } ) ).toEqual( [ 'a', 'b' ] )
+    expect( await listMessageIds( userId, { labelId: 'L', max: 50 } ) ).toEqual( [ 'a', 'b' ] )
     expect( messagesList ).toHaveBeenCalledTimes( 2 )
   } )
 
   it( 'does not ask for more once max is reached', async () => {
     messagesList.mockResolvedValue( pageOf( [ 'a', 'b' ], 'more' ) )
 
-    await listMessageIds( { labelId: 'L', max: 2 } )
+    await listMessageIds( userId, { labelId: 'L', max: 2 } )
 
     expect( messagesList ).toHaveBeenCalledTimes( 1 )
   } )
@@ -159,11 +168,11 @@ describe( 'listMessageIds', () => {
   it( 'asks for no more than max in a page', async () => {
     messagesList.mockResolvedValue( pageOf( [] ) )
 
-    await listMessageIds( { labelId: 'L', max: 20 } )
+    await listMessageIds( userId, { labelId: 'L', max: 20 } )
 
     expect( messagesList ).toHaveBeenCalledWith( expect.objectContaining( { maxResults: 20 } ) )
 
-    await listMessageIds( { labelId: 'L', max: 900 } )
+    await listMessageIds( userId, { labelId: 'L', max: 900 } )
 
     expect( messagesList ).toHaveBeenLastCalledWith(
       expect.objectContaining( { maxResults: 500 } ),
@@ -173,13 +182,14 @@ describe( 'listMessageIds', () => {
   it( 'returns an empty list when nothing matches', async () => {
     messagesList.mockResolvedValue( { data: {} } )
 
-    expect( await listMessageIds( { q: 'nothing', max: 10 } ) ).toEqual( [] )
+    expect( await listMessageIds( userId, { q: 'nothing', max: 10 } ) ).toEqual( [] )
   } )
 
   it( 'lets an auth failure through', async () => {
     vi.mocked( withGmail ).mockRejectedValue( new GmailAuthError( 'revoked' ) )
 
-    await expect( listMessageIds( { q: 'x', max: 1 } ) ).rejects.toBeInstanceOf( GmailAuthError )
+    await expect( listMessageIds( userId, { q: 'x', max: 1 } ) )
+      .rejects.toBeInstanceOf( GmailAuthError )
   } )
 } )
 
@@ -187,14 +197,14 @@ describe( 'getMessage', () => {
   it( 'fetches the full message by default', async () => {
     messagesGet.mockResolvedValue( { data: { id: 'a', snippet: 'hi' } } )
 
-    expect( await getMessage( 'a' ) ).toEqual( { id: 'a', snippet: 'hi' } )
+    expect( await getMessage( userId, 'a' ) ).toEqual( { id: 'a', snippet: 'hi' } )
     expect( messagesGet ).toHaveBeenCalledWith( { userId: 'me', id: 'a', format: 'full' } )
   } )
 
   it( 'fetches only the headers when asked for metadata', async () => {
     messagesGet.mockResolvedValue( { data: { id: 'a' } } )
 
-    await getMessage( 'a', 'metadata' )
+    await getMessage( userId, 'a', 'metadata' )
 
     expect( messagesGet ).toHaveBeenCalledWith( { userId: 'me', id: 'a', format: 'metadata' } )
   } )
@@ -213,7 +223,11 @@ describe( 'listMatchingIds', () => {
   it( 'makes one call for a query and checks no labels', async () => {
     messagesList.mockResolvedValue( pageOf( [ 'a', 'b' ] ) )
 
-    const result = await listMatchingIds( { kind: 'query', query: 'from:a@b.c' }, { max: 10 } )
+    const result = await listMatchingIds(
+      userId,
+      { kind: 'query', query: 'from:a@b.c' },
+      { max: 10 },
+    )
 
     expect( result ).toEqual( { ids: [ 'a', 'b' ], heads: [ 'a' ], missingLabelIds: [] } )
     expect( messagesList ).toHaveBeenCalledTimes( 1 )
@@ -226,6 +240,7 @@ describe( 'listMatchingIds', () => {
       .mockResolvedValueOnce( pageOf( [ 'b', 'c' ] ) )
 
     const result = await listMatchingIds(
+      userId,
       { kind: 'labels', label_ids: [ 'Label_1', 'Label_2' ] },
       { max: 10 },
     )
@@ -244,6 +259,7 @@ describe( 'listMatchingIds', () => {
     messagesList.mockResolvedValue( pageOf( [] ) )
 
     await listMatchingIds(
+      userId,
       { kind: 'labels', label_ids: [ 'Label_1', 'Label_2' ] },
       { max: 10, after: new Date( '2026-10-01T00:00:00Z' ) },
     )
@@ -258,6 +274,7 @@ describe( 'listMatchingIds', () => {
     messagesList.mockResolvedValue( pageOf( [ 'a' ] ) )
 
     const result = await listMatchingIds(
+      userId,
       { kind: 'labels', label_ids: [ 'Label_gone', 'Label_1' ] },
       { max: 10 },
     )
@@ -268,6 +285,7 @@ describe( 'listMatchingIds', () => {
 
   it( 'returns nothing when every label is gone', async () => {
     const result = await listMatchingIds(
+      userId,
       { kind: 'labels', label_ids: [ 'Label_gone' ] },
       { max: 10 },
     )
@@ -287,7 +305,7 @@ describe( 'countMatches', () => {
   it( 'counts the matches and returns their ids', async () => {
     messagesList.mockResolvedValue( pageOf( [ 'a', 'b', 'c' ] ) )
 
-    expect( await countMatches( { kind: 'query', query: 'x' } ) ).toEqual( {
+    expect( await countMatches( userId, { kind: 'query', query: 'x' } ) ).toEqual( {
       count: 3,
       capped: false,
       ids: [ 'a', 'b', 'c' ],
@@ -299,7 +317,7 @@ describe( 'countMatches', () => {
   it( 'counts up to 500 and says when there are more', async () => {
     messagesList.mockResolvedValue( pageOf( numbered( 'm', 501 ) ) )
 
-    const result = await countMatches( { kind: 'query', query: 'x' } )
+    const result = await countMatches( userId, { kind: 'query', query: 'x' } )
 
     expect( result.count ).toBe( 500 )
     expect( result.capped ).toBe( true )
@@ -308,7 +326,7 @@ describe( 'countMatches', () => {
   it( 'is not capped at exactly 500', async () => {
     messagesList.mockResolvedValue( pageOf( numbered( 'm', 500 ) ) )
 
-    const result = await countMatches( { kind: 'query', query: 'x' } )
+    const result = await countMatches( userId, { kind: 'query', query: 'x' } )
 
     expect( result.count ).toBe( 500 )
     expect( result.capped ).toBe( false )
@@ -317,7 +335,10 @@ describe( 'countMatches', () => {
   it( 'reports labels that no longer exist', async () => {
     messagesList.mockResolvedValue( pageOf( [ 'a' ] ) )
 
-    const result = await countMatches( { kind: 'labels', label_ids: [ 'Label_1', 'Label_gone' ] } )
+    const result = await countMatches(
+      userId,
+      { kind: 'labels', label_ids: [ 'Label_1', 'Label_gone' ] },
+    )
 
     expect( result.count ).toBe( 1 )
     expect( result.missingLabelIds ).toEqual( [ 'Label_gone' ] )

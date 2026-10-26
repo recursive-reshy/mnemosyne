@@ -85,9 +85,13 @@ const toRow = (
   }
 }
 
-const gmailConnectionRow = ( health: HealthRecord | undefined ): StatusRow => {
-  const subject: Subject = { kind: 'gmail_connection', id: SINGLETON_ID, name: 'Gmail connection' }
-  const account = findAccount()
+// The connection's subject ID is the user's ID (TRD §3.2)
+const gmailConnectionRow = (
+  userId: string,
+  health: HealthRecord | undefined,
+): StatusRow => {
+  const subject: Subject = { kind: 'gmail_connection', id: userId, name: 'Gmail connection' }
+  const account = findAccount( userId )
 
   if( config.gmail === null || account === undefined ) {
     return toRow( subject, health, true )
@@ -109,7 +113,7 @@ const gmailConnectionRow = ( health: HealthRecord | undefined ): StatusRow => {
   return toRow( subject, health, false )
 }
 
-export const getStatus = (): GetStatusResponse => {
+export const getStatus = ( userId: string ): GetStatusResponse => {
   const health = new Map< string, HealthRecord >(
     listHealth().map( ( record ) => [ `${ record.kind }:${ record.subject_id }`, record ] ),
   )
@@ -135,13 +139,13 @@ export const getStatus = (): GetStatusResponse => {
       false,
       describeBackup( find( 'backup', SINGLETON_ID )?.detail ?? null ),
     ),
-    gmailConnectionRow( find( 'gmail_connection', SINGLETON_ID ) ),
-    ...listSources()
+    gmailConnectionRow( userId, find( 'gmail_connection', userId ) ),
+    ...listSources( userId )
       .map( ( { id, name, enabled } ) => {
         return toRow( { kind: 'gmail_source', id, name }, find( 'gmail_source', id ), !enabled )
       } )
       .sort( byName ),
-    ...listFeeds()
+    ...listFeeds( userId )
       .map( ( { id, name, enabled } ) => {
         return toRow( { kind: 'feed', id, name }, find( 'feed', id ), !enabled )
       } )
@@ -154,26 +158,34 @@ export const getStatus = (): GetStatusResponse => {
   }
 }
 
-export const refreshStatus = async (): Promise< GetStatusResponse > => {
+export const refreshStatus = async ( userId: string ): Promise< GetStatusResponse > => {
   await runServiceChecks()
 
-  return getStatus()
+  return getStatus( userId )
 }
 
-const subjectExists = ( kind: HealthKind, id: string ): boolean => {
+const subjectExists = ( userId: string, kind: HealthKind, id: string ): boolean => {
   if( kind === 'feed' ) {
-    return findFeedById( id )?.deleted_at === null
+    return findFeedById( userId, id )?.deleted_at === null
   }
 
   if( kind === 'gmail_source' ) {
-    return findSourceById( id )?.deleted_at === null
+    return findSourceById( userId, id )?.deleted_at === null
+  }
+
+  if( kind === 'gmail_connection' ) {
+    return id === userId
   }
 
   return id === SINGLETON_ID
 }
 
-export const getHealthErrors = ( kind: HealthKind, id: string ): HealthError[] => {
-  if( !subjectExists( kind, id ) ) {
+export const getHealthErrors = (
+  userId: string,
+  kind: HealthKind,
+  id: string,
+): HealthError[] => {
+  if( !subjectExists( userId, kind, id ) ) {
     throw new NotFoundError( 'Status subject not found' )
   }
 

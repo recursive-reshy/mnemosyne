@@ -17,8 +17,8 @@ export const idsOf = ( ...ids: string[] ): Matching => {
   return { ids, heads: ids.slice( 0, 1 ), missingLabelIds: [] }
 }
 
-export const connectGmail = (): void => {
-  saveAccount( {
+export const connectGmail = ( userId: string ): void => {
+  saveAccount( userId, {
     email: 'naresh@example.com',
     refresh_token_enc: 'v1:x',
     scope: 'https://www.googleapis.com/auth/gmail.readonly',
@@ -50,11 +50,12 @@ export const buildStoredSource = (
 }
 
 export const addStoredSource = (
+  userId: string,
   overrides: Partial< StoredGmailSource > = {},
 ): StoredGmailSource => {
   const source = buildStoredSource( overrides )
 
-  insertSource( source )
+  insertSource( userId, source )
   seedCheck( 'gmail_source', source.id, source.last_checked_at, source.last_error )
 
   return source

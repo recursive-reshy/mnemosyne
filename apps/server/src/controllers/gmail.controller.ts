@@ -4,6 +4,9 @@ import { Request, Response } from 'express'
 import { z } from 'zod'
 // Shared
 import { GetGmailAccountResponse, ListGmailLabelsResponse } from '@mnemosyne/shared'
+// Middleware
+import { currentUser } from '../middleware/auth.js'
+import { currentOrigin } from '../middleware/requestOrigin.js'
 // Services
 import {
   disconnectAccount,
@@ -20,19 +23,21 @@ const CallbackQuery = z.object( {
 } )
 
 export const getGmailAccount = (
-  _req: Request,
+  req: Request,
   res: Response< GetGmailAccountResponse >,
 ): void => {
-  res.status( 200 ).json( { account: getAccount() } )
+  res.status( 200 ).json( { account: getAccount( currentUser( req ).id ) } )
 }
 
-export const connectGmail = ( _req: Request, res: Response ): void => {
-  res.redirect( 302, startConnect() )
+export const connectGmail = ( req: Request, res: Response ): void => {
+  res.redirect( 302, startConnect( currentUser( req ).id, currentOrigin( req ) ) )
 }
 
-export const gmailCallback = async ( { query }: Request, res: Response ): Promise< void > => {
-  const parsed = CallbackQuery.safeParse( query )
-  const failure = parsed.success ? await finishConnect( parsed.data ) : 'failed'
+export const gmailCallback = async ( req: Request, res: Response ): Promise< void > => {
+  const parsed = CallbackQuery.safeParse( req.query )
+  const failure = parsed.success
+    ? await finishConnect( currentUser( req ).id, parsed.data )
+    : 'failed'
 
   res.redirect(
     302,
@@ -40,15 +45,15 @@ export const gmailCallback = async ( { query }: Request, res: Response ): Promis
   )
 }
 
-export const disconnectGmail = async ( _req: Request, res: Response ): Promise< void > => {
-  await disconnectAccount()
+export const disconnectGmail = async ( req: Request, res: Response ): Promise< void > => {
+  await disconnectAccount( currentUser( req ).id )
 
   res.status( 204 ).end()
 }
 
 export const getGmailLabels = async (
-  _req: Request,
+  req: Request,
   res: Response< ListGmailLabelsResponse >,
 ): Promise< void > => {
-  res.status( 200 ).json( { labels: await listLabels() } )
+  res.status( 200 ).json( { labels: await listLabels( currentUser( req ).id ) } )
 }

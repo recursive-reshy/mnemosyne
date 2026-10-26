@@ -298,7 +298,7 @@ export const queueJob = async (
     : articleFromText( { url, text, title, origin: 'pasted' } ) )
   const gmailSource = extra.gmail_source_id === undefined
     ? undefined
-    : findSourceById( extra.gmail_source_id )
+    : findSourceById( userId, extra.gmail_source_id )
 
   if( extra.gmail_source_id !== undefined && gmailSource === undefined ) {
     throw new ValidationError( 'Unknown Gmail source' )
@@ -324,7 +324,9 @@ export const queueJob = async (
     source_document: document,
     source_type: sourceType,
     feed_id: extra.feed_id ?? null,
-    feed_name: extra.feed_id === undefined ? null : findFeedById( extra.feed_id )?.name ?? null,
+    feed_name: extra.feed_id === undefined
+      ? null
+      : findFeedById( userId, extra.feed_id )?.name ?? null,
     gmail_source_id: extra.gmail_source_id ?? null,
     gmail_source_name: gmailSource?.name ?? null,
   }

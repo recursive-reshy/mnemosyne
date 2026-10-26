@@ -1472,7 +1472,7 @@ describe( 'article jobs', () => {
     const id = crypto.randomUUID()
     const now = startTime.toISOString()
 
-    insertFeed( {
+    insertFeed( userId, {
       id: feedId,
       url: 'https://example.com',
       feed_url: 'https://example.com/feed.xml',
@@ -1688,7 +1688,7 @@ describe( 'queueJob with source types', () => {
 
   describe( 'a Gmail source', () => {
     it( 'stores the source id and shows its name on the job', async () => {
-      const source = addStoredSource( { name: 'Substacks', destination: 'newsletter' } )
+      const source = addStoredSource( userId, { name: 'Substacks', destination: 'newsletter' } )
 
       const job = await queueJob( userId, { url: articleUrl }, { gmail_source_id: source.id } )
 

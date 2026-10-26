@@ -270,6 +270,7 @@ const BASELINE_COLUMNS: Record< string, string[] > = {
   ],
   feeds: [
     'id',
+    'user_id',
     'url',
     'feed_url',
     'name',
@@ -284,6 +285,7 @@ const BASELINE_COLUMNS: Record< string, string[] > = {
   ],
   feed_items: [
     'id',
+    'user_id',
     'feed_id',
     'item_key',
     'title',
@@ -296,7 +298,7 @@ const BASELINE_COLUMNS: Record< string, string[] > = {
     'added_at',
   ],
   gmail_account: [
-    'id',
+    'user_id',
     'email',
     'refresh_token_enc',
     'scope',
@@ -306,6 +308,7 @@ const BASELINE_COLUMNS: Record< string, string[] > = {
   ],
   gmail_sources: [
     'id',
+    'user_id',
     'name',
     'match_kind',
     'label_ids',
@@ -321,6 +324,7 @@ const BASELINE_COLUMNS: Record< string, string[] > = {
   ],
   gmail_messages: [
     'id',
+    'user_id',
     'source_id',
     'message_id',
     'subject',
@@ -338,6 +342,7 @@ const BASELINE_COLUMNS: Record< string, string[] > = {
   ],
   job_postings: [
     'id',
+    'user_id',
     'platform',
     'platform_job_id',
     'dedupe_key',
@@ -349,12 +354,14 @@ const BASELINE_COLUMNS: Record< string, string[] > = {
     'details',
   ],
   posting_sightings: [
+    'user_id',
     'posting_id',
     'gmail_message_row',
     'seen_at',
   ],
   extraction_runs: [
     'id',
+    'user_id',
     'gmail_message_row',
     'model',
     'input_tokens',
@@ -710,10 +717,11 @@ describe( 'the baseline schema', () => {
     } )
 
     it( 'allows one active feed per feed_url, and reuse after a soft delete', () => {
+      const owner = createTestUser().id
       const add = ( id: string, deleted: string | null ): void => {
         getDatabase().prepare( `INSERT INTO feeds
-          ( id, url, feed_url, name, created_at, deleted_at )
-          VALUES ( ?, 'u', 'https://x/feed', 'n', 'now', ? )` ).run( id, deleted )
+          ( id, user_id, url, feed_url, name, created_at, deleted_at )
+          VALUES ( ?, ?, 'u', 'https://x/feed', 'n', 'now', ? )` ).run( id, owner, deleted )
       }
 
       add( 'a', null )

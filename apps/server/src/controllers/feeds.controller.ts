@@ -28,8 +28,8 @@ const DeleteQuery = z.object( {
   remove_items: z.enum( [ 'true', 'false' ] ).default( 'false' ),
 } )
 
-export const getFeeds = ( _req: Request, res: Response< ListFeedsResponse > ): void => {
-  res.status( 200 ).json( { feeds: listFeeds() } )
+export const getFeeds = ( req: Request, res: Response< ListFeedsResponse > ): void => {
+  res.status( 200 ).json( { feeds: listFeeds( currentUser( req ).id ) } )
 }
 
 export const previewFeedAddress = async (
@@ -63,10 +63,14 @@ export const patchFeed = (
   res.status( 200 ).json( { feed } )
 }
 
-export const removeFeed = ( { params, query }: Request, res: Response ): void => {
-  const { remove_items } = DeleteQuery.parse( query )
+export const removeFeed = ( req: Request, res: Response ): void => {
+  const { remove_items } = DeleteQuery.parse( req.query )
 
-  deleteFeed( String( params.id ), { removeInboxItems: remove_items === 'true' } )
+  deleteFeed(
+    currentUser( req ).id,
+    String( req.params.id ),
+    { removeInboxItems: remove_items === 'true' },
+  )
 
   res.status( 204 ).end()
 }
@@ -84,7 +88,9 @@ export const checkEveryFeed = async (
   req: Request,
   res: Response< ListFeedsResponse >,
 ): Promise< void > => {
-  await checkAllFeeds( currentUser( req ).id )
+  const { id } = currentUser( req )
 
-  res.status( 200 ).json( { feeds: listFeeds() } )
+  await checkAllFeeds( id )
+
+  res.status( 200 ).json( { feeds: listFeeds( id ) } )
 }

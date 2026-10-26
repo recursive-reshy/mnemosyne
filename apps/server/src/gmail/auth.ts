@@ -23,7 +23,11 @@ import { logger } from '../logger.js'
 
 export const SCOPE = 'https://www.googleapis.com/auth/gmail.readonly'
 
-const CONNECTION = { kind: 'gmail_connection', id: 'default' } as const
+// One subject per user: the connection's ID is the user's ID (TRD §3.2)
+const connectionOf = ( userId: string ): { kind: 'gmail_connection', id: string } => {
+  return { kind: 'gmail_connection', id: userId }
+}
+
 const STATE_TTL_MS = 10 * 60 * 1000
 const MAX_STATES = 20
 const UNREADABLE_REASON = 'The stored Gmail access can\'t be read; reconnect'
@@ -75,8 +79,10 @@ export class MissingScopeError extends Error {
 type GmailConfig = NonNullable< typeof config.gmail >
 type OAuthClient = InstanceType< typeof auth.OAuth2 >
 
-const states = new Map< string, number >()
-let cached: { key: string, client: gmail_v1.Gmail } | null = null
+type PendingConsent = { userId: string, origin: string, expiresAt: number }
+
+const states = new Map< string, PendingConsent >()
+const cached = new Map< string, { key: string, client: gmail_v1.Gmail } >()
 
 const requireConfig = (): GmailConfig => {
   if( config.gmail === null ) {
@@ -86,15 +92,20 @@ const requireConfig = (): GmailConfig => {
   return config.gmail
 }
 
-const buildOAuthClient = ( { clientId, clientSecret, redirectUri }: GmailConfig ): OAuthClient => {
+const buildOAuthClient = (
+  { clientId, clientSecret }: GmailConfig,
+  redirectUri?: string,
+): OAuthClient => {
   return new auth.OAuth2( clientId, clientSecret, redirectUri )
 }
 
-export const createConsentUrl = (): string => {
-  const oauth = buildOAuthClient( requireConfig() )
+const callbackFor = ( origin: string ): string => `${ origin }/api/gmail/oauth/callback`
+
+export const createConsentUrl = ( userId: string, origin: string ): string => {
+  const oauth = buildOAuthClient( requireConfig(), callbackFor( origin ) )
   const state = randomBytes( 32 ).toString( 'hex' )
 
-  states.set( state, Date.now() + STATE_TTL_MS )
+  states.set( state, { userId, origin, expiresAt: Date.now() + STATE_TTL_MS } )
 
   while( states.size > MAX_STATES ) {
     states.delete( states.keys().next().value! )
@@ -109,24 +120,27 @@ export const createConsentUrl = (): string => {
   } )
 }
 
-const consumeState = ( state: string ): void => {
-  const expiresAt = states.get( state )
+// A state belongs to the user who asked for it, and to the origin they asked from
+const consumeState = ( userId: string, state: string ): PendingConsent => {
+  const pending = states.get( state )
 
   states.delete( state )
 
-  if( expiresAt === undefined || expiresAt < Date.now() ) {
+  if( pending === undefined || pending.expiresAt < Date.now() || pending.userId !== userId ) {
     throw new OAuthStateError()
   }
+
+  return pending
 }
 
 export const completeConsent = async (
+  userId: string,
   { code, state }: { code: string, state: string },
 ): Promise< void > => {
   const settings = requireConfig()
+  const { origin } = consumeState( userId, state )
 
-  consumeState( state )
-
-  const oauth = buildOAuthClient( settings )
+  const oauth = buildOAuthClient( settings, callbackFor( origin ) )
   const { tokens } = await oauth.getToken( code )
 
   if( !tokens.refresh_token ) {
@@ -143,7 +157,7 @@ export const completeConsent = async (
     userId: 'me',
   } )
 
-  saveAccount( {
+  saveAccount( userId, {
     email: data.emailAddress ?? '',
     refresh_token_enc: encryptToken( tokens.refresh_token, settings.encryptionKey ),
     scope: SCOPE,
@@ -151,11 +165,15 @@ export const completeConsent = async (
     error: null,
     connected_at: new Date().toISOString(),
   } )
-  recordCheck( CONNECTION, { ok: true } )
-  cached = null
+  recordCheck( connectionOf( userId ), { ok: true } )
+  cached.delete( userId )
 }
 
-const readToken = ( account: StoredGmailAccount, settings: GmailConfig ): string => {
+const readToken = (
+  userId: string,
+  account: StoredGmailAccount,
+  settings: GmailConfig,
+): string => {
   try {
     return decryptToken( account.refresh_token_enc, settings.encryptionKey )
   } catch( error ) {
@@ -164,15 +182,15 @@ const readToken = ( account: StoredGmailAccount, settings: GmailConfig ): string
     }
 
     logger.error( 'Gmail: the stored refresh token could not be decrypted' )
-    setAccountStatus( 'reconnect_needed', UNREADABLE_REASON )
-    recordCheck( CONNECTION, { ok: false, message: UNREADABLE_REASON } )
+    setAccountStatus( userId, 'reconnect_needed', UNREADABLE_REASON )
+    recordCheck( connectionOf( userId ), { ok: false, message: UNREADABLE_REASON } )
     throw new GmailNotConnectedError( UNREADABLE_REASON )
   }
 }
 
-export const getGmailClient = (): gmail_v1.Gmail => {
+export const getGmailClient = ( userId: string ): gmail_v1.Gmail => {
   const settings = requireConfig()
-  const account = findAccount()
+  const account = findAccount( userId )
 
   if( account === undefined ) {
     throw new GmailNotConnectedError()
@@ -182,16 +200,21 @@ export const getGmailClient = (): gmail_v1.Gmail => {
     throw new GmailAuthError( account.error ?? REVOKED_REASON )
   }
 
-  if( cached?.key === account.refresh_token_enc ) {
-    return cached.client
+  const hit = cached.get( userId )
+
+  if( hit?.key === account.refresh_token_enc ) {
+    return hit.client
   }
 
   const oauth = buildOAuthClient( settings )
 
-  oauth.setCredentials( { refresh_token: readToken( account, settings ) } )
-  cached = { key: account.refresh_token_enc, client: gmail( { version: 'v1', auth: oauth } ) }
+  oauth.setCredentials( { refresh_token: readToken( userId, account, settings ) } )
 
-  return cached.client
+  const client = gmail( { version: 'v1', auth: oauth } )
+
+  cached.set( userId, { key: account.refresh_token_enc, client } )
+
+  return client
 }
 
 const isAuthFailure = ( error: unknown ): boolean => {
@@ -214,14 +237,15 @@ const isAuthFailure = ( error: unknown ): boolean => {
 }
 
 export const withGmail = async < T >(
+  userId: string,
   run: ( client: gmail_v1.Gmail ) => Promise< T >,
 ): Promise< T > => {
-  const client = getGmailClient()
+  const client = getGmailClient( userId )
 
   try {
     const result = await run( client )
 
-    recordCheck( CONNECTION, { ok: true } )
+    recordCheck( connectionOf( userId ), { ok: true } )
 
     return result
   } catch( error ) {
@@ -230,16 +254,16 @@ export const withGmail = async < T >(
     }
 
     logger.warn( 'Gmail: Google rejected the stored access' )
-    setAccountStatus( 'reconnect_needed', REVOKED_REASON )
-    recordCheck( CONNECTION, { ok: false, message: REVOKED_REASON } )
-    cached = null
+    setAccountStatus( userId, 'reconnect_needed', REVOKED_REASON )
+    recordCheck( connectionOf( userId ), { ok: false, message: REVOKED_REASON } )
+    cached.delete( userId )
     throw new GmailAuthError( REVOKED_REASON )
   }
 }
 
-export const disconnect = async (): Promise< void > => {
+export const disconnect = async ( userId: string ): Promise< void > => {
   const settings = requireConfig()
-  const account = findAccount()
+  const account = findAccount( userId )
 
   if( account === undefined ) {
     return
@@ -252,7 +276,7 @@ export const disconnect = async (): Promise< void > => {
     logger.warn( 'Gmail: revoking the token at Google failed; deleting it locally' )
   }
 
-  deleteAccount()
-  deleteHealth( 'gmail_connection', 'default' )
-  cached = null
+  deleteAccount( userId )
+  deleteHealth( 'gmail_connection', userId )
+  cached.delete( userId )
 }

@@ -25,40 +25,42 @@ export type InboxItem = StoredFeedItem & { feed_name: string }
 
 const placeholders = ( ids: string[] ): string => ids.map( () => '?' ).join( ', ' )
 
-export const insertItemIfNew = ( item: StoredFeedItem ): boolean => {
+export const insertItemIfNew = ( userId: string, item: StoredFeedItem ): boolean => {
   const { changes } = getDatabase().prepare( `INSERT INTO feed_items (
-      id, feed_id, item_key, title, link, published_at, author, content_markdown,
+      id, user_id, feed_id, item_key, title, link, published_at, author, content_markdown,
       status, job_id, added_at
     ) VALUES (
-      @id, @feed_id, @item_key, @title, @link, @published_at, @author, @content_markdown,
+      @id, @user_id, @feed_id, @item_key, @title, @link, @published_at, @author, @content_markdown,
       @status, @job_id, @added_at
-    ) ON CONFLICT ( feed_id, item_key ) DO NOTHING` ).run( item )
+    ) ON CONFLICT ( feed_id, item_key ) DO NOTHING` ).run( { ...item, user_id: userId } )
 
   return changes > 0
 }
 
-export const listInbox = (): InboxItem[] => {
+export const listInbox = ( userId: string ): InboxItem[] => {
   return getDatabase()
     .prepare( `SELECT feed_items.*, feeds.name AS feed_name
       FROM feed_items JOIN feeds ON feeds.id = feed_items.feed_id
-      WHERE feed_items.status = 'inbox'
+      WHERE feed_items.user_id = ? AND feed_items.status = 'inbox'
       ORDER BY feed_items.added_at DESC, feed_items.rowid DESC` )
-    .all()
+    .all( userId )
     .map( ( row ) => StoredFeedItem.extend( { feed_name: z.string() } ).parse( row ) )
 }
 
-export const findItemsByIds = ( ids: string[] ): StoredFeedItem[] => {
+export const findItemsByIds = ( userId: string, ids: string[] ): StoredFeedItem[] => {
   if( ids.length === 0 ) {
     return []
   }
 
   return getDatabase()
-    .prepare( `SELECT * FROM feed_items WHERE id IN ( ${ placeholders( ids ) } )` )
-    .all( ...ids )
+    .prepare( `SELECT * FROM feed_items
+      WHERE user_id = ? AND id IN ( ${ placeholders( ids ) } )` )
+    .all( userId, ...ids )
     .map( ( row ) => StoredFeedItem.parse( row ) )
 }
 
 export const setItemStatus = (
+  userId: string,
   ids: string[],
   status: FeedItemStatus,
   jobId: string | null = null,
@@ -69,21 +71,22 @@ export const setItemStatus = (
 
   getDatabase().prepare( `UPDATE feed_items SET status = ?, job_id = ?,
       content_markdown = CASE WHEN ? = 'inbox' THEN content_markdown ELSE NULL END
-    WHERE id IN ( ${ placeholders( ids ) } )` ).run( status, jobId, status, ...ids )
+    WHERE user_id = ? AND id IN ( ${ placeholders( ids ) } )` )
+    .run( status, jobId, status, userId, ...ids )
 }
 
-export const countInbox = ( feedId: string ): number => {
+export const countInbox = ( userId: string, feedId: string ): number => {
   const { count } = z.object( { count: z.number() } ).parse(
     getDatabase()
       .prepare( `SELECT COUNT(*) AS count FROM feed_items
-        WHERE feed_id = ? AND status = 'inbox'` )
-      .get( feedId ),
+        WHERE user_id = ? AND feed_id = ? AND status = 'inbox'` )
+      .get( userId, feedId ),
   )
 
   return count
 }
 
-export const dismissInboxForFeed = ( feedId: string ): void => {
+export const dismissInboxForFeed = ( userId: string, feedId: string ): void => {
   getDatabase().prepare( `UPDATE feed_items SET status = 'dismissed', content_markdown = NULL
-    WHERE feed_id = ? AND status = 'inbox'` ).run( feedId )
+    WHERE user_id = ? AND feed_id = ? AND status = 'inbox'` ).run( userId, feedId )
 }

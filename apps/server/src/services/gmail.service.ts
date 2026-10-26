@@ -31,12 +31,12 @@ const requireConfigured = (): void => {
   }
 }
 
-export const getAccount = (): GmailAccount => {
+export const getAccount = ( userId: string ): GmailAccount => {
   if( config.gmail === null ) {
     return { status: 'not_configured', email: null, connected_at: null, error: null }
   }
 
-  const account = findAccount()
+  const account = findAccount( userId )
 
   if( account === undefined ) {
     return { status: 'not_connected', email: null, connected_at: null, error: null }
@@ -50,10 +50,10 @@ export const getAccount = (): GmailAccount => {
   }
 }
 
-export const startConnect = (): string => {
+export const startConnect = ( userId: string, origin: string ): string => {
   requireConfigured()
 
-  return createConsentUrl()
+  return createConsentUrl( userId, origin )
 }
 
 const failureFor = ( error: unknown ): ConsentFailure => {
@@ -74,6 +74,7 @@ const failureFor = ( error: unknown ): ConsentFailure => {
 }
 
 export const finishConnect = async (
+  userId: string,
   { code, state, error }: { code?: string, state?: string, error?: string },
 ): Promise< ConsentFailure | null > => {
   if( config.gmail === null ) {
@@ -93,27 +94,27 @@ export const finishConnect = async (
   }
 
   try {
-    await completeConsent( { code, state } )
+    await completeConsent( userId, { code, state } )
     return null
   } catch( failure ) {
     return failureFor( failure )
   }
 }
 
-export const disconnectAccount = async (): Promise< void > => {
+export const disconnectAccount = async ( userId: string ): Promise< void > => {
   requireConfigured()
-  await disconnect()
+  await disconnect( userId )
 }
 
 const byName = ( first: GmailLabel, second: GmailLabel ): number => {
   return first.name.localeCompare( second.name, undefined, { sensitivity: 'base' } )
 }
 
-export const listLabels = async (): Promise< GmailLabel[] > => {
+export const listLabels = async ( userId: string ): Promise< GmailLabel[] > => {
   requireConfigured()
 
   try {
-    const labels = ( await listGmailLabels() ).filter( ( { id, type } ) => {
+    const labels = ( await listGmailLabels( userId ) ).filter( ( { id, type } ) => {
       return type === 'user' || id === 'INBOX'
     } )
 

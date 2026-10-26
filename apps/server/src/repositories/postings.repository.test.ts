@@ -1,5 +1,10 @@
 // Packages
-import { describe, it, expect } from 'vitest'
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+} from 'vitest'
 // Shared
 import type { PostingDetails } from '@mnemosyne/shared'
 // Repositories
@@ -13,6 +18,14 @@ import {
   upsertPosting,
 } from './postings.repository.js'
 import type { PostingRow } from './postings.repository.js'
+// Test support
+import { createTestUser, defaultTestAdmin } from '../test-support/auth.js'
+
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
 
 const emptyDetails: PostingDetails = {
   budget: null,
@@ -28,7 +41,7 @@ const emptyDetails: PostingDetails = {
 const addSource = (): string => {
   const id = crypto.randomUUID()
 
-  insertSource( {
+  insertSource( userId, {
     id,
     name: 'Alerts',
     match: { kind: 'labels', label_ids: [ 'L1' ] },
@@ -50,7 +63,7 @@ const addSource = (): string => {
 const addEmail = ( sourceId: string, overrides: { received_at?: string } = {} ): string => {
   const id = crypto.randomUUID()
 
-  insertMessageIfNew( {
+  insertMessageIfNew( userId, {
     id,
     source_id: sourceId,
     message_id: crypto.randomUUID(),
@@ -97,10 +110,10 @@ describe( 'upsertPosting', () => {
       details: { ...emptyDetails, skills: [ 'TypeScript' ] },
     } )
 
-    const id = upsertPosting( posting, email, '2026-10-19T09:00:00.000Z' )
+    const id = upsertPosting( userId, posting, email, '2026-10-19T09:00:00.000Z' )
 
     expect( id ).toBe( posting.id )
-    expect( listPostings( { limit: 50, offset: 0 } ).rows ).toEqual( [ {
+    expect( listPostings( userId, { limit: 50, offset: 0 } ).rows ).toEqual( [ {
       ...posting,
       first_seen_at: '2026-10-19T09:00:00.000Z',
       last_seen_at: '2026-10-19T09:00:00.000Z',
@@ -114,9 +127,10 @@ describe( 'upsertPosting', () => {
     const second = addEmail( source )
     const original = buildPosting( { dedupe_key: 'upwork:~01abc' } )
 
-    upsertPosting( original, first, '2026-10-19T09:00:00.000Z' )
+    upsertPosting( userId, original, first, '2026-10-19T09:00:00.000Z' )
 
     const id = upsertPosting(
+      userId,
       buildPosting( {
         dedupe_key: 'upwork:~01abc',
         title: 'Node.js developer (updated)',
@@ -129,7 +143,7 @@ describe( 'upsertPosting', () => {
     )
 
     expect( id ).toBe( original.id )
-    expect( listPostings( { limit: 50, offset: 0 } ).rows ).toEqual( [ {
+    expect( listPostings( userId, { limit: 50, offset: 0 } ).rows ).toEqual( [ {
       ...original,
       title: 'Node.js developer (updated)',
       url: 'https://www.upwork.com/jobs/new',
@@ -147,10 +161,15 @@ describe( 'upsertPosting', () => {
     const older = addEmail( source )
     const posting = buildPosting()
 
-    upsertPosting( posting, newer, '2026-10-20T09:00:00.000Z' )
-    upsertPosting( { ...posting, id: crypto.randomUUID() }, older, '2026-10-18T09:00:00.000Z' )
+    upsertPosting( userId, posting, newer, '2026-10-20T09:00:00.000Z' )
+    upsertPosting(
+      userId,
+      { ...posting, id: crypto.randomUUID() },
+      older,
+      '2026-10-18T09:00:00.000Z',
+    )
 
-    expect( listPostings( { limit: 50, offset: 0 } ).rows[ 0 ]?.last_seen_at )
+    expect( listPostings( userId, { limit: 50, offset: 0 } ).rows[ 0 ]?.last_seen_at )
       .toBe( '2026-10-20T09:00:00.000Z' )
   } )
 
@@ -159,10 +178,10 @@ describe( 'upsertPosting', () => {
     const email = addEmail( source )
     const posting = buildPosting()
 
-    upsertPosting( posting, email, '2026-10-19T09:00:00.000Z' )
-    upsertPosting( posting, email, '2026-10-19T09:00:00.000Z' )
+    upsertPosting( userId, posting, email, '2026-10-19T09:00:00.000Z' )
+    upsertPosting( userId, posting, email, '2026-10-19T09:00:00.000Z' )
 
-    expect( listPostings( { limit: 50, offset: 0 } ).rows[ 0 ]?.sightings ).toBe( 1 )
+    expect( listPostings( userId, { limit: 50, offset: 0 } ).rows[ 0 ]?.sightings ).toBe( 1 )
   } )
 } )
 
@@ -171,7 +190,7 @@ describe( 'listPostings', () => {
     const source = addSource()
 
     const add = ( posting: PostingRow, seenAt: string ): void => {
-      upsertPosting( posting, addEmail( source ), seenAt )
+      upsertPosting( userId, posting, addEmail( source ), seenAt )
     }
 
     add(
@@ -198,14 +217,14 @@ describe( 'listPostings', () => {
     )
   }
 
-  const titles = ( query: Parameters< typeof listPostings >[ 0 ] ): string[] => {
-    return listPostings( query ).rows.map( ( { title } ) => title )
+  const titles = ( query: Parameters< typeof listPostings >[ 1 ] ): string[] => {
+    return listPostings( userId, query ).rows.map( ( { title } ) => title )
   }
 
   it( 'lists newest first seen first, with total and filtered counts', () => {
     seed()
 
-    const result = listPostings( { limit: 50, offset: 0 } )
+    const result = listPostings( userId, { limit: 50, offset: 0 } )
 
     expect( result.rows.map( ( { title } ) => title ) )
       .toEqual( [ 'Data pipeline', 'Logo design', 'Senior TypeScript engineer' ] )
@@ -246,7 +265,7 @@ describe( 'listPostings', () => {
   it( 'filters by platform and reports the filtered count apart from the total', () => {
     seed()
 
-    const result = listPostings( { platform: 'freelancer', limit: 50, offset: 0 } )
+    const result = listPostings( userId, { platform: 'freelancer', limit: 50, offset: 0 } )
 
     expect( result.rows.map( ( { title } ) => title ) ).toEqual( [ 'Logo design' ] )
     expect( result.total ).toBe( 3 )
@@ -262,14 +281,14 @@ describe( 'listPostings', () => {
   it( 'pages with limit and offset while the counts stay whole', () => {
     seed()
 
-    const result = listPostings( { limit: 1, offset: 1 } )
+    const result = listPostings( userId, { limit: 1, offset: 1 } )
 
     expect( result.rows.map( ( { title } ) => title ) ).toEqual( [ 'Logo design' ] )
     expect( result.filtered ).toBe( 3 )
   } )
 
   it( 'is empty with zero counts when nothing is stored', () => {
-    expect( listPostings( { limit: 50, offset: 0 } ) )
+    expect( listPostings( userId, { limit: 50, offset: 0 } ) )
       .toEqual( { rows: [], total: 0, filtered: 0 } )
   } )
 } )
@@ -280,14 +299,14 @@ describe( 'listPlatforms', () => {
     const email = addEmail( source )
 
     for( const platform of [ 'upwork', 'freelancer', 'upwork' ] ) {
-      upsertPosting( buildPosting( { platform } ), email, '2026-10-19T09:00:00.000Z' )
+      upsertPosting( userId, buildPosting( { platform } ), email, '2026-10-19T09:00:00.000Z' )
     }
 
-    expect( listPlatforms() ).toEqual( [ 'freelancer', 'upwork' ] )
+    expect( listPlatforms( userId ) ).toEqual( [ 'freelancer', 'upwork' ] )
   } )
 
   it( 'is empty when there are no postings', () => {
-    expect( listPlatforms() ).toEqual( [] )
+    expect( listPlatforms( userId ) ).toEqual( [] )
   } )
 } )
 
@@ -299,12 +318,12 @@ describe( 'listSightings', () => {
     const other = addEmail( source )
     const posting = buildPosting()
 
-    upsertPosting( posting, older, '2026-10-18T09:00:00.000Z' )
-    upsertPosting( posting, newer, '2026-10-19T09:00:00.000Z' )
-    upsertPosting( buildPosting(), other, '2026-10-19T09:00:00.000Z' )
-    upsertPosting( buildPosting(), newer, '2026-10-19T09:00:00.000Z' )
+    upsertPosting( userId, posting, older, '2026-10-18T09:00:00.000Z' )
+    upsertPosting( userId, posting, newer, '2026-10-19T09:00:00.000Z' )
+    upsertPosting( userId, buildPosting(), other, '2026-10-19T09:00:00.000Z' )
+    upsertPosting( userId, buildPosting(), newer, '2026-10-19T09:00:00.000Z' )
 
-    const emails = listSightings( posting.id )
+    const emails = listSightings( userId, posting.id )
 
     expect( emails.map( ( { id } ) => id ) ).toEqual( [ newer, older ] )
     expect( emails[ 0 ] ).toMatchObject( {
@@ -316,7 +335,7 @@ describe( 'listSightings', () => {
   } )
 
   it( 'is empty for an unknown posting', () => {
-    expect( listSightings( crypto.randomUUID() ) ).toEqual( [] )
+    expect( listSightings( userId, crypto.randomUUID() ) ).toEqual( [] )
   } )
 } )
 
@@ -328,13 +347,75 @@ describe( 'countPostingsForSource', () => {
     const second = addEmail( source )
     const shared = buildPosting()
 
-    upsertPosting( shared, first, '2026-10-19T09:00:00.000Z' )
-    upsertPosting( shared, second, '2026-10-19T09:00:00.000Z' )
-    upsertPosting( buildPosting(), second, '2026-10-19T09:00:00.000Z' )
-    upsertPosting( buildPosting(), addEmail( other ), '2026-10-19T09:00:00.000Z' )
+    upsertPosting( userId, shared, first, '2026-10-19T09:00:00.000Z' )
+    upsertPosting( userId, shared, second, '2026-10-19T09:00:00.000Z' )
+    upsertPosting( userId, buildPosting(), second, '2026-10-19T09:00:00.000Z' )
+    upsertPosting( userId, buildPosting(), addEmail( other ), '2026-10-19T09:00:00.000Z' )
 
-    expect( countPostingsForSource( source ) ).toBe( 2 )
-    expect( countPostingsForSource( other ) ).toBe( 1 )
-    expect( countPostingsForSource( crypto.randomUUID() ) ).toBe( 0 )
+    expect( countPostingsForSource( userId, source ) ).toBe( 2 )
+    expect( countPostingsForSource( userId, other ) ).toBe( 1 )
+    expect( countPostingsForSource( userId, crypto.randomUUID() ) ).toBe( 0 )
+  } )
+} )
+
+describe( 'ownership', () => {
+  it( 'lets two users hold the same posting, each with their own sightings', () => {
+    const other = createTestUser().id
+    const otherSource = crypto.randomUUID()
+
+    insertSource( other, {
+      id: otherSource,
+      name: 'Theirs',
+      match: { kind: 'labels', label_ids: [ 'L1' ] },
+      destination: 'jobs',
+      profile_id: null,
+      enabled: true,
+      auto_summarize: false,
+      sync_from: '2026-10-19T10:00:00.000Z',
+      last_checked_at: null,
+      last_error: null,
+      last_skipped_count: 0,
+      created_at: '2026-10-19T10:00:00.000Z',
+      deleted_at: null,
+    } )
+
+    const mine = addEmail( addSource() )
+    const theirs = crypto.randomUUID()
+    const shared = buildPosting( { dedupe_key: 'upwork:shared' } )
+
+    insertMessageIfNew( other, {
+      id: theirs,
+      source_id: otherSource,
+      message_id: crypto.randomUUID(),
+      subject: 'New jobs',
+      sender: 'Upwork',
+      sender_address: 'donotreply@upwork.com',
+      received_at: '2026-10-19T09:00:00.000Z',
+      body_html: null,
+      body_text: null,
+      status: 'extracted',
+      backfilled: false,
+      attempts: 1,
+      error: null,
+      job_id: null,
+      added_at: '2026-10-19T10:00:00.000Z',
+    } )
+
+    const first = upsertPosting( userId, shared, mine, '2026-10-19T09:00:00.000Z' )
+    const second = upsertPosting(
+      other,
+      { ...shared, id: crypto.randomUUID() },
+      theirs,
+      '2026-10-19T09:30:00.000Z',
+    )
+
+    expect( second ).not.toBe( first )
+    expect( listPostings( userId, { limit: 10, offset: 0 } ).total ).toBe( 1 )
+    expect( listPostings( other, { limit: 10, offset: 0 } ).total ).toBe( 1 )
+    expect( listSightings( userId, first ).map( ( { id } ) => id ) ).toEqual( [ mine ] )
+    expect( listSightings( other, first ) ).toEqual( [] )
+    expect( listPlatforms( other ) ).toEqual( [ 'upwork' ] )
+    expect( countPostingsForSource( other, otherSource ) ).toBe( 1 )
+    expect( countPostingsForSource( userId, otherSource ) ).toBe( 0 )
   } )
 } )
