@@ -59,7 +59,7 @@ import {
   failSummary,
   findJob,
   findSource,
-  findNextRunnableJob,
+  claimNextJob,
   getSource,
   listJobs,
   listLinkSuggestions,
@@ -404,22 +404,22 @@ describe( 'renderTranscript', () => {
   )
 } )
 
-describe( 'findNextRunnableJob', () => {
+describe( 'claimNextJob', () => {
   it( 'returns a summarizing job so it can be resumed', async () => {
     const id = await queueSummarizing()
 
-    expect( findNextRunnableJob()?.job.id ).toBe( id )
+    expect( claimNextJob()?.job.id ).toBe( id )
   } )
 
   it( 'returns undefined when no jobs exist', () => {
-    expect( findNextRunnableJob() ).toBeUndefined()
+    expect( claimNextJob() ).toBeUndefined()
   } )
 
   it( 'returns the oldest queued job', async () => {
     const first = await queueJob( userId, { url: 'https://www.youtube.com/watch?v=a' } )
     await queueJob( userId, { url: 'https://www.youtube.com/watch?v=b' } )
 
-    expect( findNextRunnableJob() ).toEqual( { job: first, userId } )
+    expect( claimNextJob() ).toEqual( { job: first, userId } )
   } )
 
   it( 'skips jobs that are no longer queued', async () => {
@@ -427,7 +427,7 @@ describe( 'findNextRunnableJob', () => {
     const second = await queueJob( userId, { url: 'https://www.youtube.com/watch?v=b' } )
     markStatus( userId, first.id, 'downloading' )
 
-    expect( findNextRunnableJob() ).toEqual( { job: second, userId } )
+    expect( claimNextJob() ).toEqual( { job: second, userId } )
   } )
 
   it( 'returns undefined when every job has moved on', async () => {
@@ -436,13 +436,13 @@ describe( 'findNextRunnableJob', () => {
     markStatus( userId, first.id, 'downloading' )
     markStatus( userId, second.id, 'downloading' )
 
-    expect( findNextRunnableJob() ).toBeUndefined()
+    expect( claimNextJob() ).toBeUndefined()
   } )
 
   it( 'returns a job without a transcript field', async () => {
     await queueJob( userId, { url: 'https://www.youtube.com/watch?v=a' } )
 
-    expect( findNextRunnableJob() ).not.toHaveProperty( 'transcript' )
+    expect( claimNextJob() ).not.toHaveProperty( 'transcript' )
   } )
 } )
 
@@ -965,7 +965,7 @@ describe( 'retrySummary', () => {
 
     retrySummary( userId, id )
 
-    expect( findNextRunnableJob()?.job.id ).toBe( id )
+    expect( claimNextJob()?.job.id ).toBe( id )
   } )
 
   it.each( [ 'queued', 'transcribing', 'ready_for_review', 'failed' ] as const )(
@@ -2147,11 +2147,11 @@ describe( 'linking', () => {
     } )
   } )
 
-  describe( 'findNextRunnableJob', () => {
+  describe( 'claimNextJob', () => {
     it( 'returns a job that is linking', async () => {
       const id = await linking()
 
-      expect( findNextRunnableJob()?.job.id ).toBe( id )
+      expect( claimNextJob()?.job.id ).toBe( id )
     } )
   } )
 
@@ -2553,7 +2553,7 @@ describe( 'jobs of two users', () => {
     const first = await queueJob( member, { url } )
     await queueJob( userId, { url } )
 
-    expect( findNextRunnableJob() ).toEqual( { job: first, userId: member } )
+    expect( claimNextJob() ).toEqual( { job: first, userId: member } )
   } )
 
   it( 'recovers the interrupted jobs of every user', async () => {

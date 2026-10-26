@@ -19,6 +19,8 @@ import {
 // Clients
 import { HttpStatusError, UnreachableError, fetchResource } from '../clients/http.client.js'
 // Repositories
+import { setModules } from '../repositories/userModules.repository.js'
+import { updateUser } from '../repositories/users.repository.js'
 import {
   findFeedById,
   insertFeed,
@@ -769,6 +771,25 @@ describe( 'checkDueFeeds for two users', () => {
       ...overrides,
     } )
   }
+
+  it( 'leaves the feeds of a removed user and of a user without the module unchecked', async () => {
+    const removed = createTestUser().id
+    const moduleOff = createTestUser().id
+    feedFor( userId, 'a' )
+    feedFor( removed, 'b' )
+    feedFor( moduleOff, 'c' )
+    updateUser( removed, { status: 'removed' } )
+    setModules( moduleOff, [ 'melete' ] )
+
+    expect( await checkDueFeeds() ).toBe( 1 )
+    expect( findFeedById( removed, 'b' )?.last_checked_at ).toBeNull()
+    expect( findFeedById( moduleOff, 'c' )?.last_checked_at ).toBeNull()
+
+    updateUser( removed, { status: 'active' } )
+    setModules( moduleOff, [ 'transcriber' ] )
+
+    expect( await checkDueFeeds() ).toBe( 2 )
+  } )
 
   it( 'checks every user\'s due feeds, each in a log context with its owner', async () => {
     const other = createTestUser().id

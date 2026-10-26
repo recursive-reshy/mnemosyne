@@ -36,7 +36,7 @@ import {
   failJob,
   failLinking,
   failSummary,
-  findNextRunnableJob,
+  claimNextJob,
   findSource,
   listJobs,
   markStatus,
@@ -416,7 +416,7 @@ describe( 'job lifecycle, as in 0.7.0', () => {
       clearJobs( userId )
       seed( status, 'article' )
 
-      const job = findNextRunnableJob()
+      const job = claimNextJob()
 
       if( job !== undefined ) picked.push( job.job.status )
     }

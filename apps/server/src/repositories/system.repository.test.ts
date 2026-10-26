@@ -15,12 +15,15 @@ import { saveAccount, setAccountStatus } from './gmailAccount.repository.js'
 import { insertSource } from './gmailSources.repository.js'
 import type { StoredGmailSource } from './gmailSources.repository.js'
 import { findNote } from './meleteNotes.repository.js'
+import { setModules } from './userModules.repository.js'
+import { findUserById, updateUser } from './users.repository.js'
+import { getDatabase } from './database.js'
 import {
   claimNextGeneration,
-  findExpiredJobs,
-  findNextRunnableJob,
+  claimNextJob,
   listDueFeeds,
   listDueGmailSources,
+  listExpiredJobs,
   markInterruptedJobs,
   markInterruptedLinkingJobs,
   requeueGenerating,
@@ -56,7 +59,25 @@ const buildJob = ( overrides: Partial< StoredJob > = {} ): StoredJob => {
   }
 }
 
-describe( 'findNextRunnableJob', () => {
+const at = ( minutes: number ): string => {
+  return new Date( Date.parse( '2026-10-14T12:00:00.000Z' ) + minutes * 60_000 ).toISOString()
+}
+
+type StampColumn = 'last_job_started_at' | 'last_generation_started_at'
+
+const stampOf = ( userId: string, column: StampColumn ): string | null => {
+  const row = getDatabase()
+    .prepare( `SELECT ${ column } AS stamp FROM users WHERE id = ?` )
+    .get( userId )
+
+  return ( row as { stamp: string | null } ).stamp
+}
+
+const setColumn = ( userId: string, column: string, value: string ): void => {
+  getDatabase().prepare( `UPDATE users SET ${ column } = ? WHERE id = ?` ).run( value, userId )
+}
+
+describe( 'claimNextJob', () => {
   it( 'returns the earliest-inserted queued job with its owner, skipping other statuses', () => {
     const { id: userId } = createTestUser()
     const downloading = buildJob( { status: 'downloading' } )
@@ -66,7 +87,7 @@ describe( 'findNextRunnableJob', () => {
     insertJob( userId, firstQueued )
     insertJob( userId, secondQueued )
 
-    expect( findNextRunnableJob() ).toEqual( { ...firstQueued, user_id: userId } )
+    expect( claimNextJob( at( 0 ) ) ).toEqual( { ...firstQueued, user_id: userId } )
   } )
 
   it( 'also returns summarizing jobs, oldest first', () => {
@@ -77,11 +98,11 @@ describe( 'findNextRunnableJob', () => {
     insertJob( userId, summarizing )
     insertJob( userId, queued )
 
-    expect( findNextRunnableJob() ).toEqual( { ...summarizing, user_id: userId } )
+    expect( claimNextJob( at( 0 ) ) ).toEqual( { ...summarizing, user_id: userId } )
 
     updateJob( userId, summarizing.id, { status: 'summary_failed' } )
 
-    expect( findNextRunnableJob() ).toEqual( { ...queued, user_id: userId } )
+    expect( claimNextJob( at( 1 ) ) ).toEqual( { ...queued, user_id: userId } )
   } )
 
   it( 'also returns linking jobs, oldest first', () => {
@@ -91,7 +112,7 @@ describe( 'findNextRunnableJob', () => {
     insertJob( userId, linking )
     insertJob( userId, buildJob() )
 
-    expect( findNextRunnableJob() ).toEqual( { ...linking, user_id: userId } )
+    expect( claimNextJob( at( 0 ) ) ).toEqual( { ...linking, user_id: userId } )
   } )
 
   it( 'returns undefined when no job is runnable', () => {
@@ -100,22 +121,126 @@ describe( 'findNextRunnableJob', () => {
     insertJob( userId, buildJob( { status: 'summary_failed' } ) )
     insertJob( userId, buildJob( { status: 'saved' } ) )
 
-    expect( findNextRunnableJob() ).toBeUndefined()
+    expect( claimNextJob( at( 0 ) ) ).toBeUndefined()
   } )
 
-  it( 'looks across users, oldest first, and says whose job it is', () => {
+  it( 'leaves the job as it was and stamps its owner with the time', () => {
+    const { id: userId } = createTestUser()
+    const queued = buildJob()
+    insertJob( userId, queued )
+
+    expect( stampOf( userId, 'last_job_started_at' ) ).toBeNull()
+
+    claimNextJob( at( 5 ) )
+
+    expect( stampOf( userId, 'last_job_started_at' ) ).toBe( at( 5 ) )
+    expect( findJobById( userId, queued.id )?.status ).toBe( 'queued' )
+  } )
+
+  it( 'takes turns between users, so a long queue does not starve the other user', () => {
     const first = createTestUser().id
     const second = createTestUser().id
+    const firstJobs = [ buildJob(), buildJob(), buildJob() ]
+    const secondJob = buildJob()
+    firstJobs.forEach( ( job ) => insertJob( first, job ) )
+    insertJob( second, secondJob )
+
+    const claimed = [ 0, 1, 2, 3 ].map( ( minute ) => {
+      const next = claimNextJob( at( minute ) )
+
+      if( next !== undefined ) {
+        updateJob( next.user_id, next.id, { status: 'failed' } )
+      }
+
+      return next?.id
+    } )
+
+    expect( claimed ).toEqual(
+      [ firstJobs[ 0 ]?.id, secondJob.id, firstJobs[ 1 ]?.id, firstJobs[ 2 ]?.id ],
+    )
+  } )
+
+  it( 'serves the user who started a job longest ago, never-started users first', () => {
+    const first = createTestUser().id
+    const second = createTestUser().id
+    const third = createTestUser().id
     const theirs = buildJob()
-    const mine = buildJob()
-    insertJob( second, theirs )
-    insertJob( first, mine )
+    insertJob( first, buildJob() )
+    insertJob( second, buildJob() )
+    insertJob( third, theirs )
+    setColumn( first, 'last_job_started_at', at( -10 ) )
+    setColumn( second, 'last_job_started_at', at( -5 ) )
 
-    expect( findNextRunnableJob() ).toEqual( { ...theirs, user_id: second } )
+    expect( claimNextJob( at( 0 ) )?.user_id ).toBe( third )
+    expect( claimNextJob( at( 1 ) )?.user_id ).toBe( first )
+    expect( claimNextJob( at( 2 ) )?.user_id ).toBe( second )
+  } )
 
-    updateJob( second, theirs.id, { status: 'failed' } )
+  it( 'breaks a tie between users who never started by who joined first', () => {
+    const first = createTestUser().id
+    const second = createTestUser().id
+    insertJob( second, buildJob() )
+    insertJob( first, buildJob() )
+    setColumn( second, 'created_at', at( -20 ) )
+    setColumn( first, 'created_at', at( -10 ) )
 
-    expect( findNextRunnableJob() ).toEqual( { ...mine, user_id: first } )
+    expect( claimNextJob( at( 0 ) )?.user_id ).toBe( second )
+  } )
+
+  describe( 'who is eligible', () => {
+    it( 'never claims for a member without the Transcriber module, then resumes', () => {
+      const member = createTestUser().id
+      const job = buildJob()
+      insertJob( member, job )
+      setModules( member, [ 'melete' ] )
+
+      expect( claimNextJob( at( 0 ) ) ).toBeUndefined()
+      expect( stampOf( member, 'last_job_started_at' ) ).toBeNull()
+
+      setModules( member, [ 'transcriber', 'melete' ] )
+
+      expect( claimNextJob( at( 1 ) ) ).toEqual( { ...job, user_id: member } )
+    } )
+
+    it( 'never claims for a removed user, and resumes when they are restored', () => {
+      const member = createTestUser().id
+      const job = buildJob()
+      insertJob( member, job )
+      updateUser( member, { status: 'removed' } )
+
+      expect( claimNextJob( at( 0 ) ) ).toBeUndefined()
+
+      updateUser( member, { status: 'active' } )
+
+      expect( claimNextJob( at( 1 ) ) ).toEqual( { ...job, user_id: member } )
+    } )
+
+    it( 'always serves the admin, who has no module rows', () => {
+      const admin = createTestUser( { role: 'admin' } ).id
+      const job = buildJob()
+      insertJob( admin, job )
+
+      expect( claimNextJob( at( 0 ) ) ).toEqual( { ...job, user_id: admin } )
+    } )
+
+    it( 'skips an ineligible user and serves the next one', () => {
+      const off = createTestUser( { modules: [ 'melete' ] } ).id
+      const on = createTestUser().id
+      const job = buildJob()
+      insertJob( off, buildJob() )
+      insertJob( on, job )
+
+      expect( claimNextJob( at( 0 ) ) ).toEqual( { ...job, user_id: on } )
+    } )
+
+    it( 'does not need a vault', () => {
+      const member = createTestUser( { vault_dir: null } ).id
+      const job = buildJob()
+      insertJob( member, job )
+
+      expect( findUserById( member )?.vault_dir ).toBeNull()
+      expect( claimNextJob( at( 0 ) ) ).toEqual( { ...job, user_id: member } )
+    } )
   } )
 } )
 
@@ -233,7 +358,7 @@ describe( 'markInterruptedLinkingJobs', () => {
   } )
 } )
 
-describe( 'findExpiredJobs', () => {
+describe( 'listExpiredJobs', () => {
   const now = '2026-10-15T12:00:00.000Z'
 
   it( 'returns review and failed-summary jobs whose expiry has passed', () => {
@@ -246,7 +371,7 @@ describe( 'findExpiredJobs', () => {
     insertJob( userId, review )
     insertJob( userId, failed )
 
-    expect( findExpiredJobs( now ).map( ( { id } ) => id ).toSorted() ).toEqual(
+    expect( listExpiredJobs( now ).map( ( { id } ) => id ).toSorted() ).toEqual(
       [ review.id, failed.id ].toSorted(),
     )
   } )
@@ -265,7 +390,7 @@ describe( 'findExpiredJobs', () => {
       expires_at: '2026-10-01T00:00:00.000Z',
     } ) )
 
-    expect( findExpiredJobs( now ) ).toEqual( [] )
+    expect( listExpiredJobs( now ) ).toEqual( [] )
   } )
 
   it( 'returns the expired jobs of every user, each with its owner', () => {
@@ -276,8 +401,24 @@ describe( 'findExpiredJobs', () => {
     insertJob( first, one )
     insertJob( second, two )
 
-    expect( findExpiredJobs( now ).map( ( { id, user_id } ) => [ id, user_id ] ).toSorted() )
+    expect( listExpiredJobs( now ).map( ( { id, user_id } ) => [ id, user_id ] ).toSorted() )
       .toEqual( [ [ one.id, first ], [ two.id, second ] ].toSorted() )
+  } )
+} )
+
+describe( 'listExpiredJobs for users who are not eligible', () => {
+  it( 'still lists the expired jobs of a removed user and of a user without the module', () => {
+    const removed = createTestUser().id
+    const moduleOff = createTestUser( { modules: [ 'melete' ] } ).id
+    const expired = { status: 'ready_for_review', expires_at: '2026-10-15T10:00:00.000Z' } as const
+    const one = buildJob( expired )
+    const two = buildJob( expired )
+    insertJob( removed, one )
+    insertJob( moduleOff, two )
+    updateUser( removed, { status: 'removed' } )
+
+    expect( listExpiredJobs( '2026-10-15T12:00:00.000Z' ).map( ( { id } ) => id ).toSorted() )
+      .toEqual( [ one.id, two.id ].toSorted() )
   } )
 } )
 
@@ -345,6 +486,34 @@ describe( 'listDueFeeds', () => {
 
     expect( listDueFeeds( now, 60 ) ).toHaveLength( 0 )
     expect( listDueFeeds( now, 15 ) ).toHaveLength( 1 )
+  } )
+
+  it( 'leaves out the feeds of a removed user and of a user without the Transcriber module', () => {
+    const removed = createTestUser().id
+    const moduleOff = createTestUser().id
+    const active = createTestUser().id
+
+    addFeed( removed, buildFeed( { name: 'removed' } ) )
+    addFeed( moduleOff, buildFeed( { name: 'module off' } ) )
+    addFeed( active, buildFeed( { name: 'active' } ) )
+    updateUser( removed, { status: 'removed' } )
+    setModules( moduleOff, [ 'melete' ] )
+
+    expect( listDueFeeds( now, 60 ).map( ( { name } ) => name ) ).toEqual( [ 'active' ] )
+
+    updateUser( removed, { status: 'active' } )
+    setModules( moduleOff, [ 'transcriber' ] )
+
+    expect( listDueFeeds( now, 60 ).map( ( { name } ) => name ).toSorted() )
+      .toEqual( [ 'active', 'module off', 'removed' ] )
+  } )
+
+  it( 'still serves the admin, who has no module rows', () => {
+    const admin = createTestUser( { role: 'admin' } ).id
+
+    addFeed( admin, buildFeed( { name: 'admin feed' } ) )
+
+    expect( listDueFeeds( now, 60 ).map( ( { name } ) => name ) ).toEqual( [ 'admin feed' ] )
   } )
 
   it( 'returns the least recently checked first, across users, each with its owner', () => {
@@ -430,6 +599,24 @@ describe( 'listDueGmailSources', () => {
     expect( listDueGmailSources( now, 30 ) ).toHaveLength( 1 )
   } )
 
+  it( 'leaves out the sources of removed and module-off users', () => {
+    const removed = createTestUser().id
+    const moduleOff = createTestUser().id
+    const active = createTestUser().id
+
+    for( const userId of [ removed, moduleOff, active ] ) {
+      connect( userId )
+    }
+
+    addSource( removed, buildSource( { name: 'removed' } ) )
+    addSource( moduleOff, buildSource( { name: 'module off' } ) )
+    addSource( active, buildSource( { name: 'active' } ) )
+    updateUser( removed, { status: 'removed' } )
+    setModules( moduleOff, [ 'melete' ] )
+
+    expect( listDueGmailSources( now, 60 ).map( ( { name } ) => name ) ).toEqual( [ 'active' ] )
+  } )
+
   it( 'only returns sources whose owner has a connected Gmail account', () => {
     const connected = createTestUser().id
     const broken = createTestUser().id
@@ -448,17 +635,21 @@ describe( 'listDueGmailSources', () => {
   } )
 } )
 
+const melete = ( vaultDir: string | null = `vault-${ crypto.randomUUID().slice( 0, 8 ) }` ) => {
+  return createTestUser( { vault_dir: vaultDir } ).id
+}
+
 describe( 'claimNextGeneration', () => {
   it( 'returns undefined when nothing is queued', () => {
-    const { id: userId } = createTestUser()
+    const userId = melete()
 
     addNote( userId, addSubject( userId ), { generation: 'idle' } )
 
-    expect( claimNextGeneration() ).toBeUndefined()
+    expect( claimNextGeneration( at( 0 ) ) ).toBeUndefined()
   } )
 
   it( 'claims the oldest enrolled note, marks it generating and says whose it is', () => {
-    const { id: userId } = createTestUser()
+    const userId = melete()
     const subjectId = addSubject( userId )
     const queued = { generation: 'queued' }
     const later = addNote(
@@ -472,50 +663,114 @@ describe( 'claimNextGeneration', () => {
       { ...queued, enrolledAt: '2026-10-01T00:00:00.000Z' },
     )
 
-    expect( claimNextGeneration() )
+    expect( claimNextGeneration( at( 0 ) ) )
       .toMatchObject( { id: earlier, generation: 'generating', user_id: userId } )
     expect( findNote( userId, earlier )?.generation ).toBe( 'generating' )
-    expect( claimNextGeneration() ).toMatchObject( { id: later } )
-    expect( claimNextGeneration() ).toBeUndefined()
+    expect( claimNextGeneration( at( 1 ) ) ).toMatchObject( { id: later } )
+    expect( claimNextGeneration( at( 2 ) ) ).toBeUndefined()
   } )
 
   it( 'never returns the same note twice', () => {
-    const { id: userId } = createTestUser()
+    const userId = melete()
     const subjectId = addSubject( userId )
 
     addNote( userId, subjectId, { generation: 'queued' } )
     addNote( userId, subjectId, { generation: 'queued' } )
 
-    expect( claimNextGeneration()?.id ).not.toBe( claimNextGeneration()?.id )
+    expect( claimNextGeneration( at( 0 ) )?.id ).not.toBe( claimNextGeneration( at( 1 ) )?.id )
   } )
 
   it( 'skips notes that are generating or failed', () => {
-    const { id: userId } = createTestUser()
+    const userId = melete()
     const subjectId = addSubject( userId )
 
     addNote( userId, subjectId, { generation: 'generating' } )
     addNote( userId, subjectId, { generation: 'failed' } )
 
-    expect( claimNextGeneration() ).toBeUndefined()
+    expect( claimNextGeneration( at( 0 ) ) ).toBeUndefined()
   } )
 
-  it( 'serves the queue of every user, oldest enrolment first', () => {
-    const first = createTestUser().id
-    const second = createTestUser().id
+  it( 'stamps the owner with the time', () => {
+    const userId = melete()
 
-    addNote(
-      first,
-      addSubject( first ),
-      { generation: 'queued', enrolledAt: '2026-10-02T00:00:00.000Z' },
-    )
+    addNote( userId, addSubject( userId ), { generation: 'queued' } )
+    claimNextGeneration( at( 7 ) )
+
+    expect( stampOf( userId, 'last_generation_started_at' ) ).toBe( at( 7 ) )
+    expect( stampOf( userId, 'last_job_started_at' ) ).toBeNull()
+  } )
+
+  it( 'takes turns between users, whoever enrolled first', () => {
+    const first = melete()
+    const second = melete()
+    const firstSubject = addSubject( first )
+    const queued = { generation: 'queued' }
+
+    const firstNotes = [ '2026-10-01', '2026-10-02', '2026-10-03' ].map( ( day ) => {
+      return addNote( first, firstSubject, { ...queued, enrolledAt: `${ day }T00:00:00.000Z` } )
+    } )
     const theirs = addNote(
       second,
       addSubject( second ),
-      { generation: 'queued', enrolledAt: '2026-10-01T00:00:00.000Z' },
+      { ...queued, enrolledAt: '2026-10-09T00:00:00.000Z' },
     )
 
-    expect( claimNextGeneration() ).toMatchObject( { id: theirs, user_id: second } )
-    expect( claimNextGeneration() ).toMatchObject( { user_id: first } )
+    expect( [ 0, 1, 2, 3 ].map( ( minute ) => claimNextGeneration( at( minute ) )?.id ) )
+      .toEqual( [ firstNotes[ 0 ], theirs, firstNotes[ 1 ], firstNotes[ 2 ] ] )
+  } )
+
+  describe( 'who is eligible', () => {
+    it( 'never claims for a user with no vault, and resumes once they choose one', () => {
+      const userId = melete( null )
+      const note = addNote( userId, addSubject( userId ), { generation: 'queued' } )
+
+      expect( claimNextGeneration( at( 0 ) ) ).toBeUndefined()
+
+      getDatabase().prepare( 'UPDATE users SET vault_dir = \'chosen\' WHERE id = ?' ).run( userId )
+
+      expect( claimNextGeneration( at( 1 ) )?.id ).toBe( note )
+    } )
+
+    it( 'never claims for a member without the Melete module', () => {
+      const userId = melete()
+      addNote( userId, addSubject( userId ), { generation: 'queued' } )
+      setModules( userId, [ 'transcriber' ] )
+
+      expect( claimNextGeneration( at( 0 ) ) ).toBeUndefined()
+
+      setModules( userId, [ 'melete' ] )
+
+      expect( claimNextGeneration( at( 1 ) ) ).toBeDefined()
+    } )
+
+    it( 'never claims for a removed user, and resumes when they are restored', () => {
+      const userId = melete()
+      addNote( userId, addSubject( userId ), { generation: 'queued' } )
+      updateUser( userId, { status: 'removed' } )
+
+      expect( claimNextGeneration( at( 0 ) ) ).toBeUndefined()
+
+      updateUser( userId, { status: 'active' } )
+
+      expect( claimNextGeneration( at( 1 ) ) ).toBeDefined()
+    } )
+
+    it( 'serves the admin once they have a vault', () => {
+      const admin = createTestUser( { role: 'admin', vault_dir: 'boss' } ).id
+
+      addNote( admin, addSubject( admin ), { generation: 'queued' } )
+
+      expect( claimNextGeneration( at( 0 ) )?.user_id ).toBe( admin )
+    } )
+
+    it( 'skips an ineligible user and serves the next one', () => {
+      const off = melete( null )
+      const on = melete()
+      addNote( off, addSubject( off ), { generation: 'queued' } )
+      const note = addNote( on, addSubject( on ), { generation: 'queued' } )
+
+      expect( claimNextGeneration( at( 0 ) )?.id ).toBe( note )
+    } )
   } )
 } )
 

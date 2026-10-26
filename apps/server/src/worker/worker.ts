@@ -1,5 +1,5 @@
 // Services
-import { findNextRunnableJob } from '../services/jobs.service.js'
+import { claimNextJob } from '../services/jobs.service.js'
 // Worker
 import { runJob } from './runJob.js'
 // Logging
@@ -15,13 +15,13 @@ export const startWorker = (): ( () => Promise< void > ) => {
 
   const runPass = async (): Promise< void > => {
     try {
-      let next = findNextRunnableJob()
+      let next = claimNextJob()
 
       while( next !== undefined && !stopped ) {
         const { job: { id }, userId } = next
 
         await withLogContext( { job_id: id, user_id: userId }, () => runJob( userId, id ) )
-        next = findNextRunnableJob()
+        next = claimNextJob()
       }
     } catch( error ) {
       logger.error( { err: error }, 'Worker pass failed' )

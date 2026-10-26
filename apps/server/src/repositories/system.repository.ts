@@ -3,7 +3,7 @@ import { z } from 'zod'
 // Lifecycle
 import { statusesWhere } from '../jobs/lifecycle.js'
 // Repositories
-import { getDatabase } from './database.js'
+import { getDatabase, inTransaction } from './database.js'
 import { SELECT_FEED, toOwnedFeed } from './feedRows.js'
 import type { OwnedFeed } from './feedRows.js'
 import { SELECT_SOURCE, toOwnedSource } from './gmailSourceRows.js'
@@ -13,16 +13,41 @@ import type { OwnedJob } from './jobRows.js'
 import { NoteRecord } from './meleteNotes.repository.js'
 
 // The only queries without a user (ADR 0062): the loops that serve every user. Each row says
-// whose it is. Task 5.4 gives them eligibility and round-robin; until then they take the oldest.
+// whose it is. Work for the loops that run on someone's behalf is only for eligible users
+// (ADR 0064): active, with the module on (the admin always), and for vault work a chosen vault.
+const eligible = ( ownerColumn: string, module: 'transcriber' | 'melete' ): string => {
+  return `JOIN eligible_users ON eligible_users.user_id = ${ ownerColumn }
+    AND eligible_users.module = '${ module }'`
+}
 
-export const findNextRunnableJob = (): OwnedJob | undefined => {
+// Round-robin: the eligible user whose last start was longest ago goes next, users who never
+// started first, then the one who joined first. It picks and stamps; the job itself keeps its
+// status, because the source adapter makes the first move.
+export const claimNextJob = ( now: string ): OwnedJob | undefined => {
   const statuses = statusesWhere( 'runnable' )
-  const row = getDatabase()
-    .prepare( `${ SELECT_JOB } WHERE jobs.status IN ( ${ marks( statuses ) } )
-      ORDER BY jobs.rowid LIMIT 1` )
-    .get( ...statuses )
 
-  return row === undefined ? undefined : toOwnedJob( row )
+  return inTransaction( () => {
+    const row = getDatabase()
+      .prepare( `${ SELECT_JOB }
+        ${ eligible( 'jobs.user_id', 'transcriber' ) }
+        JOIN users ON users.id = jobs.user_id
+        WHERE jobs.status IN ( ${ marks( statuses ) } )
+        ORDER BY users.last_job_started_at IS NOT NULL, users.last_job_started_at,
+          users.created_at, jobs.rowid
+        LIMIT 1` )
+      .get( ...statuses )
+
+    if( row === undefined ) {
+      return undefined
+    }
+
+    const job = toOwnedJob( row )
+
+    getDatabase().prepare( 'UPDATE users SET last_job_started_at = ? WHERE id = ?' )
+      .run( now, job.user_id )
+
+    return job
+  } )
 }
 
 export const markInterruptedJobs = ( message: string, now: string ): number => {
@@ -50,7 +75,8 @@ export const markInterruptedLinkingJobs = (
   return changes
 }
 
-export const findExpiredJobs = ( now: string ): OwnedJob[] => {
+// Expiry runs for everyone: a removed user's or a module-off user's drafts still expire
+export const listExpiredJobs = ( now: string ): OwnedJob[] => {
   const statuses = statusesWhere( 'expires' )
 
   return getDatabase()
@@ -68,6 +94,7 @@ const cutoffFor = ( now: string, intervalMinutes: number ): string => {
 export const listDueFeeds = ( now: string, intervalMinutes: number ): OwnedFeed[] => {
   return getDatabase()
     .prepare( `${ SELECT_FEED }
+      ${ eligible( 'feeds.user_id', 'transcriber' ) }
       WHERE feeds.enabled = 1 AND feeds.deleted_at IS NULL
         AND ( h.last_checked_at IS NULL OR h.last_checked_at <= ? )
       ORDER BY h.last_checked_at IS NOT NULL, h.last_checked_at, feeds.rowid` )
@@ -84,6 +111,7 @@ export const listDueGmailSources = (
     .prepare( `${ SELECT_SOURCE }
       JOIN gmail_account ON gmail_account.user_id = gmail_sources.user_id
         AND gmail_account.status = 'connected'
+      ${ eligible( 'gmail_sources.user_id', 'transcriber' ) }
       WHERE gmail_sources.enabled = 1 AND gmail_sources.deleted_at IS NULL
         AND ( h.last_checked_at IS NULL OR h.last_checked_at <= ? )
       ORDER BY h.last_checked_at IS NOT NULL, h.last_checked_at, gmail_sources.rowid` )
@@ -95,16 +123,35 @@ export const listDueGmailSources = (
 const OwnedNote = NoteRecord.extend( { user_id: z.string() } )
 export type OwnedNote = z.infer< typeof OwnedNote >
 
-export const claimNextGeneration = (): OwnedNote | undefined => {
-  const row = getDatabase()
-    .prepare( `UPDATE melete_notes SET generation = 'generating'
-      WHERE id = (
-        SELECT id FROM melete_notes WHERE generation = 'queued'
-        ORDER BY enrolled_at, rowid LIMIT 1
-      ) RETURNING *` )
-    .get()
+// Same turns as jobs, by `last_generation_started_at`; only for users with a vault, since a
+// scan and the questions come from their notes
+export const claimNextGeneration = ( now: string ): OwnedNote | undefined => {
+  return inTransaction( () => {
+    const next = getDatabase()
+      .prepare( `SELECT melete_notes.id FROM melete_notes
+        ${ eligible( 'melete_notes.user_id', 'melete' ) }
+          AND eligible_users.vault_dir IS NOT NULL
+        JOIN users ON users.id = melete_notes.user_id
+        WHERE melete_notes.generation = 'queued'
+        ORDER BY users.last_generation_started_at IS NOT NULL, users.last_generation_started_at,
+          users.created_at, melete_notes.enrolled_at, melete_notes.rowid
+        LIMIT 1` )
+      .get()
 
-  return row === undefined ? undefined : OwnedNote.parse( row )
+    if( next === undefined ) {
+      return undefined
+    }
+
+    const row = getDatabase()
+      .prepare( 'UPDATE melete_notes SET generation = \'generating\' WHERE id = ? RETURNING *' )
+      .get( z.object( { id: z.string() } ).parse( next ).id )
+    const note = OwnedNote.parse( row )
+
+    getDatabase().prepare( 'UPDATE users SET last_generation_started_at = ? WHERE id = ?' )
+      .run( now, note.user_id )
+
+    return note
+  } )
 }
 
 export const requeueGenerating = (): number => {

@@ -25,7 +25,7 @@ export const startMeleteGenerator = (): ( () => Promise< void > ) => {
     try {
       // Claiming marks the note generating, so never claim one that won't be run
       while( !stopped ) {
-        const note = claimNextGeneration()
+        const note = claimNextGeneration( new Date().toISOString() )
 
         if( note === undefined ) {
           break

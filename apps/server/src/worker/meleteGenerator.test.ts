@@ -8,6 +8,7 @@ import {
   vi,
 } from 'vitest'
 // Repositories
+import { getDatabase } from '../repositories/database.js'
 import { findNote, updateNote } from '../repositories/meleteNotes.repository.js'
 // Services
 import { generateForNote } from '../services/meleteGeneration.service.js'
@@ -213,9 +214,9 @@ describe( 'startMeleteGenerator', () => {
 } )
 
 describe( 'startMeleteGenerator for two users', () => {
-  it( 'generates each note for its owner, oldest first, in the owner\'s context', async () => {
-    const other = createTestUser().id
-    const mine = queued( '2026-10-02T00:00:00.000Z' )
+  it( 'generates each note for its owner, taking turns, in the owner\'s context', async () => {
+    const other = createTestUser( { vault_dir: 'other' } ).id
+    const mine = [ queued( '2026-10-02T00:00:00.000Z' ), queued( '2026-10-03T00:00:00.000Z' ) ]
     const theirs = addNote(
       other,
       addSubject( other ),
@@ -223,6 +224,11 @@ describe( 'startMeleteGenerator for two users', () => {
     )
     const owners: ( string | undefined )[] = []
 
+    // The clock is frozen, so who joined first decides when the turns tie
+    getDatabase().prepare( 'UPDATE users SET created_at = ? WHERE id = ?' )
+      .run( '2026-09-01T00:00:00.000Z', userId )
+    getDatabase().prepare( 'UPDATE users SET created_at = ? WHERE id = ?' )
+      .run( '2026-09-02T00:00:00.000Z', other )
     generateMock.mockImplementation( ( owner ) => {
       owners.push( getLogContext()?.user_id )
 
@@ -232,12 +238,29 @@ describe( 'startMeleteGenerator for two users', () => {
     stopGenerator = startMeleteGenerator()
     await vi.advanceTimersByTimeAsync( 0 )
 
-    expect( generateMock.mock.calls ).toEqual( [ [ other, theirs ], [ userId, mine ] ] )
-    expect( owners ).toEqual( [ other, userId ] )
+    expect( generateMock.mock.calls )
+      .toEqual( [ [ userId, mine[ 0 ] ], [ other, theirs ], [ userId, mine[ 1 ] ] ] )
+    expect( owners ).toEqual( [ userId, other, userId ] )
+  } )
+
+  it( 'leaves the queue of a user with no vault alone until they choose one', async () => {
+    const other = createTestUser().id
+    const theirs = addNote( other, addSubject( other ), { generation: 'queued' } )
+
+    stopGenerator = startMeleteGenerator()
+    await vi.advanceTimersByTimeAsync( 5000 )
+
+    expect( generateMock ).not.toHaveBeenCalled()
+    expect( findNote( other, theirs )?.generation ).toBe( 'queued' )
+
+    getDatabase().prepare( 'UPDATE users SET vault_dir = \'chosen\' WHERE id = ?' ).run( other )
+    await vi.advanceTimersByTimeAsync( 2000 )
+
+    expect( generateMock.mock.calls ).toEqual( [ [ other, theirs ] ] )
   } )
 
   it( 'puts the interrupted notes of every user back in the queue', async () => {
-    const other = createTestUser().id
+    const other = createTestUser( { vault_dir: 'other' } ).id
     const mine = addNote( userId, subjectId, { generation: 'generating' } )
     const theirs = addNote( other, addSubject( other ), { generation: 'generating' } )
 

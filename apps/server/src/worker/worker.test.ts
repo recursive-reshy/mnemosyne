@@ -16,6 +16,8 @@ import {
 } from '../services/jobs.service.js'
 // Repositories
 import { clearJobs, updateJob } from '../repositories/jobStore.repository.js'
+import { setModules } from '../repositories/userModules.repository.js'
+import { updateUser } from '../repositories/users.repository.js'
 // Worker
 import { runJob } from './runJob.js'
 import { startWorker } from './worker.js'
@@ -272,7 +274,17 @@ describe( 'startWorker', () => {
 } )
 
 describe( 'startWorker for two users', () => {
-  it( 'runs each job for its owner, oldest first, in a log context with both ids', async () => {
+  // Jobs take time; the clock moves on so each start has its own stamp
+  const runsTakeASecond = (): void => {
+    const realistic = runJobMock.getMockImplementation()!
+
+    runJobMock.mockImplementation( async ( owner, jobId ) => {
+      await realistic( owner, jobId )
+      vi.setSystemTime( Date.now() + 1000 )
+    } )
+  }
+
+  it( 'runs each job for its owner, in a log context with both ids', async () => {
     const member = createTestUser().id
     const first = ( await queueJob( member, { url: 'https://www.youtube.com/watch?v=one' } ) ).id
     const second = await queue()
@@ -283,11 +295,60 @@ describe( 'startWorker for two users', () => {
 
       return realistic( owner, jobId )
     } )
+    runsTakeASecond()
 
     stopWorker = startWorker()
     await vi.advanceTimersByTimeAsync( 0 )
 
-    expect( runJobMock.mock.calls ).toEqual( [ [ member, first ], [ userId, second ] ] )
-    expect( seen ).toEqual( [ member, userId ] )
+    expect( runJobMock.mock.calls.map( ( [ owner, id ] ) => [ owner, id ] ).toSorted() )
+      .toEqual( [ [ member, first ], [ userId, second ] ].toSorted() )
+    expect( seen.toSorted() ).toEqual( [ member, userId ].toSorted() )
+  } )
+
+  it( 'takes turns, so one user\'s long queue does not hold up the other', async () => {
+    const member = createTestUser().id
+    const mine = [ await queue(), await queue(), await queue() ]
+    const theirs = ( await queueJob( member, { url: 'https://www.youtube.com/watch?v=one' } ) ).id
+    runsTakeASecond()
+
+    stopWorker = startWorker()
+    await vi.advanceTimersByTimeAsync( 0 )
+
+    expect( runJobMock.mock.calls.map( ( [ , id ] ) => id ) )
+      .toEqual( [ mine[ 0 ], theirs, mine[ 1 ], mine[ 2 ] ] )
+  } )
+
+  it( 'leaves a job of a user without the module alone, then runs it when it is back', async () => {
+    const member = createTestUser( { modules: [ 'melete' ] } ).id
+    const theirs = ( await queueJob( member, { url: 'https://www.youtube.com/watch?v=one' } ) ).id
+    runsTakeASecond()
+
+    stopWorker = startWorker()
+    await vi.advanceTimersByTimeAsync( 5000 )
+
+    expect( runJobMock ).not.toHaveBeenCalled()
+    expect( findJob( member, theirs ).status ).toBe( 'queued' )
+
+    setModules( member, [ 'transcriber' ] )
+    await vi.advanceTimersByTimeAsync( 2000 )
+
+    expect( runJobMock.mock.calls ).toEqual( [ [ member, theirs ] ] )
+  } )
+
+  it( 'leaves a job of a removed user alone, and runs it when they are restored', async () => {
+    const member = createTestUser().id
+    const theirs = ( await queueJob( member, { url: 'https://www.youtube.com/watch?v=one' } ) ).id
+    updateUser( member, { status: 'removed' } )
+    runsTakeASecond()
+
+    stopWorker = startWorker()
+    await vi.advanceTimersByTimeAsync( 5000 )
+
+    expect( runJobMock ).not.toHaveBeenCalled()
+
+    updateUser( member, { status: 'active' } )
+    await vi.advanceTimersByTimeAsync( 2000 )
+
+    expect( runJobMock.mock.calls ).toEqual( [ [ member, theirs ] ] )
   } )
 } )

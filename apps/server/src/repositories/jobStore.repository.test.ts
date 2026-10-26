@@ -27,7 +27,7 @@ import {
   listActiveJobs,
   updateJob,
 } from './jobStore.repository.js'
-import { findNextRunnableJob } from './system.repository.js'
+import { claimNextJob } from './system.repository.js'
 // Test support
 import { createTestUser, defaultTestAdmin } from '../test-support/auth.js'
 
@@ -150,11 +150,11 @@ describe( 'no shared references', () => {
     expect( findJobById( userId, job.id )?.error ).toBe( 'x' )
   } )
 
-  it( 'ignores mutation of the object returned by findNextRunnableJob', () => {
+  it( 'ignores mutation of the object returned by claimNextJob', () => {
     const job = buildJob()
     insertJob( userId, job )
 
-    const next = findNextRunnableJob()
+    const next = claimNextJob( '2026-10-14T10:00:00.000Z' )
     if( next ) next.status = 'failed'
 
     expect( findJobById( userId, job.id )?.status ).toBe( 'queued' )
@@ -262,7 +262,7 @@ describe( 'source type, feed and source document', () => {
 
     expect( findJobById( userId, job.id )?.feed_name ).toBe( 'A blog' )
     expect( listActiveJobs( userId )[ 0 ]?.feed_name ).toBe( 'A blog' )
-    expect( findNextRunnableJob()?.feed_name ).toBe( 'A blog' )
+    expect( claimNextJob( '2026-10-14T10:00:00.000Z' )?.feed_name ).toBe( 'A blog' )
   } )
 
   it( 'keeps the name of a deleted feed', () => {
@@ -334,7 +334,7 @@ describe( 'source type, feed and source document', () => {
 
     expect( findJobById( userId, job.id )?.gmail_source_name ).toBe( 'Lenny' )
     expect( listActiveJobs( userId )[ 0 ]?.gmail_source_name ).toBe( 'Lenny' )
-    expect( findNextRunnableJob()?.gmail_source_name ).toBe( 'Lenny' )
+    expect( claimNextJob( '2026-10-14T10:00:00.000Z' )?.gmail_source_name ).toBe( 'Lenny' )
   } )
 
   it( 'keeps the name of a deleted Gmail source', () => {
@@ -373,7 +373,7 @@ describe( 'clearJobs', () => {
     clearJobs( userId )
 
     expect( findJobById( userId, job.id ) ).toBeUndefined()
-    expect( findNextRunnableJob() ).toBeUndefined()
+    expect( claimNextJob( '2026-10-14T10:00:00.000Z' ) ).toBeUndefined()
   } )
 } )
 
@@ -416,12 +416,12 @@ describe( 'summary choices', () => {
       .toMatchObject( { summary_model: null, prompt_profile_id: null } )
   } )
 
-  it( 'keeps them in listActiveJobs and findNextRunnableJob', () => {
+  it( 'keeps them in listActiveJobs and claimNextJob', () => {
     const job = buildJob( { status: 'summarizing', summary_model: 'm' } )
     insertJob( userId, job )
 
     expect( listActiveJobs( userId )[ 0 ]?.summary_model ).toBe( 'm' )
-    expect( findNextRunnableJob()?.summary_model ).toBe( 'm' )
+    expect( claimNextJob( '2026-10-14T10:00:00.000Z' )?.summary_model ).toBe( 'm' )
   } )
 } )
 

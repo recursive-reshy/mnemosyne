@@ -65,8 +65,8 @@ import {
 } from '../repositories/promptProfiles.repository.js'
 import { insertSummaryRun, listRunsForJob } from '../repositories/summaryRuns.repository.js'
 import {
-  findExpiredJobs,
-  findNextRunnableJob as findNextRunnableStoredJob,
+  claimNextJob as claimNextStoredJob,
+  listExpiredJobs,
   markInterruptedJobs,
   markInterruptedLinkingJobs,
 } from '../repositories/system.repository.js'
@@ -344,9 +344,9 @@ export const listJobs = ( userId: string ): Job[] => {
   return listActiveJobs( userId ).map( ( job ) => toPublicJob( userId, job ) )
 }
 
-// The worker serves every user: the next job comes with whose it is
-export const findNextRunnableJob = (): { job: Job, userId: string } | undefined => {
-  const next = findNextRunnableStoredJob()
+// The worker serves every user in turn (ADR 0064): the next job comes with whose it is
+export const claimNextJob = (): { job: Job, userId: string } | undefined => {
+  const next = claimNextStoredJob( new Date().toISOString() )
 
   if( next === undefined ) {
     return undefined
@@ -612,7 +612,7 @@ export const discardJob = ( userId: string, id: string ): void => {
 }
 
 export const deleteExpiredJobs = (): number => {
-  const expired = findExpiredJobs( new Date().toISOString() )
+  const expired = listExpiredJobs( new Date().toISOString() )
 
   for( const { id, user_id: userId } of expired ) {
     deleteJob( userId, id )

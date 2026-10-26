@@ -19,8 +19,8 @@ import {
   listActiveJobs,
 } from './jobStore.repository.js'
 import {
-  findExpiredJobs,
-  findNextRunnableJob,
+  listExpiredJobs,
+  claimNextJob,
   markInterruptedJobs,
   markInterruptedLinkingJobs,
 } from './system.repository.js'
@@ -83,17 +83,17 @@ beforeEach( () => {
 } )
 
 describe( 'status lists built from the lifecycle table', () => {
-  it( 'findNextRunnableJob uses the runnable states', () => {
+  it( 'claimNextJob uses the runnable states', () => {
     const queued = buildJob( 'queued' )
     const saved = buildJob( 'saved' )
     insertJob( userId, queued )
     insertJob( userId, saved )
 
-    expect( findNextRunnableJob()?.id ).toBe( queued.id )
+    expect( claimNextJob( '2026-10-14T10:00:00.000Z' )?.id ).toBe( queued.id )
 
     onlySaved()
 
-    expect( findNextRunnableJob()?.id ).toBe( saved.id )
+    expect( claimNextJob( '2026-10-14T10:00:00.000Z' )?.id ).toBe( saved.id )
     expect( statusesWhereMock ).toHaveBeenCalledWith( 'runnable' )
   } )
 
@@ -108,7 +108,7 @@ describe( 'status lists built from the lifecycle table', () => {
     expect( statusesWhereMock ).toHaveBeenCalledWith( 'active' )
   } )
 
-  it( 'findExpiredJobs uses the expiring states', () => {
+  it( 'listExpiredJobs uses the expiring states', () => {
     const past = '2026-10-13T00:00:00.000Z'
     insertJob( userId, buildJob( 'ready_for_review', { expires_at: past } ) )
     const saved = buildJob( 'saved', { expires_at: past } )
@@ -116,7 +116,7 @@ describe( 'status lists built from the lifecycle table', () => {
 
     onlySaved()
 
-    expect( findExpiredJobs( '2026-10-14T10:00:00.000Z' ).map( ( job ) => job.id ) )
+    expect( listExpiredJobs( '2026-10-14T10:00:00.000Z' ).map( ( job ) => job.id ) )
       .toEqual( [ saved.id ] )
     expect( statusesWhereMock ).toHaveBeenCalledWith( 'expires' )
   } )
