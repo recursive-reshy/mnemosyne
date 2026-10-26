@@ -196,7 +196,7 @@ describe( 'createFeed', () => {
     serve( { [ feedUrl ]: { body: rssWith( 2 ) } } )
     const feed = await createFeed( userId, { url: feedUrl } )
 
-    expect( getHealth( 'feed', feed.id ) ).toMatchObject( {
+    expect( getHealth( userId, 'feed', feed.id ) ).toMatchObject( {
       last_checked_at: NOW.toISOString(),
       last_success_at: NOW.toISOString(),
       last_error: null,
@@ -507,12 +507,12 @@ describe( 'checkFeed', () => {
 
     await checkFeed( userId, feed.id )
 
-    expect( getHealth( 'feed', feed.id ) ).toMatchObject( {
+    expect( getHealth( userId, 'feed', feed.id ) ).toMatchObject( {
       last_success_at: NOW.toISOString(),
       last_error: 'The site answered 500',
       failing_since: new Date( NOW.getTime() + 3_600_000 ).toISOString(),
     } )
-    expect( listErrors( 'feed', feed.id ).map( ( { message } ) => message ) )
+    expect( listErrors( userId, 'feed', feed.id ).map( ( { message } ) => message ) )
       .toEqual( [ 'The site answered 500' ] )
   } )
 
@@ -522,7 +522,7 @@ describe( 'checkFeed', () => {
 
     await checkFeed( userId, feed.id )
 
-    expect( getHealth( 'feed', feed.id ) ).toMatchObject( {
+    expect( getHealth( userId, 'feed', feed.id ) ).toMatchObject( {
       last_checked_at: new Date( NOW.getTime() + 3_600_000 ).toISOString(),
       last_success_at: new Date( NOW.getTime() + 3_600_000 ).toISOString(),
       last_error: null,
@@ -582,7 +582,7 @@ describe( 'checkAllFeeds and checkDueFeeds', () => {
     }
 
     insertFeed( userId, feed )
-    seedCheck( 'feed', id, feed.last_checked_at, feed.last_error )
+    seedCheck( userId, 'feed', id, feed.last_checked_at, feed.last_error )
   }
 
   beforeEach( () => {

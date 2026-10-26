@@ -227,7 +227,7 @@ describe( 'completeConsent', () => {
     grantOnce( { refresh_token: refreshToken, scope: SCOPE } )
     await completeConsent( userId, { code: authCode, state: stateFromLastUrl() } )
 
-    expect( getHealth( 'gmail_connection', userId ) ).toMatchObject( {
+    expect( getHealth( userId, 'gmail_connection', userId ) ).toMatchObject( {
       last_error: null,
       failing_since: null,
     } )
@@ -383,7 +383,7 @@ describe( 'getGmailClient', () => {
     } )
 
     expect( () => getGmailClient( userId ) ).toThrow( GmailNotConnectedError )
-    expect( getHealth( 'gmail_connection', userId )?.last_error )
+    expect( getHealth( userId, 'gmail_connection', userId )?.last_error )
       .toBe( 'The stored Gmail access can\'t be read; reconnect' )
   } )
 
@@ -434,8 +434,8 @@ describe( 'withGmail', () => {
 
     await withGmail( userId, () => Promise.resolve( 'fine' ) )
 
-    expect( getHealth( 'gmail_connection', userId ) ).toMatchObject( { last_error: null } )
-    expect( getHealth( 'gmail_connection', userId )?.last_success_at ).not.toBeNull()
+    expect( getHealth( userId, 'gmail_connection', userId ) ).toMatchObject( { last_error: null } )
+    expect( getHealth( userId, 'gmail_connection', userId )?.last_success_at ).not.toBeNull()
   } )
 
   it( 'records the connection as failing when Google rejects the access', async () => {
@@ -445,7 +445,7 @@ describe( 'withGmail', () => {
       Object.assign( new Error( 'Unauthorized' ), { code: 401 } ),
     ) ) ).rejects.toThrow( GmailAuthError )
 
-    expect( getHealth( 'gmail_connection', userId )?.last_error ).toBe( reason )
+    expect( getHealth( userId, 'gmail_connection', userId )?.last_error ).toBe( reason )
   } )
 
   it( 'does not touch the connection health on another kind of error', async () => {
@@ -455,7 +455,7 @@ describe( 'withGmail', () => {
       Object.assign( new Error( 'Backend Error' ), { code: 500 } ),
     ) ) ).rejects.toThrow( 'Backend Error' )
 
-    expect( getHealth( 'gmail_connection', userId ) ).toBeUndefined()
+    expect( getHealth( userId, 'gmail_connection', userId ) ).toBeUndefined()
   } )
 
   it( 'passes other errors through and leaves the status alone', async () => {
@@ -488,7 +488,7 @@ describe( 'disconnect', () => {
 
     await disconnect( userId )
 
-    expect( getHealth( 'gmail_connection', userId ) ).toBeUndefined()
+    expect( getHealth( userId, 'gmail_connection', userId ) ).toBeUndefined()
   } )
 
   it( 'still deletes the account when the revoke fails, without logging the token', async () => {
@@ -585,8 +585,8 @@ describe( 'Gmail for two users', () => {
       .toBe( `token-for-${ userId }` )
     expect( decryptToken( findAccount( other )?.refresh_token_enc ?? '', key ) )
       .toBe( `token-for-${ other }` )
-    expect( getHealth( 'gmail_connection', userId ) ).toBeDefined()
-    expect( getHealth( 'gmail_connection', other ) ).toBeDefined()
+    expect( getHealth( userId, 'gmail_connection', userId ) ).toBeDefined()
+    expect( getHealth( other, 'gmail_connection', other ) ).toBeDefined()
 
     const mine = getGmailClient( userId )
     const theirs = getGmailClient( other )
@@ -615,7 +615,7 @@ describe( 'Gmail for two users', () => {
 
     expect( findAccount( userId )?.status ).toBe( 'reconnect_needed' )
     expect( findAccount( other )?.status ).toBe( 'connected' )
-    expect( getHealth( 'gmail_connection', other ) ).toBeUndefined()
+    expect( getHealth( other, 'gmail_connection', other ) ).toBeUndefined()
   } )
 
   it( 'disconnects only the user who asked', async () => {

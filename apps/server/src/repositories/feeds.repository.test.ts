@@ -36,7 +36,7 @@ beforeEach( () => {
 // Check data lives in health_status; the stored feed shows it through a join.
 const insertFeed = ( feed: StoredFeed ): void => {
   insertFeedRow( userId, feed )
-  seedCheck( 'feed', feed.id, feed.last_checked_at, feed.last_error )
+  seedCheck( userId, 'feed', feed.id, feed.last_checked_at, feed.last_error )
 }
 
 const buildFeed = ( overrides: Partial< StoredFeed > = {} ): StoredFeed => {
@@ -158,7 +158,7 @@ describe( 'check data from health_status', () => {
   it( 'shows the last check and error of the health row', () => {
     const feed = buildFeed()
     insertFeedRow( userId, feed )
-    recordFailure( 'feed', feed.id, '2026-10-19T10:00:00.000Z', 'The site answered 500' )
+    recordFailure( userId, 'feed', feed.id, '2026-10-19T10:00:00.000Z', 'The site answered 500' )
 
     expect( findFeedById( userId, feed.id ) ).toMatchObject( {
       last_checked_at: '2026-10-19T10:00:00.000Z',
@@ -180,7 +180,7 @@ describe( 'check data from health_status', () => {
   it( 'does not mix up a source and a feed with the same id', () => {
     const feed = buildFeed()
     insertFeedRow( userId, feed )
-    recordSuccess( 'gmail_source', feed.id, '2026-10-19T10:00:00.000Z' )
+    recordSuccess( userId, 'gmail_source', feed.id, '2026-10-19T10:00:00.000Z' )
 
     expect( findFeedById( userId, feed.id )?.last_checked_at ).toBeNull()
   } )
@@ -190,7 +190,7 @@ describe( 'check data from health_status', () => {
     insertFeedRow( userId, feed )
     updateFeed( userId, feed.id, { name: 'Renamed', last_error: 'y' } )
 
-    expect( getHealth( 'feed', feed.id ) ).toBeUndefined()
+    expect( getHealth( userId, 'feed', feed.id ) ).toBeUndefined()
     expect( findFeedById( userId, feed.id ) ).toMatchObject( {
       name: 'Renamed',
       last_checked_at: null,
@@ -201,12 +201,12 @@ describe( 'check data from health_status', () => {
   it( 'removes the health row and its errors when a feed is deleted', () => {
     const feed = buildFeed()
     insertFeedRow( userId, feed )
-    recordFailure( 'feed', feed.id, '2026-10-19T10:00:00.000Z', 'x' )
+    recordFailure( userId, 'feed', feed.id, '2026-10-19T10:00:00.000Z', 'x' )
 
     markFeedDeleted( userId, feed.id, '2026-10-20T10:00:00.000Z' )
 
-    expect( getHealth( 'feed', feed.id ) ).toBeUndefined()
-    expect( listErrors( 'feed', feed.id ) ).toEqual( [] )
+    expect( getHealth( userId, 'feed', feed.id ) ).toBeUndefined()
+    expect( listErrors( userId, 'feed', feed.id ) ).toEqual( [] )
   } )
 } )
 

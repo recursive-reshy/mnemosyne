@@ -33,7 +33,6 @@ const EXEMPT = [ 'system', 'users', 'sessions', 'appSettings' ]
 // Data repositories whose functions don't yet take `userId` first. Each Phase 4 task removes its
 // repositories from this list; task 4.6 un-skips the test that needs it empty.
 const UNCONVERTED = [
-  'health',
   'meleteNotes',
   'meleteQuestions',
   'meleteReviews',

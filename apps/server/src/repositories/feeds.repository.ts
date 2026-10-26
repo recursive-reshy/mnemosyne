@@ -80,7 +80,7 @@ export const markFeedDeleted = ( userId: string, id: string, now: string ): void
       .run( now, id, userId )
 
     if( changes > 0 ) {
-      deleteHealth( 'feed', id )
+      deleteHealth( userId, 'feed', id )
     }
   } )
 }

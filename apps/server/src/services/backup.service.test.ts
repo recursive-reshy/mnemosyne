@@ -28,7 +28,7 @@ import { ConflictError } from '../errors.js'
 import { closeDatabase, getDatabase, openDatabase } from '../repositories/database.js'
 import { getHealth, listErrors } from '../repositories/health.repository.js'
 // Services
-import { backupName, runBackup } from './backup.service.js'
+import { backupName, recordOpenBackups, runBackup } from './backup.service.js'
 
 let root = ''
 let dir = ''
@@ -84,7 +84,7 @@ describe( 'runBackup', () => {
   it( 'records the file and size as the backup row', async () => {
     const result = await runBackup( { dir } )
 
-    expect( getHealth( 'backup', 'default' ) ).toMatchObject( {
+    expect( getHealth( null, 'backup', 'default' ) ).toMatchObject( {
       last_error: null,
       failing_since: null,
       detail: JSON.stringify( { file: result.file, bytes: result.bytes } ),
@@ -105,8 +105,9 @@ describe( 'runBackup', () => {
     await expect( runBackup( { dir, check } ) ).rejects.toThrow( 'row 3 missing from index' )
 
     expect( await readdir( dir ) ).toEqual( [] )
-    expect( getHealth( 'backup', 'default' )?.last_error ).toContain( 'row 3 missing from index' )
-    expect( listErrors( 'backup', 'default' ) ).toHaveLength( 1 )
+    expect( getHealth( null, 'backup', 'default' )?.last_error )
+      .toContain( 'row 3 missing from index' )
+    expect( listErrors( null, 'backup', 'default' ) ).toHaveLength( 1 )
   } )
 
   it( 'records a failure and leaves no partial when the folder cannot be made', async () => {
@@ -114,9 +115,9 @@ describe( 'runBackup', () => {
 
     await expect( runBackup( { dir: join( root, 'file', 'backups' ) } ) ).rejects.toThrow()
 
-    expect( getHealth( 'backup', 'default' )?.last_error ).not.toBeNull()
+    expect( getHealth( null, 'backup', 'default' )?.last_error ).not.toBeNull()
     await expect( runBackup( { dir } ) ).resolves.toBeDefined()
-    expect( getHealth( 'backup', 'default' )?.last_error ).toBeNull()
+    expect( getHealth( null, 'backup', 'default' )?.last_error ).toBeNull()
   } )
 
   it( 'releases the lock after a failure', async () => {
@@ -132,5 +133,35 @@ describe( 'runBackup', () => {
 
     expect( await readFile( join( dir, 'mnemosyne-20200101-000000.db' ), 'utf8' ) ).toBe( 'old' )
     expect( await readdir( dir ) ).toHaveLength( 2 )
+  } )
+} )
+
+describe( 'recordOpenBackups', () => {
+  it( 'records nothing when opening the database made no copy', () => {
+    recordOpenBackups( { setAside: null, preMigrationBackup: null } )
+
+    expect( getHealth( null, 'backup', 'default' ) ).toBeUndefined()
+  } )
+
+  it.each( [ 'setAside', 'preMigrationBackup' ] as const )(
+    'records the %s copy as the last backup, with its file and size',
+    async ( which ) => {
+      const copy = join( root, 'pre-0.9-20261023-043000.db' )
+
+      await writeFile( copy, 'x'.repeat( 2048 ) )
+      recordOpenBackups( { setAside: null, preMigrationBackup: null, [ which ]: copy } )
+
+      const record = getHealth( null, 'backup', 'default' )
+
+      expect( record ).toMatchObject( { last_error: null } )
+      expect( JSON.parse( record?.detail ?? '{}' ) )
+        .toEqual( { file: 'pre-0.9-20261023-043000.db', bytes: 2048 } )
+    },
+  )
+
+  it( 'records a failure when the copy cannot be read', () => {
+    recordOpenBackups( { setAside: join( root, 'missing.db' ), preMigrationBackup: null } )
+
+    expect( getHealth( null, 'backup', 'default' )?.last_error ).toContain( 'missing.db' )
   } )
 } )

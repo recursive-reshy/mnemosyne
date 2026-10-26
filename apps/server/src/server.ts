@@ -12,6 +12,7 @@ import { logger } from './logger.js'
 // Repositories
 import { closeDatabase, openDatabase } from './repositories/database.js'
 // Services
+import { recordOpenBackups } from './services/backup.service.js'
 import { recoverInterruptedJobs } from './services/jobs.service.js'
 // Shutdown
 import { SHUTDOWN_TIMEOUT_MS, createShutdown } from './shutdown.js'
@@ -52,6 +53,8 @@ try {
   if( preMigrationBackup !== null ) {
     logger.info( { copy: preMigrationBackup }, 'Backed up the database before migrating' )
   }
+
+  recordOpenBackups( { setAside, preMigrationBackup } )
 } catch( error ) {
   logger.error( { err: error }, 'The database cannot be opened' )
   process.exit( 1 )

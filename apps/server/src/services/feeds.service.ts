@@ -207,7 +207,7 @@ export const createFeed = async ( userId: string, body: CreateFeedBody ): Promis
 
   inTransaction( () => {
     insertFeed( userId, feed )
-    recordCheck( { kind: 'feed', id: feed.id }, { ok: true }, now )
+    recordCheck( userId, { kind: 'feed', id: feed.id }, { ok: true }, now )
     stored.forEach( ( item ) => insertItemIfNew( userId, item ) )
   } )
 
@@ -305,6 +305,7 @@ export const checkFeed = async ( userId: string, id: string ): Promise< Feed > =
     outcome = await fetchAndParse( feed )
   } catch( error ) {
     recordCheck(
+      userId,
       { kind: 'feed', id },
       { ok: false, message: error instanceof Error ? error.message : 'Unknown error' },
       now,
@@ -344,7 +345,7 @@ export const checkFeed = async ( userId: string, id: string ): Promise< Feed > =
 
   inTransaction( () => {
     recordFeedFetch( userId, id, { ...outcome.check, last_skipped_count: skipped } )
-    recordCheck( { kind: 'feed', id }, { ok: true }, now )
+    recordCheck( userId, { kind: 'feed', id }, { ok: true }, now )
   } )
 
   await queueAutomatically( userId, feed, added.filter( ( { status } ) => status === 'inbox' ) )

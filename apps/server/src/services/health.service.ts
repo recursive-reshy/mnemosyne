@@ -14,18 +14,20 @@ import { recordFailure, recordSuccess } from '../repositories/health.repository.
 export type HealthSubject = { kind: HealthKind, id: string }
 export type CheckResult = { ok: true, detail?: string } | { ok: false, message: string }
 
+// The owner is the user the subject belongs to, or null for the app's own services
 export const recordCheck = (
+  userId: string | null,
   { kind, id }: HealthSubject,
   result: CheckResult,
   at: string = new Date().toISOString(),
 ): void => {
   if( result.ok ) {
-    recordSuccess( kind, id, at, result.detail )
+    recordSuccess( userId, kind, id, at, result.detail )
 
     return
   }
 
-  recordFailure( kind, id, at, result.message )
+  recordFailure( userId, kind, id, at, result.message )
   logger.warn( { kind, subject_id: id }, 'Health check failed' )
 }
 
@@ -40,11 +42,12 @@ const checkAgent = async (): Promise< void > => {
     const status = await checkHealth( { fresh: true } )
 
     recordCheck(
+      null,
       subject,
       status === 'ok' ? { ok: true } : { ok: false, message: 'The agent service is not reachable' },
     )
   } catch( error ) {
-    recordCheck( subject, { ok: false, message: errorMessage( error ) } )
+    recordCheck( null, subject, { ok: false, message: errorMessage( error ) } )
   }
 }
 
@@ -53,9 +56,9 @@ const checkWhisper = async (): Promise< void > => {
 
   try {
     await checkWhisperHealth( config.whisperUrl )
-    recordCheck( subject, { ok: true } )
+    recordCheck( null, subject, { ok: true } )
   } catch( error ) {
-    recordCheck( subject, { ok: false, message: errorMessage( error ) } )
+    recordCheck( null, subject, { ok: false, message: errorMessage( error ) } )
   }
 }
 

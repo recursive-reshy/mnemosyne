@@ -12,14 +12,18 @@ import { getHealthErrors, getStatus, refreshStatus } from '../services/status.se
 const ErrorsParams = z.object( { kind: HealthKind, id: z.string().min( 1 ) } )
 
 export const readStatus = ( req: Request, res: Response< GetStatusResponse > ): void => {
-  res.status( 200 ).json( getStatus( currentUser( req ).id ) )
+  const { id, role } = currentUser( req )
+
+  res.status( 200 ).json( getStatus( id, role === 'admin' ) )
 }
 
 export const refreshAllStatus = async (
   req: Request,
   res: Response< GetStatusResponse >,
 ): Promise< void > => {
-  res.status( 200 ).json( await refreshStatus( currentUser( req ).id ) )
+  const { id, role } = currentUser( req )
+
+  res.status( 200 ).json( await refreshStatus( id, role === 'admin' ) )
 }
 
 export const readHealthErrors = (
@@ -27,6 +31,9 @@ export const readHealthErrors = (
   res: Response< GetHealthErrorsResponse >,
 ): void => {
   const { kind, id } = ErrorsParams.parse( req.params )
+  const user = currentUser( req )
 
-  res.status( 200 ).json( { errors: getHealthErrors( currentUser( req ).id, kind, id ) } )
+  res.status( 200 ).json( {
+    errors: getHealthErrors( user.id, user.role === 'admin', kind, id ),
+  } )
 }

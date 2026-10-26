@@ -74,7 +74,7 @@ export const markSourceDeleted = ( userId: string, id: string, now: string ): vo
       .run( now, id, userId )
 
     if( changes > 0 ) {
-      deleteHealth( 'gmail_source', id )
+      deleteHealth( userId, 'gmail_source', id )
     }
   } )
 }

@@ -36,7 +36,7 @@ beforeEach( () => {
 // Check data lives in health_status; the stored source shows it through a join.
 const insertSource = ( source: StoredGmailSource ): void => {
   insertSourceRow( userId, source )
-  seedCheck( 'gmail_source', source.id, source.last_checked_at, source.last_error )
+  seedCheck( userId, 'gmail_source', source.id, source.last_checked_at, source.last_error )
 }
 
 const buildSource = ( overrides: Partial< StoredGmailSource > = {} ): StoredGmailSource => {
@@ -164,7 +164,13 @@ describe( 'check data from health_status', () => {
   it( 'shows the last check and error of the health row', () => {
     const source = buildSource()
     insertSourceRow( userId, source )
-    recordFailure( 'gmail_source', source.id, '2026-10-19T12:00:00.000Z', 'Label not found' )
+    recordFailure(
+      userId,
+      'gmail_source',
+      source.id,
+      '2026-10-19T12:00:00.000Z',
+      'Label not found',
+    )
 
     expect( findSourceById( userId, source.id ) ).toMatchObject( {
       last_checked_at: '2026-10-19T12:00:00.000Z',
@@ -186,7 +192,7 @@ describe( 'check data from health_status', () => {
   it( 'does not mix up a source and a feed with the same id', () => {
     const source = buildSource()
     insertSourceRow( userId, source )
-    recordSuccess( 'feed', source.id, '2026-10-19T12:00:00.000Z' )
+    recordSuccess( userId, 'feed', source.id, '2026-10-19T12:00:00.000Z' )
 
     expect( findSourceById( userId, source.id )?.last_checked_at ).toBeNull()
   } )
@@ -196,7 +202,7 @@ describe( 'check data from health_status', () => {
     insertSourceRow( userId, source )
     updateSource( userId, source.id, { name: 'Renamed', last_error: 'y' } )
 
-    expect( getHealth( 'gmail_source', source.id ) ).toBeUndefined()
+    expect( getHealth( userId, 'gmail_source', source.id ) ).toBeUndefined()
     expect( findSourceById( userId, source.id ) ).toMatchObject( {
       name: 'Renamed',
       last_checked_at: null,
@@ -207,12 +213,12 @@ describe( 'check data from health_status', () => {
   it( 'removes the health row and its errors when a source is deleted', () => {
     const source = buildSource()
     insertSourceRow( userId, source )
-    recordFailure( 'gmail_source', source.id, '2026-10-19T12:00:00.000Z', 'x' )
+    recordFailure( userId, 'gmail_source', source.id, '2026-10-19T12:00:00.000Z', 'x' )
 
     markSourceDeleted( userId, source.id, '2026-10-20T10:00:00.000Z' )
 
-    expect( getHealth( 'gmail_source', source.id ) ).toBeUndefined()
-    expect( listErrors( 'gmail_source', source.id ) ).toEqual( [] )
+    expect( getHealth( userId, 'gmail_source', source.id ) ).toBeUndefined()
+    expect( listErrors( userId, 'gmail_source', source.id ) ).toEqual( [] )
   } )
 } )
 

@@ -301,7 +301,7 @@ const buildFeed = ( overrides: Partial< StoredFeed > = {} ): StoredFeed => {
 
 const addFeed = ( userId: string, feed: StoredFeed ): StoredFeed => {
   insertFeed( userId, feed )
-  seedCheck( 'feed', feed.id, feed.last_checked_at, feed.last_error )
+  seedCheck( userId, 'feed', feed.id, feed.last_checked_at, feed.last_error )
 
   return feed
 }
@@ -388,7 +388,7 @@ const connect = ( userId: string ): void => {
 
 const addSource = ( userId: string, source: StoredGmailSource ): StoredGmailSource => {
   insertSource( userId, source )
-  seedCheck( 'gmail_source', source.id, source.last_checked_at, source.last_error )
+  seedCheck( userId, 'gmail_source', source.id, source.last_checked_at, source.last_error )
 
   return source
 }

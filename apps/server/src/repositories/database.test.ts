@@ -402,6 +402,7 @@ const BASELINE_COLUMNS: Record< string, string[] > = {
     'decided_at',
   ],
   health_status: [
+    'user_id',
     'kind',
     'subject_id',
     'last_checked_at',
@@ -412,6 +413,7 @@ const BASELINE_COLUMNS: Record< string, string[] > = {
   ],
   health_errors: [
     'id',
+    'user_id',
     'kind',
     'subject_id',
     'at',

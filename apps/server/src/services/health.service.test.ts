@@ -50,9 +50,9 @@ afterEach( () => {
 
 describe( 'recordCheck', () => {
   it( 'records a success at the time it is given', () => {
-    recordCheck( { kind: 'feed', id: 'f1' }, { ok: true }, '2026-10-22T10:00:00.000Z' )
+    recordCheck( userId, { kind: 'feed', id: 'f1' }, { ok: true }, '2026-10-22T10:00:00.000Z' )
 
-    expect( getHealth( 'feed', 'f1' ) ).toMatchObject( {
+    expect( getHealth( userId, 'feed', 'f1' ) ).toMatchObject( {
       last_checked_at: '2026-10-22T10:00:00.000Z',
       last_success_at: '2026-10-22T10:00:00.000Z',
       last_error: null,
@@ -63,34 +63,37 @@ describe( 'recordCheck', () => {
     vi.useFakeTimers()
     vi.setSystemTime( new Date( '2026-10-22T11:30:00.000Z' ) )
 
-    recordCheck( { kind: 'agent', id: 'default' }, { ok: true } )
+    recordCheck( null, { kind: 'agent', id: 'default' }, { ok: true } )
 
-    expect( getHealth( 'agent', 'default' )?.last_checked_at ).toBe( '2026-10-22T11:30:00.000Z' )
+    expect( getHealth( null, 'agent', 'default' )?.last_checked_at )
+      .toBe( '2026-10-22T11:30:00.000Z' )
   } )
 
   it( 'passes the detail of a success on', () => {
     recordCheck(
+      null,
       { kind: 'backup', id: 'default' },
       { ok: true, detail: '{"file":"a.db","bytes":10}' },
     )
 
-    expect( getHealth( 'backup', 'default' )?.detail ).toBe( '{"file":"a.db","bytes":10}' )
+    expect( getHealth( null, 'backup', 'default' )?.detail ).toBe( '{"file":"a.db","bytes":10}' )
   } )
 
   it( 'records a failure with its message and history', () => {
-    recordCheck( { kind: 'feed', id: 'f1' }, { ok: false, message: 'HTTP 500' } )
+    recordCheck( userId, { kind: 'feed', id: 'f1' }, { ok: false, message: 'HTTP 500' } )
 
-    expect( getHealth( 'feed', 'f1' )?.last_error ).toBe( 'HTTP 500' )
-    expect( listErrors( 'feed', 'f1' ).map( ( { message } ) => message ) ).toEqual( [ 'HTTP 500' ] )
+    expect( getHealth( userId, 'feed', 'f1' )?.last_error ).toBe( 'HTTP 500' )
+    expect( listErrors( userId, 'feed', 'f1' ).map( ( { message } ) => message ) )
+      .toEqual( [ 'HTTP 500' ] )
   } )
 
   it( 'logs a failure at warn with the subject, and a success not at all', () => {
     const warn = vi.spyOn( logger, 'warn' ).mockImplementation( () => undefined )
 
-    recordCheck( { kind: 'feed', id: 'f1' }, { ok: true } )
+    recordCheck( userId, { kind: 'feed', id: 'f1' }, { ok: true } )
     expect( warn ).not.toHaveBeenCalled()
 
-    recordCheck( { kind: 'whisper', id: 'default' }, { ok: false, message: 'refused' } )
+    recordCheck( null, { kind: 'whisper', id: 'default' }, { ok: false, message: 'refused' } )
 
     expect( warn ).toHaveBeenCalledWith(
       { kind: 'whisper', subject_id: 'default' },
@@ -105,10 +108,10 @@ describe( 'runServiceChecks', () => {
 
     expect( checkHealth ).toHaveBeenCalledWith( { fresh: true } )
     expect( checkWhisperHealth ).toHaveBeenCalledWith( 'http://whisper.test:8178' )
-    expect( getHealth( 'agent', 'default' ) ).toMatchObject( { last_error: null } )
-    expect( getHealth( 'agent', 'default' )?.last_success_at ).not.toBeNull()
-    expect( getHealth( 'whisper', 'default' ) ).toMatchObject( { last_error: null } )
-    expect( getHealth( 'whisper', 'default' )?.last_success_at ).not.toBeNull()
+    expect( getHealth( null, 'agent', 'default' ) ).toMatchObject( { last_error: null } )
+    expect( getHealth( null, 'agent', 'default' )?.last_success_at ).not.toBeNull()
+    expect( getHealth( null, 'whisper', 'default' ) ).toMatchObject( { last_error: null } )
+    expect( getHealth( null, 'whisper', 'default' )?.last_success_at ).not.toBeNull()
   } )
 
   it( 'records an unavailable agent as failing', async () => {
@@ -116,9 +119,9 @@ describe( 'runServiceChecks', () => {
 
     await runServiceChecks()
 
-    expect( getHealth( 'agent', 'default' )?.last_error )
+    expect( getHealth( null, 'agent', 'default' )?.last_error )
       .toBe( 'The agent service is not reachable' )
-    expect( getHealth( 'whisper', 'default' )?.last_error ).toBeNull()
+    expect( getHealth( null, 'whisper', 'default' )?.last_error ).toBeNull()
   } )
 
   it( 'records whisper-server\'s message when it is down', async () => {
@@ -128,9 +131,9 @@ describe( 'runServiceChecks', () => {
 
     await runServiceChecks()
 
-    expect( getHealth( 'whisper', 'default' )?.last_error )
+    expect( getHealth( null, 'whisper', 'default' )?.last_error )
       .toBe( 'Could not reach whisper-server at http://whisper.test:8178: fetch failed' )
-    expect( getHealth( 'agent', 'default' )?.last_error ).toBeNull()
+    expect( getHealth( null, 'agent', 'default' )?.last_error ).toBeNull()
   } )
 
   it( 'skips the agent when it is not configured', async () => {
@@ -139,8 +142,8 @@ describe( 'runServiceChecks', () => {
     await runServiceChecks()
 
     expect( checkHealth ).not.toHaveBeenCalled()
-    expect( getHealth( 'agent', 'default' ) ).toBeUndefined()
-    expect( getHealth( 'whisper', 'default' ) ).toBeDefined()
+    expect( getHealth( null, 'agent', 'default' ) ).toBeUndefined()
+    expect( getHealth( null, 'whisper', 'default' ) ).toBeDefined()
   } )
 
   it( 'still checks the agent when a user switched linking off', async () => {
@@ -149,7 +152,7 @@ describe( 'runServiceChecks', () => {
     await runServiceChecks()
 
     expect( checkHealth ).toHaveBeenCalled()
-    expect( getHealth( 'agent', 'default' ) ).toMatchObject( { last_error: null } )
+    expect( getHealth( null, 'agent', 'default' ) ).toMatchObject( { last_error: null } )
   } )
 
   it( 'still checks whisper-server when the agent check throws', async () => {
@@ -157,7 +160,7 @@ describe( 'runServiceChecks', () => {
 
     await runServiceChecks()
 
-    expect( getHealth( 'agent', 'default' )?.last_error ).toBe( 'boom' )
-    expect( getHealth( 'whisper', 'default' ) ).toBeDefined()
+    expect( getHealth( null, 'agent', 'default' )?.last_error ).toBe( 'boom' )
+    expect( getHealth( null, 'whisper', 'default' ) ).toBeDefined()
   } )
 } )

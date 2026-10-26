@@ -12,7 +12,7 @@ import { BackupResult } from '@mnemosyne/shared'
 // App
 import { app } from '../app.js'
 // Test support
-import { signedInRequest as request } from '../test-support/auth.js'
+import { createTestUser, signedInRequest as request } from '../test-support/auth.js'
 // Errors
 import { BackupError, ConflictError } from '../errors.js'
 // Services
@@ -56,5 +56,16 @@ describe( 'POST /api/backups', () => {
 
     expect( response.status ).toBe( 500 )
     expect( response.body ).toEqual( { error: 'Backup failed: disk full' } )
+  } )
+} )
+
+describe( 'POST /api/backups for a member', () => {
+  it( 'answers 404 and writes nothing', async () => {
+    const response = await request( app, createTestUser() ).post( '/api/backups' )
+    const unknown = await request( app, createTestUser() ).post( '/api/nope' )
+
+    expect( response.status ).toBe( 404 )
+    expect( response.body ).toEqual( unknown.body )
+    expect( runBackup ).not.toHaveBeenCalled()
   } )
 } )

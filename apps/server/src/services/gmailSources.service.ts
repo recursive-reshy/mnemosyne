@@ -567,6 +567,7 @@ const runCheck = async (
       : `Label not found in Gmail: ${ missingLabelIds.join( ', ' ) }` )
 
     recordCheck(
+      userId,
       { kind: 'gmail_source', id: source.id },
       problem === null ? { ok: true } : { ok: false, message: problem },
       now.toISOString(),

@@ -440,19 +440,19 @@ describe( 'checkSource: when something goes wrong', () => {
     vi.mocked( listMatchingIds ).mockResolvedValue( { ...idsOf(), missingLabelIds: [ 'Label_9' ] } )
     await checkSource( userId, source.id )
 
-    expect( getHealth( 'gmail_source', source.id ) ).toMatchObject( {
+    expect( getHealth( userId, 'gmail_source', source.id ) ).toMatchObject( {
       last_checked_at: NOW.toISOString(),
       last_success_at: null,
       last_error: 'Label not found in Gmail: Label_9',
       failing_since: NOW.toISOString(),
     } )
-    expect( listErrors( 'gmail_source', source.id ) )
+    expect( listErrors( userId, 'gmail_source', source.id ) )
       .toEqual( [ { at: NOW.toISOString(), message: 'Label not found in Gmail: Label_9' } ] )
 
     vi.mocked( listMatchingIds ).mockResolvedValue( idsOf() )
     await checkSource( userId, source.id )
 
-    expect( getHealth( 'gmail_source', source.id ) ).toMatchObject( {
+    expect( getHealth( userId, 'gmail_source', source.id ) ).toMatchObject( {
       last_success_at: NOW.toISOString(),
       last_error: null,
       failing_since: null,

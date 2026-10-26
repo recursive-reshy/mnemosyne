@@ -1,6 +1,7 @@
 // Packages
 import { z } from 'zod'
 // Shared
+import { AppHealthKind } from '@mnemosyne/shared'
 import type {
   GetStatusResponse,
   HealthError,
@@ -113,20 +114,21 @@ const gmailConnectionRow = (
   return toRow( subject, health, false )
 }
 
-export const getStatus = ( userId: string ): GetStatusResponse => {
+// The app's own services (agent, whisper-server, backups) show only to the admin (ADR 0065)
+export const getStatus = ( userId: string, isAdmin: boolean ): GetStatusResponse => {
   const health = new Map< string, HealthRecord >(
-    listHealth().map( ( record ) => [ `${ record.kind }:${ record.subject_id }`, record ] ),
+    listHealth( userId, isAdmin )
+      .map( ( record ) => [ `${ record.kind }:${ record.subject_id }`, record ] ),
   )
   const find = ( kind: HealthKind, id: string ): HealthRecord | undefined => {
     return health.get( `${ kind }:${ id }` )
   }
 
-  const agentOff = config.agent === null
-  const rows: StatusRow[] = [
+  const appRows: StatusRow[] = [
     toRow(
       { kind: 'agent', id: SINGLETON_ID, name: 'Agent service' },
       find( 'agent', SINGLETON_ID ),
-      agentOff,
+      config.agent === null,
     ),
     toRow(
       { kind: 'whisper', id: SINGLETON_ID, name: 'whisper-server' },
@@ -139,6 +141,9 @@ export const getStatus = ( userId: string ): GetStatusResponse => {
       false,
       describeBackup( find( 'backup', SINGLETON_ID )?.detail ?? null ),
     ),
+  ]
+  const rows: StatusRow[] = [
+    ...isAdmin ? appRows : [],
     gmailConnectionRow( userId, find( 'gmail_connection', userId ) ),
     ...listSources( userId )
       .map( ( { id, name, enabled } ) => {
@@ -158,10 +163,16 @@ export const getStatus = ( userId: string ): GetStatusResponse => {
   }
 }
 
-export const refreshStatus = async ( userId: string ): Promise< GetStatusResponse > => {
-  await runServiceChecks()
+// Only the admin's refresh runs the app's checks; a member's just reads their own rows
+export const refreshStatus = async (
+  userId: string,
+  isAdmin: boolean,
+): Promise< GetStatusResponse > => {
+  if( isAdmin ) {
+    await runServiceChecks()
+  }
 
-  return getStatus( userId )
+  return getStatus( userId, isAdmin )
 }
 
 const subjectExists = ( userId: string, kind: HealthKind, id: string ): boolean => {
@@ -182,12 +193,15 @@ const subjectExists = ( userId: string, kind: HealthKind, id: string ): boolean 
 
 export const getHealthErrors = (
   userId: string,
+  isAdmin: boolean,
   kind: HealthKind,
   id: string,
 ): HealthError[] => {
-  if( !subjectExists( userId, kind, id ) ) {
+  const isApp = AppHealthKind.safeParse( kind ).success
+
+  if( ( isApp && !isAdmin ) || !subjectExists( userId, kind, id ) ) {
     throw new NotFoundError( 'Status subject not found' )
   }
 
-  return listErrors( kind, id )
+  return listErrors( isApp ? null : userId, kind, id )
 }

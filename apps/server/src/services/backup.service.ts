@@ -5,7 +5,8 @@ import {
   rm,
   stat,
 } from 'node:fs/promises'
-import { join } from 'node:path'
+import { statSync } from 'node:fs'
+import { basename, join } from 'node:path'
 // Packages
 import Database from 'better-sqlite3'
 // Shared
@@ -56,6 +57,30 @@ export const backupName = ( date: Date ): string => `mnemosyne-${ backupStamp( d
 
 let running = false
 
+// The copies openDatabase made before it started (a database set aside, or a backup before a
+// migration) count as the latest backup; the check is recorded once the database is open.
+export const recordOpenBackups = (
+  { setAside, preMigrationBackup }: { setAside: string | null, preMigrationBackup: string | null },
+): void => {
+  for( const copy of [ setAside, preMigrationBackup ] ) {
+    if( copy === null ) {
+      continue
+    }
+
+    try {
+      const { size } = statSync( copy )
+
+      recordCheck(
+        null,
+        SUBJECT,
+        { ok: true, detail: JSON.stringify( { file: basename( copy ), bytes: size } ) },
+      )
+    } catch{
+      recordCheck( null, SUBJECT, { ok: false, message: `Could not read the backup ${ copy }` } )
+    }
+  }
+}
+
 const writeBackup = async ( dir: string, check: QuickCheck ): Promise< BackupResult > => {
   const now = new Date()
   const file = backupName( now )
@@ -97,6 +122,7 @@ export const runBackup = async (
     const result = await writeBackup( dir, check )
 
     recordCheck(
+      null,
       SUBJECT,
       { ok: true, detail: JSON.stringify( { file: result.file, bytes: result.bytes } ) },
     )
@@ -107,7 +133,7 @@ export const runBackup = async (
     const reason = error instanceof Error ? error.message : 'Unknown error'
     const message = `Backup failed: ${ reason }`
 
-    recordCheck( SUBJECT, { ok: false, message } )
+    recordCheck( null, SUBJECT, { ok: false, message } )
     logger.error( { err: error }, 'Backup failed' )
 
     throw new BackupError( message )

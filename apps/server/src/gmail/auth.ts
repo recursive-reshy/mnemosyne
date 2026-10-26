@@ -165,7 +165,7 @@ export const completeConsent = async (
     error: null,
     connected_at: new Date().toISOString(),
   } )
-  recordCheck( connectionOf( userId ), { ok: true } )
+  recordCheck( userId, connectionOf( userId ), { ok: true } )
   cached.delete( userId )
 }
 
@@ -183,7 +183,7 @@ const readToken = (
 
     logger.error( 'Gmail: the stored refresh token could not be decrypted' )
     setAccountStatus( userId, 'reconnect_needed', UNREADABLE_REASON )
-    recordCheck( connectionOf( userId ), { ok: false, message: UNREADABLE_REASON } )
+    recordCheck( userId, connectionOf( userId ), { ok: false, message: UNREADABLE_REASON } )
     throw new GmailNotConnectedError( UNREADABLE_REASON )
   }
 }
@@ -245,7 +245,7 @@ export const withGmail = async < T >(
   try {
     const result = await run( client )
 
-    recordCheck( connectionOf( userId ), { ok: true } )
+    recordCheck( userId, connectionOf( userId ), { ok: true } )
 
     return result
   } catch( error ) {
@@ -255,7 +255,7 @@ export const withGmail = async < T >(
 
     logger.warn( 'Gmail: Google rejected the stored access' )
     setAccountStatus( userId, 'reconnect_needed', REVOKED_REASON )
-    recordCheck( connectionOf( userId ), { ok: false, message: REVOKED_REASON } )
+    recordCheck( userId, connectionOf( userId ), { ok: false, message: REVOKED_REASON } )
     cached.delete( userId )
     throw new GmailAuthError( REVOKED_REASON )
   }
@@ -277,6 +277,6 @@ export const disconnect = async ( userId: string ): Promise< void > => {
   }
 
   deleteAccount( userId )
-  deleteHealth( 'gmail_connection', userId )
+  deleteHealth( userId, 'gmail_connection', userId )
   cached.delete( userId )
 }

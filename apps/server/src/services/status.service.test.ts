@@ -90,7 +90,8 @@ const rowOf = (
   kind: string,
   id = kind === 'gmail_connection' ? userId : 'default',
 ): StatusRow => {
-  const row = getStatus( userId ).rows.find( ( found ) => found.kind === kind && found.id === id )
+  const row = getStatus( userId, true )
+    .rows.find( ( found ) => found.kind === kind && found.id === id )
 
   if( row === undefined ) {
     throw new Error( `No ${ kind } row` )
@@ -107,16 +108,17 @@ beforeEach( () => {
 
 describe( 'getStatus', () => {
   it( 'has the singleton rows even when nothing was ever checked', () => {
-    const { rows, failing_count } = getStatus( userId )
+    const { rows, failing_count } = getStatus( userId, true )
 
     expect( rows.map( ( { kind } ) => kind ) )
       .toEqual( [ 'agent', 'whisper', 'backup', 'gmail_connection' ] )
     expect( failing_count ).toBe( 0 )
-    expect( GetStatusResponse.parse( getStatus( userId ) ) ).toEqual( getStatus( userId ) )
+    expect( GetStatusResponse.parse( getStatus( userId, true ) ) )
+      .toEqual( getStatus( userId, true ) )
   } )
 
   it( 'names the singletons', () => {
-    expect( getStatus( userId ).rows.map( ( { name } ) => name ) )
+    expect( getStatus( userId, true ).rows.map( ( { name } ) => name ) )
       .toEqual( [ 'Agent service', 'whisper-server', 'Backups', 'Gmail connection' ] )
   } )
 
@@ -135,8 +137,8 @@ describe( 'getStatus', () => {
   } )
 
   it( 'is failing with the error and the times when a check failed', () => {
-    recordSuccess( 'whisper', 'default', at( 1 ) )
-    recordFailure( 'whisper', 'default', at( 2 ), 'Could not reach whisper-server' )
+    recordSuccess( null, 'whisper', 'default', at( 1 ) )
+    recordFailure( null, 'whisper', 'default', at( 2 ), 'Could not reach whisper-server' )
 
     expect( rowOf( 'whisper' ) ).toMatchObject( {
       state: 'failing',
@@ -145,7 +147,7 @@ describe( 'getStatus', () => {
       last_error: 'Could not reach whisper-server',
       failing_since: at( 2 ),
     } )
-    expect( getStatus( userId ).failing_count ).toBe( 1 )
+    expect( getStatus( userId, true ).failing_count ).toBe( 1 )
   } )
 
   it( 'never marks whisper-server off', () => {
@@ -163,15 +165,15 @@ describe( 'getStatus', () => {
     } )
 
     it( 'does not follow a user\'s linking switch: it is an app check', () => {
-      recordFailure( 'agent', 'default', at( 1 ), 'down' )
+      recordFailure( null, 'agent', 'default', at( 1 ), 'down' )
       setSetting( userId, 'linking_enabled', false )
 
       expect( rowOf( 'agent' ) ).toMatchObject( { state: 'failing', last_error: 'down' } )
-      expect( getStatus( userId ).failing_count ).toBe( 1 )
+      expect( getStatus( userId, true ).failing_count ).toBe( 1 )
     } )
 
     it( 'is failing when its check failed and linking is on', () => {
-      recordFailure( 'agent', 'default', at( 1 ), 'The agent service is not reachable' )
+      recordFailure( null, 'agent', 'default', at( 1 ), 'The agent service is not reachable' )
 
       expect( rowOf( 'agent' ) ).toMatchObject( { state: 'failing' } )
     } )
@@ -202,13 +204,13 @@ describe( 'getStatus', () => {
         state: 'failing',
         last_error: 'Google no longer accepts the access',
       } )
-      expect( getStatus( userId ).failing_count ).toBe( 1 )
+      expect( getStatus( userId, true ).failing_count ).toBe( 1 )
     } )
 
     it( 'prefers the health error when there is one', () => {
       connectGmail()
       setAccountStatus( userId, 'reconnect_needed', 'from the account' )
-      recordFailure( 'gmail_connection', userId, at( 3 ), 'from the check' )
+      recordFailure( userId, 'gmail_connection', userId, at( 3 ), 'from the check' )
 
       expect( rowOf( 'gmail_connection' ).last_error ).toBe( 'from the check' )
     } )
@@ -222,6 +224,7 @@ describe( 'getStatus', () => {
 
     it( 'shows the file and size of the last backup', () => {
       recordSuccess(
+        null,
         'backup',
         'default',
         at( 5 ),
@@ -236,16 +239,34 @@ describe( 'getStatus', () => {
     } )
 
     it( 'formats small sizes in bytes and KB', () => {
-      recordSuccess( 'backup', 'default', at( 1 ), JSON.stringify( { file: 'a.db', bytes: 900 } ) )
+      recordSuccess(
+        null,
+        'backup',
+        'default',
+        at( 1 ),
+        JSON.stringify( { file: 'a.db', bytes: 900 } ),
+      )
       expect( rowOf( 'backup' ).detail ).toBe( 'a.db, 900 B' )
 
-      recordSuccess( 'backup', 'default', at( 2 ), JSON.stringify( { file: 'a.db', bytes: 2048 } ) )
+      recordSuccess(
+        null,
+        'backup',
+        'default',
+        at( 2 ),
+        JSON.stringify( { file: 'a.db', bytes: 2048 } ),
+      )
       expect( rowOf( 'backup' ).detail ).toBe( 'a.db, 2.0 KB' )
     } )
 
     it( 'is failing after a failed backup but still shows the last good one', () => {
-      recordSuccess( 'backup', 'default', at( 1 ), JSON.stringify( { file: 'a.db', bytes: 900 } ) )
-      recordFailure( 'backup', 'default', at( 2 ), 'disk full' )
+      recordSuccess(
+        null,
+        'backup',
+        'default',
+        at( 1 ),
+        JSON.stringify( { file: 'a.db', bytes: 900 } ),
+      )
+      recordFailure( null, 'backup', 'default', at( 2 ), 'disk full' )
 
       expect( rowOf( 'backup' ) ).toMatchObject( {
         state: 'failing',
@@ -255,7 +276,7 @@ describe( 'getStatus', () => {
     } )
 
     it( 'shows a detail that is not JSON as it is', () => {
-      recordSuccess( 'backup', 'default', at( 1 ), 'whatever' )
+      recordSuccess( null, 'backup', 'default', at( 1 ), 'whatever' )
 
       expect( rowOf( 'backup' ).detail ).toBe( 'whatever' )
     } )
@@ -266,7 +287,7 @@ describe( 'getStatus', () => {
       const feed = buildFeed( { name: 'My blog' } )
 
       insertFeed( userId, feed )
-      recordSuccess( 'feed', feed.id, at( 4 ) )
+      recordSuccess( userId, 'feed', feed.id, at( 4 ) )
 
       expect( rowOf( 'feed', feed.id ) ).toEqual( {
         kind: 'feed',
@@ -297,7 +318,7 @@ describe( 'getStatus', () => {
       const feed = buildFeed()
 
       insertFeed( userId, feed )
-      recordFailure( 'feed', feed.id, at( 4 ), 'The site answered 500' )
+      recordFailure( userId, 'feed', feed.id, at( 4 ), 'The site answered 500' )
 
       expect( rowOf( 'feed', feed.id ) ).toMatchObject( {
         state: 'failing',
@@ -311,19 +332,20 @@ describe( 'getStatus', () => {
       const source = addStoredSource( userId, { enabled: false } )
 
       insertFeed( userId, feed )
-      recordFailure( 'feed', feed.id, at( 1 ), 'x' )
-      recordFailure( 'gmail_source', source.id, at( 1 ), 'y' )
+      recordFailure( userId, 'feed', feed.id, at( 1 ), 'x' )
+      recordFailure( userId, 'gmail_source', source.id, at( 1 ), 'y' )
 
       expect( rowOf( 'feed', feed.id ) ).toMatchObject( { state: 'off', last_error: null } )
       expect( rowOf( 'gmail_source', source.id ) )
         .toMatchObject( { state: 'off', last_error: null } )
-      expect( getStatus( userId ).failing_count ).toBe( 0 )
+      expect( getStatus( userId, true ).failing_count ).toBe( 0 )
     } )
 
     it( 'leaves out deleted feeds and sources', () => {
       insertFeed( userId, buildFeed( { deleted_at: at( 9 ) } ) )
 
-      expect( getStatus( userId ).rows.filter( ( { kind } ) => kind === 'feed' ) ).toEqual( [] )
+      expect( getStatus( userId, true ).rows.filter( ( { kind } ) => kind === 'feed' ) )
+        .toEqual( [] )
     } )
 
     it( 'orders services, backup, connection, Gmail sources, then feeds, each by name', () => {
@@ -332,7 +354,7 @@ describe( 'getStatus', () => {
       addStoredSource( userId, { name: 'Beta alerts' } )
       addStoredSource( userId, { name: 'alpha alerts' } )
 
-      expect( getStatus( userId ).rows.map( ( { kind, name } ) => `${ kind }:${ name }` ) )
+      expect( getStatus( userId, true ).rows.map( ( { kind, name } ) => `${ kind }:${ name }` ) )
         .toEqual( [
           'agent:Agent service',
           'whisper:whisper-server',
@@ -350,11 +372,11 @@ describe( 'getStatus', () => {
       const source = addStoredSource( userId )
 
       insertFeed( userId, feed )
-      recordFailure( 'feed', feed.id, at( 1 ), 'a' )
-      recordFailure( 'gmail_source', source.id, at( 1 ), 'b' )
-      recordFailure( 'whisper', 'default', at( 1 ), 'c' )
+      recordFailure( userId, 'feed', feed.id, at( 1 ), 'a' )
+      recordFailure( userId, 'gmail_source', source.id, at( 1 ), 'b' )
+      recordFailure( null, 'whisper', 'default', at( 1 ), 'c' )
 
-      expect( getStatus( userId ).failing_count ).toBe( 3 )
+      expect( getStatus( userId, true ).failing_count ).toBe( 3 )
     } )
   } )
 } )
@@ -362,12 +384,12 @@ describe( 'getStatus', () => {
 describe( 'refreshStatus', () => {
   it( 'runs the service checks once and then returns the status', async () => {
     vi.mocked( runServiceChecks ).mockImplementation( () => {
-      recordFailure( 'whisper', 'default', at( 7 ), 'down' )
+      recordFailure( null, 'whisper', 'default', at( 7 ), 'down' )
 
       return Promise.resolve()
     } )
 
-    const status = await refreshStatus( userId )
+    const status = await refreshStatus( userId, true )
 
     expect( runServiceChecks ).toHaveBeenCalledTimes( 1 )
     expect( status.rows.find( ( { kind } ) => kind === 'whisper' )?.state ).toBe( 'failing' )
@@ -380,10 +402,10 @@ describe( 'getHealthErrors', () => {
     const feed = buildFeed()
 
     insertFeed( userId, feed )
-    recordFailure( 'feed', feed.id, at( 1 ), 'first' )
-    recordFailure( 'feed', feed.id, at( 2 ), 'second' )
+    recordFailure( userId, 'feed', feed.id, at( 1 ), 'first' )
+    recordFailure( userId, 'feed', feed.id, at( 2 ), 'second' )
 
-    expect( getHealthErrors( userId, 'feed', feed.id ) ).toEqual( [
+    expect( getHealthErrors( userId, true, 'feed', feed.id ) ).toEqual( [
       { at: at( 2 ), message: 'second' },
       { at: at( 1 ), message: 'first' },
     ] )
@@ -392,8 +414,8 @@ describe( 'getHealthErrors', () => {
   it( 'returns an empty list for a live subject with no errors', () => {
     const source = addStoredSource( userId )
 
-    expect( getHealthErrors( userId, 'gmail_source', source.id ) ).toEqual( [] )
-    expect( getHealthErrors( userId, 'whisper', 'default' ) ).toEqual( [] )
+    expect( getHealthErrors( userId, true, 'gmail_source', source.id ) ).toEqual( [] )
+    expect( getHealthErrors( userId, true, 'whisper', 'default' ) ).toEqual( [] )
   } )
 
   it( 'refuses a feed or source that is unknown or deleted', () => {
@@ -401,14 +423,14 @@ describe( 'getHealthErrors', () => {
 
     insertFeed( userId, feed )
 
-    expect( () => getHealthErrors( userId, 'feed', feed.id ) ).toThrow( NotFoundError )
-    expect( () => getHealthErrors( userId, 'feed', 'nope' ) ).toThrow( NotFoundError )
-    expect( () => getHealthErrors( userId, 'gmail_source', 'nope' ) ).toThrow( NotFoundError )
+    expect( () => getHealthErrors( userId, true, 'feed', feed.id ) ).toThrow( NotFoundError )
+    expect( () => getHealthErrors( userId, true, 'feed', 'nope' ) ).toThrow( NotFoundError )
+    expect( () => getHealthErrors( userId, true, 'gmail_source', 'nope' ) ).toThrow( NotFoundError )
   } )
 
   it( 'refuses a singleton with any id but default', () => {
-    expect( () => getHealthErrors( userId, 'agent', 'other' ) ).toThrow( NotFoundError )
-    expect( () => getHealthErrors( userId, 'backup', 'x' ) ).toThrow( NotFoundError )
+    expect( () => getHealthErrors( userId, true, 'agent', 'other' ) ).toThrow( NotFoundError )
+    expect( () => getHealthErrors( userId, true, 'backup', 'x' ) ).toThrow( NotFoundError )
   } )
 } )
 
@@ -421,19 +443,13 @@ describe( 'getStatus for two users', () => {
     addStoredSource( other, { name: 'Their source' } )
     connectGmail()
 
-    const mine = getStatus( userId ).rows
-    const theirs = getStatus( other ).rows
+    const mine = getStatus( userId, true ).rows
+    const theirs = getStatus( other, false ).rows
 
     expect( mine.map( ( { name } ) => name ) )
       .toEqual( [ 'Agent service', 'whisper-server', 'Backups', 'Gmail connection', 'Mine' ] )
-    expect( theirs.map( ( { name } ) => name ) ).toEqual( [
-      'Agent service',
-      'whisper-server',
-      'Backups',
-      'Gmail connection',
-      'Their source',
-      'Theirs',
-    ] )
+    expect( theirs.map( ( { name } ) => name ) )
+      .toEqual( [ 'Gmail connection', 'Their source', 'Theirs' ] )
     expect( mine.find( ( { kind } ) => kind === 'gmail_connection' ) )
       .toMatchObject( { id: userId, state: 'ok' } )
     expect( theirs.find( ( { kind } ) => kind === 'gmail_connection' ) )
@@ -446,9 +462,57 @@ describe( 'getStatus for two users', () => {
 
     insertFeed( other, feed )
 
-    expect( () => getHealthErrors( userId, 'feed', feed.id ) ).toThrow( NotFoundError )
-    expect( () => getHealthErrors( userId, 'gmail_connection', other ) ).toThrow( NotFoundError )
-    expect( getHealthErrors( other, 'feed', feed.id ) ).toEqual( [] )
-    expect( getHealthErrors( other, 'gmail_connection', other ) ).toEqual( [] )
+    expect( () => getHealthErrors( userId, true, 'feed', feed.id ) ).toThrow( NotFoundError )
+    expect( () => getHealthErrors( userId, true, 'gmail_connection', other ) )
+      .toThrow( NotFoundError )
+    expect( getHealthErrors( other, false, 'feed', feed.id ) ).toEqual( [] )
+    expect( getHealthErrors( other, false, 'gmail_connection', other ) ).toEqual( [] )
+  } )
+} )
+
+describe( 'the app rows belong to the admin', () => {
+  it( 'hides the agent, whisper-server and backups from a member, and their failures', () => {
+    const member = createTestUser().id
+
+    recordFailure( null, 'whisper', 'default', at( 1 ), 'down' )
+
+    expect( getStatus( member, false ).rows.map( ( { kind } ) => kind ) )
+      .toEqual( [ 'gmail_connection' ] )
+    expect( getStatus( member, false ).failing_count ).toBe( 0 )
+    expect( getStatus( userId, true ).failing_count ).toBe( 1 )
+  } )
+
+  it( 'counts only the failures the caller can see', () => {
+    const member = createTestUser().id
+
+    insertFeed( member, buildFeed( { name: 'Theirs' } ) )
+    insertFeed( userId, buildFeed( { name: 'Mine' } ) )
+    recordFailure( member, 'feed', getStatus( member, false ).rows[ 1 ]?.id ?? '', at( 1 ), 'x' )
+
+    expect( getStatus( member, false ).failing_count ).toBe( 1 )
+    expect( getStatus( userId, true ).failing_count ).toBe( 0 )
+  } )
+
+  it( 'runs the app checks only when the admin refreshes', async () => {
+    const member = createTestUser().id
+
+    await refreshStatus( member, false )
+
+    expect( runServiceChecks ).not.toHaveBeenCalled()
+
+    await refreshStatus( userId, true )
+
+    expect( runServiceChecks ).toHaveBeenCalledOnce()
+  } )
+
+  it( 'gives a member nothing about an app subject, and the admin its history', () => {
+    const member = createTestUser().id
+
+    recordFailure( null, 'agent', 'default', at( 1 ), 'down' )
+
+    expect( () => getHealthErrors( member, false, 'agent', 'default' ) ).toThrow( NotFoundError )
+    expect( () => getHealthErrors( member, false, 'backup', 'default' ) ).toThrow( NotFoundError )
+    expect( getHealthErrors( userId, true, 'agent', 'default' ) )
+      .toEqual( [ { at: at( 1 ), message: 'down' } ] )
   } )
 } )

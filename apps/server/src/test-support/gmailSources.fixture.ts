@@ -56,7 +56,7 @@ export const addStoredSource = (
   const source = buildStoredSource( overrides )
 
   insertSource( userId, source )
-  seedCheck( 'gmail_source', source.id, source.last_checked_at, source.last_error )
+  seedCheck( userId, 'gmail_source', source.id, source.last_checked_at, source.last_error )
 
   return source
 }

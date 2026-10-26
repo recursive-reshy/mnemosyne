@@ -11,7 +11,7 @@ import { GetHealthErrorsResponse, GetStatusResponse } from '@mnemosyne/shared'
 // App
 import { app } from '../app.js'
 // Test support
-import { signedInRequest as request } from '../test-support/auth.js'
+import { createTestUser, signedInRequest as request } from '../test-support/auth.js'
 // Repositories
 import { insertFeed } from '../repositories/feeds.repository.js'
 import { recordFailure } from '../repositories/health.repository.js'
@@ -63,7 +63,7 @@ beforeEach( () => {
 describe( 'GET /api/status', () => {
   it( 'returns rows and the failing count in the shared shape', async () => {
     addFeed()
-    recordFailure( 'feed', feedId, at( 1 ), 'The site answered 500' )
+    recordFailure( userId, 'feed', feedId, at( 1 ), 'The site answered 500' )
 
     const response = await request( app ).get( '/api/status' )
     const body = GetStatusResponse.parse( response.body )
@@ -88,7 +88,7 @@ describe( 'GET /api/status', () => {
 describe( 'POST /api/status/refresh', () => {
   it( 'runs the service checks once and returns the status', async () => {
     vi.mocked( runServiceChecks ).mockImplementation( () => {
-      recordFailure( 'whisper', 'default', at( 2 ), 'down' )
+      recordFailure( null, 'whisper', 'default', at( 2 ), 'down' )
 
       return Promise.resolve()
     } )
@@ -106,8 +106,8 @@ describe( 'POST /api/status/refresh', () => {
 describe( 'GET /api/status/:kind/:id/errors', () => {
   it( 'returns the errors newest first', async () => {
     addFeed()
-    recordFailure( 'feed', feedId, at( 1 ), 'first' )
-    recordFailure( 'feed', feedId, at( 2 ), 'second' )
+    recordFailure( userId, 'feed', feedId, at( 1 ), 'first' )
+    recordFailure( userId, 'feed', feedId, at( 2 ), 'second' )
 
     const response = await request( app ).get( `/api/status/feed/${ feedId }/errors` )
 
@@ -120,7 +120,7 @@ describe( 'GET /api/status/:kind/:id/errors', () => {
 
   it( 'keeps only the last 5', async () => {
     for( let minute = 1; minute <= 8; minute += 1 ) {
-      recordFailure( 'whisper', 'default', at( minute ), `error ${ minute }` )
+      recordFailure( null, 'whisper', 'default', at( minute ), `error ${ minute }` )
     }
 
     const response = await request( app ).get( '/api/status/whisper/default/errors' )
@@ -140,5 +140,53 @@ describe( 'GET /api/status/:kind/:id/errors', () => {
 
     expect( feed.status ).toBe( 404 )
     expect( singleton.status ).toBe( 404 )
+  } )
+} )
+
+describe( 'the status of a member', () => {
+  it( 'shows only the member\'s own rows', async () => {
+    const member = createTestUser()
+
+    addFeed()
+    recordFailure( null, 'whisper', 'default', at( 1 ), 'down' )
+
+    const response = await request( app, member ).get( '/api/status' )
+    const body = GetStatusResponse.parse( response.body )
+
+    expect( response.status ).toBe( 200 )
+    expect( body.rows.map( ( { kind } ) => kind ) ).toEqual( [ 'gmail_connection' ] )
+    expect( body.failing_count ).toBe( 0 )
+  } )
+
+  it( 'refreshes nothing of the app and answers with the member\'s rows', async () => {
+    const response = await request( app, createTestUser() ).post( '/api/status/refresh' ).send( {} )
+
+    expect( response.status ).toBe( 200 )
+    expect( runServiceChecks ).not.toHaveBeenCalled()
+    expect( GetStatusResponse.parse( response.body ).rows.map( ( { kind } ) => kind ) )
+      .toEqual( [ 'gmail_connection' ] )
+  } )
+
+  it( 'gets 404 for the error history of an app service, as for an unknown subject', async () => {
+    const member = createTestUser()
+
+    recordFailure( null, 'whisper', 'default', at( 1 ), 'down' )
+
+    const app404 = await request( app, member ).get( '/api/status/whisper/default/errors' )
+    const unknown = await request( app, member ).get( '/api/status/whisper/other/errors' )
+    const admin = await request( app ).get( '/api/status/whisper/default/errors' )
+
+    expect( app404.status ).toBe( 404 )
+    expect( app404.body ).toEqual( unknown.body )
+    expect( GetHealthErrorsResponse.parse( admin.body ).errors ).toHaveLength( 1 )
+  } )
+
+  it( 'shows the admin the app rows and the admin\'s own', async () => {
+    addFeed()
+
+    const response = await request( app ).get( '/api/status' )
+
+    expect( GetStatusResponse.parse( response.body ).rows.map( ( { kind } ) => kind ) )
+      .toEqual( [ 'agent', 'whisper', 'backup', 'gmail_connection', 'feed' ] )
   } )
 } )

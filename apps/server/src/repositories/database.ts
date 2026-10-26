@@ -280,6 +280,7 @@ CREATE TABLE link_suggestions (
 CREATE INDEX link_suggestions_job ON link_suggestions ( job_id, status, position );
 
 CREATE TABLE health_status (
+  user_id TEXT REFERENCES users ( id ) ON DELETE CASCADE,
   kind TEXT NOT NULL,
   subject_id TEXT NOT NULL,
   last_checked_at TEXT,
@@ -287,15 +288,18 @@ CREATE TABLE health_status (
   last_error TEXT,
   failing_since TEXT,
   detail TEXT,
-  PRIMARY KEY ( kind, subject_id )
+  PRIMARY KEY ( kind, subject_id ),
+  CHECK ( ( kind IN ( 'agent', 'whisper', 'backup' ) ) = ( user_id IS NULL ) )
 );
 
 CREATE TABLE health_errors (
   id INTEGER PRIMARY KEY,
+  user_id TEXT REFERENCES users ( id ) ON DELETE CASCADE,
   kind TEXT NOT NULL,
   subject_id TEXT NOT NULL,
   at TEXT NOT NULL,
-  message TEXT NOT NULL
+  message TEXT NOT NULL,
+  CHECK ( ( kind IN ( 'agent', 'whisper', 'backup' ) ) = ( user_id IS NULL ) )
 );
 CREATE INDEX health_errors_subject ON health_errors ( kind, subject_id, at );
 
