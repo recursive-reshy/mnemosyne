@@ -32,13 +32,8 @@ const EXEMPT = [ 'system', 'users', 'sessions', 'appSettings' ]
 
 // Data repositories whose functions don't yet take `userId` first. Each Phase 4 task removes its
 // repositories from this list; task 4.6 un-skips the test that needs it empty.
-const UNCONVERTED = [
-  'meleteNotes',
-  'meleteQuestions',
-  'meleteReviews',
-  'meleteRuns',
-  'meleteSubjects',
-]
+// Empty since task 4.5; task 4.6 deletes it with the 'has no unconverted' test
+const UNCONVERTED: string[] = []
 
 type AnyFunction = ( ...args: never[] ) => unknown
 

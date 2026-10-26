@@ -1,7 +1,7 @@
 // Services
 import { generateForNote } from '../services/meleteGeneration.service.js'
 // Repositories
-import { claimNextQueued, requeueGenerating } from '../repositories/meleteNotes.repository.js'
+import { claimNextGeneration, requeueGenerating } from '../repositories/system.repository.js'
 // Logging
 import { logger } from '../logger.js'
 import { withLogContext } from '../logContext.js'
@@ -25,15 +25,18 @@ export const startMeleteGenerator = (): ( () => Promise< void > ) => {
     try {
       // Claiming marks the note generating, so never claim one that won't be run
       while( !stopped ) {
-        const note = claimNextQueued()
+        const note = claimNextGeneration()
 
         if( note === undefined ) {
           break
         }
 
-        const { id } = note
+        const { id, user_id: userId } = note
 
-        await withLogContext( { melete_note_id: id }, () => generateForNote( id ) )
+        await withLogContext(
+          { melete_note_id: id, user_id: userId },
+          () => generateForNote( userId, id ),
+        )
       }
     } catch( error ) {
       logger.error( { err: error }, 'Melete generator pass failed' )

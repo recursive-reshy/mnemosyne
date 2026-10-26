@@ -60,7 +60,7 @@ const scanned = async (): Promise< void > => {
 }
 
 const subject = ( name: string ) => {
-  const found = listSubjects().find( ( { folder } ) => folder === `Learning/${ name }` )
+  const found = listSubjects( userId ).find( ( { folder } ) => folder === `Learning/${ name }` )
 
   if( found === undefined ) {
     throw new Error( `No subject ${ name }` )
@@ -70,7 +70,7 @@ const subject = ( name: string ) => {
 }
 
 const note = ( path: string ) => {
-  const found = listNotesUnder( 'Learning' ).find( ( candidate ) => {
+  const found = listNotesUnder( userId, 'Learning' ).find( ( candidate ) => {
     return candidate.path === `Learning/${ path }`
   } )
 
@@ -236,7 +236,7 @@ describe( 'the note routes', () => {
   it( 'GET returns the note and its questions', async () => {
     await scanned()
     const { id } = note( GENERICS )
-    addQuestion( id )
+    addQuestion( userId, id )
 
     const response = await request( app ).get( `/api/melete/notes/${ id }` )
     const body = GetMeleteNoteResponse.parse( response.body )
@@ -275,14 +275,14 @@ describe( 'the note routes', () => {
     await scanned()
     const { id } = note( GENERICS )
     await request( app ).patch( `/api/melete/notes/${ id }` ).send( { enrolled: true } )
-    updateNote( id, { generation: 'idle' } )
-    const questionId = addQuestion( id )
+    updateNote( userId, id, { generation: 'idle' } )
+    const questionId = addQuestion( userId, id )
 
     const response = await request( app ).post( `/api/melete/notes/${ id }/regenerate` )
 
     expect( response.status ).toBe( 202 )
     expect( GetMeleteNoteResponse.parse( response.body ).note.generation ).toBe( 'queued' )
-    expect( findQuestion( questionId )?.state ).toBe( 'retired' )
+    expect( findQuestion( userId, questionId )?.state ).toBe( 'retired' )
   } )
 
   it( 'POST regenerate returns 409 for a note that is not enrolled or already queued', async () => {
@@ -302,7 +302,7 @@ describe( 'the note routes', () => {
     const { id } = note( GENERICS )
 
     const idle = await request( app ).post( `/api/melete/notes/${ id }/retry` )
-    updateNote( id, { generation: 'failed', generation_error: 'Too long' } )
+    updateNote( userId, id, { generation: 'failed', generation_error: 'Too long' } )
     const failed = await request( app ).post( `/api/melete/notes/${ id }/retry` )
 
     expect( idle.status ).toBe( 409 )
@@ -332,7 +332,7 @@ describe( 'the note routes', () => {
 describe( 'POST /api/melete/questions/:id/drop', () => {
   it( 'drops an active question', async () => {
     await scanned()
-    const questionId = addQuestion( note( GENERICS ).id )
+    const questionId = addQuestion( userId, note( GENERICS ).id )
 
     const response = await request( app ).post( `/api/melete/questions/${ questionId }/drop` )
 
@@ -343,7 +343,7 @@ describe( 'POST /api/melete/questions/:id/drop', () => {
 
   it( 'returns 409 for a question that is already dropped', async () => {
     await scanned()
-    const questionId = addQuestion( note( GENERICS ).id, { state: 'dropped' } )
+    const questionId = addQuestion( userId, note( GENERICS ).id, { state: 'dropped' } )
 
     expect( ( await request( app ).post( `/api/melete/questions/${ questionId }/drop` ) ).status )
       .toBe( 409 )
@@ -377,7 +377,7 @@ const dueQuestion = async (): Promise< string > => {
     .post( `/api/melete/subjects/${ subject( 'TypeScript' ).id }/enrollment` )
     .send( { enrolled: true } )
 
-  return addQuestion( note( GENERICS ).id, { fsrsState: 'review', due: PAST } )
+  return addQuestion( userId, note( GENERICS ).id, { fsrsState: 'review', due: PAST } )
 }
 
 describe( 'GET /api/melete/review/next', () => {
@@ -550,7 +550,7 @@ describe( 'POST /api/melete/questions/:id/review', () => {
     expect( body.question ).toMatchObject( { id, reps: 1 } )
     expect( body.question.due !== PAST ).toBe( true )
     expect( body.counts.due ).toBe( 0 )
-    expect( findQuestion( id )?.reps ).toBe( 1 )
+    expect( findQuestion( userId, id )?.reps ).toBe( 1 )
   } )
 
   it( 'answers 400 for a bad rating, mode, grade run or id, changing nothing', async () => {
@@ -562,7 +562,7 @@ describe( 'POST /api/melete/questions/:id/review', () => {
     expect( ( await rate( id, { rating: 'good', mode: 'typed', grade_run_id: 9999 } ) ).status )
       .toBe( 400 )
     expect( ( await rate( 'nope', { rating: 'good', mode: 'quick' } ) ).status ).toBe( 400 )
-    expect( findQuestion( id )?.reps ).toBe( 0 )
+    expect( findQuestion( userId, id )?.reps ).toBe( 0 )
   } )
 
   it( 'answers 404 for an unknown question and 409 for a dropped one', async () => {

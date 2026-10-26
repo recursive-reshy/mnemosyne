@@ -14,13 +14,8 @@ const HEALTH_TABLES = [ 'health_status', 'health_errors' ]
 
 // Data tables that don't yet carry `user_id`. Each Phase 4 task removes its tables from this
 // list as it adds the column (ADR 0062); task 4.6 un-skips the test that needs it empty.
-const UNCONVERTED = [
-  'melete_subjects',
-  'melete_notes',
-  'melete_questions',
-  'melete_reviews',
-  'melete_runs',
-]
+// Empty since task 4.5; task 4.6 deletes it with the 'has no unconverted' test
+const UNCONVERTED: string[] = []
 
 type Column = { name: string, notnull: number }
 type ForeignKey = { table: string, from: string, to: string, on_delete: string }

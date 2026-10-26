@@ -36,7 +36,7 @@ import {
   createMeleteVault,
 } from '../test-support/meleteVault.fixture.js'
 // Test support
-import { defaultTestAdmin } from '../test-support/auth.js'
+import { createTestUser, defaultTestAdmin } from '../test-support/auth.js'
 
 let userId = ''
 
@@ -65,9 +65,9 @@ const at = ( seconds: number ): Date => new Date( T0.getTime() + seconds * 1000 
 
 let vault: MeleteVault
 
-const scan = ( seconds = 0 ) => scanLearningRoot( { force: true, now: at( seconds ) } )
+const scan = ( seconds = 0 ) => scanLearningRoot( userId, { force: true, now: at( seconds ) } )
 
-const notes = () => listNotesUnder( 'Learning' )
+const notes = () => listNotesUnder( userId, 'Learning' )
 
 const noteAt = ( path: string ) => {
   const found = notes().find( ( note ) => note.path === path && note.missing_at === null )
@@ -80,7 +80,7 @@ const noteAt = ( path: string ) => {
 }
 
 const subjectId = ( folder: string ): string => {
-  const found = listSubjects().find( ( subject ) => subject.folder === folder )
+  const found = listSubjects( userId ).find( ( subject ) => subject.folder === folder )
 
   if( found === undefined ) {
     throw new Error( `No subject ${ folder }` )
@@ -89,7 +89,7 @@ const subjectId = ( folder: string ): string => {
   return found.id
 }
 
-const enroll = ( ...ids: string[] ): void => setEnrolled( ids, true, T0.toISOString() )
+const enroll = ( ...ids: string[] ): void => setEnrolled( userId, ids, true, T0.toISOString() )
 
 const snapshot = async ( root: string ): Promise< string[] > => {
   const names = await readdir( root, { recursive: true } )
@@ -118,7 +118,7 @@ describe( 'the first scan', () => {
   it( 'stores a subject per folder and a note per Markdown file', async () => {
     await scan()
 
-    expect( listSubjects().map( ( { folder } ) => folder ) )
+    expect( listSubjects( userId ).map( ( { folder } ) => folder ) )
       .toEqual( [ 'Learning/Rust', 'Learning/TypeScript' ] )
     expect( notes().map( ( { path } ) => path ) ).toEqual( [
       'Learning/Rust/Ownership.md',
@@ -156,7 +156,7 @@ describe( 'the first scan', () => {
     expect( paths ).not.toContain( 'Learning/TypeScript/Leak.md' )
     expect( paths.some( ( path ) => path.includes( '.trash' ) || path.includes( '.hidden' ) ) )
       .toBe( false )
-    expect( listNotesUnder( 'Inbox' ) ).toEqual( [] )
+    expect( listNotesUnder( userId, 'Inbox' ) ).toEqual( [] )
   } )
 
   it( 'writes nothing to the vault', async () => {
@@ -198,8 +198,8 @@ describe( 'a changed note', () => {
     await scan()
     const note = noteAt( 'Learning/Rust/Ownership.md' )
     enroll( note.id )
-    updateNote( note.id, { generation_error: 'old failure' } )
-    const questionId = addQuestion( note.id )
+    updateNote( userId, note.id, { generation_error: 'old failure' } )
+    const questionId = addQuestion( userId, note.id )
 
     await vault.write( 'Learning/Rust/Ownership.md', `${ OWNERSHIP_NOTE }\nBorrowing too.\n` )
     await scan( 1 )
@@ -208,20 +208,20 @@ describe( 'a changed note', () => {
 
     expect( changed ).toMatchObject( { generation: 'queued', generation_error: null } )
     expect( changed.body_hash ).not.toBe( note.body_hash )
-    expect( listForNote( note.id ).find( ( { id } ) => id === questionId ) ).toBeUndefined()
+    expect( listForNote( userId, note.id ).find( ( { id } ) => id === questionId ) ).toBeUndefined()
   } )
 
   it( 'only updates the hash of a note that is not enrolled', async () => {
     await scan()
     const note = noteAt( 'Learning/Rust/Ownership.md' )
-    const questionId = addQuestion( note.id )
+    const questionId = addQuestion( userId, note.id )
 
     await vault.write( 'Learning/Rust/Ownership.md', `${ OWNERSHIP_NOTE }\nBorrowing too.\n` )
     await scan( 1 )
 
     expect( noteAt( 'Learning/Rust/Ownership.md' ) ).toMatchObject( { generation: 'idle' } )
     expect( noteAt( 'Learning/Rust/Ownership.md' ).body_hash ).not.toBe( note.body_hash )
-    expect( listForNote( note.id ).map( ( { id, state } ) => [ id, state ] ) )
+    expect( listForNote( userId, note.id ).map( ( { id, state } ) => [ id, state ] ) )
       .toEqual( [ [ questionId, 'active' ] ] )
   } )
 
@@ -229,8 +229,8 @@ describe( 'a changed note', () => {
     await scan()
     const note = noteAt( 'Learning/TypeScript/Generics.md' )
     enroll( note.id )
-    updateNote( note.id, { generation: 'idle' } )
-    addQuestion( note.id )
+    updateNote( userId, note.id, { generation: 'idle' } )
+    addQuestion( userId, note.id )
 
     await vault.write(
       'Learning/TypeScript/Generics.md',
@@ -245,7 +245,7 @@ describe( 'a changed note', () => {
       body_hash: note.body_hash,
       generation: 'idle',
     } )
-    expect( listForNote( note.id ) ).toHaveLength( 1 )
+    expect( listForNote( userId, note.id ) ).toHaveLength( 1 )
   } )
 } )
 
@@ -253,14 +253,14 @@ describe( 'a moved note', () => {
   it( 'keeps its id and questions when it moves within a subject', async () => {
     await scan()
     const note = noteAt( 'Learning/TypeScript/Generics.md' )
-    addQuestion( note.id )
+    addQuestion( userId, note.id )
 
     await vault.move( 'Learning/TypeScript/Generics.md', 'Learning/TypeScript/Deep/Generics.md' )
     await scan( 1 )
 
     expect( noteAt( 'Learning/TypeScript/Deep/Generics.md' ).id ).toBe( note.id )
     expect( notes() ).toHaveLength( 3 )
-    expect( listForNote( note.id ) ).toHaveLength( 1 )
+    expect( listForNote( userId, note.id ) ).toHaveLength( 1 )
   } )
 
   it( 'follows a note into another subject', async () => {
@@ -306,14 +306,14 @@ describe( 'a missing note', () => {
   it( 'is marked missing, not deleted', async () => {
     await scan()
     const note = noteAt( 'Learning/Rust/Ownership.md' )
-    addQuestion( note.id )
+    addQuestion( userId, note.id )
 
     await vault.remove( 'Learning/Rust/Ownership.md' )
     await scan( 1 )
 
     expect( notes().find( ( { id } ) => id === note.id ) )
       .toMatchObject( { missing_at: at( 1 ).toISOString() } )
-    expect( listForNote( note.id ) ).toHaveLength( 1 )
+    expect( listForNote( userId, note.id ) ).toHaveLength( 1 )
   } )
 
   it( 'comes back when its path reappears', async () => {
@@ -334,7 +334,7 @@ describe( 'a missing note', () => {
     await scan()
     const note = noteAt( 'Learning/Rust/Ownership.md' )
     enroll( note.id )
-    addQuestion( note.id )
+    addQuestion( userId, note.id )
 
     await vault.remove( 'Learning/Rust/Ownership.md' )
     await scan( 1 )
@@ -343,7 +343,7 @@ describe( 'a missing note', () => {
 
     expect( noteAt( 'Learning/Rust/Ownership.md' ) )
       .toMatchObject( { id: note.id, generation: 'queued', missing_at: null } )
-    expect( listForNote( note.id ) ).toEqual( [] )
+    expect( listForNote( userId, note.id ) ).toEqual( [] )
   } )
 
   it( 'comes back when its body reappears at another path', async () => {
@@ -405,7 +405,7 @@ describe( 'duplicate bodies', () => {
 describe( 'auto-enrol', () => {
   it( 'enrols and queues new notes in a subject that has it on', async () => {
     await scan()
-    updateSubject( subjectId( 'Learning/TypeScript' ), { auto_enroll: true } )
+    updateSubject( userId, subjectId( 'Learning/TypeScript' ), { auto_enroll: true } )
 
     await vault.write(
       'Learning/TypeScript/Mapped Types.md',
@@ -446,21 +446,21 @@ describe( 'changing the learning root', () => {
 
 describe( 'when a scan is allowed', () => {
   it( 'skips a scan within 30 seconds of the last one and runs it after', async () => {
-    await scanLearningRoot( { now: at( 0 ) } )
+    await scanLearningRoot( userId, { now: at( 0 ) } )
     await vault.write( 'Learning/Rust/Late.md', '# Late\n' )
 
-    await scanLearningRoot( { now: at( 29 ) } )
+    await scanLearningRoot( userId, { now: at( 29 ) } )
     expect( notes().map( ( { path } ) => path ) ).not.toContain( 'Learning/Rust/Late.md' )
 
-    await scanLearningRoot( { now: at( 30 ) } )
+    await scanLearningRoot( userId, { now: at( 30 ) } )
     expect( notes().map( ( { path } ) => path ) ).toContain( 'Learning/Rust/Late.md' )
   } )
 
   it( 'lets force bypass the 30 seconds', async () => {
-    await scanLearningRoot( { now: at( 0 ) } )
+    await scanLearningRoot( userId, { now: at( 0 ) } )
     await vault.write( 'Learning/Rust/Late.md', '# Late\n' )
 
-    await scanLearningRoot( { force: true, now: at( 1 ) } )
+    await scanLearningRoot( userId, { force: true, now: at( 1 ) } )
 
     expect( notes().map( ( { path } ) => path ) ).toContain( 'Learning/Rust/Late.md' )
   } )
@@ -493,12 +493,12 @@ describe( 'a failure while saving', () => {
       throw new Error( 'disk full' )
     } )
 
-    await expect( scanLearningRoot( { now: at( 0 ) } ) ).rejects.toThrow( 'disk full' )
+    await expect( scanLearningRoot( userId, { now: at( 0 ) } ) ).rejects.toThrow( 'disk full' )
 
-    expect( listSubjects() ).toEqual( [] )
+    expect( listSubjects( userId ) ).toEqual( [] )
     expect( notes() ).toEqual( [] )
 
-    await scanLearningRoot( { now: at( 1 ) } )
+    await scanLearningRoot( userId, { now: at( 1 ) } )
 
     expect( notes() ).toHaveLength( 3 )
   } )
@@ -519,5 +519,67 @@ describe( 'a file that disappears during the scan', () => {
     await scan( 2 )
 
     expect( notes().map( ( { path } ) => path ) ).toContain( 'Learning/Rust/Gone.md' )
+  } )
+} )
+
+describe( 'scans for two users', () => {
+  it( 'gives each user their own subjects and notes from the same folders', async () => {
+    const other = createTestUser().id
+
+    setSetting( other, 'melete_learning_root', 'Learning' )
+    await scan()
+    await scanLearningRoot( other, { force: true, now: at( 0 ) } )
+
+    expect( listNotesUnder( other, 'Learning' ).map( ( { path } ) => path ) )
+      .toEqual( notes().map( ( { path } ) => path ) )
+    expect( listNotesUnder( other, 'Learning' ).map( ( { id } ) => id ) )
+      .not.toEqual( notes().map( ( { id } ) => id ) )
+    expect( listSubjects( other ).map( ( { folder } ) => folder ) )
+      .toEqual( listSubjects( userId ).map( ( { folder } ) => folder ) )
+  } )
+
+  it( 'runs the scans of two users at once, each only once', async () => {
+    const other = createTestUser().id
+
+    setSetting( other, 'melete_learning_root', 'Learning' )
+    await Promise.all( [
+      scan(),
+      scan(),
+      scanLearningRoot( other, { force: true, now: at( 0 ) } ),
+      scanLearningRoot( other, { force: true, now: at( 0 ) } ),
+    ] )
+
+    expect( vi.mocked( readFile ) ).toHaveBeenCalledTimes( 6 )
+    expect( notes() ).toHaveLength( 3 )
+    expect( listNotesUnder( other, 'Learning' ) ).toHaveLength( 3 )
+  } )
+
+  it( 'skips a fresh scan only for the user who just scanned', async () => {
+    const other = createTestUser().id
+
+    setSetting( other, 'melete_learning_root', 'Learning' )
+    await scanLearningRoot( userId, { now: at( 0 ) } )
+    await scanLearningRoot( userId, { now: at( 10 ) } )
+    await scanLearningRoot( other, { now: at( 10 ) } )
+
+    expect( listNotesUnder( other, 'Learning' ) ).toHaveLength( 3 )
+    expect( vi.mocked( readFile ) ).toHaveBeenCalledTimes( 6 )
+  } )
+
+  it( 'tracks a note moved by one user without touching the other\'s copy', async () => {
+    const other = createTestUser().id
+
+    setSetting( other, 'melete_learning_root', 'Learning' )
+    await scan()
+    await scanLearningRoot( other, { force: true, now: at( 0 ) } )
+
+    const mine = noteAt( 'Learning/Rust/Ownership.md' ).id
+
+    await vault.move( 'Learning/Rust/Ownership.md', 'Learning/Rust/Moved.md' )
+    await scan( 60 )
+
+    expect( noteAt( 'Learning/Rust/Moved.md' ).id ).toBe( mine )
+    expect( listNotesUnder( other, 'Learning' ).map( ( { path } ) => path ) )
+      .toContain( 'Learning/Rust/Ownership.md' )
   } )
 } )

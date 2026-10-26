@@ -1,3 +1,5 @@
+// Packages
+import { z } from 'zod'
 // Lifecycle
 import { statusesWhere } from '../jobs/lifecycle.js'
 // Repositories
@@ -8,6 +10,7 @@ import { SELECT_SOURCE, toOwnedSource } from './gmailSourceRows.js'
 import type { OwnedGmailSource } from './gmailSourceRows.js'
 import { SELECT_JOB, marks, toOwnedJob } from './jobRows.js'
 import type { OwnedJob } from './jobRows.js'
+import { NoteRecord } from './meleteNotes.repository.js'
 
 // The only queries without a user (ADR 0062): the loops that serve every user. Each row says
 // whose it is. Task 5.4 gives them eligibility and round-robin; until then they take the oldest.
@@ -86,4 +89,26 @@ export const listDueGmailSources = (
       ORDER BY h.last_checked_at IS NOT NULL, h.last_checked_at, gmail_sources.rowid` )
     .all( cutoffFor( now, intervalMinutes ) )
     .map( toOwnedSource )
+}
+
+// A queued note with its owner, for the generator that serves every user
+const OwnedNote = NoteRecord.extend( { user_id: z.string() } )
+export type OwnedNote = z.infer< typeof OwnedNote >
+
+export const claimNextGeneration = (): OwnedNote | undefined => {
+  const row = getDatabase()
+    .prepare( `UPDATE melete_notes SET generation = 'generating'
+      WHERE id = (
+        SELECT id FROM melete_notes WHERE generation = 'queued'
+        ORDER BY enrolled_at, rowid LIMIT 1
+      ) RETURNING *` )
+    .get()
+
+  return row === undefined ? undefined : OwnedNote.parse( row )
+}
+
+export const requeueGenerating = (): number => {
+  return getDatabase()
+    .prepare( 'UPDATE melete_notes SET generation = \'queued\' WHERE generation = \'generating\'' )
+    .run().changes
 }

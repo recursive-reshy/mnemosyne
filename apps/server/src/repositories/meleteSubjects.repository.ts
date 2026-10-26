@@ -16,44 +16,52 @@ export type SubjectRecord = z.infer< typeof SubjectRecord >
 
 export type SubjectChanges = { auto_enroll?: boolean, new_per_day?: number }
 
-export const findSubject = ( id: string ): SubjectRecord | undefined => {
-  const row = getDatabase().prepare( 'SELECT * FROM melete_subjects WHERE id = ?' ).get( id )
+export const findSubject = ( userId: string, id: string ): SubjectRecord | undefined => {
+  const row = getDatabase()
+    .prepare( 'SELECT * FROM melete_subjects WHERE id = ? AND user_id = ?' )
+    .get( id, userId )
 
   return row === undefined ? undefined : SubjectRecord.parse( row )
 }
 
-export const listSubjects = (): SubjectRecord[] => {
+export const listSubjects = ( userId: string ): SubjectRecord[] => {
   return z.array( SubjectRecord ).parse( getDatabase()
-    .prepare( 'SELECT * FROM melete_subjects ORDER BY lower( folder ), folder' )
-    .all() )
+    .prepare( `SELECT * FROM melete_subjects WHERE user_id = ?
+      ORDER BY lower( folder ), folder` )
+    .all( userId ) )
 }
 
-export const upsertSubject = ( folder: string ): SubjectRecord => {
+export const upsertSubject = ( userId: string, folder: string ): SubjectRecord => {
   const db = getDatabase()
 
   return db.transaction( () => {
-    db.prepare( `INSERT INTO melete_subjects ( id, folder, created_at ) VALUES ( ?, ?, ? )
-      ON CONFLICT ( folder ) DO NOTHING` )
-      .run( crypto.randomUUID(), folder, new Date().toISOString() )
+    db.prepare( `INSERT INTO melete_subjects ( id, user_id, folder, created_at )
+      VALUES ( ?, ?, ?, ? ) ON CONFLICT ( user_id, folder ) DO NOTHING` )
+      .run( crypto.randomUUID(), userId, folder, new Date().toISOString() )
 
     return SubjectRecord.parse(
-      db.prepare( 'SELECT * FROM melete_subjects WHERE folder = ?' ).get( folder ),
+      db.prepare( 'SELECT * FROM melete_subjects WHERE user_id = ? AND folder = ?' )
+        .get( userId, folder ),
     )
   } )()
 }
 
-export const updateSubject = ( id: string, changes: SubjectChanges ): SubjectRecord | undefined => {
+export const updateSubject = (
+  userId: string,
+  id: string,
+  changes: SubjectChanges,
+): SubjectRecord | undefined => {
   const db = getDatabase()
 
   if( changes.auto_enroll !== undefined ) {
-    db.prepare( 'UPDATE melete_subjects SET auto_enroll = ? WHERE id = ?' )
-      .run( changes.auto_enroll ? 1 : 0, id )
+    db.prepare( 'UPDATE melete_subjects SET auto_enroll = ? WHERE id = ? AND user_id = ?' )
+      .run( changes.auto_enroll ? 1 : 0, id, userId )
   }
 
   if( changes.new_per_day !== undefined ) {
-    db.prepare( 'UPDATE melete_subjects SET new_per_day = ? WHERE id = ?' )
-      .run( changes.new_per_day, id )
+    db.prepare( 'UPDATE melete_subjects SET new_per_day = ? WHERE id = ? AND user_id = ?' )
+      .run( changes.new_per_day, id, userId )
   }
 
-  return findSubject( id )
+  return findSubject( userId, id )
 }

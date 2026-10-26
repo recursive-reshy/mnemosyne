@@ -421,6 +421,7 @@ const BASELINE_COLUMNS: Record< string, string[] > = {
   ],
   melete_subjects: [
     'id',
+    'user_id',
     'folder',
     'auto_enroll',
     'new_per_day',
@@ -428,6 +429,7 @@ const BASELINE_COLUMNS: Record< string, string[] > = {
   ],
   melete_notes: [
     'id',
+    'user_id',
     'subject_id',
     'path',
     'title',
@@ -443,6 +445,7 @@ const BASELINE_COLUMNS: Record< string, string[] > = {
   ],
   melete_questions: [
     'id',
+    'user_id',
     'note_id',
     'position',
     'prompt',
@@ -464,6 +467,7 @@ const BASELINE_COLUMNS: Record< string, string[] > = {
   ],
   melete_reviews: [
     'id',
+    'user_id',
     'question_id',
     'reviewed_at',
     'mode',
@@ -476,6 +480,7 @@ const BASELINE_COLUMNS: Record< string, string[] > = {
   ],
   melete_runs: [
     'id',
+    'user_id',
     'kind',
     'note_id',
     'question_id',
@@ -733,13 +738,16 @@ describe( 'the baseline schema', () => {
     } )
 
     it( 'allows the same melete note path twice only when one is missing', () => {
-      getDatabase().prepare( `INSERT INTO melete_subjects ( id, folder, created_at )
-        VALUES ( 's', 'F', 'now' )` ).run()
+      const owner = createTestUser().id
+
+      getDatabase().prepare( `INSERT INTO melete_subjects ( id, user_id, folder, created_at )
+        VALUES ( 's', ?, 'F', 'now' )` ).run( owner )
 
       const add = ( id: string, missing: string | null ): void => {
         getDatabase().prepare( `INSERT INTO melete_notes
-          ( id, subject_id, path, title, body_hash, mtime_ms, size, missing_at, created_at )
-          VALUES ( ?, 's', 'F/a.md', 't', 'h', 1, 1, ?, 'now' )` ).run( id, missing )
+          ( id, user_id, subject_id, path, title, body_hash, mtime_ms, size, missing_at,
+            created_at )
+          VALUES ( ?, ?, 's', 'F/a.md', 't', 'h', 1, 1, ?, 'now' )` ).run( id, owner, missing )
       }
 
       add( 'a', null )

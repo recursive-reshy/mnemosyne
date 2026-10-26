@@ -14,15 +14,19 @@ import type { StoredFeed } from './feeds.repository.js'
 import { saveAccount, setAccountStatus } from './gmailAccount.repository.js'
 import { insertSource } from './gmailSources.repository.js'
 import type { StoredGmailSource } from './gmailSources.repository.js'
+import { findNote } from './meleteNotes.repository.js'
 import {
+  claimNextGeneration,
   findExpiredJobs,
   findNextRunnableJob,
   listDueFeeds,
   listDueGmailSources,
   markInterruptedJobs,
   markInterruptedLinkingJobs,
+  requeueGenerating,
 } from './system.repository.js'
 // Test support
+import { addNote, addSubject } from '../test-support/meleteData.fixture.js'
 import { seedCheck } from '../test-support/health.fixture.js'
 
 const buildJob = ( overrides: Partial< StoredJob > = {} ): StoredJob => {
@@ -441,5 +445,92 @@ describe( 'listDueGmailSources', () => {
 
     expect( listDueGmailSources( now, 60 ).map( ( { name, user_id } ) => [ name, user_id ] ) )
       .toEqual( [ [ 'ok', connected ] ] )
+  } )
+} )
+
+describe( 'claimNextGeneration', () => {
+  it( 'returns undefined when nothing is queued', () => {
+    const { id: userId } = createTestUser()
+
+    addNote( userId, addSubject( userId ), { generation: 'idle' } )
+
+    expect( claimNextGeneration() ).toBeUndefined()
+  } )
+
+  it( 'claims the oldest enrolled note, marks it generating and says whose it is', () => {
+    const { id: userId } = createTestUser()
+    const subjectId = addSubject( userId )
+    const queued = { generation: 'queued' }
+    const later = addNote(
+      userId,
+      subjectId,
+      { ...queued, enrolledAt: '2026-10-02T00:00:00.000Z' },
+    )
+    const earlier = addNote(
+      userId,
+      subjectId,
+      { ...queued, enrolledAt: '2026-10-01T00:00:00.000Z' },
+    )
+
+    expect( claimNextGeneration() )
+      .toMatchObject( { id: earlier, generation: 'generating', user_id: userId } )
+    expect( findNote( userId, earlier )?.generation ).toBe( 'generating' )
+    expect( claimNextGeneration() ).toMatchObject( { id: later } )
+    expect( claimNextGeneration() ).toBeUndefined()
+  } )
+
+  it( 'never returns the same note twice', () => {
+    const { id: userId } = createTestUser()
+    const subjectId = addSubject( userId )
+
+    addNote( userId, subjectId, { generation: 'queued' } )
+    addNote( userId, subjectId, { generation: 'queued' } )
+
+    expect( claimNextGeneration()?.id ).not.toBe( claimNextGeneration()?.id )
+  } )
+
+  it( 'skips notes that are generating or failed', () => {
+    const { id: userId } = createTestUser()
+    const subjectId = addSubject( userId )
+
+    addNote( userId, subjectId, { generation: 'generating' } )
+    addNote( userId, subjectId, { generation: 'failed' } )
+
+    expect( claimNextGeneration() ).toBeUndefined()
+  } )
+
+  it( 'serves the queue of every user, oldest enrolment first', () => {
+    const first = createTestUser().id
+    const second = createTestUser().id
+
+    addNote(
+      first,
+      addSubject( first ),
+      { generation: 'queued', enrolledAt: '2026-10-02T00:00:00.000Z' },
+    )
+    const theirs = addNote(
+      second,
+      addSubject( second ),
+      { generation: 'queued', enrolledAt: '2026-10-01T00:00:00.000Z' },
+    )
+
+    expect( claimNextGeneration() ).toMatchObject( { id: theirs, user_id: second } )
+    expect( claimNextGeneration() ).toMatchObject( { user_id: first } )
+  } )
+} )
+
+describe( 'requeueGenerating', () => {
+  it( 'moves generating notes of every user back to queued and reports how many', () => {
+    const first = createTestUser().id
+    const second = createTestUser().id
+    const stuck = addNote( first, addSubject( first ), { generation: 'generating' } )
+    const alsoStuck = addNote( second, addSubject( second ), { generation: 'generating' } )
+    const failed = addNote( first, addSubject( first, 'Learning/Other' ), { generation: 'failed' } )
+
+    expect( requeueGenerating() ).toBe( 2 )
+    expect( findNote( first, stuck )?.generation ).toBe( 'queued' )
+    expect( findNote( second, alsoStuck )?.generation ).toBe( 'queued' )
+    expect( findNote( first, failed )?.generation ).toBe( 'failed' )
+    expect( requeueGenerating() ).toBe( 0 )
   } )
 } )

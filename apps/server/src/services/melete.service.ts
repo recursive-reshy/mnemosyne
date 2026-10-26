@@ -42,10 +42,10 @@ import {
 // Services
 import { scanLearningRoot } from './meleteScan.service.js'
 import { getLearningRoot } from './settings.service.js'
-import { interimOwnerId } from './interimOwner.js'
+import { vaultRootFor } from './vault.service.js'
 
-const requireNote = ( id: string ): NoteRecord => {
-  const note = findNote( id )
+const requireNote = ( userId: string, id: string ): NoteRecord => {
+  const note = findNote( userId, id )
 
   if( note === undefined ) {
     throw new NotFoundError( 'Note not found' )
@@ -54,8 +54,8 @@ const requireNote = ( id: string ): NoteRecord => {
   return note
 }
 
-const requireSubject = ( id: string ): SubjectRecord => {
-  const subject = findSubject( id )
+const requireSubject = ( userId: string, id: string ): SubjectRecord => {
+  const subject = findSubject( userId, id )
 
   if( subject === undefined ) {
     throw new NotFoundError( 'Subject not found' )
@@ -96,8 +96,8 @@ const toMeleteNote = ( note: NoteRecord, questions: QuestionRecord[] ): MeleteNo
   }
 }
 
-const noteView = ( note: NoteRecord ): GetMeleteNoteResponse => {
-  const questions = listForNote( note.id )
+const noteView = ( userId: string, note: NoteRecord ): GetMeleteNoteResponse => {
+  const questions = listForNote( userId, note.id )
 
   return {
     note: toMeleteNote( note, questions ),
@@ -108,9 +108,14 @@ const noteView = ( note: NoteRecord ): GetMeleteNoteResponse => {
 
 export const subjectName = ( folder: string ): string => folder.split( '/' ).at( -1 ) ?? folder
 
-const toMeleteSubject = ( subject: SubjectRecord, now: Date ): MeleteSubject => {
-  const notes = listNotesBySubject( subject.id ).filter( ( { missing_at } ) => missing_at === null )
-  const counts = countBySubject( now.toISOString() ).find( ( { subject_id } ) => {
+const toMeleteSubject = (
+  userId: string,
+  subject: SubjectRecord,
+  now: Date,
+): MeleteSubject => {
+  const notes = listNotesBySubject( userId, subject.id )
+    .filter( ( { missing_at } ) => missing_at === null )
+  const counts = countBySubject( userId, now.toISOString() ).find( ( { subject_id } ) => {
     return subject_id === subject.id
   } )
   const newAvailable = counts?.new_available ?? 0
@@ -125,20 +130,28 @@ const toMeleteSubject = ( subject: SubjectRecord, now: Date ): MeleteSubject => 
     enrolled_count: notes.filter( ( { enrolled } ) => enrolled ).length,
     due_count: counts?.due ?? 0,
     new_available: newAvailable,
-    new_remaining_today: Math.min( newRemaining( subject, now ), newAvailable ),
+    new_remaining_today: Math.min( newRemaining( userId, subject, now ), newAvailable ),
   }
 }
 
-const subjectView = ( subject: SubjectRecord, now: Date ): GetMeleteSubjectResponse => ( {
-  subject: toMeleteSubject( subject, now ),
-  notes: listNotesBySubject( subject.id ).map( ( note ) => {
-    return toMeleteNote( note, listForNote( note.id ) )
+const subjectView = (
+  userId: string,
+  subject: SubjectRecord,
+  now: Date,
+): GetMeleteSubjectResponse => ( {
+  subject: toMeleteSubject( userId, subject, now ),
+  notes: listNotesBySubject( userId, subject.id ).map( ( note ) => {
+    return toMeleteNote( note, listForNote( userId, note.id ) )
   } ),
 } )
 
 // A subject belongs to the learning root only while it is a direct child folder of it
-export const requireSubjectInRoot = ( id: string, learningRoot: string ): SubjectRecord => {
-  const subject = requireSubject( id )
+export const requireSubjectInRoot = (
+  userId: string,
+  id: string,
+  learningRoot: string,
+): SubjectRecord => {
+  const subject = requireSubject( userId, id )
 
   if( subject.folder.split( '/' ).slice( 0, -1 ).join( '/' ) !== learningRoot ) {
     throw new NotFoundError( 'Subject not found' )
@@ -147,43 +160,44 @@ export const requireSubjectInRoot = ( id: string, learningRoot: string ): Subjec
   return subject
 }
 
-const queueGeneration = ( noteId: string ): void => {
-  updateNote( noteId, { generation: 'queued', generation_error: null } )
+const queueGeneration = ( userId: string, noteId: string ): void => {
+  updateNote( userId, noteId, { generation: 'queued', generation_error: null } )
 }
 
 // Questions made from an older body are retired, and a note with none left to review is queued
-const enrol = ( note: NoteRecord, at: string ): void => {
+const enrol = ( userId: string, note: NoteRecord, at: string ): void => {
   if( note.enrolled ) {
     return
   }
 
-  setEnrolled( [ note.id ], true, at )
+  setEnrolled( userId, [ note.id ], true, at )
 
-  const current = listForNote( note.id ).some( ( { state, body_hash } ) => {
+  const current = listForNote( userId, note.id ).some( ( { state, body_hash } ) => {
     return state === 'active' && body_hash === note.body_hash
   } )
 
   if( !current && ( note.generation === 'idle' || note.generation === 'failed' ) ) {
-    retireActiveForNote( note.id )
-    queueGeneration( note.id )
+    retireActiveForNote( userId, note.id )
+    queueGeneration( userId, note.id )
   }
 }
 
 // Questions and cards are kept; a note still waiting in the queue is taken out of it
-const unenrol = ( note: NoteRecord, at: string ): void => {
-  setEnrolled( [ note.id ], false, at )
+const unenrol = ( userId: string, note: NoteRecord, at: string ): void => {
+  setEnrolled( userId, [ note.id ], false, at )
 
   if( note.generation === 'queued' ) {
-    updateNote( note.id, { generation: 'idle' } )
+    updateNote( userId, note.id, { generation: 'idle' } )
   }
 }
 
 export const setNoteEnrolled = (
+  userId: string,
   id: string,
   enrolled: boolean,
   now = new Date(),
 ): GetMeleteNoteResponse => {
-  const note = requireNote( id )
+  const note = requireNote( userId, id )
 
   if( note.missing_at !== null ) {
     throw new ConflictError( 'The note is missing from the vault' )
@@ -191,40 +205,42 @@ export const setNoteEnrolled = (
 
   getDatabase().transaction( () => {
     if( enrolled ) {
-      enrol( note, now.toISOString() )
+      enrol( userId, note, now.toISOString() )
     } else {
-      unenrol( note, now.toISOString() )
+      unenrol( userId, note, now.toISOString() )
     }
   } )()
 
-  return noteView( requireNote( id ) )
+  return noteView( userId, requireNote( userId, id ) )
 }
 
 export const setSubjectEnrolled = async (
+  userId: string,
   id: string,
   enrolled: boolean,
   now = new Date(),
 ): Promise< GetMeleteSubjectResponse > => {
-  requireSubject( id )
-  await scanLearningRoot( { force: true, now } )
+  requireSubject( userId, id )
+  await scanLearningRoot( userId, { force: true, now } )
 
   getDatabase().transaction( () => {
-    const live = listNotesBySubject( id ).filter( ( { missing_at } ) => missing_at === null )
+    const live = listNotesBySubject( userId, id )
+      .filter( ( { missing_at } ) => missing_at === null )
 
     for( const note of live ) {
       if( enrolled ) {
-        enrol( note, now.toISOString() )
+        enrol( userId, note, now.toISOString() )
       } else {
-        unenrol( note, now.toISOString() )
+        unenrol( userId, note, now.toISOString() )
       }
     }
   } )()
 
-  return subjectView( requireSubject( id ), now )
+  return subjectView( userId, requireSubject( userId, id ), now )
 }
 
-export const regenerateNote = ( id: string ): GetMeleteNoteResponse => {
-  const note = requireNote( id )
+export const regenerateNote = ( userId: string, id: string ): GetMeleteNoteResponse => {
+  const note = requireNote( userId, id )
 
   if( note.missing_at !== null ) {
     throw new ConflictError( 'The note is missing from the vault' )
@@ -239,25 +255,25 @@ export const regenerateNote = ( id: string ): GetMeleteNoteResponse => {
   }
 
   getDatabase().transaction( () => {
-    retireActiveForNote( id )
-    queueGeneration( id )
+    retireActiveForNote( userId, id )
+    queueGeneration( userId, id )
   } )()
 
-  return noteView( requireNote( id ) )
+  return noteView( userId, requireNote( userId, id ) )
 }
 
-export const retryGeneration = ( id: string ): GetMeleteNoteResponse => {
-  if( requireNote( id ).generation !== 'failed' ) {
+export const retryGeneration = ( userId: string, id: string ): GetMeleteNoteResponse => {
+  if( requireNote( userId, id ).generation !== 'failed' ) {
     throw new ConflictError( 'Only a note whose generation failed can be retried' )
   }
 
-  queueGeneration( id )
+  queueGeneration( userId, id )
 
-  return noteView( requireNote( id ) )
+  return noteView( userId, requireNote( userId, id ) )
 }
 
-export const dropQuestion = ( id: string ): MeleteQuestion => {
-  const question = findQuestion( id )
+export const dropQuestion = ( userId: string, id: string ): MeleteQuestion => {
+  const question = findQuestion( userId, id )
 
   if( question === undefined ) {
     throw new NotFoundError( 'Question not found' )
@@ -267,36 +283,43 @@ export const dropQuestion = ( id: string ): MeleteQuestion => {
     throw new ConflictError( 'Only an active question can be dropped' )
   }
 
-  setState( [ id ], 'dropped' )
+  setState( userId, [ id ], 'dropped' )
 
   return toMeleteQuestion( { ...question, state: 'dropped' } )
 }
 
 export const updateSubject = (
+  userId: string,
   id: string,
   changes: UpdateMeleteSubjectBody,
   now = new Date(),
 ): MeleteSubject => {
-  requireSubject( id )
+  requireSubject( userId, id )
 
-  const updated = updateStoredSubject( id, changes )
+  const updated = updateStoredSubject( userId, id, changes )
 
   if( updated === undefined ) {
     throw new NotFoundError( 'Subject not found' )
   }
 
-  return toMeleteSubject( updated, now )
+  return toMeleteSubject( userId, updated, now )
 }
 
 // The subjects whose folder is still a direct child of the learning root
-export const listSubjectsInRoot = async ( learningRoot: string ): Promise< SubjectRecord[] > => {
-  const folders = new Set( await listSubjectFolders( config.vaultPath, learningRoot ) )
+export const listSubjectsInRoot = async (
+  userId: string,
+  learningRoot: string,
+): Promise< SubjectRecord[] > => {
+  const folders = new Set( await listSubjectFolders( vaultRootFor( userId ), learningRoot ) )
 
-  return listSubjects().filter( ( { folder } ) => folders.has( folder ) )
+  return listSubjects( userId ).filter( ( { folder } ) => folders.has( folder ) )
 }
 
-export const getToday = async ( now = new Date() ): Promise< GetMeleteTodayResponse > => {
-  const learningRoot = getLearningRoot( interimOwnerId() )
+export const getToday = async (
+  userId: string,
+  now = new Date(),
+): Promise< GetMeleteTodayResponse > => {
+  const learningRoot = getLearningRoot( userId )
 
   if( learningRoot === null ) {
     return {
@@ -306,29 +329,32 @@ export const getToday = async ( now = new Date() ): Promise< GetMeleteTodayRespo
     }
   }
 
-  await scanLearningRoot( { now } )
+  await scanLearningRoot( userId, { now } )
 
-  const records = await listSubjectsInRoot( learningRoot )
+  const records = await listSubjectsInRoot( userId, learningRoot )
   const subjects = records
-    .map( ( subject ) => toMeleteSubject( subject, now ) )
+    .map( ( subject ) => toMeleteSubject( userId, subject, now ) )
     .sort( ( a, b ) => a.name.localeCompare( b.name, undefined, { sensitivity: 'base' } ) )
 
-  return { learning_root: learningRoot, subjects, totals: reviewCounts( records, now ) }
+  return { learning_root: learningRoot, subjects, totals: reviewCounts( userId, records, now ) }
 }
 
 export const getSubject = async (
+  userId: string,
   id: string,
   now = new Date(),
 ): Promise< GetMeleteSubjectResponse > => {
-  await scanLearningRoot( { now } )
+  await scanLearningRoot( userId, { now } )
 
-  const learningRoot = getLearningRoot( interimOwnerId() )
+  const learningRoot = getLearningRoot( userId )
 
   if( learningRoot === null ) {
     throw new ConflictError( 'Choose a learning root first' )
   }
 
-  return subjectView( requireSubjectInRoot( id, learningRoot ), now )
+  return subjectView( userId, requireSubjectInRoot( userId, id, learningRoot ), now )
 }
 
-export const getNote = ( id: string ): GetMeleteNoteResponse => noteView( requireNote( id ) )
+export const getNote = ( userId: string, id: string ): GetMeleteNoteResponse => {
+  return noteView( userId, requireNote( userId, id ) )
+}

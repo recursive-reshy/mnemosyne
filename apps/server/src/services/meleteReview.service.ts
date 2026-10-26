@@ -65,7 +65,6 @@ import {
 import { scanLearningRoot } from './meleteScan.service.js'
 import { resolveMeletePrompt } from './prompts.service.js'
 import { getLearningRoot, resolveMeleteGradingModel } from './settings.service.js'
-import { interimOwnerId } from './interimOwner.js'
 // Logging
 import { logger } from '../logger.js'
 
@@ -73,15 +72,21 @@ type NextReviewOptions = { subjectId?: string, now?: Date }
 
 // A new question gets its due time when it is first served, so its age starts then; until it
 // is rated it stays `new` and, being due, comes back on a reload
-const serveNew = ( subjects: SubjectRecord[], now: Date ): QueuedQuestion | undefined => {
+const serveNew = (
+  userId: string,
+  subjects: SubjectRecord[],
+  now: Date,
+): QueuedQuestion | undefined => {
   for( const subject of subjects ) {
-    const remaining = newRemaining( subject, now )
-    const [ question ] = remaining > 0 ? listNew( { subjectId: subject.id, limit: 1 } ) : []
+    const remaining = newRemaining( userId, subject, now )
+    const [ question ] = remaining > 0
+      ? listNew( userId, { subjectId: subject.id, limit: 1 } )
+      : []
 
     if( question !== undefined ) {
       const served = { ...question, due: now.toISOString() }
 
-      saveCard( question.id, served )
+      saveCard( userId, question.id, served )
 
       return served
     }
@@ -90,34 +95,39 @@ const serveNew = ( subjects: SubjectRecord[], now: Date ): QueuedQuestion | unde
   return undefined
 }
 
-const pickNext = ( subjects: SubjectRecord[], now: Date ): QueuedQuestion | undefined => {
+const pickNext = (
+  userId: string,
+  subjects: SubjectRecord[],
+  now: Date,
+): QueuedQuestion | undefined => {
   const subjectIds = subjects.map( ( { id } ) => id )
 
-  return listDue( { subjectIds, now: now.toISOString() } )[ 0 ]
-    ?? serveNew( subjects, now )
-    ?? listLearningSoon( {
+  return listDue( userId, { subjectIds, now: now.toISOString() } )[ 0 ]
+    ?? serveNew( userId, subjects, now )
+    ?? listLearningSoon( userId, {
       subjectIds,
       until: new Date( now.getTime() + LEARN_AHEAD_MS ).toISOString(),
     } )[ 0 ]
 }
 
 export const getNextReview = async (
+  userId: string,
   { subjectId, now = new Date() }: NextReviewOptions = {},
 ): Promise< GetNextReviewResponse > => {
-  const learningRoot = getLearningRoot( interimOwnerId() )
+  const learningRoot = getLearningRoot( userId )
 
   if( learningRoot === null ) {
     throw new ConflictError( 'Choose a learning root first' )
   }
 
-  await scanLearningRoot( { now } )
+  await scanLearningRoot( userId, { now } )
 
   const subjects = subjectId === undefined
-    ? await listSubjectsInRoot( learningRoot )
-    : [ requireSubjectInRoot( subjectId, learningRoot ) ]
-  const next = pickNext( subjects, now )
-  const counts = reviewCounts( subjects, now )
-  const note = next === undefined ? undefined : findNote( next.note_id )
+    ? await listSubjectsInRoot( userId, learningRoot )
+    : [ requireSubjectInRoot( userId, subjectId, learningRoot ) ]
+  const next = pickNext( userId, subjects, now )
+  const counts = reviewCounts( userId, subjects, now )
+  const note = next === undefined ? undefined : findNote( userId, next.note_id )
 
   if( next === undefined || note === undefined ) {
     return { item: null, counts }
@@ -140,14 +150,14 @@ export const getNextReview = async (
   }
 }
 
-const requireReviewable = ( questionId: string ): QuestionRecord => {
-  const question = findQuestion( questionId )
+const requireReviewable = ( userId: string, questionId: string ): QuestionRecord => {
+  const question = findQuestion( userId, questionId )
 
   if( question === undefined ) {
     throw new NotFoundError( 'Question not found' )
   }
 
-  const note = findNote( question.note_id )
+  const note = findNote( userId, question.note_id )
 
   const inQueue = note !== undefined && note.enrolled && note.missing_at === null
 
@@ -160,18 +170,18 @@ const requireReviewable = ( questionId: string ): QuestionRecord => {
 
 // Grading never throws for a model problem: the screen falls back to self-rating
 export const gradeAnswer = async (
+  userId: string,
   questionId: string,
   { answer: learnerAnswer }: GradeAnswerBody,
   now = new Date(),
 ): Promise< GradeAnswerResponse > => {
-  const question = requireReviewable( questionId )
+  const question = requireReviewable( userId, questionId )
 
   if( isBlankAnswer( learnerAnswer ) ) {
     return { outcome: 'skipped', reason: 'blank' }
   }
 
   try {
-    const userId = interimOwnerId()
     const model = await resolveMeleteGradingModel( userId )
     const { version } = resolveMeletePrompt( userId, 'melete_grading' )
     const run = { kind: 'grade' as const, questionId, model, promptVersionId: version.id, now }
@@ -191,7 +201,7 @@ export const gradeAnswer = async (
       return {
         outcome: 'graded',
         grade: output,
-        run_id: recordMeleteRun( { ...run, usage } ),
+        run_id: recordMeleteRun( userId, { ...run, usage } ),
       }
     } catch( error ) {
       if( !( error instanceof MeleteError ) ) {
@@ -203,7 +213,7 @@ export const gradeAnswer = async (
       return {
         outcome: 'failed',
         reason: error.message,
-        run_id: recordMeleteRun( { ...run, usage: error.usage, error: error.message } ),
+        run_id: recordMeleteRun( userId, { ...run, usage: error.usage, error: error.message } ),
       }
     }
   } catch( error ) {
@@ -213,8 +223,8 @@ export const gradeAnswer = async (
   }
 }
 
-const requireGradeRun = ( runId: number, questionId: string ): void => {
-  const run = findRun( runId )
+const requireGradeRun = ( userId: string, runId: number, questionId: string ): void => {
+  const run = findRun( userId, runId )
 
   if( run?.kind !== 'grade' || run.question_id !== questionId ) {
     throw new ValidationError( 'That grading run is not for this question' )
@@ -222,22 +232,27 @@ const requireGradeRun = ( runId: number, questionId: string ): void => {
 }
 
 export const recordReview = async (
+  userId: string,
   questionId: string,
   body: RecordReviewBody,
   now = new Date(),
   scheduler = appScheduler(),
 ): Promise< RecordReviewResponse > => {
-  const question = requireReviewable( questionId )
+  const question = requireReviewable( userId, questionId )
 
   if( body.grade_run_id !== undefined ) {
-    requireGradeRun( body.grade_run_id, questionId )
+    requireGradeRun( userId, body.grade_run_id, questionId )
   }
 
   getDatabase().transaction( () => {
     const before = CardRow.parse( question )
 
-    saveCard( questionId, toRow( nextCard( fromRow( before, now ), body.rating, now, scheduler ) ) )
-    insertReview( {
+    saveCard(
+      userId,
+      questionId,
+      toRow( nextCard( fromRow( before, now ), body.rating, now, scheduler ) ),
+    )
+    insertReview( userId, {
       question_id: questionId,
       reviewed_at: now.toISOString(),
       mode: body.mode,
@@ -249,7 +264,6 @@ export const recordReview = async (
       before_state: JSON.stringify( before ),
     } )
 
-    const userId = interimOwnerId()
     const mode = MeleteReviewMode.catch( 'typed' )
       .parse( getSetting( userId, 'melete_review_mode' ) )
 
@@ -258,13 +272,13 @@ export const recordReview = async (
     }
   } )()
 
-  const learningRoot = getLearningRoot( interimOwnerId() )
-  const subjects = learningRoot === null ? [] : await listSubjectsInRoot( learningRoot )
-  const updated = findQuestion( questionId )
+  const learningRoot = getLearningRoot( userId )
+  const subjects = learningRoot === null ? [] : await listSubjectsInRoot( userId, learningRoot )
+  const updated = findQuestion( userId, questionId )
 
   if( updated === undefined ) {
     throw new NotFoundError( 'Question not found' )
   }
 
-  return { question: toMeleteQuestion( updated ), counts: reviewCounts( subjects, now ) }
+  return { question: toMeleteQuestion( updated ), counts: reviewCounts( userId, subjects, now ) }
 }

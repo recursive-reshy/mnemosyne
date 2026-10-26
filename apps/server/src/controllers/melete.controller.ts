@@ -18,6 +18,8 @@ import {
   UpdateMeleteNoteBody,
   UpdateMeleteSubjectBody,
 } from '@mnemosyne/shared'
+// Middleware
+import { currentUser } from '../middleware/auth.js'
 // Services
 import {
   dropQuestion,
@@ -35,97 +37,115 @@ import { getNextReview, gradeAnswer, recordReview } from '../services/meleteRevi
 const Id = z.uuid()
 
 export const getMeleteToday = async (
-  _req: Request,
+  req: Request,
   res: Response< GetMeleteTodayResponse >,
 ): Promise< void > => {
-  res.status( 200 ).json( await getToday() )
+  res.status( 200 ).json( await getToday( currentUser( req ).id ) )
 }
 
 export const getMeleteSubject = async (
-  { params }: Request,
+  req: Request,
   res: Response< GetMeleteSubjectResponse >,
 ): Promise< void > => {
-  res.status( 200 ).json( await getSubject( Id.parse( params.id ) ) )
+  res.status( 200 ).json( await getSubject( currentUser( req ).id, Id.parse( req.params.id ) ) )
 }
 
 export const patchMeleteSubject = (
-  { params, body }: Request,
+  req: Request,
   res: Response< { subject: MeleteSubject } >,
 ): void => {
-  const subject = updateSubject( Id.parse( params.id ), UpdateMeleteSubjectBody.parse( body ) )
+  const subject = updateSubject(
+    currentUser( req ).id,
+    Id.parse( req.params.id ),
+    UpdateMeleteSubjectBody.parse( req.body ),
+  )
 
   res.status( 200 ).json( { subject } )
 }
 
 export const postSubjectEnrollment = async (
-  { params, body }: Request,
+  req: Request,
   res: Response< GetMeleteSubjectResponse >,
 ): Promise< void > => {
-  const { enrolled } = EnrollSubjectBody.parse( body )
+  const { enrolled } = EnrollSubjectBody.parse( req.body )
 
-  res.status( 200 ).json( await setSubjectEnrolled( Id.parse( params.id ), enrolled ) )
+  res.status( 200 ).json(
+    await setSubjectEnrolled( currentUser( req ).id, Id.parse( req.params.id ), enrolled ),
+  )
 }
 
 export const getMeleteNote = (
-  { params }: Request,
+  req: Request,
   res: Response< GetMeleteNoteResponse >,
 ): void => {
-  res.status( 200 ).json( getNote( Id.parse( params.id ) ) )
+  res.status( 200 ).json( getNote( currentUser( req ).id, Id.parse( req.params.id ) ) )
 }
 
 export const patchMeleteNote = (
-  { params, body }: Request,
+  req: Request,
   res: Response< GetMeleteNoteResponse >,
 ): void => {
-  const { enrolled } = UpdateMeleteNoteBody.parse( body )
+  const { enrolled } = UpdateMeleteNoteBody.parse( req.body )
 
-  res.status( 200 ).json( setNoteEnrolled( Id.parse( params.id ), enrolled ) )
+  res.status( 200 ).json(
+    setNoteEnrolled( currentUser( req ).id, Id.parse( req.params.id ), enrolled ),
+  )
 }
 
 export const postRegenerateNote = (
-  { params }: Request,
+  req: Request,
   res: Response< GetMeleteNoteResponse >,
 ): void => {
-  res.status( 202 ).json( regenerateNote( Id.parse( params.id ) ) )
+  res.status( 202 ).json( regenerateNote( currentUser( req ).id, Id.parse( req.params.id ) ) )
 }
 
 export const postRetryGeneration = (
-  { params }: Request,
+  req: Request,
   res: Response< GetMeleteNoteResponse >,
 ): void => {
-  res.status( 202 ).json( retryGeneration( Id.parse( params.id ) ) )
+  res.status( 202 ).json( retryGeneration( currentUser( req ).id, Id.parse( req.params.id ) ) )
 }
 
 export const postDropQuestion = (
-  { params }: Request,
+  req: Request,
   res: Response< { question: MeleteQuestion } >,
 ): void => {
-  res.status( 200 ).json( { question: dropQuestion( Id.parse( params.id ) ) } )
+  res.status( 200 ).json( {
+    question: dropQuestion( currentUser( req ).id, Id.parse( req.params.id ) ),
+  } )
 }
 
 export const getReviewNext = async (
-  { query }: Request,
+  req: Request,
   res: Response< GetNextReviewResponse >,
 ): Promise< void > => {
-  const { subject } = z.object( { subject: Id.optional() } ).parse( query )
+  const { subject } = z.object( { subject: Id.optional() } ).parse( req.query )
 
-  res.status( 200 ).json( await getNextReview( { subjectId: subject } ) )
+  res.status( 200 ).json( await getNextReview( currentUser( req ).id, { subjectId: subject } ) )
 }
 
 export const postGradeAnswer = async (
-  { params, body }: Request,
+  req: Request,
   res: Response< GradeAnswerResponse >,
 ): Promise< void > => {
-  const grade = await gradeAnswer( Id.parse( params.id ), GradeAnswerBody.parse( body ) )
+  const grade = await gradeAnswer(
+    currentUser( req ).id,
+    Id.parse( req.params.id ),
+    GradeAnswerBody.parse( req.body ),
+  )
 
   res.status( 200 ).json( grade )
 }
 
 export const postRecordReview = async (
-  { params, body }: Request,
+  req: Request,
   res: Response< RecordReviewResponse >,
 ): Promise< void > => {
-  const review = await recordReview( Id.parse( params.id ), RecordReviewBody.parse( body ) )
+  const review = await recordReview(
+    currentUser( req ).id,
+    Id.parse( req.params.id ),
+    RecordReviewBody.parse( req.body ),
+  )
 
   res.status( 200 ).json( review )
 }

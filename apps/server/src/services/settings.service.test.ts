@@ -239,7 +239,7 @@ describe( 'updateSettings for Melete', () => {
 
   it( 'saves a learning root that exists in the vault and forgets the last scan', async () => {
     await mkdir( join( vaultDir, 'Notes/Learning' ), { recursive: true } )
-    markScanned( new Date() )
+    markScanned( userId, new Date() )
 
     const settings = await updateSettings(
       userId,
@@ -249,7 +249,7 @@ describe( 'updateSettings for Melete', () => {
 
     expect( settings.melete_learning_root ).toBe( 'Notes/Learning' )
     expect( getSetting( userId, 'melete_learning_root' ) ).toBe( 'Notes/Learning' )
-    expect( isScanFresh( new Date() ) ).toBe( false )
+    expect( isScanFresh( userId, new Date() ) ).toBe( false )
   } )
 
   it( 'refuses a folder that is not in the vault, and does not create it', async () => {

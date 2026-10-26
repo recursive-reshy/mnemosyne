@@ -18,6 +18,14 @@ import { logger } from '../logger.js'
 import { getLogContext } from '../logContext.js'
 // Test support
 import { addNote, addSubject } from '../test-support/meleteData.fixture.js'
+// Test support
+import { createTestUser, defaultTestAdmin } from '../test-support/auth.js'
+
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
 
 vi.mock( '../services/meleteGeneration.service.js' )
 
@@ -31,7 +39,7 @@ let stopGenerator: () => Promise< void >
 let subjectId: string
 
 const queued = ( enrolledAt: string ): string => {
-  return addNote( subjectId, { generation: 'queued', enrolledAt } )
+  return addNote( userId, subjectId, { generation: 'queued', enrolledAt } )
 }
 
 beforeEach( () => {
@@ -42,8 +50,8 @@ beforeEach( () => {
   hold = false
   seenContexts = []
   stopGenerator = () => Promise.resolve()
-  subjectId = addSubject()
-  generateMock.mockImplementation( async ( id ) => {
+  subjectId = addSubject( userId )
+  generateMock.mockImplementation( async ( _owner, id ) => {
     events.push( `start:${ id }` )
     seenContexts.push( getLogContext()?.melete_note_id )
 
@@ -51,7 +59,7 @@ beforeEach( () => {
       await new Promise< void >( ( resolve ) => gates.set( id, resolve ) )
     }
 
-    updateNote( id, { generation: 'idle' } )
+    updateNote( userId, id, { generation: 'idle' } )
     events.push( `end:${ id }` )
   } )
 } )
@@ -70,8 +78,8 @@ describe( 'startMeleteGenerator', () => {
     stopGenerator = startMeleteGenerator()
     await vi.advanceTimersByTimeAsync( 0 )
 
-    expect( generateMock ).toHaveBeenCalledWith( id )
-    expect( findNote( id )?.generation ).toBe( 'idle' )
+    expect( generateMock ).toHaveBeenCalledWith( userId, id )
+    expect( findNote( userId, id )?.generation ).toBe( 'idle' )
   } )
 
   it( 'generates queued notes oldest enrolled first, one at a time', async () => {
@@ -117,12 +125,12 @@ describe( 'startMeleteGenerator', () => {
     const id = queued( '2026-10-01T00:00:00.000Z' )
     await vi.advanceTimersByTimeAsync( 1000 )
 
-    expect( generateMock ).toHaveBeenCalledWith( id )
+    expect( generateMock ).toHaveBeenCalledWith( userId, id )
   } )
 
   it( 'leaves idle, failed and generating notes alone', async () => {
-    addNote( subjectId, { generation: 'idle' } )
-    addNote( subjectId, { generation: 'failed' } )
+    addNote( userId, subjectId, { generation: 'idle' } )
+    addNote( userId, subjectId, { generation: 'failed' } )
 
     stopGenerator = startMeleteGenerator()
     await vi.advanceTimersByTimeAsync( 0 )
@@ -131,7 +139,7 @@ describe( 'startMeleteGenerator', () => {
   } )
 
   it( 'puts notes left generating by a restart back in the queue and runs them', async () => {
-    const id = addNote( subjectId, {
+    const id = addNote( userId, subjectId, {
       generation: 'generating',
       enrolledAt: '2026-10-01T00:00:00.000Z',
     } )
@@ -139,19 +147,19 @@ describe( 'startMeleteGenerator', () => {
     stopGenerator = startMeleteGenerator()
     await vi.advanceTimersByTimeAsync( 0 )
 
-    expect( generateMock ).toHaveBeenCalledWith( id )
+    expect( generateMock ).toHaveBeenCalledWith( userId, id )
   } )
 
   it( 'requeues generating notes only once, at start', async () => {
     stopGenerator = startMeleteGenerator()
     await vi.advanceTimersByTimeAsync( 0 )
 
-    const id = addNote( subjectId, { generation: 'generating' } )
+    const id = addNote( userId, subjectId, { generation: 'generating' } )
 
     await vi.advanceTimersByTimeAsync( 5000 )
 
     expect( generateMock ).not.toHaveBeenCalled()
-    expect( findNote( id )?.generation ).toBe( 'generating' )
+    expect( findNote( userId, id )?.generation ).toBe( 'generating' )
   } )
 
   it( 'runs each note inside a log context carrying its id', async () => {
@@ -174,8 +182,8 @@ describe( 'startMeleteGenerator', () => {
     await vi.advanceTimersByTimeAsync( 1000 )
 
     expect( error ).toHaveBeenCalledTimes( 1 )
-    expect( generateMock ).toHaveBeenNthCalledWith( 1, first )
-    expect( generateMock ).toHaveBeenNthCalledWith( 2, second )
+    expect( generateMock ).toHaveBeenNthCalledWith( 1, userId, first )
+    expect( generateMock ).toHaveBeenNthCalledWith( 2, userId, second )
   } )
 
   it( 'stops polling and waits for the running note when stopped', async () => {
@@ -200,6 +208,43 @@ describe( 'startMeleteGenerator', () => {
 
     expect( stopped ).toBe( true )
     expect( events ).toEqual( [ `start:${ first }`, `end:${ first }` ] )
-    expect( findNote( second )?.generation ).toBe( 'queued' )
+    expect( findNote( userId, second )?.generation ).toBe( 'queued' )
+  } )
+} )
+
+describe( 'startMeleteGenerator for two users', () => {
+  it( 'generates each note for its owner, oldest first, in the owner\'s context', async () => {
+    const other = createTestUser().id
+    const mine = queued( '2026-10-02T00:00:00.000Z' )
+    const theirs = addNote(
+      other,
+      addSubject( other ),
+      { generation: 'queued', enrolledAt: '2026-10-01T00:00:00.000Z' },
+    )
+    const owners: ( string | undefined )[] = []
+
+    generateMock.mockImplementation( ( owner ) => {
+      owners.push( getLogContext()?.user_id )
+
+      return Promise.resolve( owner ).then( () => undefined )
+    } )
+
+    stopGenerator = startMeleteGenerator()
+    await vi.advanceTimersByTimeAsync( 0 )
+
+    expect( generateMock.mock.calls ).toEqual( [ [ other, theirs ], [ userId, mine ] ] )
+    expect( owners ).toEqual( [ other, userId ] )
+  } )
+
+  it( 'puts the interrupted notes of every user back in the queue', async () => {
+    const other = createTestUser().id
+    const mine = addNote( userId, subjectId, { generation: 'generating' } )
+    const theirs = addNote( other, addSubject( other ), { generation: 'generating' } )
+
+    stopGenerator = startMeleteGenerator()
+    await vi.advanceTimersByTimeAsync( 0 )
+
+    expect( generateMock.mock.calls.map( ( [ owner, id ] ) => `${ owner }:${ id }` ).sort() )
+      .toEqual( [ `${ userId }:${ mine }`, `${ other }:${ theirs }` ].sort() )
   } )
 } )

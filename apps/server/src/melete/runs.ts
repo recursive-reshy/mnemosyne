@@ -15,12 +15,12 @@ type RunDetails = {
 }
 
 // Every Claude attempt leaves a row; tokens and cost are null when the call gave none
-export const recordMeleteRun = ( details: RunDetails ): number => {
+export const recordMeleteRun = ( userId: string, details: RunDetails ): number => {
   const { kind, noteId, questionId, model, promptVersionId, usage, error, now } = details
   const inputTokens = usage?.input_tokens ?? null
   const outputTokens = usage?.output_tokens ?? null
 
-  return insertRun( {
+  return insertRun( userId, {
     kind,
     note_id: noteId ?? null,
     question_id: questionId ?? null,

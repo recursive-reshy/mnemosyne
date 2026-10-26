@@ -49,31 +49,34 @@ const placeholders = ( values: readonly unknown[] ): string => values.map( () =>
 
 const parseRows = ( rows: unknown[] ): NoteRecord[] => z.array( NoteRecord ).parse( rows )
 
-export const findNote = ( id: string ): NoteRecord | undefined => {
-  const row = getDatabase().prepare( 'SELECT * FROM melete_notes WHERE id = ?' ).get( id )
+export const findNote = ( userId: string, id: string ): NoteRecord | undefined => {
+  const row = getDatabase()
+    .prepare( 'SELECT * FROM melete_notes WHERE id = ? AND user_id = ?' )
+    .get( id, userId )
 
   return row === undefined ? undefined : NoteRecord.parse( row )
 }
 
-export const insertNote = ( note: NewNote ): NoteRecord => {
+export const insertNote = ( userId: string, note: NewNote ): NoteRecord => {
   const id = crypto.randomUUID()
 
   getDatabase()
     .prepare( `INSERT INTO melete_notes (
-        id, subject_id, path, title, body_hash, mtime_ms, size, enrolled, enrolled_at,
-        generation, created_at
+        id, user_id, subject_id, path, title, body_hash, mtime_ms, size, enrolled,
+        enrolled_at, generation, created_at
       ) VALUES (
-        @id, @subject_id, @path, @title, @body_hash, @mtime_ms, @size, @enrolled, @enrolled_at,
-        @generation, @created_at
+        @id, @user_id, @subject_id, @path, @title, @body_hash, @mtime_ms, @size, @enrolled,
+        @enrolled_at, @generation, @created_at
       )` )
     .run( {
       ...note,
       id,
+      user_id: userId,
       enrolled: note.enrolled ? 1 : 0,
       created_at: new Date().toISOString(),
     } )
 
-  const inserted = findNote( id )
+  const inserted = findNote( userId, id )
 
   if( inserted === undefined ) {
     throw new Error( `Melete note ${ id } was not stored` )
@@ -82,41 +85,56 @@ export const insertNote = ( note: NewNote ): NoteRecord => {
   return inserted
 }
 
-export const listNotesBySubject = ( subjectId: string ): NoteRecord[] => {
+export const listNotesBySubject = ( userId: string, subjectId: string ): NoteRecord[] => {
   return parseRows( getDatabase()
-    .prepare( 'SELECT * FROM melete_notes WHERE subject_id = ? ORDER BY path' )
-    .all( subjectId ) )
+    .prepare( 'SELECT * FROM melete_notes WHERE user_id = ? AND subject_id = ? ORDER BY path' )
+    .all( userId, subjectId ) )
 }
 
 // A path range instead of LIKE, so % and _ in folder names are plain characters ('0' follows '/')
-export const listNotesUnder = ( folderPrefix: string ): NoteRecord[] => {
+export const listNotesUnder = ( userId: string, folderPrefix: string ): NoteRecord[] => {
   return parseRows( getDatabase()
-    .prepare( 'SELECT * FROM melete_notes WHERE path >= ? AND path < ? ORDER BY path' )
-    .all( `${ folderPrefix }/`, `${ folderPrefix }0` ) )
+    .prepare( `SELECT * FROM melete_notes
+      WHERE user_id = ? AND path >= ? AND path < ? ORDER BY path` )
+    .all( userId, `${ folderPrefix }/`, `${ folderPrefix }0` ) )
 }
 
-export const updateNote = ( id: string, changes: NoteChanges ): NoteRecord | undefined => {
+export const updateNote = (
+  userId: string,
+  id: string,
+  changes: NoteChanges,
+): NoteRecord | undefined => {
   const columns = UPDATABLE.filter( ( column ) => changes[ column ] !== undefined )
 
   if( columns.length > 0 ) {
     getDatabase()
       .prepare( `UPDATE melete_notes
         SET ${ columns.map( ( column ) => `${ column } = @${ column }` ).join( ', ' ) }
-        WHERE id = @id` )
-      .run( { ...Object.fromEntries( columns.map( ( c ) => [ c, changes[ c ] ] ) ), id } )
+        WHERE id = @id AND user_id = @user_id` )
+      .run( {
+        ...Object.fromEntries( columns.map( ( c ) => [ c, changes[ c ] ] ) ),
+        id,
+        user_id: userId,
+      } )
   }
 
-  return findNote( id )
+  return findNote( userId, id )
 }
 
-export const findMissingByHash = ( hash: string ): NoteRecord[] => {
+export const findMissingByHash = ( userId: string, hash: string ): NoteRecord[] => {
   return parseRows( getDatabase()
-    .prepare( 'SELECT * FROM melete_notes WHERE missing_at IS NOT NULL AND body_hash = ?' )
-    .all( hash ) )
+    .prepare( `SELECT * FROM melete_notes
+      WHERE user_id = ? AND missing_at IS NOT NULL AND body_hash = ?` )
+    .all( userId, hash ) )
 }
 
 // Unenrolling keeps enrolled_at, so enrolling again goes back to its old place in the queue
-export const setEnrolled = ( ids: string[], enrolled: boolean, at: string ): void => {
+export const setEnrolled = (
+  userId: string,
+  ids: string[],
+  enrolled: boolean,
+  at: string,
+): void => {
   if( ids.length === 0 ) {
     return
   }
@@ -124,25 +142,8 @@ export const setEnrolled = ( ids: string[], enrolled: boolean, at: string ): voi
   getDatabase()
     .prepare( enrolled
       ? `UPDATE melete_notes SET enrolled = 1, enrolled_at = ?
-        WHERE id IN ( ${ placeholders( ids ) } )`
-      : `UPDATE melete_notes SET enrolled = 0 WHERE id IN ( ${ placeholders( ids ) } )` )
-    .run( ...( enrolled ? [ at, ...ids ] : ids ) )
-}
-
-export const claimNextQueued = (): NoteRecord | undefined => {
-  const row = getDatabase()
-    .prepare( `UPDATE melete_notes SET generation = 'generating'
-      WHERE id = (
-        SELECT id FROM melete_notes WHERE generation = 'queued'
-        ORDER BY enrolled_at, rowid LIMIT 1
-      ) RETURNING *` )
-    .get()
-
-  return row === undefined ? undefined : NoteRecord.parse( row )
-}
-
-export const requeueGenerating = (): number => {
-  return getDatabase()
-    .prepare( 'UPDATE melete_notes SET generation = \'queued\' WHERE generation = \'generating\'' )
-    .run().changes
+        WHERE user_id = ? AND id IN ( ${ placeholders( ids ) } )`
+      : `UPDATE melete_notes SET enrolled = 0
+        WHERE user_id = ? AND id IN ( ${ placeholders( ids ) } )` )
+    .run( ...( enrolled ? [ at, userId, ...ids ] : [ userId, ...ids ] ) )
 }

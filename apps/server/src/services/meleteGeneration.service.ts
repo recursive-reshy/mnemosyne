@@ -3,8 +3,6 @@ import { readFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 // Clients
 import { generateQuestions } from '../clients/claude.client.js'
-// Config
-import { config } from '../config.js'
 // Errors
 import { MeleteError } from '../errors.js'
 // Melete
@@ -21,7 +19,7 @@ import { findSubject } from '../repositories/meleteSubjects.repository.js'
 import { scanLearningRoot } from './meleteScan.service.js'
 import { resolveMeletePrompt } from './prompts.service.js'
 import { resolveMeleteQuestionModel } from './settings.service.js'
-import { interimOwnerId } from './interimOwner.js'
+import { vaultRootFor } from './vault.service.js'
 // Logging
 import { logger } from '../logger.js'
 
@@ -44,39 +42,40 @@ const messageOf = ( error: unknown ): string => {
   return error instanceof Error ? error.message : 'Unknown error'
 }
 
-const recordRun = ( details: RunDetails ): number => {
-  return recordMeleteRun( { ...details, kind: 'generate' } )
+const recordRun = ( userId: string, details: RunDetails ): number => {
+  return recordMeleteRun( userId, { ...details, kind: 'generate' } )
 }
 
-const failNote = ( noteId: string, message: string, run?: RunDetails ): void => {
+const failNote = ( userId: string, noteId: string, message: string, run?: RunDetails ): void => {
   getDatabase().transaction( () => {
     if( run !== undefined ) {
-      recordRun( { ...run, error: message } )
+      recordRun( userId, { ...run, error: message } )
     }
 
-    updateNote( noteId, { generation: 'failed', generation_error: message } )
+    updateNote( userId, noteId, { generation: 'failed', generation_error: message } )
   } )()
   logger.warn( { error: message }, 'Question generation failed' )
 }
 
 // The scan applies the edit and missing rules; a note it leaves `generating` has nothing to make
-const handBackToScan = async ( noteId: string, now: Date ): Promise< void > => {
+const handBackToScan = async ( userId: string, noteId: string, now: Date ): Promise< void > => {
   try {
-    await scanLearningRoot( { force: true, now } )
+    await scanLearningRoot( userId, { force: true, now } )
   } catch( error ) {
     logger.warn( { error: messageOf( error ) }, 'Scan after a changed note failed' )
   }
 
-  if( findNote( noteId )?.generation === 'generating' ) {
-    updateNote( noteId, { generation: 'idle' } )
+  if( findNote( userId, noteId )?.generation === 'generating' ) {
+    updateNote( userId, noteId, { generation: 'idle' } )
   }
 }
 
 const readCurrent = async (
+  userId: string,
   note: NoteRecord,
 ): Promise< { body: string, hash: string, title: string } | 'gone' > => {
   try {
-    const text = await readFile( join( config.vaultPath, note.path ), 'utf8' )
+    const text = await readFile( join( vaultRootFor( userId ), note.path ), 'utf8' )
     const { frontMatter, body } = splitFrontMatter( text )
 
     return { body, hash: bodyHash( body ), title: noteTitle( frontMatter, note.path ) }
@@ -90,8 +89,12 @@ const readCurrent = async (
 }
 
 // Makes the questions for one claimed note; a failure is stored on the note, never thrown
-export const generateForNote = async ( noteId: string, now = new Date() ): Promise< void > => {
-  const note = findNote( noteId )
+export const generateForNote = async (
+  userId: string,
+  noteId: string,
+  now = new Date(),
+): Promise< void > => {
+  const note = findNote( userId, noteId )
 
   if( note === undefined ) {
     logger.warn( 'Queued note not found' )
@@ -100,37 +103,37 @@ export const generateForNote = async ( noteId: string, now = new Date() ): Promi
   }
 
   if( !note.enrolled || note.missing_at !== null ) {
-    updateNote( noteId, { generation: 'idle' } )
+    updateNote( userId, noteId, { generation: 'idle' } )
 
     return
   }
 
   try {
-    const current = await readCurrent( note )
+    const current = await readCurrent( userId, note )
 
     if( current === 'gone' || current.hash !== note.body_hash ) {
-      await handBackToScan( noteId, now )
+      await handBackToScan( userId, noteId, now )
 
       return
     }
 
-    const hasQuestions = listForNote( noteId ).some( ( { state, body_hash: hash } ) => {
+    const hasQuestions = listForNote( userId, noteId ).some( ( { state, body_hash: hash } ) => {
       return state === 'active' && hash === current.hash
     } )
 
     if( hasQuestions ) {
-      updateNote( noteId, { generation: 'idle' } )
+      updateNote( userId, noteId, { generation: 'idle' } )
 
       return
     }
 
-    const userId = interimOwnerId()
     const model = await resolveMeleteQuestionModel( userId )
     const { version } = resolveMeletePrompt( userId, 'melete_questions' )
     const run = { noteId, model, promptVersionId: version.id, now }
 
     if( current.body.length > MAX_BODY_CHARACTERS ) {
       failNote(
+        userId,
         noteId,
         `Note is too long for question generation (${ current.body.length } characters, `
           + `limit ${ MAX_BODY_CHARACTERS }). Split it into smaller notes.`,
@@ -140,7 +143,7 @@ export const generateForNote = async ( noteId: string, now = new Date() ): Promi
       return
     }
 
-    const subjectName = basename( findSubject( note.subject_id )?.folder ?? '' )
+    const subjectName = basename( findSubject( userId, note.subject_id )?.folder ?? '' )
     let outcome: Awaited< ReturnType< typeof generateQuestions > >
 
     try {
@@ -151,6 +154,7 @@ export const generateForNote = async ( noteId: string, now = new Date() ): Promi
       } )
     } catch( error ) {
       failNote(
+        userId,
         noteId,
         messageOf( error ),
         { ...run, usage: error instanceof MeleteError ? error.usage : undefined },
@@ -162,33 +166,33 @@ export const generateForNote = async ( noteId: string, now = new Date() ): Promi
     const questions = processQuestions( outcome.output, current.body )
 
     if( questions.length === 0 ) {
-      failNote( noteId, 'No usable questions came back', { ...run, usage: outcome.usage } )
+      failNote( userId, noteId, 'No usable questions came back', { ...run, usage: outcome.usage } )
 
       return
     }
 
     try {
       getDatabase().transaction( () => {
-        const runId = recordRun( { ...run, usage: outcome.usage } )
-        const latest = findNote( noteId )
+        const runId = recordRun( userId, { ...run, usage: outcome.usage } )
+        const latest = findNote( userId, noteId )
 
         // Edited during the call: these questions are stale, and the scan has queued the note
         // again if it is enrolled
         if( latest?.body_hash !== current.hash ) {
           if( latest?.generation === 'generating' ) {
-            updateNote( noteId, { generation: 'idle' } )
+            updateNote( userId, noteId, { generation: 'idle' } )
           }
 
           return
         }
 
-        insertQuestions( noteId, runId, current.hash, questions )
-        updateNote( noteId, { generation: 'idle', generation_error: null } )
+        insertQuestions( userId, noteId, runId, current.hash, questions )
+        updateNote( userId, noteId, { generation: 'idle', generation_error: null } )
       } )()
     } catch( error ) {
-      failNote( noteId, messageOf( error ), { ...run, usage: outcome.usage } )
+      failNote( userId, noteId, messageOf( error ), { ...run, usage: outcome.usage } )
     }
   } catch( error ) {
-    failNote( noteId, messageOf( error ) )
+    failNote( userId, noteId, messageOf( error ) )
   }
 }

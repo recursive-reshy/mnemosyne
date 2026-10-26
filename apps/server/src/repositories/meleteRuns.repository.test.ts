@@ -10,7 +10,7 @@ import { findLatestVersion, findProfileBySeedKey } from './promptProfiles.reposi
 import { findRun, insertRun } from './meleteRuns.repository.js'
 import type { NewMeleteRun } from './meleteRuns.repository.js'
 // Test support
-import { defaultTestAdmin } from '../test-support/auth.js'
+import { createTestUser, defaultTestAdmin } from '../test-support/auth.js'
 
 let userId = ''
 
@@ -47,26 +47,26 @@ const run = ( overrides: Partial< NewMeleteRun > = {} ): NewMeleteRun => {
 
 describe( 'insertRun and findRun', () => {
   it( 'stores a generation run and reads it back', () => {
-    const id = insertRun( run() )
+    const id = insertRun( userId, run() )
 
     expect( id ).toBeGreaterThan( 0 )
-    expect( findRun( id ) ).toEqual( { id, ...run() } )
+    expect( findRun( userId, id ) ).toEqual( { id, ...run() } )
   } )
 
   it( 'stores a grading run for a question', () => {
-    const id = insertRun( run( {
+    const id = insertRun( userId, run( {
       kind: 'grade',
       note_id: null,
       question_id: 'question-1',
       prompt_version_id: versionOf( 'melete_grading' ),
     } ) )
 
-    expect( findRun( id ) )
+    expect( findRun( userId, id ) )
       .toMatchObject( { kind: 'grade', note_id: null, question_id: 'question-1' } )
   } )
 
   it( 'stores a failed run with no usage', () => {
-    const id = insertRun( run( {
+    const id = insertRun( userId, run( {
       input_tokens: null,
       output_tokens: null,
       cost_usd: null,
@@ -74,7 +74,7 @@ describe( 'insertRun and findRun', () => {
       error: 'Note is too long',
     } ) )
 
-    expect( findRun( id ) ).toMatchObject( {
+    expect( findRun( userId, id ) ).toMatchObject( {
       input_tokens: null,
       output_tokens: null,
       cost_usd: null,
@@ -84,17 +84,27 @@ describe( 'insertRun and findRun', () => {
   } )
 
   it( 'numbers runs one after another', () => {
-    const first = insertRun( run() )
-    const second = insertRun( run() )
+    const first = insertRun( userId, run() )
+    const second = insertRun( userId, run() )
 
     expect( second ).toBe( first + 1 )
   } )
 
   it( 'refuses a run for an unknown prompt version', () => {
-    expect( () => insertRun( run( { prompt_version_id: 999_999 } ) ) ).toThrow()
+    expect( () => insertRun( userId, run( { prompt_version_id: 999_999 } ) ) ).toThrow()
   } )
 
   it( 'returns undefined for an unknown run', () => {
-    expect( findRun( 999_999 ) ).toBeUndefined()
+    expect( findRun( userId, 999_999 ) ).toBeUndefined()
+  } )
+} )
+
+describe( 'ownership', () => {
+  it( 'does not find another user\'s run', () => {
+    const other = createTestUser().id
+    const id = insertRun( userId, run() )
+
+    expect( findRun( other, id ) ).toBeUndefined()
+    expect( findRun( userId, id ) ).toBeDefined()
   } )
 } )

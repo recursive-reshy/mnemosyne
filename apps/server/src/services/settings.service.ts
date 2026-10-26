@@ -31,6 +31,7 @@ import { LOCKED_INSTRUCTIONS_ARTICLE, LOCKED_INSTRUCTIONS_VIDEO } from '../summa
 // Services
 import { assertKnownModel, listModels } from './models.service.js'
 import { NotFoundError } from '../errors.js'
+import { vaultRootFor } from './vault.service.js'
 import {
   assertActiveProfile,
   resolveLinkerPrompt,
@@ -201,7 +202,7 @@ export const updateSettings = async (
   }
 
   if( typeof body.melete_learning_root === 'string' ) {
-    await resolveExistingFolder( config.vaultPath, body.melete_learning_root )
+    await resolveExistingFolder( vaultRootFor( userId ), body.melete_learning_root )
   }
 
   if( body.default_model !== undefined ) {
@@ -242,7 +243,7 @@ export const updateSettings = async (
 
   if( body.melete_learning_root !== undefined ) {
     setSetting( userId, 'melete_learning_root', body.melete_learning_root )
-    resetScanClock()
+    resetScanClock( userId )
   }
 
   return getSettings( userId )

@@ -48,19 +48,22 @@ const placeholders = ( values: readonly unknown[] ): string => values.map( () =>
 
 // What a question needs to appear in a review: active, in an enrolled note still in the vault
 const REVIEWABLE = `FROM melete_questions q JOIN melete_notes n ON n.id = q.note_id
-  WHERE q.state = 'active' AND n.enrolled = 1 AND n.missing_at IS NULL`
+  WHERE q.user_id = ? AND q.state = 'active' AND n.enrolled = 1 AND n.missing_at IS NULL`
 
 const QUEUED_COLUMNS = 'q.*, n.subject_id AS subject_id'
 
 const parseQueued = ( rows: unknown[] ): QueuedQuestion[] => z.array( QueuedQuestion ).parse( rows )
 
-export const findQuestion = ( id: string ): QuestionRecord | undefined => {
-  const row = getDatabase().prepare( 'SELECT * FROM melete_questions WHERE id = ?' ).get( id )
+export const findQuestion = ( userId: string, id: string ): QuestionRecord | undefined => {
+  const row = getDatabase()
+    .prepare( 'SELECT * FROM melete_questions WHERE id = ? AND user_id = ?' )
+    .get( id, userId )
 
   return row === undefined ? undefined : QuestionRecord.parse( row )
 }
 
 export const insertQuestions = (
+  userId: string,
   noteId: string,
   runId: number,
   bodyHash: string,
@@ -70,14 +73,16 @@ export const insertQuestions = (
 
   return db.transaction( () => {
     const insert = db.prepare( `INSERT INTO melete_questions (
-        id, note_id, position, prompt, answer, passage, body_hash, state, run_id, created_at
-      ) VALUES ( ?, ?, ?, ?, ?, ?, ?, 'active', ?, ? )` )
+        id, user_id, note_id, position, prompt, answer, passage, body_hash, state, run_id,
+        created_at
+      ) VALUES ( ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ? )` )
     const createdAt = new Date().toISOString()
     const ids = questions.map( ( question, index ) => {
       const id = crypto.randomUUID()
 
       insert.run(
         id,
+        userId,
         noteId,
         index + 1,
         question.prompt,
@@ -91,47 +96,54 @@ export const insertQuestions = (
       return id
     } )
 
-    return ids.map( ( id ) => QuestionRecord.parse( findQuestion( id ) ) )
+    return ids.map( ( id ) => QuestionRecord.parse( findQuestion( userId, id ) ) )
   } )()
 }
 
 // Active and dropped, never retired: what the note page shows
-export const listForNote = ( noteId: string ): QuestionRecord[] => {
+export const listForNote = ( userId: string, noteId: string ): QuestionRecord[] => {
   return z.array( QuestionRecord ).parse( getDatabase()
     .prepare( `SELECT * FROM melete_questions
-      WHERE note_id = ? AND state IN ( 'active', 'dropped' ) ORDER BY position` )
-    .all( noteId ) )
+      WHERE user_id = ? AND note_id = ? AND state IN ( 'active', 'dropped' )
+      ORDER BY position` )
+    .all( userId, noteId ) )
 }
 
-export const setState = ( ids: string[], state: MeleteQuestionState ): void => {
+export const setState = (
+  userId: string,
+  ids: string[],
+  state: MeleteQuestionState,
+): void => {
   if( ids.length === 0 ) {
     return
   }
 
   getDatabase()
-    .prepare( `UPDATE melete_questions SET state = ? WHERE id IN ( ${ placeholders( ids ) } )` )
-    .run( state, ...ids )
+    .prepare( `UPDATE melete_questions SET state = ?
+      WHERE user_id = ? AND id IN ( ${ placeholders( ids ) } )` )
+    .run( state, userId, ...ids )
 }
 
-export const retireActiveForNote = ( noteId: string ): number => {
+export const retireActiveForNote = ( userId: string, noteId: string ): number => {
   return getDatabase()
     .prepare( `UPDATE melete_questions SET state = 'retired'
-      WHERE note_id = ? AND state = 'active'` )
-    .run( noteId ).changes
+      WHERE user_id = ? AND note_id = ? AND state = 'active'` )
+    .run( userId, noteId ).changes
 }
 
-export const saveCard = ( id: string, card: CardRow ): void => {
+export const saveCard = ( userId: string, id: string, card: CardRow ): void => {
   getDatabase()
     .prepare( `UPDATE melete_questions SET
         due = @due, stability = @stability, difficulty = @difficulty,
         scheduled_days = @scheduled_days, learning_steps = @learning_steps, reps = @reps,
         lapses = @lapses, fsrs_state = @fsrs_state, last_review = @last_review
-      WHERE id = @id` )
-    .run( { ...CardRow.parse( card ), id } )
+      WHERE id = @id AND user_id = @user_id` )
+    .run( { ...CardRow.parse( card ), id, user_id: userId } )
 }
 
 // A new question that was served but not rated has a due time too, so it comes back here
 export const listDue = (
+  userId: string,
   { subjectIds, now }: { subjectIds: string[], now: string },
 ): QueuedQuestion[] => {
   if( subjectIds.length === 0 ) {
@@ -144,10 +156,11 @@ export const listDue = (
       AND q.due IS NOT NULL AND q.due <= ?
       ORDER BY CASE WHEN q.fsrs_state IN ( 'learning', 'relearning' ) THEN 0 ELSE 1 END,
         q.due, n.path, q.position` )
-    .all( ...subjectIds, now ) )
+    .all( userId, ...subjectIds, now ) )
 }
 
 export const listNew = (
+  userId: string,
   { subjectId, limit }: { subjectId: string, limit: number },
 ): QueuedQuestion[] => {
   return parseQueued( getDatabase()
@@ -155,10 +168,11 @@ export const listNew = (
       AND n.subject_id = ? AND q.fsrs_state = 'new' AND q.due IS NULL
       ORDER BY n.enrolled_at, n.path, q.position
       LIMIT ?` )
-    .all( subjectId, limit ) )
+    .all( userId, subjectId, limit ) )
 }
 
 export const listLearningSoon = (
+  userId: string,
   { subjectIds, until }: { subjectIds: string[], until: string },
 ): QueuedQuestion[] => {
   if( subjectIds.length === 0 ) {
@@ -170,10 +184,10 @@ export const listLearningSoon = (
       AND n.subject_id IN ( ${ placeholders( subjectIds ) } )
       AND q.fsrs_state IN ( 'learning', 'relearning' ) AND q.due IS NOT NULL AND q.due <= ?
       ORDER BY q.due, n.path, q.position` )
-    .all( ...subjectIds, until ) )
+    .all( userId, ...subjectIds, until ) )
 }
 
-export const countBySubject = ( now: string ): SubjectCounts[] => {
+export const countBySubject = ( userId: string, now: string ): SubjectCounts[] => {
   return z.array( SubjectCounts ).parse( getDatabase()
     .prepare( `SELECT s.id AS subject_id,
         COALESCE( SUM( CASE WHEN q.due IS NOT NULL AND q.due <= @now THEN 1 ELSE 0 END ), 0 )
@@ -184,7 +198,8 @@ export const countBySubject = ( now: string ): SubjectCounts[] => {
         LEFT JOIN melete_notes n
           ON n.subject_id = s.id AND n.enrolled = 1 AND n.missing_at IS NULL
         LEFT JOIN melete_questions q ON q.note_id = n.id AND q.state = 'active'
+      WHERE s.user_id = @userId
       GROUP BY s.id
       ORDER BY lower( s.folder ), s.folder` )
-    .all( { now } ) )
+    .all( { now, userId } ) )
 }

@@ -305,14 +305,17 @@ CREATE INDEX health_errors_subject ON health_errors ( kind, subject_id, at );
 
 CREATE TABLE melete_subjects (
   id TEXT PRIMARY KEY,
-  folder TEXT NOT NULL UNIQUE,
+  user_id TEXT NOT NULL REFERENCES users ( id ) ON DELETE CASCADE,
+  folder TEXT NOT NULL,
   auto_enroll INTEGER NOT NULL DEFAULT 0,
   new_per_day INTEGER NOT NULL DEFAULT 10,
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  UNIQUE ( user_id, folder )
 );
 
 CREATE TABLE melete_notes (
   id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users ( id ) ON DELETE CASCADE,
   subject_id TEXT NOT NULL REFERENCES melete_subjects ( id ),
   path TEXT NOT NULL,
   title TEXT NOT NULL,
@@ -326,12 +329,14 @@ CREATE TABLE melete_notes (
   missing_at TEXT,
   created_at TEXT NOT NULL
 );
-CREATE UNIQUE INDEX melete_notes_path ON melete_notes ( path ) WHERE missing_at IS NULL;
-CREATE INDEX melete_notes_hash ON melete_notes ( body_hash );
-CREATE INDEX melete_notes_queue ON melete_notes ( generation, enrolled_at );
+CREATE UNIQUE INDEX melete_notes_path
+  ON melete_notes ( user_id, path ) WHERE missing_at IS NULL;
+CREATE INDEX melete_notes_hash ON melete_notes ( user_id, body_hash );
+CREATE INDEX melete_notes_queue ON melete_notes ( user_id, generation, enrolled_at );
 
 CREATE TABLE melete_questions (
   id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users ( id ) ON DELETE CASCADE,
   note_id TEXT NOT NULL REFERENCES melete_notes ( id ),
   position INTEGER NOT NULL,
   prompt TEXT NOT NULL,
@@ -352,10 +357,11 @@ CREATE TABLE melete_questions (
   created_at TEXT NOT NULL
 );
 CREATE INDEX melete_questions_note ON melete_questions ( note_id, state, position );
-CREATE INDEX melete_questions_due ON melete_questions ( state, due );
+CREATE INDEX melete_questions_due ON melete_questions ( user_id, state, due );
 
 CREATE TABLE melete_reviews (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL REFERENCES users ( id ) ON DELETE CASCADE,
   question_id TEXT NOT NULL REFERENCES melete_questions ( id ),
   reviewed_at TEXT NOT NULL,
   mode TEXT NOT NULL,
@@ -367,10 +373,11 @@ CREATE TABLE melete_reviews (
   before_state TEXT NOT NULL
 );
 CREATE INDEX melete_reviews_question ON melete_reviews ( question_id, reviewed_at );
-CREATE INDEX melete_reviews_day ON melete_reviews ( reviewed_at );
+CREATE INDEX melete_reviews_day ON melete_reviews ( user_id, reviewed_at );
 
 CREATE TABLE melete_runs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL REFERENCES users ( id ) ON DELETE CASCADE,
   kind TEXT NOT NULL,
   note_id TEXT,
   question_id TEXT,

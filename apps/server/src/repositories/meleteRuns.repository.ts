@@ -21,22 +21,24 @@ export type NewMeleteRun = z.infer< typeof NewMeleteRun >
 export const MeleteRunRecord = NewMeleteRun.extend( { id: z.int() } )
 export type MeleteRunRecord = z.infer< typeof MeleteRunRecord >
 
-export const insertRun = ( run: NewMeleteRun ): number => {
+export const insertRun = ( userId: string, run: NewMeleteRun ): number => {
   const { lastInsertRowid } = getDatabase()
     .prepare( `INSERT INTO melete_runs (
-        kind, note_id, question_id, model, prompt_version_id, input_tokens, output_tokens,
+        user_id, kind, note_id, question_id, model, prompt_version_id, input_tokens, output_tokens,
         cost_usd, outcome, error, created_at
       ) VALUES (
-        @kind, @note_id, @question_id, @model, @prompt_version_id, @input_tokens, @output_tokens,
-        @cost_usd, @outcome, @error, @created_at
+        @user_id, @kind, @note_id, @question_id, @model, @prompt_version_id, @input_tokens,
+        @output_tokens, @cost_usd, @outcome, @error, @created_at
       )` )
-    .run( run )
+    .run( { ...run, user_id: userId } )
 
   return Number( lastInsertRowid )
 }
 
-export const findRun = ( id: number ): MeleteRunRecord | undefined => {
-  const row = getDatabase().prepare( 'SELECT * FROM melete_runs WHERE id = ?' ).get( id )
+export const findRun = ( userId: string, id: number ): MeleteRunRecord | undefined => {
+  const row = getDatabase()
+    .prepare( 'SELECT * FROM melete_runs WHERE id = ? AND user_id = ?' )
+    .get( id, userId )
 
   return row === undefined ? undefined : MeleteRunRecord.parse( row )
 }

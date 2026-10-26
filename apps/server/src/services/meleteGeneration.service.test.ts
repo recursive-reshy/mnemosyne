@@ -35,7 +35,7 @@ import { setSetting } from '../repositories/settings.repository.js'
 // Services
 import { generateForNote } from './meleteGeneration.service.js'
 import { resetScanClock, scanLearningRoot } from './meleteScan.service.js'
-import { resolveMeletePrompt } from './prompts.service.js'
+import { listProfiles, resolveMeletePrompt, saveVersion } from './prompts.service.js'
 // Logging
 import { logger } from '../logger.js'
 // Test support
@@ -46,7 +46,7 @@ import {
   createMeleteVault,
 } from '../test-support/meleteVault.fixture.js'
 // Test support
-import { defaultTestAdmin } from '../test-support/auth.js'
+import { createTestUser, defaultTestAdmin } from '../test-support/auth.js'
 
 let userId = ''
 
@@ -81,7 +81,7 @@ const reply = ( passage = PASSAGE ) => ( {
 } )
 
 const noteAt = ( path: string ) => {
-  const found = listNotesUnder( 'Learning' ).find( ( note ) => {
+  const found = listNotesUnder( userId, 'Learning' ).find( ( note ) => {
     return note.path === path && note.missing_at === null
   } )
 
@@ -94,12 +94,12 @@ const noteAt = ( path: string ) => {
 
 // A scanned, enrolled note that the loop has just claimed
 const claimed = async ( path = GENERICS_PATH ): Promise< string > => {
-  await scanLearningRoot( { force: true, now: T0 } )
+  await scanLearningRoot( userId, { force: true, now: T0 } )
 
   const { id } = noteAt( path )
 
-  setEnrolled( [ id ], true, T0.toISOString() )
-  updateNote( id, { generation: 'generating' } )
+  setEnrolled( userId, [ id ], true, T0.toISOString() )
+  updateNote( userId, id, { generation: 'generating' } )
 
   return id
 }
@@ -136,10 +136,10 @@ describe( 'generateForNote', () => {
   it( 'stores the questions and returns the note to idle', async () => {
     const id = await claimed()
 
-    await generateForNote( id, T0 )
+    await generateForNote( userId, id, T0 )
 
-    const note = findNote( id )
-    const questions = listForNote( id )
+    const note = findNote( userId, id )
+    const questions = listForNote( userId, id )
 
     expect( note ).toMatchObject( { generation: 'idle', generation_error: null } )
     expect( questions.map( ( { position, prompt, passage, state } ) => {
@@ -155,7 +155,7 @@ describe( 'generateForNote', () => {
   it( 'sends the subject, the title and the body without front-matter', async () => {
     const id = await claimed()
 
-    await generateForNote( id, T0 )
+    await generateForNote( userId, id, T0 )
 
     const { version } = resolveMeletePrompt( userId, 'melete_questions' )
 
@@ -173,13 +173,13 @@ describe( 'generateForNote', () => {
   it( 'records the run with the model, prompt version, tokens and cost', async () => {
     const id = await claimed()
 
-    await generateForNote( id, T0 )
+    await generateForNote( userId, id, T0 )
 
     const [ run ] = runs() as { id: number }[]
     const { version } = resolveMeletePrompt( userId, 'melete_questions' )
 
     expect( runs() ).toHaveLength( 1 )
-    expect( findRun( run?.id ?? 0 ) ).toMatchObject( {
+    expect( findRun( userId, run?.id ?? 0 ) ).toMatchObject( {
       kind: 'generate',
       note_id: id,
       question_id: null,
@@ -191,27 +191,26 @@ describe( 'generateForNote', () => {
       error: null,
       created_at: T0.toISOString(),
     } )
-    expect( findRun( run?.id ?? 0 )?.cost_usd ).toBeGreaterThan( 0 )
-    expect( listForNote( id )[ 0 ]?.run_id ).toBe( run?.id )
+    expect( findRun( userId, run?.id ?? 0 )?.cost_usd ).toBeGreaterThan( 0 )
+    expect( listForNote( userId, id )[ 0 ]?.run_id ).toBe( run?.id )
   } )
 
   it( 'empties a passage that is not in the note', async () => {
     const id = await claimed()
 
     generate.mockResolvedValue( reply( 'A line the note does not contain.' ) )
-    await generateForNote( id, T0 )
+    await generateForNote( userId, id, T0 )
 
-    expect( listForNote( id )[ 0 ]?.passage ).toBe( '' )
+    expect( listForNote( userId, id )[ 0 ]?.passage ).toBe( '' )
   } )
 
   it( 'follows the edited question prompt', async () => {
     const id = await claimed()
 
     const { profile } = resolveMeletePrompt( userId, 'melete_questions' )
-    const { saveVersion } = await import( './prompts.service.js' )
 
     saveVersion( userId, profile.id, 'Ask about edge cases.' )
-    await generateForNote( id, T0 )
+    await generateForNote( userId, id, T0 )
 
     expect( generate.mock.calls[ 0 ]?.[ 0 ].system )
       .toContain( '## Guidance\nAsk about edge cases.' )
@@ -222,9 +221,9 @@ describe( 'generateForNote', () => {
 
     const id = await claimed()
 
-    await generateForNote( id, T0 )
+    await generateForNote( userId, id, T0 )
 
-    const note = findNote( id )
+    const note = findNote( userId, id )
 
     expect( generate ).not.toHaveBeenCalled()
     expect( note?.generation ).toBe( 'failed' )
@@ -237,20 +236,20 @@ describe( 'generateForNote', () => {
       output_tokens: null,
       cost_usd: null,
     } ] )
-    expect( listForNote( id ) ).toEqual( [] )
+    expect( listForNote( userId, id ) ).toEqual( [] )
   } )
 
   it( 'stores a Claude failure on the note, with the billed tokens', async () => {
     const id = await claimed()
     const other = noteAt( 'Learning/Rust/Ownership.md' ).id
 
-    setEnrolled( [ other ], true, T0.toISOString() )
-    updateNote( other, { generation: 'queued' } )
+    setEnrolled( userId, [ other ], true, T0.toISOString() )
+    updateNote( userId, other, { generation: 'queued' } )
     generate.mockRejectedValue( new MeleteError( 'Question generation was cut off', { usage } ) )
 
-    await generateForNote( id, T0 )
+    await generateForNote( userId, id, T0 )
 
-    expect( findNote( id ) ).toMatchObject( {
+    expect( findNote( userId, id ) ).toMatchObject( {
       generation: 'failed',
       generation_error: 'Question generation was cut off',
     } )
@@ -260,15 +259,15 @@ describe( 'generateForNote', () => {
       input_tokens: 2000,
       output_tokens: 300,
     } ] )
-    expect( listForNote( id ) ).toEqual( [] )
-    expect( findNote( other )?.generation ).toBe( 'queued' )
+    expect( listForNote( userId, id ) ).toEqual( [] )
+    expect( findNote( userId, other )?.generation ).toBe( 'queued' )
   } )
 
   it( 'stores a failure without usage as null tokens and cost', async () => {
     const id = await claimed()
 
     generate.mockRejectedValue( new MeleteError( 'Question generation failed: Overloaded' ) )
-    await generateForNote( id, T0 )
+    await generateForNote( userId, id, T0 )
 
     expect( runs() ).toMatchObject( [ {
       input_tokens: null,
@@ -282,8 +281,9 @@ describe( 'generateForNote', () => {
 
     generate.mockRejectedValue( new TypeError( 'boom' ) )
 
-    await expect( generateForNote( id, T0 ) ).resolves.toBeUndefined()
-    expect( findNote( id ) ).toMatchObject( { generation: 'failed', generation_error: 'boom' } )
+    await expect( generateForNote( userId, id, T0 ) ).resolves.toBeUndefined()
+    expect( findNote( userId, id ) )
+      .toMatchObject( { generation: 'failed', generation_error: 'boom' } )
   } )
 
   it( 'fails the note when no usable question comes back', async () => {
@@ -293,62 +293,63 @@ describe( 'generateForNote', () => {
       output: { questions: [ { prompt: ' ', answer: 'x', passage: '' } ] },
       usage,
     } )
-    await generateForNote( id, T0 )
+    await generateForNote( userId, id, T0 )
 
-    expect( findNote( id ) ).toMatchObject( {
+    expect( findNote( userId, id ) ).toMatchObject( {
       generation: 'failed',
       generation_error: 'No usable questions came back',
     } )
     expect( runs() ).toMatchObject( [ { outcome: 'failed', input_tokens: 2000 } ] )
-    expect( listForNote( id ) ).toEqual( [] )
+    expect( listForNote( userId, id ) ).toEqual( [] )
   } )
 
   it( 'hands a note edited since it was queued back to the scan', async () => {
     const id = await claimed()
 
-    await generateForNote( id, T0 ) // first questions
-    updateNote( id, { generation: 'generating' } )
+    await generateForNote( userId, id, T0 ) // first questions
+    updateNote( userId, id, { generation: 'generating' } )
     generate.mockClear()
     await vault.write( GENERICS_PATH, '# Generics\n\nA different body.\n' )
 
-    await generateForNote( id, new Date( T0.getTime() + 60_000 ) )
+    await generateForNote( userId, id, new Date( T0.getTime() + 60_000 ) )
 
     expect( generate ).not.toHaveBeenCalled()
-    expect( findNote( id ) ).toMatchObject( { generation: 'queued', generation_error: null } )
-    expect( listForNote( id ) ).toEqual( [] )
+    expect( findNote( userId, id ) )
+      .toMatchObject( { generation: 'queued', generation_error: null } )
+    expect( listForNote( userId, id ) ).toEqual( [] )
   } )
 
   it( 'marks a note whose file is gone as missing and idle', async () => {
     const id = await claimed()
 
     await vault.remove( GENERICS_PATH )
-    await generateForNote( id, T0 )
+    await generateForNote( userId, id, T0 )
 
     expect( generate ).not.toHaveBeenCalled()
-    expect( findNote( id ) ).toMatchObject( { generation: 'idle' } )
-    expect( findNote( id )?.missing_at ).not.toBeNull()
+    expect( findNote( userId, id ) ).toMatchObject( { generation: 'idle' } )
+    expect( findNote( userId, id )?.missing_at ).not.toBeNull()
     expect( runs() ).toEqual( [] )
   } )
 
   it( 'does nothing for a note that is no longer enrolled', async () => {
     const id = await claimed()
 
-    setEnrolled( [ id ], false, T0.toISOString() )
-    await generateForNote( id, T0 )
+    setEnrolled( userId, [ id ], false, T0.toISOString() )
+    await generateForNote( userId, id, T0 )
 
     expect( generate ).not.toHaveBeenCalled()
-    expect( findNote( id )?.generation ).toBe( 'idle' )
+    expect( findNote( userId, id )?.generation ).toBe( 'idle' )
   } )
 
   it( 'does nothing for a note that already has questions for this body', async () => {
     const id = await claimed()
 
-    addQuestion( id, { hash: noteAt( GENERICS_PATH ).body_hash } )
-    await generateForNote( id, T0 )
+    addQuestion( userId, id, { hash: noteAt( GENERICS_PATH ).body_hash } )
+    await generateForNote( userId, id, T0 )
 
     expect( generate ).not.toHaveBeenCalled()
-    expect( findNote( id )?.generation ).toBe( 'idle' )
-    expect( listForNote( id ) ).toHaveLength( 1 )
+    expect( findNote( userId, id )?.generation ).toBe( 'idle' )
+    expect( listForNote( userId, id ) ).toHaveLength( 1 )
   } )
 
   it( 'keeps the queue entry when the note is edited during the call', async () => {
@@ -356,14 +357,14 @@ describe( 'generateForNote', () => {
 
     generate.mockImplementation( async () => {
       await vault.write( GENERICS_PATH, '# Generics\n\nEdited while Claude was thinking.\n' )
-      await scanLearningRoot( { force: true, now: new Date( T0.getTime() + 60_000 ) } )
+      await scanLearningRoot( userId, { force: true, now: new Date( T0.getTime() + 60_000 ) } )
 
       return reply()
     } )
-    await generateForNote( id, T0 )
+    await generateForNote( userId, id, T0 )
 
-    expect( listForNote( id ) ).toEqual( [] )
-    expect( findNote( id )?.generation ).toBe( 'queued' )
+    expect( listForNote( userId, id ) ).toEqual( [] )
+    expect( findNote( userId, id )?.generation ).toBe( 'queued' )
     expect( runs() ).toMatchObject( [ { outcome: 'succeeded' } ] )
   } )
 
@@ -371,16 +372,16 @@ describe( 'generateForNote', () => {
     const id = await claimed()
 
     generate.mockImplementation( async () => {
-      setEnrolled( [ id ], false, T0.toISOString() )
+      setEnrolled( userId, [ id ], false, T0.toISOString() )
       await vault.write( GENERICS_PATH, '# Generics\n\nEdited and unenrolled.\n' )
-      await scanLearningRoot( { force: true, now: new Date( T0.getTime() + 60_000 ) } )
+      await scanLearningRoot( userId, { force: true, now: new Date( T0.getTime() + 60_000 ) } )
 
       return reply()
     } )
-    await generateForNote( id, T0 )
+    await generateForNote( userId, id, T0 )
 
-    expect( listForNote( id ) ).toEqual( [] )
-    expect( findNote( id )?.generation ).toBe( 'idle' )
+    expect( listForNote( userId, id ) ).toEqual( [] )
+    expect( findNote( userId, id )?.generation ).toBe( 'idle' )
   } )
 
   it( 'leaves the note not idle when storing the questions fails', async () => {
@@ -393,19 +394,19 @@ describe( 'generateForNote', () => {
     getDatabase().exec( `CREATE TRIGGER stop_insert BEFORE INSERT ON melete_questions
       BEGIN SELECT RAISE( ABORT, 'disk full' ); END` )
 
-    await generateForNote( id, T0 )
+    await generateForNote( userId, id, T0 )
 
-    expect( findNote( id ) ).toMatchObject( {
+    expect( findNote( userId, id ) ).toMatchObject( {
       generation: 'failed',
       generation_error: 'disk full',
     } )
-    expect( listForNote( id ) ).toEqual( [] )
+    expect( listForNote( userId, id ) ).toEqual( [] )
   } )
 
   it( 'ignores an unknown note', async () => {
     const warn = vi.spyOn( logger, 'warn' )
 
-    await expect( generateForNote( crypto.randomUUID(), T0 ) ).resolves.toBeUndefined()
+    await expect( generateForNote( userId, crypto.randomUUID(), T0 ) ).resolves.toBeUndefined()
     expect( generate ).not.toHaveBeenCalled()
     expect( warn ).toHaveBeenCalledTimes( 1 )
   } )
@@ -417,7 +418,7 @@ describe( 'generateForNote', () => {
     } )
 
     generate.mockRejectedValue( new MeleteError( 'Question generation was cut off', { usage } ) )
-    await generateForNote( id, T0 )
+    await generateForNote( userId, id, T0 )
 
     const logged = JSON.stringify( spies.flatMap( ( spy ) => spy.mock.calls ) )
 
@@ -429,8 +430,56 @@ describe( 'generateForNote', () => {
     const id = await claimed()
     const before = await snapshot( vault.vaultPath )
 
-    await generateForNote( id, T0 )
+    await generateForNote( userId, id, T0 )
 
     expect( await snapshot( vault.vaultPath ) ).toEqual( before )
+  } )
+} )
+
+describe( 'generateForNote for two users', () => {
+  it( 'uses the owner\'s model and prompt and records the run for the owner', async () => {
+    const other = createTestUser().id
+
+    setSetting( other, 'melete_learning_root', 'Learning' )
+    setSetting( other, 'melete_question_model', 'claude-haiku-5-5' )
+
+    const profile = listProfiles( other, 'melete_questions' )[ 0 ]
+
+    await scanLearningRoot( other, { force: true, now: T0 } )
+
+    const theirs = listNotesUnder( other, 'Learning' )
+      .find( ( note ) => note.path === GENERICS_PATH )
+
+    if( theirs === undefined ) {
+      throw new Error( 'The other user did not scan the note' )
+    }
+
+    saveVersion( other, profile?.id ?? '', 'Their own guidance.' )
+    setEnrolled( other, [ theirs.id ], true, T0.toISOString() )
+    updateNote( other, theirs.id, { generation: 'generating' } )
+
+    const mine = await claimed()
+
+    await generateForNote( userId, mine, T0 )
+    await generateForNote( other, theirs.id, T0 )
+
+    expect( generate.mock.calls.map( ( [ call ] ) => call.model ) )
+      .toEqual( [ 'claude-sonnet-5-5', 'claude-haiku-5-5' ] )
+    expect( generate.mock.calls[ 1 ]?.[ 0 ].system ).toContain( 'Their own guidance.' )
+    expect( generate.mock.calls[ 0 ]?.[ 0 ].system ).not.toContain( 'Their own guidance.' )
+    expect( getDatabase().prepare( 'SELECT user_id FROM melete_runs ORDER BY id' ).all() )
+      .toEqual( [ { user_id: userId }, { user_id: other } ] )
+    expect( listForNote( other, theirs.id ) ).toHaveLength( 2 )
+    expect( listForNote( userId, mine ) ).toHaveLength( 2 )
+  } )
+
+  it( 'does not generate for a note that belongs to someone else', async () => {
+    const other = createTestUser().id
+    const id = await claimed()
+
+    await generateForNote( other, id, T0 )
+
+    expect( generate ).not.toHaveBeenCalled()
+    expect( findNote( userId, id )?.generation ).toBe( 'generating' )
   } )
 } )

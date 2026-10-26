@@ -1,8 +1,6 @@
 // Node
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-// Config
-import { config } from '../config.js'
 // Errors
 import { ConflictError } from '../errors.js'
 // Melete
@@ -27,13 +25,14 @@ import { retireActiveForNote } from '../repositories/meleteQuestions.repository.
 import { SubjectRecord, upsertSubject } from '../repositories/meleteSubjects.repository.js'
 // Services
 import { getLearningRoot } from './settings.service.js'
-import { interimOwnerId } from './interimOwner.js'
+import { vaultRootFor } from './vault.service.js'
 
 type ScanOptions = { force?: boolean, now?: Date }
 
 type ReadFile = ScannedFile & { subjectFolder: string, hash: string, title: string }
 
-let running: Promise< void > | null = null
+// One scan at a time for each user
+const running = new Map< string, Promise< void > >()
 
 export { resetScanClock }
 
@@ -42,11 +41,12 @@ const isGone = ( error: unknown ): boolean => {
 }
 
 const readNote = async (
+  vaultRoot: string,
   subjectFolder: string,
   file: ScannedFile,
 ): Promise< ReadFile | null > => {
   try {
-    const text = await readFile( join( config.vaultPath, file.path ), 'utf8' )
+    const text = await readFile( join( vaultRoot, file.path ), 'utf8' )
     const { frontMatter, body } = splitFrontMatter( text )
 
     return {
@@ -66,6 +66,7 @@ const readNote = async (
 }
 
 const applyScan = (
+  userId: string,
   learningRoot: string,
   subjectFolders: string[],
   seen: Set< string >,
@@ -73,9 +74,9 @@ const applyScan = (
   now: string,
 ): void => {
   const subjects = new Map< string, SubjectRecord >(
-    subjectFolders.map( ( folder ) => [ folder, upsertSubject( folder ) ] ),
+    subjectFolders.map( ( folder ) => [ folder, upsertSubject( userId, folder ) ] ),
   )
-  const stored = listNotesUnder( learningRoot )
+  const stored = listNotesUnder( userId, learningRoot )
   const live = new Map( stored.filter( ( note ) => note.missing_at === null )
     .map( ( note ) => [ note.path, note ] ) )
   const claimed = new Set< string >()
@@ -94,7 +95,7 @@ const applyScan = (
   const updateContent = ( note: NoteRecord, file: ReadFile ): void => {
     const edited = file.hash !== note.body_hash
 
-    updateNote( note.id, {
+    updateNote( userId, note.id, {
       path: file.path,
       subject_id: subjectOf( file ).id,
       title: file.title,
@@ -108,7 +109,7 @@ const applyScan = (
     } )
 
     if( edited && note.enrolled ) {
-      retireActiveForNote( note.id )
+      retireActiveForNote( userId, note.id )
     }
   }
 
@@ -158,7 +159,7 @@ const applyScan = (
     } else {
       const subject = subjectOf( file )
 
-      insertNote( {
+      insertNote( userId, {
         subject_id: subject.id,
         path: file.path,
         title: file.title,
@@ -174,21 +175,22 @@ const applyScan = (
 
   for( const note of live.values() ) {
     if( !seen.has( note.path ) && !claimed.has( note.id ) ) {
-      updateNote( note.id, { missing_at: now } )
+      updateNote( userId, note.id, { missing_at: now } )
     }
   }
 }
 
-const runScan = async ( learningRoot: string, now: Date ): Promise< void > => {
-  const subjectFolders = await listSubjectFolders( config.vaultPath, learningRoot )
-  const known = new Map( listNotesUnder( learningRoot )
+const runScan = async ( userId: string, learningRoot: string, now: Date ): Promise< void > => {
+  const vaultRoot = vaultRootFor( userId )
+  const subjectFolders = await listSubjectFolders( vaultRoot, learningRoot )
+  const known = new Map( listNotesUnder( userId, learningRoot )
     .filter( ( note ) => note.missing_at === null )
     .map( ( note ) => [ note.path, note ] ) )
   const seen = new Set< string >()
   const changed: ReadFile[] = []
 
   for( const subjectFolder of subjectFolders ) {
-    for( const file of await walkSubject( config.vaultPath, subjectFolder ) ) {
+    for( const file of await walkSubject( vaultRoot, subjectFolder ) ) {
       const note = known.get( file.path )
 
       if( note?.mtime_ms === file.mtimeMs && note.size === file.size ) {
@@ -196,7 +198,7 @@ const runScan = async ( learningRoot: string, now: Date ): Promise< void > => {
         continue
       }
 
-      const read = await readNote( subjectFolder, file )
+      const read = await readNote( vaultRoot, subjectFolder, file )
 
       if( read !== null ) {
         seen.add( file.path )
@@ -206,33 +208,38 @@ const runScan = async ( learningRoot: string, now: Date ): Promise< void > => {
   }
 
   getDatabase().transaction( () => {
-    applyScan( learningRoot, subjectFolders, seen, changed, now.toISOString() )
+    applyScan( userId, learningRoot, subjectFolders, seen, changed, now.toISOString() )
   } )()
 
-  markScanned( now )
+  markScanned( userId, now )
 }
 
 // Scans at most every 30 seconds unless forced, and one at a time (ADR 0057)
 export const scanLearningRoot = async (
+  userId: string,
   { force = false, now = new Date() }: ScanOptions = {},
 ): Promise< void > => {
-  const learningRoot = getLearningRoot( interimOwnerId() )
+  const learningRoot = getLearningRoot( userId )
 
   if( learningRoot === null ) {
     throw new ConflictError( 'Choose a learning root first' )
   }
 
-  if( running !== null ) {
-    return running
+  const inFlight = running.get( userId )
+
+  if( inFlight !== undefined ) {
+    return inFlight
   }
 
-  if( !force && isScanFresh( now ) ) {
+  if( !force && isScanFresh( userId, now ) ) {
     return undefined
   }
 
-  running = runScan( learningRoot, now ).finally( () => {
-    running = null
+  const scan = runScan( userId, learningRoot, now ).finally( () => {
+    running.delete( userId )
   } )
 
-  return running
+  running.set( userId, scan )
+
+  return scan
 }
