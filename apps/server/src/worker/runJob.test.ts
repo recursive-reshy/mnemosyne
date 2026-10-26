@@ -93,7 +93,7 @@ const expectClientsNotCalled = (): void => {
 beforeEach( () => {
   vi.useFakeTimers()
   vi.setSystemTime( new Date( NOW ) )
-  clearJobs()
+  clearJobs( userId )
   vi.resetAllMocks()
   downloadMock.mockResolvedValue( download )
   convertMock.mockResolvedValue( '/work/audio.wav' )
@@ -112,10 +112,10 @@ describe( 'runJob', () => {
   it( 'moves the job to summarizing and stores the transcript and title', async () => {
     const id = await queue()
 
-    await runJob( id )
+    await runJob( userId, id )
 
-    expect( findJob( id ) ).toMatchObject( { status: 'summarizing', title: 'A video' } )
-    expect( findJobById( id )?.source_document ).toEqual( {
+    expect( findJob( userId, id ) ).toMatchObject( { status: 'summarizing', title: 'A video' } )
+    expect( findJobById( userId, id )?.source_document ).toEqual( {
       kind: 'video',
       meta: { ...meta, transcribed_at: NOW, model: 'test-model' },
       segments,
@@ -125,7 +125,7 @@ describe( 'runJob', () => {
   it( 'passes the right arguments to each client', async () => {
     const id = await queue()
 
-    await runJob( id )
+    await runJob( userId, id )
 
     expect( downloadMock ).toHaveBeenCalledWith(
       'https://www.youtube.com/watch?v=abc',
@@ -139,19 +139,19 @@ describe( 'runJob', () => {
     const id = await queue()
     const seen: string[] = []
     downloadMock.mockImplementation( () => {
-      seen.push( findJob( id ).status )
+      seen.push( findJob( userId, id ).status )
       return Promise.resolve( download )
     } )
     convertMock.mockImplementation( () => {
-      seen.push( findJob( id ).status )
+      seen.push( findJob( userId, id ).status )
       return Promise.resolve( '/work/audio.wav' )
     } )
     transcribeMock.mockImplementation( () => {
-      seen.push( findJob( id ).status )
+      seen.push( findJob( userId, id ).status )
       return Promise.resolve( segments )
     } )
 
-    await runJob( id )
+    await runJob( userId, id )
 
     expect( seen ).toEqual( [ 'downloading', 'converting', 'transcribing' ] )
   } )
@@ -165,9 +165,9 @@ describe( 'runJob', () => {
       const id = await queue()
       fail().mockRejectedValue( new Error( 'boom' ) )
 
-      await runJob( id )
+      await runJob( userId, id )
 
-      expect( findJob( id ) ).toMatchObject( { status: 'failed', error: 'boom' } )
+      expect( findJob( userId, id ) ).toMatchObject( { status: 'failed', error: 'boom' } )
       later.forEach( ( mock ) => expect( mock ).not.toHaveBeenCalled() )
     } )
 
@@ -175,7 +175,7 @@ describe( 'runJob', () => {
       const id = await queue()
       fail().mockRejectedValue( new Error( 'boom' ) )
 
-      await runJob( id )
+      await runJob( userId, id )
 
       expect( rmMock ).toHaveBeenCalledWith( `/work/${ id }`, { recursive: true, force: true } )
     } )
@@ -184,18 +184,18 @@ describe( 'runJob', () => {
       const id = await queue()
       fail().mockRejectedValue( 'nope' )
 
-      await runJob( id )
+      await runJob( userId, id )
 
-      expect( findJob( id ) ).toMatchObject( { status: 'failed', error: 'Unknown error' } )
+      expect( findJob( userId, id ) ).toMatchObject( { status: 'failed', error: 'Unknown error' } )
     } )
   } )
 
   it( 'summarizes after the audio is removed', async () => {
     const id = await queue()
 
-    await runJob( id )
+    await runJob( userId, id )
 
-    expect( summarizeJobMock ).toHaveBeenCalledWith( id )
+    expect( summarizeJobMock ).toHaveBeenCalledWith( userId, id )
     expect( rmMock.mock.invocationCallOrder[ 0 ] ).toBeLessThan(
       summarizeJobMock.mock.invocationCallOrder[ 0 ],
     )
@@ -205,7 +205,7 @@ describe( 'runJob', () => {
     const id = await queue()
     transcribeMock.mockRejectedValue( new Error( 'boom' ) )
 
-    await runJob( id )
+    await runJob( userId, id )
 
     expect( summarizeJobMock ).not.toHaveBeenCalled()
   } )
@@ -213,7 +213,7 @@ describe( 'runJob', () => {
   it( 'removes the work folder after success', async () => {
     const id = await queue()
 
-    await runJob( id )
+    await runJob( userId, id )
 
     expect( rmMock ).toHaveBeenCalledWith( `/work/${ id }`, { recursive: true, force: true } )
   } )
@@ -223,9 +223,9 @@ describe( 'runJob', () => {
     const errorSpy = vi.spyOn( logger, 'error' ).mockImplementation( () => undefined )
     rmMock.mockRejectedValue( new Error( 'disk' ) )
 
-    await expect( runJob( id ) ).resolves.toBeUndefined()
+    await expect( runJob( userId, id ) ).resolves.toBeUndefined()
 
-    expect( findJob( id ).status ).toBe( 'summarizing' )
+    expect( findJob( userId, id ).status ).toBe( 'summarizing' )
     expect( errorSpy ).toHaveBeenCalled()
   } )
 
@@ -235,11 +235,11 @@ describe( 'runJob', () => {
       .mockRejectedValueOnce( new Error( URL_FORBIDDEN ) )
       .mockResolvedValueOnce( download )
 
-    const run = runJob( id )
+    const run = runJob( userId, id )
     await vi.advanceTimersByTimeAsync( 3000 )
     await run
 
-    expect( findJob( id ).status ).toBe( 'summarizing' )
+    expect( findJob( userId, id ).status ).toBe( 'summarizing' )
     expect( downloadMock ).toHaveBeenCalledTimes( 2 )
     expect( rmMock.mock.invocationCallOrder[ 0 ] ).toBeLessThan(
       downloadMock.mock.invocationCallOrder[ 1 ],
@@ -250,11 +250,11 @@ describe( 'runJob', () => {
     const id = await queue()
     downloadMock.mockRejectedValue( new Error( URL_FORBIDDEN ) )
 
-    const run = runJob( id )
+    const run = runJob( userId, id )
     await vi.advanceTimersByTimeAsync( 3000 )
     await run
 
-    expect( findJob( id ) ).toMatchObject( { status: 'failed', error: URL_FORBIDDEN } )
+    expect( findJob( userId, id ) ).toMatchObject( { status: 'failed', error: URL_FORBIDDEN } )
     expect( downloadMock ).toHaveBeenCalledTimes( 2 )
   } )
 
@@ -262,29 +262,29 @@ describe( 'runJob', () => {
     const id = await queue()
     downloadMock.mockRejectedValue( new Error( 'Video unavailable' ) )
 
-    await runJob( id )
+    await runJob( userId, id )
 
     expect( downloadMock ).toHaveBeenCalledTimes( 1 )
   } )
 
   it( 'rejects with ConflictError when the job is not queued', async () => {
     const id = await queue()
-    markStatus( id, 'downloading' )
+    markStatus( userId, id, 'downloading' )
 
-    await expect( runJob( id ) ).rejects.toBeInstanceOf( ConflictError )
+    await expect( runJob( userId, id ) ).rejects.toBeInstanceOf( ConflictError )
 
     expectClientsNotCalled()
     expect( rmMock ).not.toHaveBeenCalled()
-    expect( findJob( id ).status ).toBe( 'downloading' )
+    expect( findJob( userId, id ).status ).toBe( 'downloading' )
   } )
 
   describe( 'when the job is already summarizing', () => {
     const queueSummarizing = async (): Promise< string > => {
       const id = await queue()
-      markStatus( id, 'downloading' )
-      markStatus( id, 'converting' )
-      markStatus( id, 'transcribing' )
-      completeAcquisition( id, {
+      markStatus( userId, id, 'downloading' )
+      markStatus( userId, id, 'converting' )
+      markStatus( userId, id, 'transcribing' )
+      completeAcquisition( userId, id, {
         kind: 'video',
         meta: { ...meta, transcribed_at: NOW, model: 'test-model' },
         segments,
@@ -296,9 +296,9 @@ describe( 'runJob', () => {
     it( 'runs only the summarize step', async () => {
       const id = await queueSummarizing()
 
-      await runJob( id )
+      await runJob( userId, id )
 
-      expect( summarizeJobMock ).toHaveBeenCalledExactlyOnceWith( id )
+      expect( summarizeJobMock ).toHaveBeenCalledExactlyOnceWith( userId, id )
       expectClientsNotCalled()
       expect( rmMock ).not.toHaveBeenCalled()
     } )
@@ -306,34 +306,34 @@ describe( 'runJob', () => {
     it( 'leaves the status to the summarize step', async () => {
       const id = await queueSummarizing()
 
-      await runJob( id )
+      await runJob( userId, id )
 
-      expect( findJob( id ).status ).toBe( 'summarizing' )
+      expect( findJob( userId, id ).status ).toBe( 'summarizing' )
     } )
 
     it( 'links the job when summarizing moved it to linking', async () => {
       const id = await queueSummarizing()
       summarizeJobMock.mockImplementation( () => {
-        updateJob( id, { status: 'linking', link_state: 'pending' } )
+        updateJob( userId, id, { status: 'linking', link_state: 'pending' } )
 
         return Promise.resolve()
       } )
 
-      await runJob( id )
+      await runJob( userId, id )
 
       expect( summarizeJobMock ).toHaveBeenCalledBefore( linkJobMock )
-      expect( linkJobMock ).toHaveBeenCalledExactlyOnceWith( id )
+      expect( linkJobMock ).toHaveBeenCalledExactlyOnceWith( userId, id )
     } )
 
     it( 'does not link a job that went to review without linking', async () => {
       const id = await queueSummarizing()
       summarizeJobMock.mockImplementation( () => {
-        updateJob( id, { status: 'ready_for_review', link_state: 'off' } )
+        updateJob( userId, id, { status: 'ready_for_review', link_state: 'off' } )
 
         return Promise.resolve()
       } )
 
-      await runJob( id )
+      await runJob( userId, id )
 
       expect( linkJobMock ).not.toHaveBeenCalled()
     } )
@@ -341,12 +341,12 @@ describe( 'runJob', () => {
     it( 'does not link a job whose summary failed', async () => {
       const id = await queueSummarizing()
       summarizeJobMock.mockImplementation( () => {
-        updateJob( id, { status: 'summary_failed' } )
+        updateJob( userId, id, { status: 'summary_failed' } )
 
         return Promise.resolve()
       } )
 
-      await runJob( id )
+      await runJob( userId, id )
 
       expect( linkJobMock ).not.toHaveBeenCalled()
     } )
@@ -355,15 +355,15 @@ describe( 'runJob', () => {
   describe( 'when the job is already linking', () => {
     const queueLinking = async (): Promise< string > => {
       const id = await queue()
-      markStatus( id, 'downloading' )
-      markStatus( id, 'converting' )
-      markStatus( id, 'transcribing' )
-      completeAcquisition( id, {
+      markStatus( userId, id, 'downloading' )
+      markStatus( userId, id, 'converting' )
+      markStatus( userId, id, 'transcribing' )
+      completeAcquisition( userId, id, {
         kind: 'video',
         meta: { ...meta, transcribed_at: NOW, model: 'test-model' },
         segments,
       } )
-      updateJob( id, { status: 'linking', link_state: 'pending' } )
+      updateJob( userId, id, { status: 'linking', link_state: 'pending' } )
 
       return id
     }
@@ -371,9 +371,9 @@ describe( 'runJob', () => {
     it( 'runs only the link step', async () => {
       const id = await queueLinking()
 
-      await runJob( id )
+      await runJob( userId, id )
 
-      expect( linkJobMock ).toHaveBeenCalledExactlyOnceWith( id )
+      expect( linkJobMock ).toHaveBeenCalledExactlyOnceWith( userId, id )
       expect( summarizeJobMock ).not.toHaveBeenCalled()
       expectClientsNotCalled()
       expect( rmMock ).not.toHaveBeenCalled()
@@ -383,18 +383,18 @@ describe( 'runJob', () => {
   it( 'links a job that was summarized in the same run', async () => {
     const id = await queue()
     summarizeJobMock.mockImplementation( () => {
-      updateJob( id, { status: 'linking', link_state: 'pending' } )
+      updateJob( userId, id, { status: 'linking', link_state: 'pending' } )
 
       return Promise.resolve()
     } )
 
-    await runJob( id )
+    await runJob( userId, id )
 
-    expect( linkJobMock ).toHaveBeenCalledExactlyOnceWith( id )
+    expect( linkJobMock ).toHaveBeenCalledExactlyOnceWith( userId, id )
   } )
 
   it( 'rejects with NotFoundError for an unknown id', async () => {
-    await expect( runJob( 'missing' ) ).rejects.toBeInstanceOf( NotFoundError )
+    await expect( runJob( userId, 'missing' ) ).rejects.toBeInstanceOf( NotFoundError )
 
     expectClientsNotCalled()
     expect( rmMock ).not.toHaveBeenCalled()
@@ -427,17 +427,17 @@ describe( 'runJob for articles', () => {
     const { id } = await queueJob( userId, { url: articleUrl } )
     const seen: string[] = []
     fetchMock.mockImplementation( () => {
-      seen.push( findJob( id ).status )
+      seen.push( findJob( userId, id ).status )
 
       return Promise.resolve( article )
     } )
 
-    await runJob( id )
+    await runJob( userId, id )
 
     expect( seen ).toEqual( [ 'fetching' ] )
-    expect( findJob( id ) ).toMatchObject( { status: 'summarizing', title: 'A post' } )
-    expect( findJobById( id )?.source_document ).toEqual( article )
-    expect( summarizeJobMock ).toHaveBeenCalledExactlyOnceWith( id )
+    expect( findJob( userId, id ) ).toMatchObject( { status: 'summarizing', title: 'A post' } )
+    expect( findJobById( userId, id )?.source_document ).toEqual( article )
+    expect( summarizeJobMock ).toHaveBeenCalledExactlyOnceWith( userId, id )
     expectClientsNotCalled()
     expect( rmMock ).not.toHaveBeenCalled()
   } )
@@ -446,9 +446,10 @@ describe( 'runJob for articles', () => {
     const { id } = await queueJob( userId, { url: articleUrl } )
     fetchMock.mockRejectedValue( new Error( 'Not an article page' ) )
 
-    await runJob( id )
+    await runJob( userId, id )
 
-    expect( findJob( id ) ).toMatchObject( { status: 'failed', error: 'Not an article page' } )
+    expect( findJob( userId, id ) )
+      .toMatchObject( { status: 'failed', error: 'Not an article page' } )
     expect( summarizeJobMock ).not.toHaveBeenCalled()
   } )
 
@@ -456,9 +457,9 @@ describe( 'runJob for articles', () => {
     const text = 'Pasted words. '.repeat( 30 )
     const { id } = await queueJob( userId, { url: articleUrl, text } )
 
-    await runJob( id )
+    await runJob( userId, id )
 
     expect( fetchMock ).not.toHaveBeenCalled()
-    expect( summarizeJobMock ).toHaveBeenCalledExactlyOnceWith( id )
+    expect( summarizeJobMock ).toHaveBeenCalledExactlyOnceWith( userId, id )
   } )
 } )

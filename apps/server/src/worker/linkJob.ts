@@ -12,20 +12,18 @@ import {
   recordLinkRun,
   recordLinkSuggestions,
 } from '../services/jobs.service.js'
-import { interimOwnerId } from '../services/interimOwner.js'
 import { resolveLinkerPrompt } from '../services/prompts.service.js'
 import { resolveLinkingModel } from '../services/settings.service.js'
 
-export const linkJob = async ( jobId: string ): Promise< void > => {
+export const linkJob = async ( userId: string, jobId: string ): Promise< void > => {
   try {
-    const job = findJob( jobId )
+    const job = findJob( userId, jobId )
 
     if( job.note_markdown === null ) {
       throw new Error( 'The job has no note to link' )
     }
 
     const { properties, body } = parseNote( job.note_markdown )
-    const userId = interimOwnerId()
     const { version } = resolveLinkerPrompt( userId )
     const model = await resolveLinkingModel( userId )
 
@@ -36,14 +34,14 @@ export const linkJob = async ( jobId: string ): Promise< void > => {
         note: {
           title: properties.title,
           tags: properties.tags,
-          folder: job.target_folder ?? defaultFolderFor( job ),
+          folder: job.target_folder ?? defaultFolderFor( userId, job ),
           body,
         },
         model,
         guidance: version.guidance,
       } )
     } catch( error ) {
-      recordLinkRun( jobId, {
+      recordLinkRun( userId, jobId, {
         model,
         promptVersionId: version.id,
         usage: undefined,
@@ -53,7 +51,7 @@ export const linkJob = async ( jobId: string ): Promise< void > => {
       throw error
     }
 
-    const runId = recordLinkRun( jobId, {
+    const runId = recordLinkRun( userId, jobId, {
       model,
       promptVersionId: version.id,
       usage: response.usage,
@@ -61,14 +59,14 @@ export const linkJob = async ( jobId: string ): Promise< void > => {
     } )
 
     if( response.outcome === 'failed' ) {
-      failLinking( jobId, response.reason ?? 'Linking failed' )
+      failLinking( userId, jobId, response.reason ?? 'Linking failed' )
 
       return
     }
 
-    recordLinkSuggestions( jobId, runId, response.suggestions )
-    completeLinking( jobId )
+    recordLinkSuggestions( userId, jobId, runId, response.suggestions )
+    completeLinking( userId, jobId )
   } catch( error ) {
-    failLinking( jobId, error instanceof Error ? error.message : 'Unknown error' )
+    failLinking( userId, jobId, error instanceof Error ? error.message : 'Unknown error' )
   }
 }

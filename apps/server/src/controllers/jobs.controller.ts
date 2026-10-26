@@ -55,55 +55,56 @@ export const createJob = async (
 }
 
 export const submitJobText = (
-  { params, body }: Request,
+  req: Request,
   res: Response< GetJobResponse >,
 ): void => {
-  const job = submitPastedText( String( params.id ), SubmitPastedTextBody.parse( body ) )
+  const body = SubmitPastedTextBody.parse( req.body )
+  const job = submitPastedText( currentUser( req ).id, String( req.params.id ), body )
 
   res.status( 200 ).json( { job } )
 }
 
-export const listActiveJobs = ( _req: Request, res: Response< ListJobsResponse > ): void => {
-  res.status( 200 ).json( { jobs: listJobs() } )
+export const listActiveJobs = ( req: Request, res: Response< ListJobsResponse > ): void => {
+  res.status( 200 ).json( { jobs: listJobs( currentUser( req ).id ) } )
 }
 
-export const getJob = ( { params }: Request, res: Response< GetJobResponse > ): void => {
-  const job = findJob( String( params.id ) )
+export const getJob = ( req: Request, res: Response< GetJobResponse > ): void => {
+  const job = findJob( currentUser( req ).id, String( req.params.id ) )
 
   res.status( 200 ).json( { job } )
 }
 
 export const getSource = (
-  { params }: Request,
+  req: Request,
   res: Response< GetSourceResponse >,
 ): void => {
-  const source = findSource( String( params.id ) )
+  const source = findSource( currentUser( req ).id, String( req.params.id ) )
 
   res.status( 200 ).json( { source } )
 }
 
 export const updateJobDraft = (
-  { params, body }: Request,
+  req: Request,
   res: Response< UpdateDraftResponse >,
 ): void => {
-  const changes = UpdateDraftBody.parse( body )
+  const changes = UpdateDraftBody.parse( req.body )
 
-  const job = updateDraft( String( params.id ), changes )
+  const job = updateDraft( currentUser( req ).id, String( req.params.id ), changes )
 
   res.status( 200 ).json( { job } )
 }
 
 export const saveReviewedJob = async (
-  { params }: Request,
+  req: Request,
   res: Response< SaveJobResponse >,
 ): Promise< void > => {
-  const savedPath = await saveJob( String( params.id ) )
+  const savedPath = await saveJob( currentUser( req ).id, String( req.params.id ) )
 
   res.status( 200 ).json( { saved_path: savedPath } )
 }
 
-export const retryJobSummary = ( { params }: Request, res: Response< GetJobResponse > ): void => {
-  const job = retrySummary( String( params.id ) )
+export const retryJobSummary = ( req: Request, res: Response< GetJobResponse > ): void => {
+  const job = retrySummary( currentUser( req ).id, String( req.params.id ) )
 
   res.status( 202 ).json( { job } )
 }
@@ -118,16 +119,20 @@ export const regenerateJobSummary = async (
   res.status( 202 ).json( { job } )
 }
 
-export const discardReviewedJob = ( { params }: Request, res: Response ): void => {
-  discardJob( String( params.id ) )
+export const discardReviewedJob = ( req: Request, res: Response ): void => {
+  discardJob( currentUser( req ).id, String( req.params.id ) )
 
   res.status( 204 ).end()
 }
 
-export const downloadTranscript = ( { params, query }: Request, res: Response ): void => {
-  const format = DownloadFormat.parse( query.format ?? 'md' )
+export const downloadTranscript = ( req: Request, res: Response ): void => {
+  const format = DownloadFormat.parse( req.query.format ?? 'md' )
 
-  const { filename, contentType, body } = renderTranscript( String( params.id ), format )
+  const { filename, contentType, body } = renderTranscript(
+    currentUser( req ).id,
+    String( req.params.id ),
+    format,
+  )
 
   res
     .status( 200 )
@@ -139,35 +144,49 @@ export const downloadTranscript = ( { params, query }: Request, res: Response ):
 const jobIdParam = ( params: Request[ 'params' ] ): string => z.uuid().parse( params.id )
 
 export const getLinkSuggestions = (
-  { params }: Request,
+  req: Request,
   res: Response< ListLinkSuggestionsResponse >,
 ): void => {
-  res.status( 200 ).json( { suggestions: listLinkSuggestions( jobIdParam( params ) ) } )
+  const suggestions = listLinkSuggestions( currentUser( req ).id, jobIdParam( req.params ) )
+
+  res.status( 200 ).json( { suggestions } )
 }
 
 export const acceptLinkSuggestions = (
-  { params, body }: Request,
+  req: Request,
   res: Response< LinkSuggestionsResponse >,
 ): void => {
-  const result = acceptSuggestions( jobIdParam( params ), AcceptLinkSuggestionsBody.parse( body ) )
+  const result = acceptSuggestions(
+    currentUser( req ).id,
+    jobIdParam( req.params ),
+    AcceptLinkSuggestionsBody.parse( req.body ),
+  )
 
   res.status( 200 ).json( result )
 }
 
 export const rejectLinkSuggestions = (
-  { params, body }: Request,
+  req: Request,
   res: Response< LinkSuggestionsResponse >,
 ): void => {
-  const result = rejectSuggestions( jobIdParam( params ), RejectLinkSuggestionsBody.parse( body ) )
+  const result = rejectSuggestions(
+    currentUser( req ).id,
+    jobIdParam( req.params ),
+    RejectLinkSuggestionsBody.parse( req.body ),
+  )
 
   res.status( 200 ).json( result )
 }
 
 export const runJobLinking = (
-  { params, body }: Request,
+  req: Request,
   res: Response< GetJobResponse >,
 ): void => {
-  const job = runLinking( jobIdParam( params ), RunLinkingBody.parse( body ?? {} ) )
+  const job = runLinking(
+    currentUser( req ).id,
+    jobIdParam( req.params ),
+    RunLinkingBody.parse( req.body ?? {} ),
+  )
 
   res.status( 202 ).json( { job } )
 }

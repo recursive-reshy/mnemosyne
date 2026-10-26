@@ -71,7 +71,7 @@ const seed = ( status: JobStatus, source: SourceType = 'video' ): string => {
   const id = crypto.randomUUID()
   const hasDraft = status === 'linking' || status === 'ready_for_review'
 
-  insertJob( {
+  insertJob( userId, {
     id,
     url: 'https://www.youtube.com/watch?v=abc',
     status,
@@ -107,38 +107,42 @@ const seed = ( status: JobStatus, source: SourceType = 'video' ): string => {
 }
 
 const CASES: Array< [ string, JobStatus, ( id: string ) => unknown, SourceType? ] > = [
-  [ 'markStatus', 'queued', ( id ) => markStatus( id, 'downloading' ) ],
-  [ 'completeAcquisition', 'transcribing', ( id ) => completeAcquisition( id, document ) ],
-  [ 'completeSummary', 'summarizing', ( id ) => completeSummary( id, '## Summary', [] ) ],
-  [ 'completeLinking', 'linking', ( id ) => completeLinking( id ) ],
-  [ 'failLinking', 'linking', ( id ) => failLinking( id, 'x' ) ],
-  [ 'failSummary', 'summarizing', ( id ) => failSummary( id, 'x' ) ],
-  [ 'retrySummary', 'summary_failed', ( id ) => retrySummary( id ) ],
+  [ 'markStatus', 'queued', ( id ) => markStatus( userId, id, 'downloading' ) ],
+  [ 'completeAcquisition', 'transcribing', ( id ) => completeAcquisition( userId, id, document ) ],
+  [ 'completeSummary', 'summarizing', ( id ) => completeSummary( userId, id, '## Summary', [] ) ],
+  [ 'completeLinking', 'linking', ( id ) => completeLinking( userId, id ) ],
+  [ 'failLinking', 'linking', ( id ) => failLinking( userId, id, 'x' ) ],
+  [ 'failSummary', 'summarizing', ( id ) => failSummary( userId, id, 'x' ) ],
+  [ 'retrySummary', 'summary_failed', ( id ) => retrySummary( userId, id ) ],
   [ 'regenerateSummary', 'ready_for_review', ( id ) => regenerateSummary( userId, id, {} ) ],
-  [ 'runLinking', 'ready_for_review', ( id ) => runLinking( id, {} ) ],
+  [ 'runLinking', 'ready_for_review', ( id ) => runLinking( userId, id, {} ) ],
   [
     'submitPastedText',
     'failed',
-    ( id ) => submitPastedText( id, { text: 'Pasted words. '.repeat( 20 ) } ),
+    ( id ) => submitPastedText( userId, id, { text: 'Pasted words. '.repeat( 20 ) } ),
     'article',
   ],
-  [ 'failJob', 'queued', ( id ) => failJob( id, 'x' ) ],
-  [ 'updateDraft', 'ready_for_review', ( id ) => updateDraft( id, { target_folder: 'Notes' } ) ],
+  [ 'failJob', 'queued', ( id ) => failJob( userId, id, 'x' ) ],
+  [ 'updateDraft', 'ready_for_review', ( id ) => updateDraft(
+    userId,
+    id,
+    { target_folder: 'Notes' },
+  ) ],
   [
     'acceptSuggestions',
     'ready_for_review',
-    ( id ) => acceptSuggestions( id, { ids: [ SAMPLE_UUID ], note_markdown: 'x' } ),
+    ( id ) => acceptSuggestions( userId, id, { ids: [ SAMPLE_UUID ], note_markdown: 'x' } ),
   ],
   [
     'rejectSuggestions',
     'ready_for_review',
-    ( id ) => rejectSuggestions( id, { ids: [ SAMPLE_UUID ] } ),
+    ( id ) => rejectSuggestions( userId, id, { ids: [ SAMPLE_UUID ] } ),
   ],
-  [ 'saveJob', 'ready_for_review', ( id ) => saveJob( id ) ],
+  [ 'saveJob', 'ready_for_review', ( id ) => saveJob( userId, id ) ],
 ]
 
 beforeEach( () => {
-  clearJobs()
+  clearJobs( userId )
   config.agent = { url: 'http://localhost:8100', secret: 'x'.repeat( 32 ), timeoutMs: 1000 }
   writeNoteMock.mockResolvedValue( 'Notes/A talk.md' )
   assertMoveMock.mockImplementation( () => {

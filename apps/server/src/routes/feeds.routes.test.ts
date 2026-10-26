@@ -74,7 +74,7 @@ const inboxCount = async (): Promise< number > => {
 
 beforeEach( () => {
   vi.resetAllMocks()
-  clearJobs()
+  clearJobs( userId )
   clearModelCache()
   getDatabase().exec( 'DELETE FROM feed_items; DELETE FROM feeds' )
   fetchMock.mockResolvedValue( ok( xml ) )

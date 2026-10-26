@@ -82,10 +82,10 @@ const linkedResponse = ( ...targets: string[] ): LinkResponse => ( {
 const queueLinking = async ( profile_id?: string ): Promise< string > => {
   const { id } = await queueJob( userId, { url: source, profile_id } )
 
-  markStatus( id, 'downloading' )
-  markStatus( id, 'converting' )
-  markStatus( id, 'transcribing' )
-  completeAcquisition( id, {
+  markStatus( userId, id, 'downloading' )
+  markStatus( userId, id, 'converting' )
+  markStatus( userId, id, 'transcribing' )
+  completeAcquisition( userId, id, {
     kind: 'video',
     meta: {
       title: 'A talk',
@@ -97,7 +97,7 @@ const queueLinking = async ( profile_id?: string ): Promise< string > => {
     },
     segments: [ { start: 0, end: 5, text: 'Rust has an ownership model.' } ],
   } )
-  completeSummary( id, '## Summary\n\nAbout ownership.', [ 'rust', 'memory' ] )
+  completeSummary( userId, id, '## Summary\n\nAbout ownership.', [ 'rust', 'memory' ] )
 
   return id
 }
@@ -105,7 +105,7 @@ const queueLinking = async ( profile_id?: string ): Promise< string > => {
 beforeEach( () => {
   vi.useFakeTimers()
   vi.setSystemTime( NOW )
-  clearJobs()
+  clearJobs( userId )
   vi.resetAllMocks()
   config.agent = { url: 'http://agent:8100', secret: 'x'.repeat( 32 ), timeoutMs: 1000 }
   setSetting( userId, 'linking_model', 'claude-haiku-5-5' )
@@ -120,9 +120,9 @@ afterEach( () => {
 describe( 'linkJob', () => {
   it( 'sends the note, the model and the linker guidance to the agent', async () => {
     const id = await queueLinking()
-    updateJob( id, { target_folder: 'Learning/Rust' } )
+    updateJob( userId, id, { target_folder: 'Learning/Rust' } )
 
-    await linkJob( id )
+    await linkJob( userId, id )
 
     expect( requestLinksMock ).toHaveBeenCalledTimes( 1 )
     expect( requestLinksMock ).toHaveBeenCalledWith( {
@@ -140,7 +140,7 @@ describe( 'linkJob', () => {
   it( 'sends only the body, never the front-matter', async () => {
     const id = await queueLinking()
 
-    await linkJob( id )
+    await linkJob( userId, id )
 
     const body = requestLinksMock.mock.calls[ 0 ]?.[ 0 ].note.body ?? ''
 
@@ -151,7 +151,7 @@ describe( 'linkJob', () => {
   it( 'uses the default note folder when the job has none', async () => {
     const id = await queueLinking()
 
-    await linkJob( id )
+    await linkJob( userId, id )
 
     expect( requestLinksMock.mock.calls[ 0 ]?.[ 0 ].note.folder ).toBe( config.defaultNoteFolder )
   } )
@@ -162,7 +162,7 @@ describe( 'linkJob', () => {
     await mkdir( join( config.vaultPath, 'Learning/React' ), { recursive: true } )
     const id = await queueLinking( study )
 
-    await linkJob( id )
+    await linkJob( userId, id )
 
     expect( requestLinksMock.mock.calls[ 0 ]?.[ 0 ].note.folder ).toBe( 'Learning/React' )
   } )
@@ -171,15 +171,15 @@ describe( 'linkJob', () => {
     requestLinksMock.mockResolvedValue( linkedResponse( 'Ownership', 'Memory Safety', 'Rust' ) )
     const id = await queueLinking()
 
-    await linkJob( id )
+    await linkJob( userId, id )
 
-    expect( findJob( id ) ).toMatchObject( {
+    expect( findJob( userId, id ) ).toMatchObject( {
       status: 'ready_for_review',
       link_state: 'linked',
       link_error: null,
       expires_at: new Date( NOW.getTime() + 24 * 3_600_000 ).toISOString(),
     } )
-    expect( listSuggestions( id ).map( ( { target, status, position } ) => ( {
+    expect( listSuggestions( userId, id ).map( ( { target, status, position } ) => ( {
       target,
       status,
       position,
@@ -193,9 +193,9 @@ describe( 'linkJob', () => {
   it( 'records a succeeded run with the usage the agent reported', async () => {
     const id = await queueLinking()
 
-    await linkJob( id )
+    await linkJob( userId, id )
 
-    expect( findJob( id ).link_usage ).toMatchObject( {
+    expect( findJob( userId, id ).link_usage ).toMatchObject( {
       run_count: 1,
       last_run: {
         model: 'claude-haiku-5-5',
@@ -214,10 +214,11 @@ describe( 'linkJob', () => {
     requestLinksMock.mockResolvedValue( linkedResponse() )
     const id = await queueLinking()
 
-    await linkJob( id )
+    await linkJob( userId, id )
 
-    expect( findJob( id ) ).toMatchObject( { status: 'ready_for_review', link_state: 'linked' } )
-    expect( listSuggestions( id ) ).toEqual( [] )
+    expect( findJob( userId, id ) )
+      .toMatchObject( { status: 'ready_for_review', link_state: 'linked' } )
+    expect( listSuggestions( userId, id ) ).toEqual( [] )
   } )
 
   it( 'ends in review as failed, with the reason, when the agent reports a failure', async () => {
@@ -229,17 +230,17 @@ describe( 'linkJob', () => {
     } )
     const id = await queueLinking()
 
-    await linkJob( id )
+    await linkJob( userId, id )
 
-    expect( findJob( id ) ).toMatchObject( {
+    expect( findJob( userId, id ) ).toMatchObject( {
       status: 'ready_for_review',
       link_state: 'failed',
       link_error: 'Timed out after 90 s',
       error: null,
       expires_at: new Date( NOW.getTime() + 24 * 3_600_000 ).toISOString(),
     } )
-    expect( listSuggestions( id ) ).toEqual( [] )
-    expect( findJob( id ).link_usage?.last_run )
+    expect( listSuggestions( userId, id ) ).toEqual( [] )
+    expect( findJob( userId, id ).link_usage?.last_run )
       .toMatchObject( { outcome: 'failed', input_tokens: 1000 } )
   } )
 
@@ -247,14 +248,14 @@ describe( 'linkJob', () => {
     requestLinksMock.mockRejectedValue( new AgentError( 'Agent service unreachable' ) )
     const id = await queueLinking()
 
-    await linkJob( id )
+    await linkJob( userId, id )
 
-    expect( findJob( id ) ).toMatchObject( {
+    expect( findJob( userId, id ) ).toMatchObject( {
       status: 'ready_for_review',
       link_state: 'failed',
       link_error: 'Agent service unreachable',
     } )
-    expect( findJob( id ).link_usage?.last_run ).toMatchObject( {
+    expect( findJob( userId, id ).link_usage?.last_run ).toMatchObject( {
       outcome: 'failed',
       input_tokens: null,
       tool_calls: null,
@@ -265,9 +266,9 @@ describe( 'linkJob', () => {
     requestLinksMock.mockRejectedValue( new TypeError( 'boom' ) )
     const id = await queueLinking()
 
-    await linkJob( id )
+    await linkJob( userId, id )
 
-    expect( findJob( id ) ).toMatchObject( {
+    expect( findJob( userId, id ) ).toMatchObject( {
       status: 'ready_for_review',
       link_state: 'failed',
       link_error: 'boom',
@@ -276,11 +277,12 @@ describe( 'linkJob', () => {
 
   it( 'fails the link, not the job, when the draft cannot be read', async () => {
     const id = await queueLinking()
-    updateJob( id, { note_markdown: 'no front-matter here' } )
+    updateJob( userId, id, { note_markdown: 'no front-matter here' } )
 
-    await linkJob( id )
+    await linkJob( userId, id )
 
     expect( requestLinksMock ).not.toHaveBeenCalled()
-    expect( findJob( id ) ).toMatchObject( { status: 'ready_for_review', link_state: 'failed' } )
+    expect( findJob( userId, id ) )
+      .toMatchObject( { status: 'ready_for_review', link_state: 'failed' } )
   } )
 } )

@@ -23,38 +23,45 @@ export type LinkRunRecord = z.infer< typeof LinkRunRecord >
 
 const StoredLinkRun = LinkRunRecord.extend( { id: z.int() } )
 
-export const insertLinkRun = ( run: LinkRunRecord ): number => {
+export const insertLinkRun = ( userId: string, run: LinkRunRecord ): number => {
   const { lastInsertRowid } = getDatabase()
     .prepare( `INSERT INTO link_runs (
-        job_id, model, prompt_version_id, input_tokens, output_tokens,
+        user_id, job_id, model, prompt_version_id, input_tokens, output_tokens,
         cache_read_input_tokens, cache_creation_input_tokens, tool_calls, cost_usd,
         outcome, error, created_at
       ) VALUES (
-        @job_id, @model, @prompt_version_id, @input_tokens, @output_tokens,
+        @user_id, @job_id, @model, @prompt_version_id, @input_tokens, @output_tokens,
         @cache_read_input_tokens, @cache_creation_input_tokens, @tool_calls, @cost_usd,
         @outcome, @error, @created_at
       )` )
-    .run( run )
+    .run( { ...run, user_id: userId } )
 
   return Number( lastInsertRowid )
 }
 
-export const listLinkRuns = ( jobId: string ): z.infer< typeof StoredLinkRun >[] => {
+export const listLinkRuns = (
+  userId: string,
+  jobId: string,
+): z.infer< typeof StoredLinkRun >[] => {
   return z.array( StoredLinkRun ).parse( getDatabase()
-    .prepare( 'SELECT * FROM link_runs WHERE job_id = ? ORDER BY id' )
-    .all( jobId ) )
+    .prepare( 'SELECT * FROM link_runs WHERE job_id = ? AND user_id = ? ORDER BY id' )
+    .all( jobId, userId ) )
 }
 
 const RunWithVersion = StoredLinkRun.extend( { prompt_version: z.int().min( 1 ) } )
 
-export const summarizeLinkUsage = ( jobId: string ): LinkUsageSummary | undefined => {
+export const summarizeLinkUsage = (
+  userId: string,
+  jobId: string,
+): LinkUsageSummary | undefined => {
   const runs = z.array( RunWithVersion ).parse( getDatabase()
     .prepare( `SELECT link_runs.*, prompt_versions.version AS prompt_version
       FROM link_runs
         JOIN prompt_versions ON prompt_versions.id = link_runs.prompt_version_id
-      WHERE link_runs.job_id = ?
+          AND prompt_versions.user_id = link_runs.user_id
+      WHERE link_runs.job_id = ? AND link_runs.user_id = ?
       ORDER BY link_runs.id` )
-    .all( jobId ) )
+    .all( jobId, userId ) )
   const last = runs.at( -1 )
 
   if( last === undefined ) {

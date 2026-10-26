@@ -11,17 +11,14 @@ import { getDefaultModel } from '../services/settings.service.js'
 // Clients
 import { SummaryError, summarizeSource } from '../clients/claude.client.js'
 import type { SummaryOutcome } from '../clients/claude.client.js'
-// Services
-import { interimOwnerId } from '../services/interimOwner.js'
 // Formatters
 import { cleanSummary } from '../formatters/summary.cleanup.js'
 import { formatSummary } from '../formatters/summary.formatter.js'
 
-export const summarizeJob = async ( jobId: string ): Promise< void > => {
+export const summarizeJob = async ( userId: string, jobId: string ): Promise< void > => {
   try {
-    const job = findJob( jobId )
-    const document = getSource( jobId )
-    const userId = interimOwnerId()
+    const job = findJob( userId, jobId )
+    const document = getSource( userId, jobId )
     const { version } = resolvePrompt( userId, job.prompt_profile_id )
     const model = job.summary_model ?? getDefaultModel( userId )
     const promptVersionId = version.id
@@ -31,7 +28,7 @@ export const summarizeJob = async ( jobId: string ): Promise< void > => {
     try {
       outcome = await summarizeSource( { document, model, guidance: version.guidance } )
     } catch( error ) {
-      recordSummaryRun( jobId, {
+      recordSummaryRun( userId, jobId, {
         model,
         promptVersionId,
         usage: error instanceof SummaryError ? error.usage : undefined,
@@ -41,16 +38,17 @@ export const summarizeJob = async ( jobId: string ): Promise< void > => {
       throw error
     }
 
-    recordSummaryRun( jobId, { model, promptVersionId, usage: outcome.usage } )
+    recordSummaryRun( userId, jobId, { model, promptVersionId, usage: outcome.usage } )
 
     const summary = cleanSummary( outcome.summary, document )
 
     completeSummary(
+      userId,
       jobId,
       formatSummary( summary, document ),
       summary.tags,
     )
   } catch( error ) {
-    failSummary( jobId, error instanceof Error ? error.message : 'Unknown error' )
+    failSummary( userId, jobId, error instanceof Error ? error.message : 'Unknown error' )
   }
 }

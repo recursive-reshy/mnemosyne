@@ -75,7 +75,7 @@ const seedJobAt = async ( status: JobStatus ): Promise< string > => {
   }
 
   for( const step of steps ) {
-    markStatus( id, step )
+    markStatus( userId, id, step )
 
     if( step === status ) {
       return id
@@ -83,28 +83,28 @@ const seedJobAt = async ( status: JobStatus ): Promise< string > => {
   }
 
   if( status === 'failed' ) {
-    failJob( id, 'boom' )
+    failJob( userId, id, 'boom' )
 
     return id
   }
 
-  completeAcquisition( id, { kind: 'video', ...transcriptFixture } )
+  completeAcquisition( userId, id, { kind: 'video', ...transcriptFixture } )
 
   if( status === 'ready_for_review' || status === 'saved' ) {
-    completeSummary( id, '## Summary', [] )
+    completeSummary( userId, id, '## Summary', [] )
   } else if( status === 'summary_failed' ) {
-    failSummary( id, 'Rate limited' )
+    failSummary( userId, id, 'Rate limited' )
   }
 
   if( status === 'saved' ) {
-    updateJob( id, { status: 'saved', source_document: null } )
+    updateJob( userId, id, { status: 'saved', source_document: null } )
   }
 
   return id
 }
 
 beforeEach( async () => {
-  clearJobs()
+  clearJobs( userId )
   clearModelCache()
   vi.mocked( listSummaryModels ).mockResolvedValue( [
     { id: 'claude-sonnet-5-5', display_name: 'Claude Sonnet 5.5' },
@@ -188,7 +188,7 @@ describe( 'GET /api/jobs', () => {
   it( 'lists active jobs newest first, without transcripts', async () => {
     const first = await queueJob( userId, { url: youtubeUrl } )
     const second = await queueJob( userId, { url: 'https://www.youtube.com/watch?v=def' } )
-    markStatus( second.id, 'downloading' )
+    markStatus( userId, second.id, 'downloading' )
 
     const response = await request( app ).get( '/api/jobs' )
 
@@ -200,7 +200,7 @@ describe( 'GET /api/jobs', () => {
 
   it( 'leaves out failed jobs', async () => {
     const { id } = await queueJob( userId, { url: youtubeUrl } )
-    failJob( id, 'boom' )
+    failJob( userId, id, 'boom' )
 
     const response = await request( app ).get( '/api/jobs' )
 
@@ -240,15 +240,15 @@ describe( 'GET /api/jobs/:id/download', () => {
   const seedReviewJob = async ( title?: string ): Promise< string > => {
     const { id } = await queueJob( userId, { url: youtubeUrl } )
 
-    markStatus( id, 'downloading' )
-    markStatus( id, 'converting' )
-    markStatus( id, 'transcribing' )
-    completeAcquisition( id, {
+    markStatus( userId, id, 'downloading' )
+    markStatus( userId, id, 'converting' )
+    markStatus( userId, id, 'transcribing' )
+    completeAcquisition( userId, id, {
       kind: 'video',
       ...transcriptFixture,
       meta: { ...transcriptFixture.meta, title: title ?? transcriptFixture.meta.title },
     } )
-    completeSummary( id, '## Summary', [] )
+    completeSummary( userId, id, '## Summary', [] )
 
     return id
   }
@@ -452,7 +452,7 @@ describe( 'POST /api/jobs/:id/save', () => {
 
   it( 'returns 400 and keeps the job in review for a stale folder', async () => {
     const id = await seedDrafted()
-    updateJob( id, { target_folder: '../outside' } )
+    updateJob( userId, id, { target_folder: '../outside' } )
 
     const response = await request( app ).post( `/api/jobs/${ id }/save` )
     const job = await request( app ).get( `/api/jobs/${ id }` )
@@ -463,7 +463,7 @@ describe( 'POST /api/jobs/:id/save', () => {
 
   it( 'returns 409 when the job has no draft', async () => {
     const id = await seedJobAt( 'ready_for_review' )
-    updateJob( id, { note_markdown: null } )
+    updateJob( userId, id, { note_markdown: null } )
 
     const response = await request( app ).post( `/api/jobs/${ id }/save` )
 
@@ -816,8 +816,8 @@ describe( 'POST /api/jobs/:id/text', () => {
 
   const failedArticle = async (): Promise< string > => {
     const { id } = await queueJob( userId, { url: articleUrl } )
-    markStatus( id, 'fetching' )
-    failJob( id, 'The page needs a login or is paywalled' )
+    markStatus( userId, id, 'fetching' )
+    failJob( userId, id, 'The page needs a login or is paywalled' )
 
     return id
   }
@@ -834,7 +834,7 @@ describe( 'POST /api/jobs/:id/text', () => {
       error: null,
       title: 'A pasted post',
     } )
-    expect( findJobById( id )?.source_document ).toMatchObject( {
+    expect( findJobById( userId, id )?.source_document ).toMatchObject( {
       kind: 'article',
       meta: { origin: 'pasted', source: articleUrl },
     } )
@@ -892,8 +892,8 @@ describe( 'GET /api/jobs/:id/download for articles', () => {
 
   const reviewedArticle = async (): Promise< string > => {
     const { id } = await queueJob( userId, { url: articleUrl } )
-    markStatus( id, 'fetching' )
-    completeAcquisition( id, {
+    markStatus( userId, id, 'fetching' )
+    completeAcquisition( userId, id, {
       kind: 'article',
       meta: {
         title: 'A post',
@@ -906,7 +906,7 @@ describe( 'GET /api/jobs/:id/download for articles', () => {
       },
       markdown: 'Some text.',
     } )
-    completeSummary( id, '## Summary', [] )
+    completeSummary( userId, id, '## Summary', [] )
 
     return id
   }
@@ -951,26 +951,29 @@ describe( 'link suggestion routes', () => {
 
   const reviewed = async (): Promise< { id: string, ids: string[] } > => {
     const id = await seedJobAt( 'transcribing' )
-    completeAcquisition( id, { kind: 'video', ...transcriptFixture } )
-    completeSummary( id, '## Summary\n\nAbout pricing.', [] )
+    completeAcquisition( userId, id, { kind: 'video', ...transcriptFixture } )
+    completeSummary( userId, id, '## Summary\n\nAbout pricing.', [] )
 
-    const runId = recordLinkRun( id, {
+    const runId = recordLinkRun( userId, id, {
       model: 'claude-haiku-5-5',
       promptVersionId: resolveLinkerPrompt( userId ).version.id,
       usage: undefined,
     } )
 
-    recordLinkSuggestions( id, runId, [
+    recordLinkSuggestions( userId, id, runId, [
       { target: 'Alpha', kind: 'new_concept', anchor: 'pricing', reason: 'Because.' },
       { target: 'Beta', kind: 'existing_note', anchor: null, reason: 'Also.' },
     ] )
-    completeLinking( id )
+    completeLinking( userId, id )
 
-    return { id, ids: listLinkSuggestions( id ).map( ( { id: suggestionId } ) => suggestionId ) }
+    return { id, ids: listLinkSuggestions(
+      userId,
+      id,
+    ).map( ( { id: suggestionId } ) => suggestionId ) }
   }
 
   const noteWith = ( id: string, target: string ): string => {
-    return `${ findJobById( id )?.note_markdown ?? '' }\n- [[${ target }]]\n`
+    return `${ findJobById( userId, id )?.note_markdown ?? '' }\n- [[${ target }]]\n`
   }
 
   describe( 'GET /api/jobs/:id/link-suggestions', () => {
@@ -990,7 +993,7 @@ describe( 'link suggestion routes', () => {
 
     it( 'leaves superseded suggestions out', async () => {
       const { id, ids } = await reviewed()
-      setStatus( [ ids[ 0 ] ?? '' ], 'superseded', '2026-10-21T10:00:00.000Z' )
+      setStatus( userId, [ ids[ 0 ] ?? '' ], 'superseded', '2026-10-21T10:00:00.000Z' )
 
       const response = await request( app ).get( `/api/jobs/${ id }/link-suggestions` )
 
@@ -1073,7 +1076,7 @@ describe( 'link suggestion routes', () => {
 
     it( 'responds 400 for no ids, 409 for a decided one, 404 for an unknown job', async () => {
       const { id, ids } = await reviewed()
-      setStatus( [ ids[ 0 ] ?? '' ], 'accepted', '2026-10-21T10:00:00.000Z' )
+      setStatus( userId, [ ids[ 0 ] ?? '' ], 'accepted', '2026-10-21T10:00:00.000Z' )
 
       expect( ( await request( app )
         .post( `/api/jobs/${ id }/link-suggestions/reject` ).send( { ids: [] } ) ).status )
@@ -1120,7 +1123,7 @@ describe( 'link suggestion routes', () => {
       expect( ( await request( app ).post( `/api/jobs/${ id }/linking` ) ).status ).toBe( 409 )
 
       config.agent = agent
-      updateJob( id, { status: 'summarizing' } )
+      updateJob( userId, id, { status: 'summarizing' } )
       expect( ( await request( app ).post( `/api/jobs/${ id }/linking` ) ).status ).toBe( 409 )
 
       expect( ( await request( app )

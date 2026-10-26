@@ -18,20 +18,23 @@ export type SummaryRunRecord = z.infer< typeof SummaryRunRecord >
 
 const StoredSummaryRun = SummaryRunRecord.extend( { id: z.int() } )
 
-export const insertSummaryRun = ( run: SummaryRunRecord ): void => {
+export const insertSummaryRun = ( userId: string, run: SummaryRunRecord ): void => {
   getDatabase()
     .prepare( `INSERT INTO summary_runs (
-        job_id, model, prompt_version_id, input_tokens, output_tokens, cost_usd,
+        user_id, job_id, model, prompt_version_id, input_tokens, output_tokens, cost_usd,
         outcome, error, created_at
       ) VALUES (
-        @job_id, @model, @prompt_version_id, @input_tokens, @output_tokens, @cost_usd,
+        @user_id, @job_id, @model, @prompt_version_id, @input_tokens, @output_tokens, @cost_usd,
         @outcome, @error, @created_at
       )` )
-    .run( run )
+    .run( { ...run, user_id: userId } )
 }
 
-export const listRunsForJob = ( jobId: string ): z.infer< typeof StoredSummaryRun >[] => {
+export const listRunsForJob = (
+  userId: string,
+  jobId: string,
+): z.infer< typeof StoredSummaryRun >[] => {
   return z.array( StoredSummaryRun ).parse( getDatabase()
-    .prepare( 'SELECT * FROM summary_runs WHERE job_id = ? ORDER BY id' )
-    .all( jobId ) )
+    .prepare( 'SELECT * FROM summary_runs WHERE job_id = ? AND user_id = ? ORDER BY id' )
+    .all( jobId, userId ) )
 }

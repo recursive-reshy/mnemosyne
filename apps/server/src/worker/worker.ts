@@ -15,13 +15,13 @@ export const startWorker = (): ( () => Promise< void > ) => {
 
   const runPass = async (): Promise< void > => {
     try {
-      let job = findNextRunnableJob()
+      let next = findNextRunnableJob()
 
-      while( job !== undefined && !stopped ) {
-        const { id } = job
+      while( next !== undefined && !stopped ) {
+        const { job: { id }, userId } = next
 
-        await withLogContext( { job_id: id }, () => runJob( id ) )
-        job = findNextRunnableJob()
+        await withLogContext( { job_id: id, user_id: userId }, () => runJob( userId, id ) )
+        next = findNextRunnableJob()
       }
     } catch( error ) {
       logger.error( { err: error }, 'Worker pass failed' )

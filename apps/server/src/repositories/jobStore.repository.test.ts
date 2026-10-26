@@ -22,17 +22,14 @@ import {
   StoredJob,
   clearJobs,
   deleteJob,
-  findExpiredJobs,
   findJobById,
-  findNextRunnableJob,
   insertJob,
   listActiveJobs,
-  markInterruptedJobs,
-  markInterruptedLinkingJobs,
   updateJob,
 } from './jobStore.repository.js'
+import { findNextRunnableJob } from './system.repository.js'
 // Test support
-import { defaultTestAdmin } from '../test-support/auth.js'
+import { createTestUser, defaultTestAdmin } from '../test-support/auth.js'
 
 let userId = ''
 
@@ -68,51 +65,21 @@ const buildJob = ( overrides: Partial< StoredJob > = {} ): StoredJob => {
 }
 
 beforeEach( () => {
-  clearJobs()
+  clearJobs( userId )
 } )
 
 describe( 'link fields', () => {
   it( 'round-trips link_state and link_error through insert and update', () => {
     const job = buildJob( { link_state: 'pending' } )
-    insertJob( job )
+    insertJob( userId, job )
 
-    expect( findJobById( job.id ) ).toMatchObject( { link_state: 'pending', link_error: null } )
+    expect( findJobById( userId, job.id ) )
+      .toMatchObject( { link_state: 'pending', link_error: null } )
 
-    updateJob( job.id, { link_state: 'failed', link_error: 'Timed out' } )
+    updateJob( userId, job.id, { link_state: 'failed', link_error: 'Timed out' } )
 
-    expect( findJobById( job.id ) )
+    expect( findJobById( userId, job.id ) )
       .toMatchObject( { link_state: 'failed', link_error: 'Timed out' } )
-  } )
-
-  it( 'moves linking jobs to review as failed, and only those', () => {
-    const linking = buildJob( { status: 'linking', link_state: 'pending' } )
-    const summarizing = buildJob( { status: 'summarizing' } )
-    insertJob( linking )
-    insertJob( summarizing )
-
-    const count = markInterruptedLinkingJobs(
-      'Interrupted by restart',
-      '2026-10-15T09:00:00.000Z',
-      '2026-10-16T09:00:00.000Z',
-    )
-
-    expect( count ).toBe( 1 )
-    expect( findJobById( linking.id ) ).toMatchObject( {
-      status: 'ready_for_review',
-      link_state: 'failed',
-      link_error: 'Interrupted by restart',
-      expires_at: '2026-10-16T09:00:00.000Z',
-      updated_at: '2026-10-15T09:00:00.000Z',
-    } )
-    expect( findJobById( summarizing.id )?.status ).toBe( 'summarizing' )
-  } )
-
-  it( 'does not touch markInterruptedJobs\' statuses: a linking job is left alone', () => {
-    const job = buildJob( { status: 'linking', link_state: 'pending' } )
-    insertJob( job )
-
-    expect( markInterruptedJobs( 'x', '2026-10-15T09:00:00.000Z' ) ).toBe( 0 )
-    expect( findJobById( job.id )?.status ).toBe( 'linking' )
   } )
 } )
 
@@ -120,121 +87,77 @@ describe( 'insertJob and findJobById', () => {
   it( 'returns an equal job after insert', () => {
     const job = buildJob()
 
-    insertJob( job )
+    insertJob( userId, job )
 
-    expect( findJobById( job.id ) ).toEqual( job )
+    expect( findJobById( userId, job.id ) ).toEqual( job )
   } )
 
   it( 'returns undefined for an unknown id', () => {
-    expect( findJobById( 'missing' ) ).toBeUndefined()
+    expect( findJobById( userId, 'missing' ) ).toBeUndefined()
   } )
 
   it( 'throws when the id already exists', () => {
     const job = buildJob()
-    insertJob( job )
+    insertJob( userId, job )
 
-    expect( () => insertJob( job ) ).toThrow()
+    expect( () => insertJob( userId, job ) ).toThrow()
   } )
 } )
 
 describe( 'updateJob', () => {
   it( 'merges changes and returns the updated job', () => {
     const job = buildJob()
-    insertJob( job )
+    insertJob( userId, job )
 
-    const updated = updateJob( job.id, { status: 'downloading' } )
+    const updated = updateJob( userId, job.id, { status: 'downloading' } )
 
     expect( updated ).toEqual( { ...job, status: 'downloading' } )
-    expect( findJobById( job.id ) ).toEqual( { ...job, status: 'downloading' } )
+    expect( findJobById( userId, job.id ) ).toEqual( { ...job, status: 'downloading' } )
   } )
 
   it( 'returns undefined for an unknown id', () => {
-    expect( updateJob( 'missing', { status: 'failed' } ) ).toBeUndefined()
-  } )
-} )
-
-describe( 'findNextRunnableJob', () => {
-  it( 'returns the earliest-inserted queued job, skipping other statuses', () => {
-    const downloading = buildJob( { status: 'downloading' } )
-    const firstQueued = buildJob()
-    const secondQueued = buildJob()
-    insertJob( downloading )
-    insertJob( firstQueued )
-    insertJob( secondQueued )
-
-    expect( findNextRunnableJob() ).toEqual( firstQueued )
-  } )
-
-  it( 'also returns summarizing jobs, oldest first', () => {
-    const summarizing = buildJob( { status: 'summarizing' } )
-    const queued = buildJob()
-    insertJob( buildJob( { status: 'ready_for_review' } ) )
-    insertJob( summarizing )
-    insertJob( queued )
-
-    expect( findNextRunnableJob() ).toEqual( summarizing )
-
-    updateJob( summarizing.id, { status: 'summary_failed' } )
-
-    expect( findNextRunnableJob() ).toEqual( queued )
-  } )
-
-  it( 'also returns linking jobs, oldest first', () => {
-    const linking = buildJob( { status: 'linking', link_state: 'pending' } )
-    insertJob( buildJob( { status: 'ready_for_review', link_state: 'linked' } ) )
-    insertJob( linking )
-    insertJob( buildJob() )
-
-    expect( findNextRunnableJob() ).toEqual( linking )
-  } )
-
-  it( 'returns undefined when no job is runnable', () => {
-    insertJob( buildJob( { status: 'failed' } ) )
-    insertJob( buildJob( { status: 'summary_failed' } ) )
-    insertJob( buildJob( { status: 'saved' } ) )
-
-    expect( findNextRunnableJob() ).toBeUndefined()
+    expect( updateJob( userId, 'missing', { status: 'failed' } ) ).toBeUndefined()
   } )
 } )
 
 describe( 'no shared references', () => {
   it( 'ignores mutation of the object passed to insertJob', () => {
     const job = buildJob()
-    insertJob( job )
+    insertJob( userId, job )
 
     job.status = 'failed'
 
-    expect( findJobById( job.id )?.status ).toBe( 'queued' )
+    expect( findJobById( userId, job.id )?.status ).toBe( 'queued' )
   } )
 
   it( 'ignores mutation of the object returned by findJobById', () => {
     const job = buildJob()
-    insertJob( job )
+    insertJob( userId, job )
 
-    const found = findJobById( job.id )
+    const found = findJobById( userId, job.id )
     if( found ) found.status = 'failed'
 
-    expect( findJobById( job.id )?.status ).toBe( 'queued' )
+    expect( findJobById( userId, job.id )?.status ).toBe( 'queued' )
   } )
 
   it( 'ignores mutation of the object returned by updateJob', () => {
     const job = buildJob()
-    insertJob( job )
+    insertJob( userId, job )
 
-    const updated = updateJob( job.id, { error: 'x' } )
+    const updated = updateJob( userId, job.id, { error: 'x' } )
     if( updated ) updated.error = 'changed'
 
-    expect( findJobById( job.id )?.error ).toBe( 'x' )
+    expect( findJobById( userId, job.id )?.error ).toBe( 'x' )
   } )
 
   it( 'ignores mutation of the object returned by findNextRunnableJob', () => {
     const job = buildJob()
-    insertJob( job )
+    insertJob( userId, job )
 
     const next = findNextRunnableJob()
     if( next ) next.status = 'failed'
 
-    expect( findJobById( job.id )?.status ).toBe( 'queued' )
+    expect( findJobById( userId, job.id )?.status ).toBe( 'queued' )
   } )
 
   it( 'ignores mutation of a nested transcript', () => {
@@ -250,11 +173,11 @@ describe( 'no shared references', () => {
       segments: [ { start: 0, end: 1, text: 'hi' } ],
     }
     const job = buildJob( { source_document: { kind: 'video', ...transcript } } )
-    insertJob( job )
+    insertJob( userId, job )
 
     transcript.segments[ 0 ].text = 'changed'
 
-    expect( findJobById( job.id )?.source_document ).toMatchObject( {
+    expect( findJobById( userId, job.id )?.source_document ).toMatchObject( {
       segments: [ { text: 'hi' } ],
     } )
   } )
@@ -291,17 +214,17 @@ describe( 'source type, feed and source document', () => {
       source_document: article,
     } )
 
-    insertJob( job )
+    insertJob( userId, job )
 
-    expect( findJobById( job.id ) ).toEqual( job )
+    expect( findJobById( userId, job.id ) ).toEqual( job )
   } )
 
   it( 'defaults to a video job with no feed', () => {
     const job = buildJob()
 
-    insertJob( job )
+    insertJob( userId, job )
 
-    expect( findJobById( job.id ) ).toMatchObject( {
+    expect( findJobById( userId, job.id ) ).toMatchObject( {
       source_type: 'video',
       feed_id: null,
       feed_name: null,
@@ -312,7 +235,7 @@ describe( 'source type, feed and source document', () => {
 
   it( 'stores a video document with its kind', () => {
     const job = buildJob( { source_document: { kind: 'video', ...transcriptFixture } } )
-    insertJob( job )
+    insertJob( userId, job )
 
     const { source_document: stored } = getDatabase()
       .prepare( 'SELECT source_document FROM jobs WHERE id = ?' )
@@ -323,49 +246,49 @@ describe( 'source type, feed and source document', () => {
 
   it( 'rejects a stored document with no kind', () => {
     const job = buildJob()
-    insertJob( job )
+    insertJob( userId, job )
     getDatabase().prepare( 'UPDATE jobs SET source_document = ? WHERE id = ?' )
       .run( JSON.stringify( transcriptFixture ), job.id )
 
-    expect( () => findJobById( job.id ) ).toThrow()
+    expect( () => findJobById( userId, job.id ) ).toThrow()
   } )
 
   it( 'gives every read the feed name from the feeds table', () => {
     const feedId = crypto.randomUUID()
     addFeed( feedId, 'A blog' )
     const job = buildJob( { source_type: 'article', feed_id: feedId, feed_name: 'A blog' } )
-    insertJob( job )
+    insertJob( userId, job )
 
-    expect( findJobById( job.id )?.feed_name ).toBe( 'A blog' )
-    expect( listActiveJobs()[ 0 ]?.feed_name ).toBe( 'A blog' )
+    expect( findJobById( userId, job.id )?.feed_name ).toBe( 'A blog' )
+    expect( listActiveJobs( userId )[ 0 ]?.feed_name ).toBe( 'A blog' )
     expect( findNextRunnableJob()?.feed_name ).toBe( 'A blog' )
   } )
 
   it( 'keeps the name of a deleted feed', () => {
     const feedId = crypto.randomUUID()
     addFeed( feedId, 'Gone', '2026-10-18T12:00:00.000Z' )
-    insertJob( buildJob( { feed_id: feedId, feed_name: 'Gone' } ) )
+    insertJob( userId, buildJob( { feed_id: feedId, feed_name: 'Gone' } ) )
 
-    expect( listActiveJobs()[ 0 ]?.feed_name ).toBe( 'Gone' )
+    expect( listActiveJobs( userId )[ 0 ]?.feed_name ).toBe( 'Gone' )
   } )
 
   it( 'has no feed name when the feed row is missing', () => {
     const job = buildJob( { feed_id: crypto.randomUUID() } )
-    insertJob( job )
+    insertJob( userId, job )
 
-    expect( findJobById( job.id )?.feed_name ).toBeNull()
+    expect( findJobById( userId, job.id )?.feed_name ).toBeNull()
   } )
 
   it( 'does not write feed_name: it follows the feed', () => {
     const feedId = crypto.randomUUID()
     addFeed( feedId, 'Old' )
     const job = buildJob( { feed_id: feedId } )
-    insertJob( job )
+    insertJob( userId, job )
 
     getDatabase().prepare( 'UPDATE feeds SET name = ? WHERE id = ?' ).run( 'New', feedId )
-    updateJob( job.id, { title: 'T', feed_name: 'Stale' } )
+    updateJob( userId, job.id, { title: 'T', feed_name: 'Stale' } )
 
-    expect( findJobById( job.id )?.feed_name ).toBe( 'New' )
+    expect( findJobById( userId, job.id )?.feed_name ).toBe( 'New' )
   } )
 
   const addGmailSource = ( id: string, name: string, deletedAt: string | null = null ): void => {
@@ -385,18 +308,18 @@ describe( 'source type, feed and source document', () => {
       source_document: article,
     } )
 
-    insertJob( job )
+    insertJob( userId, job )
 
-    expect( findJobById( job.id ) ).toEqual( job )
+    expect( findJobById( userId, job.id ) ).toEqual( job )
   } )
 
   it( 'stores the Gmail source id and can change it with updateJob', () => {
     const sourceId = crypto.randomUUID()
     addGmailSource( sourceId, 'Lenny' )
     const job = buildJob()
-    insertJob( job )
+    insertJob( userId, job )
 
-    expect( updateJob( job.id, { gmail_source_id: sourceId } )?.gmail_source_id )
+    expect( updateJob( userId, job.id, { gmail_source_id: sourceId } )?.gmail_source_id )
       .toBe( sourceId )
     expect( getDatabase().prepare( 'SELECT gmail_source_id FROM jobs WHERE id = ?' ).get( job.id ) )
       .toEqual( { gmail_source_id: sourceId } )
@@ -406,49 +329,49 @@ describe( 'source type, feed and source document', () => {
     const sourceId = crypto.randomUUID()
     addGmailSource( sourceId, 'Lenny' )
     const job = buildJob( { source_type: 'article', gmail_source_id: sourceId } )
-    insertJob( job )
+    insertJob( userId, job )
 
-    expect( findJobById( job.id )?.gmail_source_name ).toBe( 'Lenny' )
-    expect( listActiveJobs()[ 0 ]?.gmail_source_name ).toBe( 'Lenny' )
+    expect( findJobById( userId, job.id )?.gmail_source_name ).toBe( 'Lenny' )
+    expect( listActiveJobs( userId )[ 0 ]?.gmail_source_name ).toBe( 'Lenny' )
     expect( findNextRunnableJob()?.gmail_source_name ).toBe( 'Lenny' )
   } )
 
   it( 'keeps the name of a deleted Gmail source', () => {
     const sourceId = crypto.randomUUID()
     addGmailSource( sourceId, 'Gone', '2026-10-18T12:00:00.000Z' )
-    insertJob( buildJob( { gmail_source_id: sourceId } ) )
+    insertJob( userId, buildJob( { gmail_source_id: sourceId } ) )
 
-    expect( listActiveJobs()[ 0 ]?.gmail_source_name ).toBe( 'Gone' )
+    expect( listActiveJobs( userId )[ 0 ]?.gmail_source_name ).toBe( 'Gone' )
   } )
 
   it( 'has no Gmail source name when the source row is missing', () => {
     const job = buildJob( { gmail_source_id: crypto.randomUUID() } )
-    insertJob( job )
+    insertJob( userId, job )
 
-    expect( findJobById( job.id )?.gmail_source_name ).toBeNull()
+    expect( findJobById( userId, job.id )?.gmail_source_name ).toBeNull()
   } )
 
   it( 'does not write gmail_source_name: it follows the source', () => {
     const sourceId = crypto.randomUUID()
     addGmailSource( sourceId, 'Old' )
     const job = buildJob( { gmail_source_id: sourceId } )
-    insertJob( job )
+    insertJob( userId, job )
 
     getDatabase().prepare( 'UPDATE gmail_sources SET name = ? WHERE id = ?' ).run( 'New', sourceId )
-    updateJob( job.id, { title: 'T', gmail_source_name: 'Stale' } )
+    updateJob( userId, job.id, { title: 'T', gmail_source_name: 'Stale' } )
 
-    expect( findJobById( job.id )?.gmail_source_name ).toBe( 'New' )
+    expect( findJobById( userId, job.id )?.gmail_source_name ).toBe( 'New' )
   } )
 } )
 
 describe( 'clearJobs', () => {
   it( 'empties the store', () => {
     const job = buildJob()
-    insertJob( job )
+    insertJob( userId, job )
 
-    clearJobs()
+    clearJobs( userId )
 
-    expect( findJobById( job.id ) ).toBeUndefined()
+    expect( findJobById( userId, job.id ) ).toBeUndefined()
     expect( findNextRunnableJob() ).toBeUndefined()
   } )
 } )
@@ -460,43 +383,43 @@ describe( 'summary choices', () => {
       prompt_profile_id: crypto.randomUUID(),
     } )
 
-    insertJob( job )
+    insertJob( userId, job )
 
-    expect( findJobById( job.id ) ).toEqual( job )
+    expect( findJobById( userId, job.id ) ).toEqual( job )
   } )
 
   it( 'defaults both to null', () => {
     const job = buildJob()
 
-    insertJob( job )
+    insertJob( userId, job )
 
-    expect( findJobById( job.id ) )
+    expect( findJobById( userId, job.id ) )
       .toMatchObject( { summary_model: null, prompt_profile_id: null } )
   } )
 
   it( 'updates both and can clear them', () => {
     const job = buildJob()
     const profileId = crypto.randomUUID()
-    insertJob( job )
+    insertJob( userId, job )
 
-    updateJob( job.id, { summary_model: 'm', prompt_profile_id: profileId } )
+    updateJob( userId, job.id, { summary_model: 'm', prompt_profile_id: profileId } )
 
-    expect( findJobById( job.id ) ).toMatchObject( {
+    expect( findJobById( userId, job.id ) ).toMatchObject( {
       summary_model: 'm',
       prompt_profile_id: profileId,
     } )
 
-    updateJob( job.id, { summary_model: null, prompt_profile_id: null } )
+    updateJob( userId, job.id, { summary_model: null, prompt_profile_id: null } )
 
-    expect( findJobById( job.id ) )
+    expect( findJobById( userId, job.id ) )
       .toMatchObject( { summary_model: null, prompt_profile_id: null } )
   } )
 
   it( 'keeps them in listActiveJobs and findNextRunnableJob', () => {
     const job = buildJob( { status: 'summarizing', summary_model: 'm' } )
-    insertJob( job )
+    insertJob( userId, job )
 
-    expect( listActiveJobs()[ 0 ]?.summary_model ).toBe( 'm' )
+    expect( listActiveJobs( userId )[ 0 ]?.summary_model ).toBe( 'm' )
     expect( findNextRunnableJob()?.summary_model ).toBe( 'm' )
   } )
 } )
@@ -516,6 +439,7 @@ describe( 'storage', () => {
 
   beforeEach( () => {
     openDatabase( ':memory:' )
+    userId = createTestUser().id
   } )
 
   afterEach( () => {
@@ -532,19 +456,19 @@ describe( 'storage', () => {
       source_document: { kind: 'video', ...transcript },
     } )
 
-    insertJob( job )
+    insertJob( userId, job )
 
-    expect( findJobById( job.id ) ).toEqual( job )
+    expect( findJobById( userId, job.id ) ).toEqual( job )
   } )
 
   it( 'stores a null source document when an update sets it to null', () => {
     const job = buildJob( { source_document: { kind: 'video', ...transcript } } )
-    insertJob( job )
+    insertJob( userId, job )
 
-    const updated = updateJob( job.id, { source_document: null } )
+    const updated = updateJob( userId, job.id, { source_document: null } )
 
     expect( updated?.source_document ).toBeNull()
-    expect( findJobById( job.id )?.source_document ).toBeNull()
+    expect( findJobById( userId, job.id )?.source_document ).toBeNull()
   } )
 
   it( 'throws when a stored transcript no longer matches the schema', () => {
@@ -553,13 +477,14 @@ describe( 'storage', () => {
 
     try {
       openDatabase( path )
+      userId = createTestUser().id
       const job = buildJob()
-      insertJob( job )
+      insertJob( userId, job )
       const raw = new Database( path )
       raw.prepare( 'UPDATE jobs SET source_document = ? WHERE id = ?' ).run( '{"nope":1}', job.id )
       raw.close()
 
-      expect( () => findJobById( job.id ) ).toThrow()
+      expect( () => findJobById( userId, job.id ) ).toThrow()
     } finally {
       closeDatabase()
       rmSync( directory, { recursive: true, force: true } )
@@ -569,56 +494,7 @@ describe( 'storage', () => {
   it( 'throws a clear error when the store is not open', () => {
     closeDatabase()
 
-    expect( () => findJobById( crypto.randomUUID() ) ).toThrow( 'Database is not open' )
-  } )
-} )
-
-describe( 'markInterruptedJobs', () => {
-  const statuses = [
-    'queued',
-    'downloading',
-    'converting',
-    'transcribing',
-    'summarizing',
-    'ready_for_review',
-    'summary_failed',
-    'saved',
-    'failed',
-  ] as const
-  const interrupted = [ 'downloading', 'converting', 'transcribing' ]
-
-  it( 'fails only the download, convert and transcribe jobs', () => {
-    const ids = new Map( statuses.map( ( status ) => {
-      const job = buildJob( { status } )
-      insertJob( job )
-
-      return [ status, job.id ] as const
-    } ) )
-
-    const count = markInterruptedJobs( 'Interrupted by restart', '2026-10-15T09:00:00.000Z' )
-
-    expect( count ).toBe( 3 )
-
-    for( const status of statuses ) {
-      const job = findJobById( ids.get( status ) ?? '' )
-
-      if( interrupted.includes( status ) ) {
-        expect( job ).toMatchObject( {
-          status: 'failed',
-          error: 'Interrupted by restart',
-          updated_at: '2026-10-15T09:00:00.000Z',
-        } )
-      } else {
-        expect( job ).toMatchObject( { status, error: null } )
-        expect( job?.updated_at ).toBe( '2026-10-14T10:00:00.000Z' )
-      }
-    }
-  } )
-
-  it( 'returns 0 when nothing was interrupted', () => {
-    insertJob( buildJob() )
-
-    expect( markInterruptedJobs( 'x', '2026-10-15T09:00:00.000Z' ) ).toBe( 0 )
+    expect( () => findJobById( userId, crypto.randomUUID() ) ).toThrow( 'Database is not open' )
   } )
 } )
 
@@ -637,10 +513,10 @@ describe( 'listActiveJobs', () => {
     const inactive = [ 'failed', 'saved' ] as const
 
     for( const status of [ ...active, ...inactive ] ) {
-      insertJob( buildJob( { status } ) )
+      insertJob( userId, buildJob( { status } ) )
     }
 
-    const statuses = listActiveJobs().map( ( { status } ) => status )
+    const statuses = listActiveJobs( userId ).map( ( { status } ) => status )
 
     expect( statuses.toSorted() ).toEqual( [ ...active ].toSorted() )
   } )
@@ -651,10 +527,10 @@ describe( 'listActiveJobs', () => {
     const tieFirst = buildJob( { created_at: '2026-10-16T10:00:00.000Z' } )
     const tieSecond = buildJob( { created_at: '2026-10-16T10:00:00.000Z' } )
     for( const job of [ old, newer, tieFirst, tieSecond ] ) {
-      insertJob( job )
+      insertJob( userId, job )
     }
 
-    expect( listActiveJobs().map( ( { id } ) => id ) ).toEqual( [
+    expect( listActiveJobs( userId ).map( ( { id } ) => id ) ).toEqual( [
       tieSecond.id,
       tieFirst.id,
       newer.id,
@@ -663,17 +539,17 @@ describe( 'listActiveJobs', () => {
   } )
 
   it( 'returns an empty list for an empty store', () => {
-    expect( listActiveJobs() ).toEqual( [] )
+    expect( listActiveJobs( userId ) ).toEqual( [] )
   } )
 } )
 
 describe( 'deleteJob', () => {
   it( 'removes the job and reports it', () => {
     const job = buildJob()
-    insertJob( job )
+    insertJob( userId, job )
 
-    expect( deleteJob( job.id ) ).toBe( true )
-    expect( findJobById( job.id ) ).toBeUndefined()
+    expect( deleteJob( userId, job.id ) ).toBe( true )
+    expect( findJobById( userId, job.id ) ).toBeUndefined()
   } )
 
   it( 'removes the job\'s link runs and suggestions, and only its own', () => {
@@ -681,7 +557,7 @@ describe( 'deleteJob', () => {
     const other = buildJob()
     const linker = findProfileBySeedKey( userId, 'linker' )
     const version = findLatestVersion( userId, linker?.id ?? '' )
-    const run = ( jobId: string ): number => insertLinkRun( {
+    const run = ( jobId: string ): number => insertLinkRun( userId, {
       job_id: jobId,
       model: 'claude-haiku-5-5',
       prompt_version_id: version?.id ?? 0,
@@ -701,71 +577,127 @@ describe( 'deleteJob', () => {
       anchor: null,
       reason: 'Because.',
     } ]
-    insertJob( job )
-    insertJob( other )
-    insertSuggestions( run( job.id ), job.id, suggestion )
-    insertSuggestions( run( other.id ), other.id, suggestion )
+    insertJob( userId, job )
+    insertJob( userId, other )
+    insertSuggestions( userId, run( job.id ), job.id, suggestion )
+    insertSuggestions( userId, run( other.id ), other.id, suggestion )
 
-    deleteJob( job.id )
+    deleteJob( userId, job.id )
 
-    expect( listLinkRuns( job.id ) ).toEqual( [] )
-    expect( listSuggestions( job.id ) ).toEqual( [] )
-    expect( listLinkRuns( other.id ) ).toHaveLength( 1 )
-    expect( listSuggestions( other.id ) ).toHaveLength( 1 )
+    expect( listLinkRuns( userId, job.id ) ).toEqual( [] )
+    expect( listSuggestions( userId, job.id ) ).toEqual( [] )
+    expect( listLinkRuns( userId, other.id ) ).toHaveLength( 1 )
+    expect( listSuggestions( userId, other.id ) ).toHaveLength( 1 )
   } )
 
   it( 'returns false for an unknown id and leaves other jobs alone', () => {
     const other = buildJob()
-    insertJob( other )
+    insertJob( userId, other )
 
-    expect( deleteJob( 'missing' ) ).toBe( false )
-    expect( findJobById( other.id ) ).toEqual( other )
-  } )
-} )
-
-describe( 'findExpiredJobs', () => {
-  const now = '2026-10-15T12:00:00.000Z'
-
-  it( 'returns review and failed-summary jobs whose expiry has passed', () => {
-    const review = buildJob( {
-      status: 'ready_for_review',
-      expires_at: '2026-10-15T11:59:59.000Z',
-    } )
-    const failed = buildJob( { status: 'summary_failed', expires_at: now } )
-    insertJob( review )
-    insertJob( failed )
-
-    expect( findExpiredJobs( now ).map( ( { id } ) => id ).toSorted() ).toEqual(
-      [ review.id, failed.id ].toSorted(),
-    )
-  } )
-
-  it( 'ignores unexpired jobs, null expiry and other statuses', () => {
-    insertJob( buildJob( {
-      status: 'ready_for_review',
-      expires_at: '2026-10-15T12:00:01.000Z',
-    } ) )
-    insertJob( buildJob( { status: 'ready_for_review', expires_at: null } ) )
-    insertJob( buildJob( { status: 'saved', expires_at: '2026-10-01T00:00:00.000Z' } ) )
-    insertJob( buildJob( { status: 'failed', expires_at: '2026-10-01T00:00:00.000Z' } ) )
-    insertJob( buildJob( { status: 'summarizing', expires_at: '2026-10-01T00:00:00.000Z' } ) )
-
-    expect( findExpiredJobs( now ) ).toEqual( [] )
+    expect( deleteJob( userId, 'missing' ) ).toBe( false )
+    expect( findJobById( userId, other.id ) ).toEqual( other )
   } )
 } )
 
 describe( 'migration 3 on the final table', () => {
   it( 'lets jobs be inserted, updated and read on the final table', () => {
     openDatabase( ':memory:' )
+    userId = createTestUser().id
     const job = buildJob( { note_markdown: 'note', target_folder: 'A' } )
 
-    insertJob( job )
-    updateJob( job.id, { status: 'ready_for_review', note_markdown: 'edited' } )
+    insertJob( userId, job )
+    updateJob( userId, job.id, { status: 'ready_for_review', note_markdown: 'edited' } )
 
-    expect( findJobById( job.id ) ).toMatchObject( {
+    expect( findJobById( userId, job.id ) ).toMatchObject( {
       status: 'ready_for_review',
       note_markdown: 'edited',
       target_folder: 'A',
     } )
+  } )
+} )
+
+describe( 'ownership', () => {
+  it( 'does not show, update or delete another user\'s job', () => {
+    const other = createTestUser().id
+    const job = buildJob( { status: 'ready_for_review' } )
+    insertJob( userId, job )
+
+    expect( findJobById( other, job.id ) ).toBeUndefined()
+    expect( updateJob( other, job.id, { title: 'Stolen' } ) ).toBeUndefined()
+    expect( deleteJob( other, job.id ) ).toBe( false )
+    expect( findJobById( userId, job.id ) ).toEqual( job )
+  } )
+
+  it( 'lists only the user\'s own active jobs', () => {
+    const other = createTestUser().id
+    const mine = buildJob( { status: 'ready_for_review' } )
+    const theirs = buildJob( { status: 'ready_for_review' } )
+    insertJob( userId, mine )
+    insertJob( other, theirs )
+
+    expect( listActiveJobs( userId ).map( ( { id } ) => id ) ).toEqual( [ mine.id ] )
+    expect( listActiveJobs( other ).map( ( { id } ) => id ) ).toEqual( [ theirs.id ] )
+  } )
+
+  it( 'clears only the user\'s own jobs', () => {
+    const other = createTestUser().id
+    const theirs = buildJob()
+    insertJob( userId, buildJob() )
+    insertJob( other, theirs )
+
+    clearJobs( userId )
+
+    expect( listActiveJobs( userId ) ).toEqual( [] )
+    expect( findJobById( other, theirs.id ) ).toEqual( theirs )
+  } )
+
+  it( 'refuses an id that another user already holds', () => {
+    const job = buildJob()
+    insertJob( userId, job )
+
+    expect( () => insertJob( createTestUser().id, job ) ).toThrow( 'already exists' )
+  } )
+
+  it( 'deleting a job removes its own link runs and suggestions only', () => {
+    const other = createTestUser().id
+    const mine = buildJob( { status: 'ready_for_review' } )
+    const theirs = buildJob( { status: 'ready_for_review' } )
+    insertJob( userId, mine )
+    insertJob( other, theirs )
+
+    for( const [ owner, job ] of [ [ userId, mine ], [ other, theirs ] ] as const ) {
+      const version = findLatestVersion(
+        owner,
+        findProfileBySeedKey( owner, 'linker' )?.id ?? '',
+      )
+      const runId = insertLinkRun( owner, {
+        job_id: job.id,
+        model: 'm',
+        prompt_version_id: version?.id ?? 0,
+        input_tokens: null,
+        output_tokens: null,
+        cache_read_input_tokens: null,
+        cache_creation_input_tokens: null,
+        tool_calls: null,
+        cost_usd: null,
+        outcome: 'succeeded',
+        error: null,
+        created_at: '2026-10-21T10:00:00.000Z',
+      } )
+
+      insertSuggestions( owner, runId, job.id, [ {
+        target: 'T',
+        kind: 'new_concept',
+        anchor: null,
+        reason: 'r',
+      } ] )
+    }
+
+    deleteJob( userId, mine.id )
+
+    expect( listLinkRuns( userId, mine.id ) ).toEqual( [] )
+    expect( listSuggestions( userId, mine.id ) ).toEqual( [] )
+    expect( listLinkRuns( other, theirs.id ) ).toHaveLength( 1 )
+    expect( listSuggestions( other, theirs.id ) ).toHaveLength( 1 )
   } )
 } )

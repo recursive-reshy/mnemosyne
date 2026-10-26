@@ -16,6 +16,7 @@ const COLUMNS = 'id, job_id, position, target, kind, anchor, reason, status, dec
 
 // Positions keep rising across the runs of a job, so a re-run's rows sort after the older ones
 export const insertSuggestions = (
+  userId: string,
   runId: number,
   jobId: string,
   suggestions: LinkSuggestion[],
@@ -25,16 +26,17 @@ export const insertSuggestions = (
   return db.transaction( () => {
     const { next } = db
       .prepare( `SELECT COALESCE( MAX( position ), -1 ) + 1 AS next
-        FROM link_suggestions WHERE job_id = ?` )
-      .get( jobId ) as { next: number }
+        FROM link_suggestions WHERE job_id = ? AND user_id = ?` )
+      .get( jobId, userId ) as { next: number }
     const insert = db.prepare( `INSERT INTO link_suggestions (
-        id, job_id, run_id, position, target, kind, anchor, reason, status
-      ) VALUES ( ?, ?, ?, ?, ?, ?, ?, ?, 'pending' )` )
+        id, user_id, job_id, run_id, position, target, kind, anchor, reason, status
+      ) VALUES ( ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending' )` )
     const ids = suggestions.map( ( suggestion, index ) => {
       const id = crypto.randomUUID()
 
       insert.run(
         id,
+        userId,
         jobId,
         runId,
         next + index,
@@ -47,29 +49,35 @@ export const insertSuggestions = (
       return id
     } )
 
-    return findSuggestions( jobId, ids )
+    return findSuggestions( userId, jobId, ids )
   } )()
 }
 
-export const listSuggestions = ( jobId: string ): StoredLinkSuggestion[] => {
+export const listSuggestions = ( userId: string, jobId: string ): StoredLinkSuggestion[] => {
   return parseRows( getDatabase()
     .prepare( `SELECT ${ COLUMNS } FROM link_suggestions
-      WHERE job_id = ? AND status != 'superseded' ORDER BY position` )
-    .all( jobId ) )
+      WHERE job_id = ? AND user_id = ? AND status != 'superseded' ORDER BY position` )
+    .all( jobId, userId ) )
 }
 
-export const findSuggestions = ( jobId: string, ids: string[] ): StoredLinkSuggestion[] => {
+export const findSuggestions = (
+  userId: string,
+  jobId: string,
+  ids: string[],
+): StoredLinkSuggestion[] => {
   if( ids.length === 0 ) {
     return []
   }
 
   return parseRows( getDatabase()
     .prepare( `SELECT ${ COLUMNS } FROM link_suggestions
-      WHERE job_id = ? AND id IN ( ${ placeholders( ids ) } ) ORDER BY position` )
-    .all( jobId, ...ids ) )
+      WHERE job_id = ? AND user_id = ? AND id IN ( ${ placeholders( ids ) } )
+      ORDER BY position` )
+    .all( jobId, userId, ...ids ) )
 }
 
 export const setStatus = (
+  userId: string,
   ids: string[],
   status: LinkSuggestionStatus,
   decidedAt: string,
@@ -80,17 +88,19 @@ export const setStatus = (
 
   getDatabase()
     .prepare( `UPDATE link_suggestions SET status = ?, decided_at = ?
-      WHERE id IN ( ${ placeholders( ids ) } )` )
-    .run( status, decidedAt, ...ids )
+      WHERE user_id = ? AND id IN ( ${ placeholders( ids ) } )` )
+    .run( status, decidedAt, userId, ...ids )
 }
 
-export const supersedePending = ( jobId: string ): void => {
+export const supersedePending = ( userId: string, jobId: string ): void => {
   getDatabase()
     .prepare( `UPDATE link_suggestions SET status = 'superseded'
-      WHERE job_id = ? AND status = 'pending'` )
-    .run( jobId )
+      WHERE job_id = ? AND user_id = ? AND status = 'pending'` )
+    .run( jobId, userId )
 }
 
-export const deleteForJob = ( jobId: string ): void => {
-  getDatabase().prepare( 'DELETE FROM link_suggestions WHERE job_id = ?' ).run( jobId )
+export const deleteForJob = ( userId: string, jobId: string ): void => {
+  getDatabase()
+    .prepare( 'DELETE FROM link_suggestions WHERE job_id = ? AND user_id = ?' )
+    .run( jobId, userId )
 }

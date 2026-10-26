@@ -669,7 +669,7 @@ describe( 'checkAllFeeds and checkDueFeeds', () => {
 
 describe( 'automatic feeds', () => {
   beforeEach( () => {
-    clearJobs()
+    clearJobs( userId )
   } )
 
   const longItem = ( index: number ): string => {
@@ -694,8 +694,8 @@ describe( 'automatic feeds', () => {
 
     expect( feed.inbox_count ).toBe( 0 )
     expect( statusesOf( feed.id ) ).toEqual( { baseline: 2, queued: 1 } )
-    expect( listJobs() ).toHaveLength( 1 )
-    expect( listJobs()[ 0 ] ).toMatchObject( {
+    expect( listJobs( userId ) ).toHaveLength( 1 )
+    expect( listJobs( userId )[ 0 ] ).toMatchObject( {
       status: 'summarizing',
       source_type: 'article',
       feed_id: feed.id,
@@ -706,14 +706,14 @@ describe( 'automatic feeds', () => {
   it( 'queues new items on a check, still capped at 10 per check', async () => {
     serve( { [ feedUrl ]: { body: richFeed( 2 ), etag: '"v1"' } } )
     const feed = await createFeed( userId, { url: feedUrl, auto_summarize: true } )
-    clearJobs()
+    clearJobs( userId )
     serve( { [ feedUrl ]: { body: richFeed( 16 ), etag: '"v2"' } } )
 
     const checked = await checkFeed( userId, feed.id )
 
     expect( checked ).toMatchObject( { inbox_count: 0, last_skipped_count: 4 } )
     expect( statusesOf( feed.id ) ).toEqual( { baseline: 1, queued: 11, skipped: 4 } )
-    expect( listJobs() ).toHaveLength( 10 )
+    expect( listJobs( userId ) ).toHaveLength( 10 )
   } )
 
   it( 'leaves items in the inbox for a feed that is not automatic', async () => {
@@ -721,7 +721,7 @@ describe( 'automatic feeds', () => {
 
     await createFeed( userId, { url: feedUrl } )
 
-    expect( listJobs() ).toEqual( [] )
+    expect( listJobs( userId ) ).toEqual( [] )
   } )
 
   it( 'leaves an item in the inbox, and says so in the log, when it cannot be queued', async () => {
@@ -733,6 +733,6 @@ describe( 'automatic feeds', () => {
 
     expect( feed.inbox_count ).toBe( 1 )
     expect( errorSpy ).toHaveBeenCalledOnce()
-    expect( listJobs() ).toEqual( [] )
+    expect( listJobs( userId ) ).toEqual( [] )
   } )
 } )

@@ -10,7 +10,7 @@ import { deleteJob, insertJob } from './jobStore.repository.js'
 import { findLatestVersion, listActiveProfiles } from './promptProfiles.repository.js'
 import { insertSummaryRun, listRunsForJob } from './summaryRuns.repository.js'
 // Test support
-import { defaultTestAdmin } from '../test-support/auth.js'
+import { createTestUser, defaultTestAdmin } from '../test-support/auth.js'
 
 let userId = ''
 
@@ -25,7 +25,7 @@ const promptVersionId = (): number => {
   return version?.id ?? 0
 }
 
-const run = ( overrides: Partial< Parameters< typeof insertSummaryRun >[ 0 ] > = {} ) => {
+const run = ( overrides: Partial< Parameters< typeof insertSummaryRun >[ 1 ] > = {} ) => {
   return {
     job_id: 'job-1',
     model: 'claude-sonnet-5-5',
@@ -42,13 +42,13 @@ const run = ( overrides: Partial< Parameters< typeof insertSummaryRun >[ 0 ] > =
 
 describe( 'insertSummaryRun and listRunsForJob', () => {
   it( 'returns no runs for a job without any', () => {
-    expect( listRunsForJob( 'job-1' ) ).toEqual( [] )
+    expect( listRunsForJob( userId, 'job-1' ) ).toEqual( [] )
   } )
 
   it( 'round-trips a run', () => {
-    insertSummaryRun( run() )
+    insertSummaryRun( userId, run() )
 
-    expect( listRunsForJob( 'job-1' ) )
+    expect( listRunsForJob( userId, 'job-1' ) )
       .toEqual( [ { id: expect.any( Number ) as number, ...run() } ] )
   } )
 
@@ -61,27 +61,27 @@ describe( 'insertSummaryRun and listRunsForJob', () => {
       error: 'overloaded',
     } )
 
-    insertSummaryRun( failed )
+    insertSummaryRun( userId, failed )
 
-    expect( listRunsForJob( 'job-1' ) ).toMatchObject( [ failed ] )
+    expect( listRunsForJob( userId, 'job-1' ) ).toMatchObject( [ failed ] )
   } )
 
   it( 'lists the oldest run first, and only for that job', () => {
-    insertSummaryRun( run( { model: 'first' } ) )
-    insertSummaryRun( run( { job_id: 'job-2', model: 'other' } ) )
-    insertSummaryRun( run( { model: 'second' } ) )
+    insertSummaryRun( userId, run( { model: 'first' } ) )
+    insertSummaryRun( userId, run( { job_id: 'job-2', model: 'other' } ) )
+    insertSummaryRun( userId, run( { model: 'second' } ) )
 
-    expect( listRunsForJob( 'job-1' ).map( ( { model } ) => model ) )
+    expect( listRunsForJob( userId, 'job-1' ).map( ( { model } ) => model ) )
       .toEqual( [ 'first', 'second' ] )
   } )
 
   it( 'refuses a run for an unknown prompt version', () => {
-    expect( () => insertSummaryRun( run( { prompt_version_id: 999_999 } ) ) ).toThrow()
+    expect( () => insertSummaryRun( userId, run( { prompt_version_id: 999_999 } ) ) ).toThrow()
   } )
 
   it( 'keeps runs when their job is deleted', () => {
     const id = crypto.randomUUID()
-    insertJob( {
+    insertJob( userId, {
       id,
       url: 'https://www.youtube.com/watch?v=abc',
       status: 'queued',
@@ -104,10 +104,33 @@ describe( 'insertSummaryRun and listRunsForJob', () => {
       gmail_source_id: null,
       gmail_source_name: null,
     } )
-    insertSummaryRun( run( { job_id: id } ) )
+    insertSummaryRun( userId, run( { job_id: id } ) )
 
-    deleteJob( id )
+    deleteJob( userId, id )
 
-    expect( listRunsForJob( id ) ).toHaveLength( 1 )
+    expect( listRunsForJob( userId, id ) ).toHaveLength( 1 )
+  } )
+} )
+
+describe( 'ownership', () => {
+  it( 'does not show one user the runs of another user\'s job', () => {
+    const other = createTestUser().id
+
+    insertSummaryRun( userId, run() )
+
+    expect( listRunsForJob( other, 'job-1' ) ).toEqual( [] )
+    expect( listRunsForJob( userId, 'job-1' ) ).toHaveLength( 1 )
+  } )
+
+  it( 'keeps two users\' runs for the same job id apart', () => {
+    const other = createTestUser().id
+    const version = findLatestVersion( other, listActiveProfiles( other )[ 0 ]?.id ?? '' )
+
+    insertSummaryRun( userId, run() )
+    insertSummaryRun( other, run( { prompt_version_id: version?.id ?? 0, model: 'theirs' } ) )
+
+    expect( listRunsForJob( userId, 'job-1' ).map( ( { model } ) => model ) )
+      .toEqual( [ 'claude-sonnet-5-5' ] )
+    expect( listRunsForJob( other, 'job-1' ).map( ( { model } ) => model ) ).toEqual( [ 'theirs' ] )
   } )
 } )

@@ -77,9 +77,11 @@ describe( 'openDatabase and closeDatabase', () => {
     openDatabase( databasePath )
     closeDatabase()
     const writer = new Database( databasePath )
+    writer.prepare( `INSERT INTO users ( id, email, name, role, status, created_at )
+      VALUES ( 'u', 'u@x.test', 'U', 'member', 'active', 'now' )` ).run()
     writer
-      .prepare( `INSERT INTO jobs ( id, url, status, created_at, updated_at )
-        VALUES ( 'a', 'https://example.com', 'queued', 'now', 'now' )` )
+      .prepare( `INSERT INTO jobs ( id, user_id, url, status, created_at, updated_at )
+        VALUES ( 'a', 'u', 'https://example.com', 'queued', 'now', 'now' )` )
       .run()
     writer.close()
 
@@ -209,6 +211,7 @@ describe( 'getDatabase', () => {
 const BASELINE_COLUMNS: Record< string, string[] > = {
   jobs: [
     'id',
+    'user_id',
     'url',
     'status',
     'error',
@@ -254,6 +257,7 @@ const BASELINE_COLUMNS: Record< string, string[] > = {
   ],
   summary_runs: [
     'id',
+    'user_id',
     'job_id',
     'model',
     'prompt_version_id',
@@ -363,6 +367,7 @@ const BASELINE_COLUMNS: Record< string, string[] > = {
   ],
   link_runs: [
     'id',
+    'user_id',
     'job_id',
     'model',
     'prompt_version_id',
@@ -378,6 +383,7 @@ const BASELINE_COLUMNS: Record< string, string[] > = {
   ],
   link_suggestions: [
     'id',
+    'user_id',
     'job_id',
     'run_id',
     'position',
@@ -494,6 +500,8 @@ const BASELINE_COLUMNS: Record< string, string[] > = {
 const BASELINE_INDEXES = [
   'users_one_admin',
   'sessions_user',
+  'jobs_user_status',
+  'jobs_user_queue',
   'summary_runs_job',
   'feeds_active_url',
   'feed_items_inbox',
@@ -731,14 +739,14 @@ describe( 'the baseline schema', () => {
     } )
 
     it( 'lets summary runs outlive their job', () => {
-      createTestUser()
+      const { id: userId } = createTestUser()
 
       const version = getDatabase().prepare( 'SELECT id FROM prompt_versions LIMIT 1' )
         .get() as { id: number }
 
       expect( () => getDatabase().prepare( `INSERT INTO summary_runs
-        ( job_id, model, prompt_version_id, outcome, created_at )
-        VALUES ( 'gone', 'm', ?, 'ok', 'now' )` ).run( version.id ) ).not.toThrow()
+        ( user_id, job_id, model, prompt_version_id, outcome, created_at )
+        VALUES ( ?, 'gone', 'm', ?, 'ok', 'now' )` ).run( userId, version.id ) ).not.toThrow()
     } )
   } )
 } )

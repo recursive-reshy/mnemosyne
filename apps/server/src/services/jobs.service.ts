@@ -43,13 +43,9 @@ import { inTransaction } from '../repositories/database.js'
 import {
   StoredJob,
   deleteJob,
-  findExpiredJobs,
   findJobById,
-  findNextRunnableJob as findNextRunnableStoredJob,
   insertJob,
   listActiveJobs,
-  markInterruptedJobs,
-  markInterruptedLinkingJobs,
   updateJob,
 } from '../repositories/jobStore.repository.js'
 import { insertLinkRun, summarizeLinkUsage } from '../repositories/linkRuns.repository.js'
@@ -68,6 +64,12 @@ import {
   setLastFolder,
 } from '../repositories/promptProfiles.repository.js'
 import { insertSummaryRun, listRunsForJob } from '../repositories/summaryRuns.repository.js'
+import {
+  findExpiredJobs,
+  findNextRunnableJob as findNextRunnableStoredJob,
+  markInterruptedJobs,
+  markInterruptedLinkingJobs,
+} from '../repositories/system.repository.js'
 // Sources
 import { articleFromText } from '../sources/text.js'
 // Summarizer
@@ -78,7 +80,7 @@ import { STATES, assertMove as assertTableMove } from '../jobs/lifecycle.js'
 import { assertKnownModel } from './models.service.js'
 import { assertActiveProfile } from './prompts.service.js'
 import { isLinkingEnabled } from './settings.service.js'
-import { interimOwnerId } from './interimOwner.js'
+import { vaultRootFor } from './vault.service.js'
 // Logging
 import { logger } from '../logger.js'
 
@@ -103,16 +105,14 @@ const expiryFromNow = (): string => {
   return new Date( Date.now() + config.reviewTtlHours * HOUR_MS ).toISOString()
 }
 
-// Until 4.2 gives jobs an owner, the profiles behind a job are looked up as the interim owner's
-const toSummaryUsage = ( jobId: string ): SummaryUsage | null => {
-  const runs = listRunsForJob( jobId )
+const toSummaryUsage = ( userId: string, jobId: string ): SummaryUsage | null => {
+  const runs = listRunsForJob( userId, jobId )
   const last = runs.at( -1 )
 
   if( last === undefined ) {
     return null
   }
 
-  const userId = interimOwnerId()
   const version = findVersionById( userId, last.prompt_version_id )
   const profile = version === undefined ? undefined : findProfileById( userId, version.profile_id )
 
@@ -146,19 +146,22 @@ const toSummaryUsage = ( jobId: string ): SummaryUsage | null => {
 }
 
 // The profile's last saved folder while it still exists in the vault (ADR 0059)
-export const defaultFolderFor = ( job: { prompt_profile_id: string | null } ): string => {
+export const defaultFolderFor = (
+  userId: string,
+  job: { prompt_profile_id: string | null },
+): string => {
   const lastFolder = job.prompt_profile_id === null
     ? null
-    : findProfileById( interimOwnerId(), job.prompt_profile_id )?.last_folder ?? null
+    : findProfileById( userId, job.prompt_profile_id )?.last_folder ?? null
 
-  if( lastFolder !== null && existingFolderSync( config.vaultPath, lastFolder ) ) {
+  if( lastFolder !== null && existingFolderSync( vaultRootFor( userId ), lastFolder ) ) {
     return lastFolder
   }
 
   return config.defaultNoteFolder
 }
 
-const toPublicJob = ( job: StoredJob ): Job => {
+const toPublicJob = ( userId: string, job: StoredJob ): Job => {
   return {
     id: job.id,
     url: job.url,
@@ -170,16 +173,16 @@ const toPublicJob = ( job: StoredJob ): Job => {
     note_markdown: job.note_markdown,
     target_folder: job.target_folder,
     default_folder: job.status === 'ready_for_review'
-      ? defaultFolderFor( job )
+      ? defaultFolderFor( userId, job )
       : config.defaultNoteFolder,
     expires_at: job.expires_at,
     saved_path: job.saved_path,
     summary_model: job.summary_model,
     prompt_profile_id: job.prompt_profile_id,
-    summary_usage: toSummaryUsage( job.id ),
+    summary_usage: toSummaryUsage( userId, job.id ),
     link_state: job.link_state,
     link_error: job.link_error,
-    link_usage: summarizeLinkUsage( job.id ) ?? null,
+    link_usage: summarizeLinkUsage( userId, job.id ) ?? null,
     source_type: job.source_type,
     feed_id: job.feed_id,
     feed_name: job.feed_name,
@@ -196,8 +199,8 @@ const toTranscript = ( id: string, document: SourceDocument ): Transcript => {
   return { meta: document.meta, segments: document.segments }
 }
 
-const requireJob = ( id: string ): StoredJob => {
-  const job = findJobById( id )
+const requireJob = ( userId: string, id: string ): StoredJob => {
+  const job = findJobById( userId, id )
 
   if( job === undefined ) {
     throw new NotFoundError( 'Job not found' )
@@ -225,10 +228,15 @@ const assertMove = ( job: StoredJob, to: JobStatus ): void => {
   }
 }
 
-const moveTo = ( job: StoredJob, status: JobStatus, changes: Partial< StoredJob > ): Job => {
+const moveTo = (
+  userId: string,
+  job: StoredJob,
+  status: JobStatus,
+  changes: Partial< StoredJob >,
+): Job => {
   assertMove( job, status )
 
-  const updated = updateJob( job.id, {
+  const updated = updateJob( userId, job.id, {
     expires_at: expiryFor( job, status ),
     ...changes,
     status,
@@ -239,7 +247,7 @@ const moveTo = ( job: StoredJob, status: JobStatus, changes: Partial< StoredJob 
     throw new NotFoundError( 'Job not found' )
   }
 
-  return toPublicJob( updated )
+  return toPublicJob( userId, updated )
 }
 
 const conflict = ( from: JobStatus, to: JobStatus ): ConflictError => {
@@ -321,31 +329,42 @@ export const queueJob = async (
     gmail_source_name: gmailSource?.name ?? null,
   }
 
-  insertJob( job )
+  insertJob( userId, job )
 
-  return toPublicJob( job )
+  return toPublicJob( userId, job )
 }
 
-export const findJob = ( id: string ): Job => {
-  return toPublicJob( requireJob( id ) )
+export const findJob = ( userId: string, id: string ): Job => {
+  return toPublicJob( userId, requireJob( userId, id ) )
 }
 
-export const listJobs = (): Job[] => {
-  return listActiveJobs().map( toPublicJob )
+export const listJobs = ( userId: string ): Job[] => {
+  return listActiveJobs( userId ).map( ( job ) => toPublicJob( userId, job ) )
 }
 
-export const findNextRunnableJob = (): Job | undefined => {
-  const job = findNextRunnableStoredJob()
+// The worker serves every user: the next job comes with whose it is
+export const findNextRunnableJob = (): { job: Job, userId: string } | undefined => {
+  const next = findNextRunnableStoredJob()
 
-  return job === undefined ? undefined : toPublicJob( job )
+  if( next === undefined ) {
+    return undefined
+  }
+
+  const { user_id: userId, ...stored } = next
+
+  return { job: toPublicJob( userId, stored ), userId }
 }
 
-export const markStatus = ( id: string, status: StepStatus ): Job => {
-  return moveTo( requireJob( id ), status, {} )
+export const markStatus = ( userId: string, id: string, status: StepStatus ): Job => {
+  return moveTo( userId, requireJob( userId, id ), status, {} )
 }
 
-export const completeAcquisition = ( id: string, document: SourceDocument ): Job => {
-  const job = requireJob( id )
+export const completeAcquisition = (
+  userId: string,
+  id: string,
+  document: SourceDocument,
+): Job => {
+  const job = requireJob( userId, id )
 
   const expected = document.kind === 'video' ? 'transcribing' : 'fetching'
 
@@ -353,26 +372,27 @@ export const completeAcquisition = ( id: string, document: SourceDocument ): Job
     throw conflict( job.status, 'summarizing' )
   }
 
-  return moveTo( job, 'summarizing', {
+  return moveTo( userId, job, 'summarizing', {
     source_document: document,
     title: document.meta.title,
   } )
 }
 
 export const completeSummary = (
+  userId: string,
   id: string,
   summaryMarkdown: string,
   suggestedTags: string[],
 ): Job => {
-  const job = requireJob( id )
+  const job = requireJob( userId, id )
 
   assertFrom( job, 'summarizing', 'ready_for_review' )
 
-  const document = getSource( id )
+  const document = getSource( userId, id )
 
-  const linking = config.agent !== null && isLinkingEnabled( interimOwnerId() )
+  const linking = config.agent !== null && isLinkingEnabled( userId )
 
-  return moveTo( job, linking ? 'linking' : 'ready_for_review', {
+  return moveTo( userId, job, linking ? 'linking' : 'ready_for_review', {
     note_markdown: formatNote( {
       title: job.title ?? document.meta.title,
       tags: suggestedTags,
@@ -386,23 +406,24 @@ export const completeSummary = (
   } )
 }
 
-export const completeLinking = ( id: string ): Job => {
-  const job = requireJob( id )
+export const completeLinking = ( userId: string, id: string ): Job => {
+  const job = requireJob( userId, id )
 
   assertFrom( job, 'linking', 'ready_for_review' )
 
-  return moveTo( job, 'ready_for_review', { link_state: 'linked', link_error: null } )
+  return moveTo( userId, job, 'ready_for_review', { link_state: 'linked', link_error: null } )
 }
 
-export const failLinking = ( id: string, message: string ): Job => {
-  const job = requireJob( id )
+export const failLinking = ( userId: string, id: string, message: string ): Job => {
+  const job = requireJob( userId, id )
 
   assertFrom( job, 'linking', 'ready_for_review' )
 
-  return moveTo( job, 'ready_for_review', { link_state: 'failed', link_error: message } )
+  return moveTo( userId, job, 'ready_for_review', { link_state: 'failed', link_error: message } )
 }
 
 export const recordLinkRun = (
+  userId: string,
   jobId: string,
   run: {
     model: string
@@ -414,7 +435,7 @@ export const recordLinkRun = (
   const inputTokens = run.usage?.input_tokens ?? null
   const outputTokens = run.usage?.output_tokens ?? null
 
-  return insertLinkRun( {
+  return insertLinkRun( userId, {
     job_id: jobId,
     model: run.model,
     prompt_version_id: run.promptVersionId,
@@ -431,14 +452,16 @@ export const recordLinkRun = (
 }
 
 export const recordLinkSuggestions = (
+  userId: string,
   jobId: string,
   runId: number,
   suggestions: LinkSuggestion[],
 ): void => {
-  insertSuggestions( runId, jobId, suggestions )
+  insertSuggestions( userId, runId, jobId, suggestions )
 }
 
 export const recordSummaryRun = (
+  userId: string,
   jobId: string,
   run: {
     model: string
@@ -450,7 +473,7 @@ export const recordSummaryRun = (
   const inputTokens = run.usage?.input_tokens ?? null
   const outputTokens = run.usage?.output_tokens ?? null
 
-  insertSummaryRun( {
+  insertSummaryRun( userId, {
     job_id: jobId,
     model: run.model,
     prompt_version_id: run.promptVersionId,
@@ -463,18 +486,18 @@ export const recordSummaryRun = (
   } )
 }
 
-export const failSummary = ( id: string, message: string ): Job => {
-  const job = requireJob( id )
+export const failSummary = ( userId: string, id: string, message: string ): Job => {
+  const job = requireJob( userId, id )
 
-  return moveTo( job, 'summary_failed', { error: message } )
+  return moveTo( userId, job, 'summary_failed', { error: message } )
 }
 
-export const retrySummary = ( id: string ): Job => {
-  const job = requireJob( id )
+export const retrySummary = ( userId: string, id: string ): Job => {
+  const job = requireJob( userId, id )
 
   assertFrom( job, 'summary_failed', 'summarizing' )
 
-  return moveTo( job, 'summarizing', { error: null } )
+  return moveTo( userId, job, 'summarizing', { error: null } )
 }
 
 export const regenerateSummary = async (
@@ -482,15 +505,15 @@ export const regenerateSummary = async (
   id: string,
   choices: SummaryChoices,
 ): Promise< Job > => {
-  const job = requireJob( id )
+  const job = requireJob( userId, id )
 
   assertFrom( job, 'ready_for_review', 'summarizing' )
 
   await validateChoices( userId, choices )
 
-  supersedePending( id )
+  supersedePending( userId, id )
 
-  return moveTo( job, 'summarizing', {
+  return moveTo( userId, job, 'summarizing', {
     summary_model: choices.model ?? job.summary_model,
     prompt_profile_id: choices.profile_id ?? job.prompt_profile_id,
     error: null,
@@ -499,14 +522,14 @@ export const regenerateSummary = async (
   } )
 }
 
-export const listLinkSuggestions = ( id: string ): StoredLinkSuggestion[] => {
-  requireJob( id )
+export const listLinkSuggestions = ( userId: string, id: string ): StoredLinkSuggestion[] => {
+  requireJob( userId, id )
 
-  return listSuggestions( id )
+  return listSuggestions( userId, id )
 }
 
-export const runLinking = ( id: string, body: RunLinkingBody ): Job => {
-  const job = requireJob( id )
+export const runLinking = ( userId: string, id: string, body: RunLinkingBody ): Job => {
+  const job = requireJob( userId, id )
 
   assertFrom( job, 'ready_for_review', 'linking' )
 
@@ -516,12 +539,12 @@ export const runLinking = ( id: string, body: RunLinkingBody ): Job => {
 
   return inTransaction( () => {
     if( body.note_markdown !== undefined ) {
-      updateDraft( id, { note_markdown: body.note_markdown } )
+      updateDraft( userId, id, { note_markdown: body.note_markdown } )
     }
 
-    supersedePending( id )
+    supersedePending( userId, id )
 
-    return moveTo( requireJob( id ), 'linking', {
+    return moveTo( userId, requireJob( userId, id ), 'linking', {
       link_state: 'pending',
       link_error: null,
     } )
@@ -529,8 +552,10 @@ export const runLinking = ( id: string, body: RunLinkingBody ): Job => {
 }
 
 // Every id must be a pending suggestion of this job; the first one that isn't is named
-const assertPendingSuggestions = ( jobId: string, ids: string[] ): void => {
-  const found = new Map( findSuggestions( jobId, ids ).map( ( stored ) => [ stored.id, stored ] ) )
+const assertPendingSuggestions = ( userId: string, jobId: string, ids: string[] ): void => {
+  const found = new Map(
+    findSuggestions( userId, jobId, ids ).map( ( stored ) => [ stored.id, stored ] ),
+  )
 
   for( const suggestionId of ids ) {
     if( found.get( suggestionId )?.status !== 'pending' ) {
@@ -540,60 +565,62 @@ const assertPendingSuggestions = ( jobId: string, ids: string[] ): void => {
 }
 
 export const acceptSuggestions = (
+  userId: string,
   id: string,
   body: AcceptLinkSuggestionsBody,
 ): LinkSuggestionsResponse => {
-  const job = requireJob( id )
+  const job = requireJob( userId, id )
 
   assertFrom( job, 'ready_for_review', 'ready_for_review' )
 
-  assertPendingSuggestions( id, body.ids )
+  assertPendingSuggestions( userId, id, body.ids )
 
   return inTransaction( () => {
-    const updated = updateDraft( id, { note_markdown: body.note_markdown } )
+    const updated = updateDraft( userId, id, { note_markdown: body.note_markdown } )
 
-    setStatus( body.ids, 'accepted', new Date().toISOString() )
+    setStatus( userId, body.ids, 'accepted', new Date().toISOString() )
 
-    return { job: updated, suggestions: listSuggestions( id ) }
+    return { job: updated, suggestions: listSuggestions( userId, id ) }
   } )
 }
 
 export const rejectSuggestions = (
+  userId: string,
   id: string,
   body: RejectLinkSuggestionsBody,
 ): LinkSuggestionsResponse => {
-  const job = requireJob( id )
+  const job = requireJob( userId, id )
 
   assertFrom( job, 'ready_for_review', 'ready_for_review' )
 
-  assertPendingSuggestions( id, body.ids )
-  setStatus( body.ids, 'rejected', new Date().toISOString() )
+  assertPendingSuggestions( userId, id, body.ids )
+  setStatus( userId, body.ids, 'rejected', new Date().toISOString() )
 
-  return { job: toPublicJob( job ), suggestions: listSuggestions( id ) }
+  return { job: toPublicJob( userId, job ), suggestions: listSuggestions( userId, id ) }
 }
 
-export const discardJob = ( id: string ): void => {
-  const job = requireJob( id )
+export const discardJob = ( userId: string, id: string ): void => {
+  const job = requireJob( userId, id )
 
   if( !downloadableStatuses.includes( job.status ) ) {
     throw new ConflictError( `Cannot discard a job that is ${ job.status }` )
   }
 
-  deleteJob( id )
+  deleteJob( userId, id )
 }
 
 export const deleteExpiredJobs = (): number => {
   const expired = findExpiredJobs( new Date().toISOString() )
 
-  for( const { id } of expired ) {
-    deleteJob( id )
+  for( const { id, user_id: userId } of expired ) {
+    deleteJob( userId, id )
   }
 
   return expired.length
 }
 
-export const getSource = ( id: string ): SourceDocument => {
-  const job = requireJob( id )
+export const getSource = ( userId: string, id: string ): SourceDocument => {
+  const job = requireJob( userId, id )
 
   if( job.source_document === null ) {
     throw new Error( `Job ${ id } has no transcript` )
@@ -603,10 +630,11 @@ export const getSource = ( id: string ): SourceDocument => {
 }
 
 export const submitPastedText = (
+  userId: string,
   id: string,
   { text, title }: SubmitPastedTextBody,
 ): Job => {
-  const job = requireJob( id )
+  const job = requireJob( userId, id )
 
   if( job.source_type !== 'article' || job.status !== 'failed' ) {
     throw new ConflictError( 'Pasted text can only continue a failed article job' )
@@ -614,17 +642,17 @@ export const submitPastedText = (
 
   const document = articleFromText( { url: job.url, text, title, origin: 'pasted' } )
 
-  return moveTo( job, 'summarizing', {
+  return moveTo( userId, job, 'summarizing', {
     source_document: document,
     title: document.meta.title,
     error: null,
   } )
 }
 
-export const failJob = ( id: string, message: string ): Job => {
-  const job = requireJob( id )
+export const failJob = ( userId: string, id: string, message: string ): Job => {
+  const job = requireJob( userId, id )
 
-  return moveTo( job, 'failed', { error: message } )
+  return moveTo( userId, job, 'failed', { error: message } )
 }
 
 export const recoverInterruptedJobs = (): number => {
@@ -635,8 +663,8 @@ export const recoverInterruptedJobs = (): number => {
     + markInterruptedLinkingJobs( message, now, expiryFromNow() )
 }
 
-export const findSource = ( id: string ): SourceDocument => {
-  const job = requireJob( id )
+export const findSource = ( userId: string, id: string ): SourceDocument => {
+  const job = requireJob( userId, id )
 
   if( !downloadableStatuses.includes( job.status ) ) {
     throw new ConflictError( 'Transcript not ready' )
@@ -651,8 +679,8 @@ export const findSource = ( id: string ): SourceDocument => {
 
 const today = (): string => new Date().toISOString().slice( 0, 10 )
 
-export const updateDraft = ( id: string, body: UpdateDraftBody ): Job => {
-  const job = requireJob( id )
+export const updateDraft = ( userId: string, id: string, body: UpdateDraftBody ): Job => {
+  const job = requireJob( userId, id )
 
   assertFrom( job, 'ready_for_review', 'ready_for_review' )
 
@@ -698,11 +726,11 @@ export const updateDraft = ( id: string, body: UpdateDraftBody ): Job => {
     changes.target_folder = body.target_folder
   }
 
-  return moveTo( job, job.status, changes )
+  return moveTo( userId, job, job.status, changes )
 }
 
-export const saveJob = async ( id: string ): Promise< string > => {
-  const job = requireJob( id )
+export const saveJob = async ( userId: string, id: string ): Promise< string > => {
+  const job = requireJob( userId, id )
 
   assertMove( job, 'saved' )
 
@@ -719,20 +747,20 @@ export const saveJob = async ( id: string ): Promise< string > => {
     lockedPropertiesFor( job.source_document, today() ),
   )
 
-  const folder = job.target_folder ?? defaultFolderFor( job )
+  const folder = job.target_folder ?? defaultFolderFor( userId, job )
 
   const savedPath = await writeNote(
-    config.vaultPath,
+    vaultRootFor( userId ),
     folder,
     note.properties.title,
     serializeNote( note ),
   )
 
   if( job.prompt_profile_id !== null ) {
-    setLastFolder( interimOwnerId(), job.prompt_profile_id, folder )
+    setLastFolder( userId, job.prompt_profile_id, folder )
   }
 
-  moveTo( job, 'saved', {
+  moveTo( userId, job, 'saved', {
     saved_path: savedPath,
     title: note.properties.title,
     source_document: null,
@@ -741,8 +769,12 @@ export const saveJob = async ( id: string ): Promise< string > => {
   return savedPath
 }
 
-export const renderTranscript = ( id: string, format: DownloadFormat ): RenderedTranscript => {
-  const document = findSource( id )
+export const renderTranscript = (
+  userId: string,
+  id: string,
+  format: DownloadFormat,
+): RenderedTranscript => {
+  const document = findSource( userId, id )
 
   if( document.kind === 'article' ) {
     if( format !== 'md' ) {

@@ -23,7 +23,7 @@ import { startWorker } from './worker.js'
 import { logger } from '../logger.js'
 import { getLogContext } from '../logContext.js'
 // Test support
-import { defaultTestAdmin } from '../test-support/auth.js'
+import { createTestUser, defaultTestAdmin } from '../test-support/auth.js'
 
 let userId = ''
 
@@ -41,15 +41,15 @@ let hold: boolean
 let stopWorker: () => Promise< void >
 
 const useRealisticRunJob = (): void => {
-  runJobMock.mockImplementation( async ( id ) => {
-    markStatus( id, 'downloading' )
+  runJobMock.mockImplementation( async ( owner, id ) => {
+    markStatus( owner, id, 'downloading' )
     events.push( `start:${ id }` )
 
     if( hold ) {
       await new Promise< void >( ( resolve ) => gates.set( id, resolve ) )
     }
 
-    failJob( id, 'x' )
+    failJob( owner, id, 'x' )
     events.push( `end:${ id }` )
   } )
 }
@@ -60,7 +60,7 @@ const queue = async (): Promise< string > => {
 
 beforeEach( () => {
   vi.useFakeTimers()
-  clearJobs()
+  clearJobs( userId )
   vi.resetAllMocks()
   events = []
   gates = new Map()
@@ -79,22 +79,22 @@ afterEach( async () => {
 describe( 'startWorker', () => {
   it( 'also picks up a job that is already summarizing', async () => {
     const id = await queue()
-    updateJob( id, { status: 'summarizing' } )
+    updateJob( userId, id, { status: 'summarizing' } )
 
     stopWorker = startWorker()
     await vi.advanceTimersByTimeAsync( 0 )
 
-    expect( runJobMock ).toHaveBeenCalledWith( id )
+    expect( runJobMock ).toHaveBeenCalledWith( userId, id )
   } )
 
   it( 'runs each job inside a log context carrying its id', async () => {
     const id = await queue()
     const seen: ( string | undefined )[] = []
     const realistic = runJobMock.getMockImplementation()!
-    runJobMock.mockImplementation( ( jobId ) => {
+    runJobMock.mockImplementation( ( owner, jobId ) => {
       seen.push( getLogContext()?.job_id )
 
-      return realistic( jobId )
+      return realistic( owner, jobId )
     } )
 
     stopWorker = startWorker()
@@ -109,7 +109,7 @@ describe( 'startWorker', () => {
     stopWorker = startWorker()
     await vi.advanceTimersByTimeAsync( 0 )
 
-    expect( runJobMock ).toHaveBeenCalledWith( id )
+    expect( runJobMock ).toHaveBeenCalledWith( userId, id )
   } )
 
   it( 'runs queued jobs oldest first', async () => {
@@ -158,7 +158,7 @@ describe( 'startWorker', () => {
     const id = await queue()
     await vi.advanceTimersByTimeAsync( 1000 )
 
-    expect( runJobMock ).toHaveBeenCalledWith( id )
+    expect( runJobMock ).toHaveBeenCalledWith( userId, id )
   } )
 
   it( 'runs a job queued during a run in the same pass', async () => {
@@ -185,11 +185,11 @@ describe( 'startWorker', () => {
     await vi.advanceTimersByTimeAsync( 0 )
     expect( errorSpy ).toHaveBeenCalled()
 
-    markStatus( broken, 'downloading' )
+    markStatus( userId, broken, 'downloading' )
     const later = await queue()
     await vi.advanceTimersByTimeAsync( 1000 )
 
-    expect( runJobMock ).toHaveBeenCalledWith( later )
+    expect( runJobMock ).toHaveBeenCalledWith( userId, later )
   } )
 
   it( 'makes one call per pass when a job stays queued', async () => {
@@ -204,7 +204,7 @@ describe( 'startWorker', () => {
     await vi.advanceTimersByTimeAsync( 1000 )
 
     expect( runJobMock ).toHaveBeenCalledTimes( 2 )
-    expect( findJob( id ).status ).toBe( 'queued' )
+    expect( findJob( userId, id ).status ).toBe( 'queued' )
   } )
 
   it( 'stops polling after the stop function is called', async () => {
@@ -268,5 +268,26 @@ describe( 'startWorker', () => {
     await stopWorker()
 
     await expect( stopWorker() ).resolves.toBeUndefined()
+  } )
+} )
+
+describe( 'startWorker for two users', () => {
+  it( 'runs each job for its owner, oldest first, in a log context with both ids', async () => {
+    const member = createTestUser().id
+    const first = ( await queueJob( member, { url: 'https://www.youtube.com/watch?v=one' } ) ).id
+    const second = await queue()
+    const seen: ( string | undefined )[] = []
+    const realistic = runJobMock.getMockImplementation()!
+    runJobMock.mockImplementation( ( owner, jobId ) => {
+      seen.push( getLogContext()?.user_id )
+
+      return realistic( owner, jobId )
+    } )
+
+    stopWorker = startWorker()
+    await vi.advanceTimersByTimeAsync( 0 )
+
+    expect( runJobMock.mock.calls ).toEqual( [ [ member, first ], [ userId, second ] ] )
+    expect( seen ).toEqual( [ member, userId ] )
   } )
 } )

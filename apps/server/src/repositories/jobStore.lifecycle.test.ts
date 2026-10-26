@@ -14,14 +14,24 @@ import { statusesWhere } from '../jobs/lifecycle.js'
 import {
   StoredJob,
   clearJobs,
-  findExpiredJobs,
   findJobById,
-  findNextRunnableJob,
   insertJob,
   listActiveJobs,
+} from './jobStore.repository.js'
+import {
+  findExpiredJobs,
+  findNextRunnableJob,
   markInterruptedJobs,
   markInterruptedLinkingJobs,
-} from './jobStore.repository.js'
+} from './system.repository.js'
+// Test support
+import { defaultTestAdmin } from '../test-support/auth.js'
+
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
 
 // The status lists come from the lifecycle table (ADR 0048). Here the table is replaced by one
 // that names only `saved`, so any list still written out in SQL would give a different answer.
@@ -67,7 +77,7 @@ const onlySaved = (): void => {
 }
 
 beforeEach( () => {
-  clearJobs()
+  clearJobs( userId )
   statusesWhereMock.mockReset()
   statusesWhereMock.mockImplementation( original )
 } )
@@ -76,8 +86,8 @@ describe( 'status lists built from the lifecycle table', () => {
   it( 'findNextRunnableJob uses the runnable states', () => {
     const queued = buildJob( 'queued' )
     const saved = buildJob( 'saved' )
-    insertJob( queued )
-    insertJob( saved )
+    insertJob( userId, queued )
+    insertJob( userId, saved )
 
     expect( findNextRunnableJob()?.id ).toBe( queued.id )
 
@@ -88,21 +98,21 @@ describe( 'status lists built from the lifecycle table', () => {
   } )
 
   it( 'listActiveJobs uses the active states', () => {
-    insertJob( buildJob( 'queued' ) )
+    insertJob( userId, buildJob( 'queued' ) )
     const saved = buildJob( 'saved' )
-    insertJob( saved )
+    insertJob( userId, saved )
 
     onlySaved()
 
-    expect( listActiveJobs().map( ( job ) => job.id ) ).toEqual( [ saved.id ] )
+    expect( listActiveJobs( userId ).map( ( job ) => job.id ) ).toEqual( [ saved.id ] )
     expect( statusesWhereMock ).toHaveBeenCalledWith( 'active' )
   } )
 
   it( 'findExpiredJobs uses the expiring states', () => {
     const past = '2026-10-13T00:00:00.000Z'
-    insertJob( buildJob( 'ready_for_review', { expires_at: past } ) )
+    insertJob( userId, buildJob( 'ready_for_review', { expires_at: past } ) )
     const saved = buildJob( 'saved', { expires_at: past } )
-    insertJob( saved )
+    insertJob( userId, saved )
 
     onlySaved()
 
@@ -114,22 +124,22 @@ describe( 'status lists built from the lifecycle table', () => {
   it( 'markInterruptedJobs uses the states that fail on restart', () => {
     const downloading = buildJob( 'downloading' )
     const saved = buildJob( 'saved' )
-    insertJob( downloading )
-    insertJob( saved )
+    insertJob( userId, downloading )
+    insertJob( userId, saved )
 
     onlySaved()
 
     expect( markInterruptedJobs( 'Interrupted', '2026-10-14T11:00:00.000Z' ) ).toBe( 1 )
-    expect( findJobById( saved.id )?.status ).toBe( 'failed' )
-    expect( findJobById( downloading.id )?.status ).toBe( 'downloading' )
+    expect( findJobById( userId, saved.id )?.status ).toBe( 'failed' )
+    expect( findJobById( userId, downloading.id )?.status ).toBe( 'downloading' )
     expect( statusesWhereMock ).toHaveBeenCalledWith( 'onRestart', 'failed' )
   } )
 
   it( 'markInterruptedLinkingJobs uses the states that go to review on restart', () => {
     const linking = buildJob( 'linking', { link_state: 'pending' } )
     const saved = buildJob( 'saved' )
-    insertJob( linking )
-    insertJob( saved )
+    insertJob( userId, linking )
+    insertJob( userId, saved )
 
     onlySaved()
 
@@ -138,11 +148,11 @@ describe( 'status lists built from the lifecycle table', () => {
       '2026-10-14T11:00:00.000Z',
       '2026-10-15T11:00:00.000Z',
     ) ).toBe( 1 )
-    expect( findJobById( saved.id ) ).toMatchObject( {
+    expect( findJobById( userId, saved.id ) ).toMatchObject( {
       status: 'ready_for_review',
       link_state: 'failed',
     } )
-    expect( findJobById( linking.id )?.status ).toBe( 'linking' )
+    expect( findJobById( userId, linking.id )?.status ).toBe( 'linking' )
     expect( statusesWhereMock ).toHaveBeenCalledWith( 'onRestart', 'ready_for_review' )
   } )
 } )

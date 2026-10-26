@@ -9,6 +9,7 @@ import {
   expect,
   beforeAll,
   afterAll,
+  beforeEach,
 } from 'vitest'
 // App
 import { app } from './app.js'
@@ -20,6 +21,14 @@ import { config } from './config.js'
 import { clearJobs, findJobById } from './repositories/jobStore.repository.js'
 // Worker
 import { startWorker } from './worker/worker.js'
+// Test support
+import { defaultTestAdmin } from './test-support/auth.js'
+
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
 
 const HAPPY_URL = 'https://www.youtube.com/watch?v=cFoaK1OQRhw'
 const MISSING_URL = 'https://www.youtube.com/watch?v=zzzzzzzzzzz'
@@ -79,7 +88,7 @@ beforeAll( async () => {
 
 afterAll( async () => {
   await stopWorker()
-  clearJobs()
+  clearJobs( userId )
 } )
 
 describe( 'pipeline (real yt-dlp, ffmpeg and whisper-server)', () => {
@@ -119,7 +128,7 @@ describe( 'pipeline (real yt-dlp, ffmpeg and whisper-server)', () => {
     expect( txt.status ).toBe( 200 )
     expect( txt.text.trim() ).not.toBe( '' )
 
-    const document = findJobById( jobId )?.source_document
+    const document = findJobById( userId, jobId )?.source_document
     const transcript = document?.kind === 'video' ? document : undefined
     expect( transcript?.meta.title ).toBeTruthy()
     expect( transcript?.meta.duration_seconds ).toBeGreaterThan( 0 )

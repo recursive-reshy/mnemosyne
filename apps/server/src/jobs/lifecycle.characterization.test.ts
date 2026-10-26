@@ -111,7 +111,7 @@ const seed = ( status: JobStatus, source: SourceType, id = crypto.randomUUID() )
     ? 'pending'
     : status === 'ready_for_review' ? 'off' : null
 
-  insertJob( {
+  insertJob( userId, {
     id,
     url: document.meta.source,
     status,
@@ -178,34 +178,38 @@ const notPending = ( run: () => unknown ): string => {
 
 // The service functions that move a job, by name
 const OPS: Record< string, Op > = {
-  'markStatus downloading': ( id ) => markStatus( id, 'downloading' ),
-  'markStatus converting': ( id ) => markStatus( id, 'converting' ),
-  'markStatus transcribing': ( id ) => markStatus( id, 'transcribing' ),
-  'markStatus fetching': ( id ) => markStatus( id, 'fetching' ),
-  completeAcquisition: ( id, source ) => completeAcquisition( id, documentFor( source ) ),
-  completeSummary: ( id ) => completeSummary( id, '## Summary', [] ),
+  'markStatus downloading': ( id ) => markStatus( userId, id, 'downloading' ),
+  'markStatus converting': ( id ) => markStatus( userId, id, 'converting' ),
+  'markStatus transcribing': ( id ) => markStatus( userId, id, 'transcribing' ),
+  'markStatus fetching': ( id ) => markStatus( userId, id, 'fetching' ),
+  completeAcquisition: ( id, source ) => completeAcquisition( userId, id, documentFor( source ) ),
+  completeSummary: ( id ) => completeSummary( userId, id, '## Summary', [] ),
   'completeSummary with linking': ( id ) => {
     config.agent = agent
 
-    return completeSummary( id, '## Summary', [] )
+    return completeSummary( userId, id, '## Summary', [] )
   },
-  completeLinking: ( id ) => completeLinking( id ),
-  failLinking: ( id ) => failLinking( id, 'agent down' ),
-  failSummary: ( id ) => failSummary( id, 'Claude down' ),
-  retrySummary: ( id ) => retrySummary( id ),
+  completeLinking: ( id ) => completeLinking( userId, id ),
+  failLinking: ( id ) => failLinking( userId, id, 'agent down' ),
+  failSummary: ( id ) => failSummary( userId, id, 'Claude down' ),
+  retrySummary: ( id ) => retrySummary( userId, id ),
   regenerateSummary: ( id ) => regenerateSummary( userId, id, {} ),
-  'runLinking without an agent': ( id ) => runLinking( id, {} ),
+  'runLinking without an agent': ( id ) => runLinking( userId, id, {} ),
   'runLinking': ( id ) => {
     config.agent = agent
 
-    return runLinking( id, {} )
+    return runLinking( userId, id, {} )
   },
-  submitPastedText: ( id ) => submitPastedText( id, { text: 'Pasted words. '.repeat( 20 ) } ),
-  failJob: ( id ) => failJob( id, 'boom' ),
-  updateDraft: ( id ) => updateDraft( id, { target_folder: 'Notes' } ),
-  saveJob: ( id ) => saveJob( id ),
-  discardJob: ( id ) => discardJob( id ),
-  findSource: ( id ) => findSource( id ),
+  submitPastedText: ( id ) => submitPastedText(
+    userId,
+    id,
+    { text: 'Pasted words. '.repeat( 20 ) },
+  ),
+  failJob: ( id ) => failJob( userId, id, 'boom' ),
+  updateDraft: ( id ) => updateDraft( userId, id, { target_folder: 'Notes' } ),
+  saveJob: ( id ) => saveJob( userId, id ),
+  discardJob: ( id ) => discardJob( userId, id ),
+  findSource: ( id ) => findSource( userId, id ),
 }
 
 type Outcome = string
@@ -219,7 +223,7 @@ const run = async ( name: string ): Promise< Matrix > => {
 
   for( const source of SOURCES ) {
     for( const status of STATUSES ) {
-      clearJobs()
+      clearJobs( userId )
       config.agent = null
 
       const id = seed( status, source )
@@ -234,7 +238,7 @@ const run = async ( name: string ): Promise< Matrix > => {
         config.agent = null
       }
 
-      const after = findJobById( id )
+      const after = findJobById( userId, id )
 
       if( after === undefined ) {
         matrix[ key( source, status ) ] = 'job deleted'
@@ -259,7 +263,7 @@ const both = ( status: JobStatus, outcome: Outcome ): Matrix => {
 beforeEach( () => {
   vi.useFakeTimers()
   vi.setSystemTime( startTime )
-  clearJobs()
+  clearJobs( userId )
   writeNoteMock.mockReset()
   writeNoteMock.mockResolvedValue( 'Notes/A post.md' )
 } )
@@ -330,14 +334,14 @@ describe( 'job lifecycle, as in 0.7.0', () => {
     const video = seed( 'transcribing', 'video' )
     const article = seed( 'fetching', 'article' )
 
-    expect( () => completeAcquisition( video, articleDocument ) ).toThrow( ConflictError )
-    expect( () => completeAcquisition( article, videoDocument ) ).toThrow( ConflictError )
+    expect( () => completeAcquisition( userId, video, articleDocument ) ).toThrow( ConflictError )
+    expect( () => completeAcquisition( userId, article, videoDocument ) ).toThrow( ConflictError )
   } )
 
   it( 'refuses pasted text on a failed video job', () => {
     const id = seed( 'failed', 'video' )
 
-    expect( () => submitPastedText( id, { text: 'Pasted words. '.repeat( 20 ) } ) )
+    expect( () => submitPastedText( userId, id, { text: 'Pasted words. '.repeat( 20 ) } ) )
       .toThrow( 'Pasted text can only continue a failed article job' )
   } )
 
@@ -348,41 +352,45 @@ describe( 'job lifecycle, as in 0.7.0', () => {
     const summaryFailed = seed( 'summary_failed', 'article' )
     const linking = seed( 'linking', 'article' )
 
-    expect( () => markStatus( queued, 'converting' ) )
+    expect( () => markStatus( userId, queued, 'converting' ) )
       .toThrow( 'Cannot move job from queued to converting' )
-    expect( () => completeAcquisition( queued, videoDocument ) )
+    expect( () => completeAcquisition( userId, queued, videoDocument ) )
       .toThrow( 'Cannot move job from queued to summarizing' )
-    expect( () => completeSummary( queued, 'x', [] ) )
+    expect( () => completeSummary( userId, queued, 'x', [] ) )
       .toThrow( 'Cannot move job from queued to ready_for_review' )
-    expect( () => completeLinking( summarizing ) )
+    expect( () => completeLinking( userId, summarizing ) )
       .toThrow( 'Cannot move job from summarizing to ready_for_review' )
-    expect( () => failLinking( summarizing, 'x' ) )
+    expect( () => failLinking( userId, summarizing, 'x' ) )
       .toThrow( 'Cannot move job from summarizing to ready_for_review' )
-    expect( () => failSummary( queued, 'x' ) )
+    expect( () => failSummary( userId, queued, 'x' ) )
       .toThrow( 'Cannot move job from queued to summary_failed' )
-    expect( () => retrySummary( review ) )
+    expect( () => retrySummary( userId, review ) )
       .toThrow( 'Cannot move job from ready_for_review to summarizing' )
-    expect( () => failJob( review, 'x' ) )
+    expect( () => failJob( userId, review, 'x' ) )
       .toThrow( 'Cannot move job from ready_for_review to failed' )
-    expect( () => updateDraft( summaryFailed, {} ) )
+    expect( () => updateDraft( userId, summaryFailed, {} ) )
       .toThrow( 'Cannot move job from summary_failed to ready_for_review' )
-    await expect( saveJob( summaryFailed ) )
+    await expect( saveJob( userId, summaryFailed ) )
       .rejects.toThrow( 'Cannot move job from summary_failed to saved' )
-    expect( () => discardJob( linking ) ).toThrow( 'Cannot discard a job that is linking' )
-    expect( () => findSource( linking ) ).toThrow( 'Transcript not ready' )
+    expect( () => discardJob( userId, linking ) ).toThrow( 'Cannot discard a job that is linking' )
+    expect( () => findSource( userId, linking ) ).toThrow( 'Transcript not ready' )
   } )
 
   it( 'lets accepting and rejecting suggestions through the status check only in review', () => {
     const outcomes: Record< string, string > = {}
 
     for( const status of STATUSES ) {
-      clearJobs()
+      clearJobs( userId )
 
       const id = seed( status, 'article' )
 
       outcomes[ status ] = [
-        notPending( () => acceptSuggestions( id, { ids: [ SAMPLE_UUID ], note_markdown: 'x' } ) ),
-        notPending( () => rejectSuggestions( id, { ids: [ SAMPLE_UUID ] } ) ),
+        notPending( () => acceptSuggestions(
+          userId,
+          id,
+          { ids: [ SAMPLE_UUID ], note_markdown: 'x' },
+        ) ),
+        notPending( () => rejectSuggestions( userId, id, { ids: [ SAMPLE_UUID ] } ) ),
       ].join( ', ' )
     }
 
@@ -405,12 +413,12 @@ describe( 'job lifecycle, as in 0.7.0', () => {
     const picked: JobStatus[] = []
 
     for( const status of STATUSES ) {
-      clearJobs()
+      clearJobs( userId )
       seed( status, 'article' )
 
       const job = findNextRunnableJob()
 
-      if( job !== undefined ) picked.push( job.status )
+      if( job !== undefined ) picked.push( job.job.status )
     }
 
     expect( picked ).toEqual( [ 'queued', 'summarizing', 'linking' ] )
@@ -421,18 +429,18 @@ describe( 'job lifecycle, as in 0.7.0', () => {
       seed( status, 'article' )
     }
 
-    expect( listJobs().map( ( job ) => job.status ).sort() ).toEqual(
+    expect( listJobs( userId ).map( ( job ) => job.status ).sort() ).toEqual(
       STATUSES.filter( ( status ) => status !== 'failed' && status !== 'saved' ).sort(),
     )
   } )
 
   it( 'sweeps only expired jobs in the two review states', () => {
     for( const status of STATUSES ) {
-      updateJob( seed( status, 'article' ), { expires_at: staleExpiry } )
+      updateJob( userId, seed( status, 'article' ), { expires_at: staleExpiry } )
     }
 
     expect( deleteExpiredJobs() ).toBe( 2 )
-    expect( listJobs().map( ( job ) => job.status ).sort() ).toEqual( [
+    expect( listJobs( userId ).map( ( job ) => job.status ).sort() ).toEqual( [
       'converting',
       'downloading',
       'fetching',
@@ -451,7 +459,7 @@ describe( 'job lifecycle, as in 0.7.0', () => {
     expect( recoverInterruptedJobs() ).toBe( 5 )
 
     const after = ( status: JobStatus ) => {
-      const job = findJobById( ids[ status ] )!
+      const job = findJobById( userId, ids[ status ] )!
 
       return [
         job.status,
@@ -481,7 +489,7 @@ describe( 'job lifecycle, as in 0.7.0', () => {
     ] )
 
     for( const status of [ 'queued', 'summarizing', 'saved', 'failed' ] as const ) {
-      expect( findJobById( ids[ status ] )!.status ).toBe( status )
+      expect( findJobById( userId, ids[ status ] )!.status ).toBe( status )
     }
 
     expect( after( 'ready_for_review' ) ).toEqual( [

@@ -32,6 +32,14 @@ import { loadGmailFixture } from '../test-support/gmailFixture.js'
 import { addStoredSource, connectGmail } from '../test-support/gmailSources.fixture.js'
 // Services
 import { clearModelCache } from './../services/models.service.js'
+// Test support
+import { defaultTestAdmin } from '../test-support/auth.js'
+
+let userId = ''
+
+beforeEach( () => {
+  userId = defaultTestAdmin().id
+} )
 
 vi.mock( '../clients/anthropicModels.client.js' )
 vi.mock( '../clients/http.client.js', async ( importOriginal ) => ( {
@@ -91,7 +99,7 @@ const refs = ( items: ListInboxResponse[ 'items' ] ): InboxItemRef[] => {
 
 beforeEach( () => {
   vi.resetAllMocks()
-  clearJobs()
+  clearJobs( userId )
   clearModelCache()
   getDatabase().exec( 'DELETE FROM feed_items; DELETE FROM feeds' )
   connectGmail()

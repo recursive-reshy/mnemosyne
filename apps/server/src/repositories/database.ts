@@ -56,6 +56,7 @@ CREATE VIEW eligible_users AS
 
 CREATE TABLE jobs (
   id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users ( id ) ON DELETE CASCADE,
   url TEXT NOT NULL,
   status TEXT NOT NULL,
   error TEXT,
@@ -75,6 +76,8 @@ CREATE TABLE jobs (
   link_state TEXT,
   link_error TEXT
 );
+CREATE INDEX jobs_user_status ON jobs ( user_id, status, created_at );
+CREATE INDEX jobs_user_queue ON jobs ( user_id, status );
 
 CREATE TABLE settings (
   user_id TEXT NOT NULL REFERENCES users ( id ) ON DELETE CASCADE,
@@ -109,6 +112,7 @@ CREATE TABLE prompt_versions (
 
 CREATE TABLE summary_runs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL REFERENCES users ( id ) ON DELETE CASCADE,
   job_id TEXT NOT NULL,
   model TEXT NOT NULL,
   prompt_version_id INTEGER NOT NULL REFERENCES prompt_versions ( id ),
@@ -235,6 +239,7 @@ CREATE TABLE extraction_runs (
 
 CREATE TABLE link_runs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL REFERENCES users ( id ) ON DELETE CASCADE,
   job_id TEXT NOT NULL,
   model TEXT NOT NULL,
   prompt_version_id INTEGER NOT NULL REFERENCES prompt_versions ( id ),
@@ -252,6 +257,7 @@ CREATE INDEX link_runs_job ON link_runs ( job_id, id );
 
 CREATE TABLE link_suggestions (
   id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users ( id ) ON DELETE CASCADE,
   job_id TEXT NOT NULL,
   run_id INTEGER NOT NULL REFERENCES link_runs ( id ),
   position INTEGER NOT NULL,

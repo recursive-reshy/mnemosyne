@@ -606,8 +606,8 @@ describe( 'checkSource: automatic summaries', () => {
 
     expect( statuses( source.id ) ).toEqual( [ 'queued', 'queued' ] )
     expect( checked.inbox_count ).toBe( 0 )
-    expect( listJobs() ).toHaveLength( 2 )
-    expect( listJobs()[ 0 ] ).toMatchObject( {
+    expect( listJobs( userId ) ).toHaveLength( 2 )
+    expect( listJobs( userId )[ 0 ] ).toMatchObject( {
       gmail_source_id: source.id,
       gmail_source_name: source.name,
       status: 'summarizing',
@@ -621,7 +621,7 @@ describe( 'checkSource: automatic summaries', () => {
     await checkSource( userId, source.id )
 
     expect( statuses( source.id ) ).toEqual( [ 'inbox' ] )
-    expect( listJobs() ).toEqual( [] )
+    expect( listJobs( userId ) ).toEqual( [] )
   } )
 
   it( 'queues nothing for a jobs source', async () => {
@@ -631,7 +631,7 @@ describe( 'checkSource: automatic summaries', () => {
     await checkSource( userId, source.id )
 
     expect( statuses( source.id ) ).toEqual( [ 'pending' ] )
-    expect( listJobs() ).toEqual( [] )
+    expect( listJobs( userId ) ).toEqual( [] )
   } )
 
   it( 'queues the ten that reached the inbox, not the ones it skipped', async () => {
@@ -642,7 +642,7 @@ describe( 'checkSource: automatic summaries', () => {
 
     expect( statuses( source.id ).filter( ( status ) => status === 'queued' ) ).toHaveLength( 10 )
     expect( statuses( source.id ).filter( ( status ) => status === 'skipped' ) ).toHaveLength( 2 )
-    expect( listJobs() ).toHaveLength( 10 )
+    expect( listJobs( userId ) ).toHaveLength( 10 )
   } )
 
   it( 'leaves an email it cannot queue in the inbox, logs it, and queues the others', async () => {
@@ -671,7 +671,7 @@ describe( 'checkSource: automatic summaries', () => {
     await checkSource( userId, source.id )
     await checkSource( userId, source.id )
 
-    expect( listJobs() ).toHaveLength( 1 )
+    expect( listJobs( userId ) ).toHaveLength( 1 )
   } )
 
   it( 'queues the emails of every automatic source in a due pass', async () => {

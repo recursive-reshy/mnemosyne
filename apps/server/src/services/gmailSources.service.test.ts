@@ -417,7 +417,7 @@ describe( 'createSource: newsletter', () => {
 
       expect( storedFor( source.id ) ).toEqual( [ { message_id: 'new', status: 'queued' } ] )
       expect( source.inbox_count ).toBe( 0 )
-      expect( listJobs() ).toHaveLength( 1 )
+      expect( listJobs( userId ) ).toHaveLength( 1 )
     } )
 
     it( 'never queues a backfill, even for an automatic source', async () => {
@@ -427,7 +427,7 @@ describe( 'createSource: newsletter', () => {
       const source = await createSource( userId, body( { auto_summarize: true, backfill: '30d' } ) )
 
       expect( source.inbox_count ).toBe( 2 )
-      expect( listJobs() ).toEqual( [] )
+      expect( listJobs( userId ) ).toEqual( [] )
     } )
   } )
 

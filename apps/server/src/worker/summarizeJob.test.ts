@@ -30,7 +30,7 @@ import { assertKnownModel } from '../services/models.service.js'
 // Worker
 import { summarizeJob } from './summarizeJob.js'
 // Test support
-import { defaultTestAdmin } from '../test-support/auth.js'
+import { createTestUser, defaultTestAdmin } from '../test-support/auth.js'
 
 let userId = ''
 
@@ -65,16 +65,16 @@ const transcript: Transcript = {
 
 const queueSummarizing = async (): Promise< string > => {
   const { id } = await queueJob( userId, { url: transcript.meta.source } )
-  markStatus( id, 'downloading' )
-  markStatus( id, 'converting' )
-  markStatus( id, 'transcribing' )
-  completeAcquisition( id, { kind: 'video', ...transcript } )
+  markStatus( userId, id, 'downloading' )
+  markStatus( userId, id, 'converting' )
+  markStatus( userId, id, 'transcribing' )
+  completeAcquisition( userId, id, { kind: 'video', ...transcript } )
 
   return id
 }
 
 beforeEach( () => {
-  clearJobs()
+  clearJobs( userId )
   vi.resetAllMocks()
   vi.mocked( assertKnownModel ).mockResolvedValue( undefined )
   summarizeMock.mockResolvedValue( {
@@ -96,7 +96,7 @@ describe( 'summarizeJob', () => {
   it( 'sends the stored transcript to the client', async () => {
     const id = await queueSummarizing()
 
-    await summarizeJob( id )
+    await summarizeJob( userId, id )
 
     expect( summarizeMock ).toHaveBeenCalledWith( {
       document: { kind: 'video', ...transcript },
@@ -108,9 +108,9 @@ describe( 'summarizeJob', () => {
   it( 'stores the cleaned, rendered summary and moves to ready_for_review', async () => {
     const id = await queueSummarizing()
 
-    await summarizeJob( id )
+    await summarizeJob( userId, id )
 
-    const job = findJob( id )
+    const job = findJob( userId, id )
     const note = parseNote( job.note_markdown ?? '' )
 
     expect( job.status ).toBe( 'ready_for_review' )
@@ -138,9 +138,9 @@ describe( 'summarizeJob', () => {
     const id = await queueSummarizing()
     summarizeMock.mockRejectedValue( reason )
 
-    await expect( summarizeJob( id ) ).resolves.toBeUndefined()
+    await expect( summarizeJob( userId, id ) ).resolves.toBeUndefined()
 
-    expect( findJob( id ) ).toMatchObject( { status: 'summary_failed', error: message } )
+    expect( findJob( userId, id ) ).toMatchObject( { status: 'summary_failed', error: message } )
   } )
 
   it( 'uses the default model and the default profile\'s current guidance', async () => {
@@ -148,7 +148,7 @@ describe( 'summarizeJob', () => {
     saveVersion( userId, listProfiles( userId )[ 0 ]?.id ?? '', 'Be brief.' )
     setSetting( userId, 'default_model', 'claude-opus-5-5' )
 
-    await summarizeJob( id )
+    await summarizeJob( userId, id )
 
     expect( summarizeMock ).toHaveBeenCalledWith( {
       document: { kind: 'video', ...transcript },
@@ -160,9 +160,13 @@ describe( 'summarizeJob', () => {
   it( 'uses the model and profile stored on the job', async () => {
     const id = await queueSummarizing()
     const coding = listProfiles( userId ).find( ( { name } ) => name === 'Coding' )
-    updateJob( id, { summary_model: 'claude-sonnet-4-6', prompt_profile_id: coding?.id ?? null } )
+    updateJob(
+      userId,
+      id,
+      { summary_model: 'claude-sonnet-4-6', prompt_profile_id: coding?.id ?? null },
+    )
 
-    await summarizeJob( id )
+    await summarizeJob( userId, id )
 
     expect( summarizeMock ).toHaveBeenCalledWith( {
       document: { kind: 'video', ...transcript },
@@ -174,9 +178,9 @@ describe( 'summarizeJob', () => {
   it( 'records a succeeded run with tokens and cost', async () => {
     const id = await queueSummarizing()
 
-    await summarizeJob( id )
+    await summarizeJob( userId, id )
 
-    expect( findJob( id ).summary_usage ).toMatchObject( {
+    expect( findJob( userId, id ).summary_usage ).toMatchObject( {
       last_run: {
         model: 'claude-sonnet-5-5',
         profile_name: 'Business ideas',
@@ -195,11 +199,11 @@ describe( 'summarizeJob', () => {
     const usage = { input_tokens: 500, output_tokens: 16_000 }
     summarizeMock.mockRejectedValue( new SummaryError( 'Summary was cut off', { usage } ) )
 
-    await summarizeJob( id )
+    await summarizeJob( userId, id )
 
-    expect( findJob( id ) )
+    expect( findJob( userId, id ) )
       .toMatchObject( { status: 'summary_failed', error: 'Summary was cut off' } )
-    expect( findJob( id ).summary_usage?.last_run ).toMatchObject( {
+    expect( findJob( userId, id ).summary_usage?.last_run ).toMatchObject( {
       outcome: 'failed',
       input_tokens: 500,
       output_tokens: 16_000,
@@ -210,9 +214,9 @@ describe( 'summarizeJob', () => {
     const id = await queueSummarizing()
     summarizeMock.mockRejectedValue( new SummaryError( 'Summary request failed: Overloaded' ) )
 
-    await summarizeJob( id )
+    await summarizeJob( userId, id )
 
-    expect( findJob( id ).summary_usage?.last_run ).toMatchObject( {
+    expect( findJob( userId, id ).summary_usage?.last_run ).toMatchObject( {
       outcome: 'failed',
       input_tokens: null,
       output_tokens: null,
@@ -223,12 +227,12 @@ describe( 'summarizeJob', () => {
   it( 'records a run for every attempt', async () => {
     const id = await queueSummarizing()
     summarizeMock.mockRejectedValueOnce( new Error( 'Rate limited' ) )
-    await summarizeJob( id )
-    retrySummary( id )
+    await summarizeJob( userId, id )
+    retrySummary( userId, id )
 
-    await summarizeJob( id )
+    await summarizeJob( userId, id )
 
-    expect( findJob( id ).summary_usage ).toMatchObject( {
+    expect( findJob( userId, id ).summary_usage ).toMatchObject( {
       run_count: 2,
       last_run: { outcome: 'succeeded' },
     } )
@@ -237,19 +241,19 @@ describe( 'summarizeJob', () => {
   it( 'completes after a failed summary is retried', async () => {
     const id = await queueSummarizing()
     summarizeMock.mockRejectedValueOnce( new Error( 'Rate limited' ) )
-    await summarizeJob( id )
-    expect( findJob( id ).status ).toBe( 'summary_failed' )
+    await summarizeJob( userId, id )
+    expect( findJob( userId, id ).status ).toBe( 'summary_failed' )
 
-    retrySummary( id )
-    await summarizeJob( id )
+    retrySummary( userId, id )
+    await summarizeJob( userId, id )
 
-    expect( findJob( id ) ).toMatchObject( { status: 'ready_for_review', error: null } )
+    expect( findJob( userId, id ) ).toMatchObject( { status: 'ready_for_review', error: null } )
   } )
 
   it( 'replaces the note when a summary in review is regenerated, keeping the folder', async () => {
     const id = await queueSummarizing()
-    await summarizeJob( id )
-    updateDraft( id, { target_folder: 'Learning' } )
+    await summarizeJob( userId, id )
+    updateDraft( userId, id, { target_folder: 'Learning' } )
     summarizeMock.mockResolvedValue( {
       summary: {
         kind: 'video',
@@ -262,9 +266,9 @@ describe( 'summarizeJob', () => {
     } )
 
     await regenerateSummary( userId, id, { model: 'claude-opus-5-5' } )
-    await summarizeJob( id )
+    await summarizeJob( userId, id )
 
-    const job = findJob( id )
+    const job = findJob( userId, id )
 
     expect( summarizeMock ).toHaveBeenLastCalledWith( expect.objectContaining( {
       model: 'claude-opus-5-5',
@@ -296,7 +300,7 @@ describe( 'summarizeJob', () => {
     const queueArticle = (): string => {
       const id = crypto.randomUUID()
 
-      insertJob( {
+      insertJob( userId, {
         id,
         url: articleDocument.meta.source,
         status: 'summarizing',
@@ -339,7 +343,7 @@ describe( 'summarizeJob', () => {
     it( 'sends the stored article to the client', async () => {
       const id = queueArticle()
 
-      await summarizeJob( id )
+      await summarizeJob( userId, id )
 
       expect( summarizeMock ).toHaveBeenCalledWith( {
         document: articleDocument,
@@ -351,9 +355,9 @@ describe( 'summarizeJob', () => {
     it( 'stores a cleaned note with article front-matter and no timestamps', async () => {
       const id = queueArticle()
 
-      await summarizeJob( id )
+      await summarizeJob( userId, id )
 
-      const job = findJob( id )
+      const job = findJob( userId, id )
       const note = parseNote( job.note_markdown ?? '' )
 
       expect( job.status ).toBe( 'ready_for_review' )
@@ -381,5 +385,39 @@ describe( 'summarizeJob', () => {
         '',
       ].join( '\n' ) )
     } )
+  } )
+} )
+
+describe( 'summarizeJob for two users', () => {
+  it( 'summarizes each job with its owner\'s model and prompt', async () => {
+    const member = createTestUser().id
+    const mine = await queueSummarizing()
+
+    setSetting( userId, 'default_model', 'claude-opus-5-5' )
+    setSetting( member, 'default_model', 'claude-haiku-5-5' )
+
+    const { id: theirs } = await queueJob( member, { url: transcript.meta.source } )
+    markStatus( member, theirs, 'downloading' )
+    markStatus( member, theirs, 'converting' )
+    markStatus( member, theirs, 'transcribing' )
+    completeAcquisition( member, theirs, { kind: 'video', ...transcript } )
+
+    const coding = listProfiles( member ).find( ( { name } ) => name === 'Coding' )
+    saveVersion( member, coding?.id ?? '', 'Their own guidance.' )
+    updateJob( member, theirs, { prompt_profile_id: coding?.id ?? null } )
+
+    await summarizeJob( userId, mine )
+    await summarizeJob( member, theirs )
+
+    expect( summarizeMock ).toHaveBeenNthCalledWith( 1, expect.objectContaining( {
+      model: 'claude-opus-5-5',
+    } ) )
+    expect( summarizeMock ).toHaveBeenNthCalledWith( 2, {
+      document: { kind: 'video', ...transcript },
+      model: 'claude-haiku-5-5',
+      guidance: 'Their own guidance.',
+    } )
+    expect( findJob( userId, mine ).status ).toBe( 'ready_for_review' )
+    expect( findJob( member, theirs ).status ).toBe( 'ready_for_review' )
   } )
 } )

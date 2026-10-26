@@ -15,8 +15,6 @@ const HEALTH_TABLES = [ 'health_status', 'health_errors' ]
 // Data tables that don't yet carry `user_id`. Each Phase 4 task removes its tables from this
 // list as it adds the column (ADR 0062); task 4.6 un-skips the test that needs it empty.
 const UNCONVERTED = [
-  'jobs',
-  'summary_runs',
   'feeds',
   'feed_items',
   'gmail_account',
@@ -25,8 +23,6 @@ const UNCONVERTED = [
   'job_postings',
   'posting_sightings',
   'extraction_runs',
-  'link_runs',
-  'link_suggestions',
   'health_status',
   'health_errors',
   'melete_subjects',

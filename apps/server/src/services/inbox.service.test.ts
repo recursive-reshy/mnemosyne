@@ -112,7 +112,7 @@ const status = ( id: string ): string | undefined => findItemsByIds( [ id ] )[ 0
 beforeEach( () => {
   vi.useFakeTimers()
   vi.setSystemTime( NOW )
-  clearJobs()
+  clearJobs( userId )
   assertKnownModelMock.mockReset()
   assertKnownModelMock.mockResolvedValue( undefined )
   addFeed()
@@ -184,7 +184,7 @@ describe( 'summarizeItems', () => {
     const { jobs } = await summarizeItems( userId, { items: feeds( item.id ) } )
 
     expect( jobs[ 0 ] ).toMatchObject( { status: 'summarizing', title: 'Full post' } )
-    expect( findJobById( jobs[ 0 ]?.id ?? '' )?.source_document ).toEqual( {
+    expect( findJobById( userId, jobs[ 0 ]?.id ?? '' )?.source_document ).toEqual( {
       kind: 'article',
       meta: {
         title: 'Full post',
@@ -291,7 +291,7 @@ describe( 'summarizeItems', () => {
       await expect( failure ).rejects.toThrow( ConflictError )
       await expect( failure ).rejects.toThrow( dismissed.id )
       await expect( failure ).rejects.toThrow( unknown )
-      expect( listJobs() ).toEqual( [] )
+      expect( listJobs( userId ) ).toEqual( [] )
       expect( status( good.id ) ).toBe( 'inbox' )
     } )
 
@@ -303,7 +303,7 @@ describe( 'summarizeItems', () => {
       await expect( summarizeItems( userId, { items: feeds( one.id, two.id ), model: 'nope' } ) )
         .rejects.toThrow( ValidationError )
 
-      expect( listJobs() ).toEqual( [] )
+      expect( listJobs( userId ) ).toEqual( [] )
       expect( [ status( one.id ), status( two.id ) ] ).toEqual( [ 'inbox', 'inbox' ] )
     } )
 
@@ -316,7 +316,7 @@ describe( 'summarizeItems', () => {
       ) )
         .rejects.toThrow( ValidationError )
 
-      expect( listJobs() ).toEqual( [] )
+      expect( listJobs( userId ) ).toEqual( [] )
       expect( status( one.id ) ).toBe( 'inbox' )
     } )
 
@@ -483,7 +483,7 @@ describe( 'newsletters in the inbox', () => {
         prompt_profile_id: null,
         summary_model: null,
       } )
-      expect( findJobById( jobs[ 0 ]?.id ?? '' )?.source_document ).toEqual( {
+      expect( findJobById( userId, jobs[ 0 ]?.id ?? '' )?.source_document ).toEqual( {
         kind: 'article',
         meta: {
           title: newsletter.subject,
@@ -574,7 +574,7 @@ describe( 'newsletters in the inbox', () => {
 
       await expect( failure ).rejects.toThrow( ConflictError )
       await expect( failure ).rejects.toThrow( dismissed.id )
-      expect( listJobs() ).toEqual( [] )
+      expect( listJobs( userId ) ).toEqual( [] )
       expect( messageStatus( good.id ) ).toBe( 'inbox' )
     } )
 
@@ -605,7 +605,7 @@ describe( 'newsletters in the inbox', () => {
         await expect( failure ).rejects.toThrow( newsletter.subject )
         await expect( failure ).rejects.toThrow( 'too little text to summarize' )
         expect( messageStatus( message.id ) ).toBe( 'inbox' )
-        expect( listJobs() ).toEqual( [] )
+        expect( listJobs( userId ) ).toEqual( [] )
       } )
 
       it( 'fails an email that is too long', async () => {

@@ -2,12 +2,14 @@
 import { Request, Response } from 'express'
 // Shared
 import { ListFoldersResponse } from '@mnemosyne/shared'
+// Middleware
+import { currentUser } from '../middleware/auth.js'
 // Services
 import { listFolders } from '../services/vault.service.js'
 
 export const getFolders = async (
-  _req: Request,
+  req: Request,
   res: Response< ListFoldersResponse >,
 ): Promise< void > => {
-  res.status( 200 ).json( await listFolders() )
+  res.status( 200 ).json( await listFolders( currentUser( req ).id ) )
 }

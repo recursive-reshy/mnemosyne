@@ -17,25 +17,25 @@ import { config } from '../config.js'
 import { linkJob } from './linkJob.js'
 import { summarizeJob } from './summarizeJob.js'
 
-const summarizeThenLink = async ( jobId: string ): Promise< void > => {
-  await summarizeJob( jobId )
+const summarizeThenLink = async ( userId: string, jobId: string ): Promise< void > => {
+  await summarizeJob( userId, jobId )
 
-  if( findJob( jobId ).status === 'linking' ) {
-    await linkJob( jobId )
+  if( findJob( userId, jobId ).status === 'linking' ) {
+    await linkJob( userId, jobId )
   }
 }
 
-export const runJob = async ( jobId: string ): Promise< void > => {
-  const job = findJob( jobId )
+export const runJob = async ( userId: string, jobId: string ): Promise< void > => {
+  const job = findJob( userId, jobId )
 
   if( job.status === 'linking' ) {
-    await linkJob( jobId )
+    await linkJob( userId, jobId )
 
     return
   }
 
   if( job.status === 'summarizing' ) {
-    await summarizeThenLink( jobId )
+    await summarizeThenLink( userId, jobId )
 
     return
   }
@@ -45,21 +45,21 @@ export const runJob = async ( jobId: string ): Promise< void > => {
       job,
       workDir: path.join( config.workDir, jobId ),
       markStatus: ( status ) => {
-        markStatus( jobId, status )
+        markStatus( userId, jobId, status )
       },
     } )
 
-    completeAcquisition( jobId, document )
+    completeAcquisition( userId, jobId, document )
   } catch( error ) {
     // A refused status change means the job is not ours to run, not that acquiring failed
     if( error instanceof ConflictError ) {
       throw error
     }
 
-    failJob( jobId, error instanceof Error ? error.message : 'Unknown error' )
+    failJob( userId, jobId, error instanceof Error ? error.message : 'Unknown error' )
   }
 
-  if( findJob( jobId ).status === 'summarizing' ) {
-    await summarizeThenLink( jobId )
+  if( findJob( userId, jobId ).status === 'summarizing' ) {
+    await summarizeThenLink( userId, jobId )
   }
 }

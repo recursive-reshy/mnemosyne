@@ -40,16 +40,12 @@ const UNCONVERTED = [
   'gmailMessages',
   'gmailSources',
   'health',
-  'jobStore',
-  'linkRuns',
-  'linkSuggestions',
   'meleteNotes',
   'meleteQuestions',
   'meleteReviews',
   'meleteRuns',
   'meleteSubjects',
   'postings',
-  'summaryRuns',
 ]
 
 type AnyFunction = ( ...args: never[] ) => unknown
