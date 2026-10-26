@@ -10,21 +10,24 @@ cd "$ROOT"
 PROJECT=mnemosyne-e2e
 COMPOSE=( docker compose -p "$PROJECT" --project-directory "$ROOT" -f "$ROOT/docker-compose.yml" -f "$ROOT/e2e/docker-compose.e2e.yml" )
 
-VAULT_HOST_PATH="$( mktemp -d )"
+VAULTS_HOST_PATH="$( mktemp -d )"
+# One vault per e2e user; 8.1 signs the specs in as these users
+E2E_ADMIN_VAULT="$VAULTS_HOST_PATH/admin"
+mkdir "$E2E_ADMIN_VAULT" "$VAULTS_HOST_PATH/member"
 BACKUP_HOST_PATH="$( mktemp -d )"
 AGENT_SECRET="$( openssl rand -hex 32 )"
 TOKEN_ENCRYPTION_KEY="$( openssl rand -base64 32 )"
-printf '# Existing note\n\nA note that was already in the vault.\n' > "$VAULT_HOST_PATH/Existing note.md"
-node "$ROOT/e2e/fakes/seedVault.mjs" "$VAULT_HOST_PATH"
+printf '# Existing note\n\nA note that was already in the vault.\n' > "$E2E_ADMIN_VAULT/Existing note.md"
+node "$ROOT/e2e/fakes/seedVault.mjs" "$E2E_ADMIN_VAULT"
 
-chmod -R 777 "$VAULT_HOST_PATH" "$BACKUP_HOST_PATH"
+chmod -R 777 "$VAULTS_HOST_PATH" "$BACKUP_HOST_PATH"
 
-export VAULT_HOST_PATH BACKUP_HOST_PATH AGENT_SECRET TOKEN_ENCRYPTION_KEY
+export VAULTS_HOST_PATH BACKUP_HOST_PATH AGENT_SECRET TOKEN_ENCRYPTION_KEY
 export ANTHROPIC_API_KEY=e2e
 
 cleanup() {
   "${COMPOSE[@]}" down -v --remove-orphans || true
-  rm -rf "$VAULT_HOST_PATH" "$BACKUP_HOST_PATH"
+  rm -rf "$VAULTS_HOST_PATH" "$BACKUP_HOST_PATH"
 }
 trap cleanup EXIT
 
@@ -32,4 +35,4 @@ trap cleanup EXIT
 
 cd e2e
 pnpm exec playwright install chromium
-E2E_VAULT_DIR="$VAULT_HOST_PATH" E2E_BACKUP_DIR="$BACKUP_HOST_PATH" pnpm exec playwright test
+E2E_VAULT_DIR="$E2E_ADMIN_VAULT" E2E_BACKUP_DIR="$BACKUP_HOST_PATH" pnpm exec playwright test

@@ -1,5 +1,6 @@
 // Node
 import {
+  cp,
   mkdir,
   mkdtemp,
   realpath,
@@ -12,11 +13,16 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
 export type MeleteVault = {
+  // The folder that holds the vault (`config.vaultsPath`), the user's `vault_dir`, and their join
+  vaultsPath: string
+  vaultDir: string
   vaultPath: string
   outsidePath: string
   write: ( path: string, content: string ) => Promise< void >
   remove: ( path: string ) => Promise< void >
   move: ( from: string, to: string ) => Promise< void >
+  // Another user's own copy of the vault, as a new folder next to it
+  clone: ( vaultDir: string ) => Promise< void >
   cleanup: () => Promise< void >
 }
 
@@ -43,7 +49,8 @@ Each value in Rust has exactly one owner.
 // A learning root with two subjects, plus everything a scan has to skip or ignore
 export const createMeleteVault = async (): Promise< MeleteVault > => {
   const base = await realpath( await mkdtemp( join( tmpdir(), 'mnemosyne-melete-' ) ) )
-  const vaultPath = join( base, 'vault' )
+  const vaultDir = 'vault'
+  const vaultPath = join( base, vaultDir )
   const outsidePath = join( base, 'outside' )
 
   const write = async ( path: string, content: string ): Promise< void > => {
@@ -71,6 +78,8 @@ export const createMeleteVault = async (): Promise< MeleteVault > => {
   await symlink( outsidePath, join( vaultPath, 'Learning/TypeScript/Linked' ) )
 
   return {
+    vaultsPath: base,
+    vaultDir,
     vaultPath,
     outsidePath,
     write,
@@ -78,6 +87,9 @@ export const createMeleteVault = async (): Promise< MeleteVault > => {
     move: async ( from, to ) => {
       await mkdir( dirname( join( vaultPath, to ) ), { recursive: true } )
       await rename( join( vaultPath, from ), join( vaultPath, to ) )
+    },
+    clone: async ( cloneDir ) => {
+      await cp( vaultPath, join( base, cloneDir ), { recursive: true, verbatimSymlinks: true } )
     },
     cleanup: async () => rm( base, { recursive: true, force: true } ),
   }

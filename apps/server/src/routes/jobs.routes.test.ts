@@ -24,7 +24,7 @@ import {
 // App
 import { app } from '../app.js'
 // Test support
-import { signedInRequest as request } from '../test-support/auth.js'
+import { defaultTestVaultPath, signedInRequest as request } from '../test-support/auth.js'
 import { config } from '../config.js'
 // Clients
 import { listSummaryModels } from '../clients/anthropicModels.client.js'
@@ -110,8 +110,8 @@ beforeEach( async () => {
     { id: 'claude-sonnet-5-5', display_name: 'Claude Sonnet 5.5' },
     { id: 'claude-opus-5-5', display_name: 'Claude Opus 5.5' },
   ] )
-  await rm( config.vaultPath, { recursive: true, force: true } )
-  await mkdir( config.vaultPath, { recursive: true } )
+  await rm( defaultTestVaultPath(), { recursive: true, force: true } )
+  await mkdir( defaultTestVaultPath(), { recursive: true } )
 } )
 
 describe( 'POST /api/jobs', () => {
@@ -398,7 +398,7 @@ describe( 'POST /api/jobs/:id/save', () => {
     expect( response.body ).toEqual( { saved_path: 'Mnemosyne/What Is RAG A Primer.md' } )
 
     const written = await readFile(
-      join( config.vaultPath, 'Mnemosyne/What Is RAG A Primer.md' ),
+      join( defaultTestVaultPath(), 'Mnemosyne/What Is RAG A Primer.md' ),
       'utf8',
     )
     expect( written ).toContain( 'title: "What Is RAG: A Primer"' )
@@ -414,7 +414,7 @@ describe( 'POST /api/jobs/:id/save', () => {
 
     expect( response.body ).toEqual( { saved_path: 'Learning/AI/What Is RAG A Primer.md' } )
     expect( await readFile(
-      join( config.vaultPath, 'Learning/AI/What Is RAG A Primer.md' ),
+      join( defaultTestVaultPath(), 'Learning/AI/What Is RAG A Primer.md' ),
       'utf8',
     ) ).toContain( 'title: "What Is RAG: A Primer"' )
   } )

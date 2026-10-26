@@ -1,5 +1,6 @@
 // Node
 import { mkdir, readdir, rm } from 'node:fs/promises'
+import { join } from 'node:path'
 // Packages
 import {
   describe,
@@ -64,16 +65,22 @@ const reviewedJob = async (): Promise< { id: string, suggestion: string } > => {
 
 const agent = config.agent
 
+const ownerVault = (): string => join( config.vaultsPath, 'owner' )
+const otherVault = (): string => join( config.vaultsPath, 'other' )
+
 afterEach( () => {
   config.agent = agent
 } )
 
 beforeEach( async () => {
   config.agent = { url: 'http://localhost:8100', secret: 'x'.repeat( 32 ), timeoutMs: 1000 }
-  owner = createTestUser( { role: 'admin' } )
-  other = createTestUser()
-  await rm( config.vaultPath, { recursive: true, force: true } )
-  await mkdir( config.vaultPath, { recursive: true } )
+  owner = createTestUser( { role: 'admin', vault_dir: 'owner' } )
+  other = createTestUser( { vault_dir: 'other' } )
+  // Only its own two folders: other test files share the vaults root
+  await rm( ownerVault(), { recursive: true, force: true } )
+  await rm( otherVault(), { recursive: true, force: true } )
+  await mkdir( ownerVault(), { recursive: true } )
+  await mkdir( otherVault(), { recursive: true } )
 } )
 
 describe( 'the jobs routes are per user', () => {
@@ -149,7 +156,7 @@ describe( 'the jobs routes are per user', () => {
 
     expect( refused.status ).toBe( 404 )
     expect( saved.status ).toBe( 200 )
-    expect( ( await readdir( config.vaultPath, { recursive: true } ) ).length ).toBeGreaterThan( 0 )
+    expect( ( await readdir( ownerVault(), { recursive: true } ) ).length ).toBeGreaterThan( 0 )
   } )
 
   it( 'gives every user the folder list', async () => {

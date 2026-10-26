@@ -51,7 +51,7 @@ import {
   updateSettings,
 } from './settings.service.js'
 // Test support
-import { createTestUser, defaultTestAdmin } from '../test-support/auth.js'
+import { DEFAULT_TEST_VAULT, createTestUser, defaultTestAdmin } from '../test-support/auth.js'
 
 let userId = ''
 
@@ -222,19 +222,22 @@ describe( 'the Melete models', () => {
 } )
 
 describe( 'updateSettings for Melete', () => {
+  let vaultsDir: string
   let vaultDir: string
-  let originalVaultPath: string
+  let originalVaultsPath: string
 
   beforeEach( async () => {
-    vaultDir = await mkdtemp( join( tmpdir(), 'mnemosyne-settings-' ) )
-    originalVaultPath = config.vaultPath
-    config.vaultPath = vaultDir
+    vaultsDir = await mkdtemp( join( tmpdir(), 'mnemosyne-settings-' ) )
+    vaultDir = join( vaultsDir, DEFAULT_TEST_VAULT )
+    await mkdir( vaultDir )
+    originalVaultsPath = config.vaultsPath
+    config.vaultsPath = vaultsDir
     resetScanClock()
   } )
 
   afterEach( async () => {
-    config.vaultPath = originalVaultPath
-    await rm( vaultDir, { recursive: true, force: true } )
+    config.vaultsPath = originalVaultsPath
+    await rm( vaultsDir, { recursive: true, force: true } )
   } )
 
   it( 'saves a learning root that exists in the vault and forgets the last scan', async () => {

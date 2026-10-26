@@ -54,7 +54,7 @@ beforeEach( () => {
   userId = defaultTestAdmin().id
 } )
 
-const configMock = vi.hoisted( () => ( { logLevel: 'silent', sessionDays: 30, vaultPath: '' } ) )
+const configMock = vi.hoisted( () => ( { logLevel: 'silent', sessionDays: 30, vaultsPath: '' } ) )
 
 vi.mock( '../config.js', () => ( { config: configMock } ) )
 vi.mock( '../clients/claude.client.js' )
@@ -119,7 +119,7 @@ const snapshot = async ( root: string ): Promise< string[] > => {
 
 beforeEach( async () => {
   vault = await createMeleteVault()
-  configMock.vaultPath = vault.vaultPath
+  configMock.vaultsPath = vault.vaultsPath
   setSetting( userId, 'melete_learning_root', 'Learning' )
   setSetting( userId, 'melete_question_model', 'claude-sonnet-5-5' )
   resetScanClock()
@@ -438,7 +438,8 @@ describe( 'generateForNote', () => {
 
 describe( 'generateForNote for two users', () => {
   it( 'uses the owner\'s model and prompt and records the run for the owner', async () => {
-    const other = createTestUser().id
+    await vault.clone( 'other' )
+    const other = createTestUser( { vault_dir: 'other' } ).id
 
     setSetting( other, 'melete_learning_root', 'Learning' )
     setSetting( other, 'melete_question_model', 'claude-haiku-5-5' )
@@ -474,7 +475,8 @@ describe( 'generateForNote for two users', () => {
   } )
 
   it( 'does not generate for a note that belongs to someone else', async () => {
-    const other = createTestUser().id
+    await vault.clone( 'other' )
+    const other = createTestUser( { vault_dir: 'other' } ).id
     const id = await claimed()
 
     await generateForNote( other, id, T0 )

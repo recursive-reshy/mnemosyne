@@ -4,7 +4,7 @@ import { join } from 'node:path'
 // App
 import { app } from './app.js'
 // Clients
-import { assertVaultWritable, resolveFolder } from './clients/vault.client.js'
+import { assertVaultWritable } from './clients/vault.client.js'
 // Config
 import { config, ignoredEnv } from './config.js'
 // Logging
@@ -31,10 +31,9 @@ for( const name of ignoredEnv( process.env ) ) {
 await rm( config.workDir, { recursive: true, force: true } )
 
 try {
-  await assertVaultWritable( config.vaultPath )
-  await resolveFolder( config.vaultPath, config.defaultNoteFolder )
+  await assertVaultWritable( config.vaultsPath )
 } catch( error ) {
-  logger.error( { err: error }, 'The vault is not ready' )
+  logger.error( { err: error }, 'The vaults folder is not ready' )
   process.exit( 1 )
 }
 

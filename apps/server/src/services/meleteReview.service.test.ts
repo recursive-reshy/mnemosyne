@@ -68,7 +68,7 @@ beforeEach( () => {
 const configMock = vi.hoisted( () => ( {
   logLevel: 'silent',
   sessionDays: 30,
-  vaultPath: '',
+  vaultsPath: '',
   timeZone: 'Asia/Singapore',
   obsidianVaultName: undefined as string | undefined,
   melete: { requestRetention: 0.9, dayStartHour: 4, gradingTimeoutMs: 20_000 },
@@ -128,7 +128,7 @@ const reviewNew = ( questionId: string, atTime: string ): void => {
 
 beforeEach( async () => {
   vault = await createMeleteVault()
-  configMock.vaultPath = vault.vaultPath
+  configMock.vaultsPath = vault.vaultsPath
   configMock.obsidianVaultName = undefined
   configMock.melete.dayStartHour = 4
   setSetting( userId, 'melete_learning_root', 'Learning' )
@@ -720,7 +720,8 @@ describe( 'reviews for two users', () => {
   const exact = createScheduler( { fuzz: false } )
 
   it( 'refuses a grading run that belongs to another user', async () => {
-    const other = createTestUser().id
+    await vault.clone( 'other' )
+    const other = createTestUser( { vault_dir: 'other' } ).id
     const id = reviewable()
     const { version } = resolveMeletePrompt( other, 'melete_grading' )
     const theirRun = insertRun( other, {
@@ -748,7 +749,8 @@ describe( 'reviews for two users', () => {
   } )
 
   it( 'refuses to grade or rate another user\'s question', async () => {
-    const other = createTestUser().id
+    await vault.clone( 'other' )
+    const other = createTestUser( { vault_dir: 'other' } ).id
     const id = reviewable()
 
     await expect( gradeAnswer( other, id, { answer: 'mine' }, at( 0 ) ) )
@@ -759,7 +761,8 @@ describe( 'reviews for two users', () => {
   } )
 
   it( 'counts and serves only the caller\'s questions', async () => {
-    const other = createTestUser().id
+    await vault.clone( 'other' )
+    const other = createTestUser( { vault_dir: 'other' } ).id
 
     reviewable()
     setSetting( other, 'melete_learning_root', 'Learning' )
@@ -774,7 +777,8 @@ describe( 'reviews for two users', () => {
   } )
 
   it( 'keeps the daily limit of new questions per user', async () => {
-    const other = createTestUser().id
+    await vault.clone( 'other' )
+    const other = createTestUser( { vault_dir: 'other' } ).id
     const id = addQuestion( userId, noteId( GENERICS ), { position: 1 } )
 
     setSetting( other, 'melete_learning_root', 'Learning' )

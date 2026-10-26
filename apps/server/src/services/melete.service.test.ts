@@ -53,7 +53,7 @@ beforeEach( () => {
 const configMock = vi.hoisted( () => ( {
   logLevel: 'silent',
   sessionDays: 30,
-  vaultPath: '',
+  vaultsPath: '',
   timeZone: 'Asia/Singapore',
   obsidianVaultName: undefined as string | undefined,
   melete: { requestRetention: 0.9, dayStartHour: 4 },
@@ -96,7 +96,7 @@ const hashOf = ( id: string ): string => findNote( userId, id )?.body_hash ?? ''
 
 beforeEach( async () => {
   vault = await createMeleteVault()
-  configMock.vaultPath = vault.vaultPath
+  configMock.vaultsPath = vault.vaultsPath
   setSetting( userId, 'melete_learning_root', 'Learning' )
   resetScanClock()
   await scanLearningRoot( userId, { force: true, now: at( 0 ) } )

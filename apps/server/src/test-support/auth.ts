@@ -1,5 +1,6 @@
 // Node
 import { randomUUID } from 'node:crypto'
+import { join } from 'node:path'
 // Express
 import type { Express } from 'express'
 // Packages
@@ -7,6 +8,8 @@ import supertest from 'supertest'
 // Shared
 import { ModuleId } from '@mnemosyne/shared'
 import type { Role } from '@mnemosyne/shared'
+// Config
+import { config } from '../config.js'
 // Middleware
 import { SESSION_COOKIE } from '../services/session.service.js'
 // Repositories
@@ -58,12 +61,22 @@ export const createTestUser = ( options: TestUserOptions = {} ): TestUser => {
 
 export const cookieFor = ( user: TestUser ): string => `${ SESSION_COOKIE }=${ user.token }`
 
+// Where the default admin's vault is, under `config.vaultsPath`
+export const DEFAULT_TEST_VAULT = 'vault'
+
+// Resolved when called, because tests move `config.vaultsPath`
+export const defaultTestVaultPath = (): string => join( config.vaultsPath, DEFAULT_TEST_VAULT )
+
 let cached: TestUser | undefined
 
 // The admin every signed-in route test acts as; made on first use, as each test has a new database
 export const defaultTestAdmin = (): TestUser => {
   if( cached === undefined || findUserById( cached.id ) === undefined ) {
-    cached = createTestUser( { role: 'admin', email: 'test-admin@example.com' } )
+    cached = createTestUser( {
+      role: 'admin',
+      email: 'test-admin@example.com',
+      vault_dir: DEFAULT_TEST_VAULT,
+    } )
   }
 
   return cached

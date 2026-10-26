@@ -31,11 +31,11 @@ If a script above doesn't exist yet, add it as part of the task that first needs
 
 Parsed once with Zod in `config.ts`; nothing else reads `process.env`. `.env.example` lists every variable with its default. What isn't obvious from there:
 
-- `WHISPER_URL` is `http://host.docker.internal:8178` in Docker. `DATA_DIR` is `/data` (a named volume) and `VAULT_PATH` is `/vault` (bind-mounted from `VAULT_HOST_PATH`) in Docker.
-- `ANTHROPIC_API_KEY` and `VAULT_PATH` are required; the vault must exist and be writable at startup, or the server exits with a message. The key lives in `.env` only.
-- `DEFAULT_NOTE_FOLDER` is validated at startup with the shared folder rules and created if missing.
+- `WHISPER_URL` is `http://host.docker.internal:8178` in Docker. `DATA_DIR` is `/data` (a named volume) and `VAULTS_PATH` is `/vaults` (bind-mounted from `VAULTS_HOST_PATH`, ADR 0063) in Docker.
+- `ANTHROPIC_API_KEY` is required; `VAULTS_PATH` (the folder that holds every user's vault) must exist and be writable at startup, or the server exits with a message. The key lives in `.env` only.
+- `DEFAULT_NOTE_FOLDER` is validated at startup with the shared folder rules; it is created in a user's vault the first time a note is saved there, not at startup.
   It is only the fallback (ADR 0059): `Job.default_folder` for a job in review is its prompt profile's `last_folder` while that folder still exists in the vault (`defaultFolderFor`, checked read-only by `existingFolderSync`), and `saveJob` remembers the folder it wrote to for the profile once the write succeeds.
-- Sign-in (ADR 0061) needs `ADMIN_EMAIL` (lower-cased; the first Google account to sign in must match it), `APP_ORIGINS` (comma-separated `scheme://host[:port]` with no path, normalised and de-duplicated; `config.appOrigins`), `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `TOKEN_ENCRYPTION_KEY` (32 bytes, base64; also signs the sign-in cookie), all required. `SESSION_DAYS` (1–365, default 30) and `VAULTS_PATH` (default `/vaults`, `config.vaultsPath`) are optional. Gmail (ADR 0035) is therefore always configured: `config.gmail` is built from the same three variables. `GOOGLE_REDIRECT_URI` is removed: a leftover value is ignored and logged at `warn` (`ignoredEnv`). Until 4.3 the Gmail callback is still `http://localhost:<PORT>/api/gmail/oauth/callback`; `VAULT_PATH` stays until 5.1 replaces it with `VAULTS_PATH`.
+- Sign-in (ADR 0061) needs `ADMIN_EMAIL` (lower-cased; the first Google account to sign in must match it), `APP_ORIGINS` (comma-separated `scheme://host[:port]` with no path, normalised and de-duplicated; `config.appOrigins`), `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `TOKEN_ENCRYPTION_KEY` (32 bytes, base64; also signs the sign-in cookie), all required. `SESSION_DAYS` (1–365, default 30) and `VAULTS_PATH` (default `/vaults`, `config.vaultsPath`) are optional. Gmail (ADR 0035) is therefore always configured: `config.gmail` is built from the same three variables. `GOOGLE_REDIRECT_URI` and `VAULT_PATH` are removed: a leftover value is ignored and logged at `warn` (`ignoredEnv`). A user's vault is `VAULTS_PATH/<users.vault_dir>`: `vaultRootFor( userId )` in `vault.service.ts` returns it and throws `VaultNotChosenError` (409 "Choose your vault first") when the user has not chosen one; every vault read and write goes through it.
 - The vault agent service (ADR 0042) is optional: `config.agent` is `null` unless `AGENT_SECRET` (at least 32 characters) is set, and then jobs skip linking. `AGENT_URL` defaults to `http://localhost:8100`, `AGENT_TIMEOUT_MS` to 120000.
 - `LOG_LEVEL` (ADR 0049): `fatal`, `error`, `warn`, `info` (default), `debug`, `trace` or `silent`; vitest runs with `silent`.
 - `STATUS_CHECK_INTERVAL_MINUTES` (ADR 0050, default 2): how often the service monitor checks the agent and whisper-server in the background.
@@ -47,7 +47,7 @@ Parsed once with Zod in `config.ts`; nothing else reads `process.env`. `.env.exa
 
 ```
 src/
-  server.ts          boot only: load config → check the vault → open the store → recover interrupted jobs → start sweeper, worker, Melete generator, intake poller and service monitor → listen
+  server.ts          boot only: load config → check the vaults folder → open the store → recover interrupted jobs → start sweeper, worker, Melete generator, intake poller and service monitor → listen
   app.ts             builds the Express app and mounts routes and the error middleware; tests import this, not server.ts
   config.ts          env parsed with Zod
   shutdown.ts        signal handling: stop the sweeper, the worker, the Melete generator, the intake poller, the service monitor and the server, close the store, exit; with a timeout
@@ -208,7 +208,7 @@ The root `CLAUDE.md` makes TDD the rule. This is how it runs here:
 ## Tests
 
 - Tests sit next to their source with the same name plus `.test.ts`, e.g. `jobs.service.test.ts`.
-- Routes and controllers are tested through `app.ts` with Supertest, including the status code for each typed error. Route tests that sit behind `requireUser` import `signedInRequest as request` from `test-support/auth.ts`: it acts as a default admin (made on first use, as each test has a new database) and sends `application/json`; `createTestUser( { role, modules, vault_dir } )` and `signedIn( agent, user )` give a test another user. The fake Google client is `test-support/googleSignIn.fake.ts`. Never start a real server in a test.
+- Routes and controllers are tested through `app.ts` with Supertest, including the status code for each typed error. Route tests that sit behind `requireUser` import `signedInRequest as request` from `test-support/auth.ts`: it acts as a default admin (made on first use, as each test has a new database) and sends `application/json`; `createTestUser( { role, modules, vault_dir } )` and `signedIn( agent, user )` give a test another user. The default admin's vault is `DEFAULT_TEST_VAULT` under `config.vaultsPath` (`defaultTestVaultPath()`); a user made without `vault_dir` has none, and a test that mocks `config` sets `vaultsPath`. The fake Google client is `test-support/googleSignIn.fake.ts`. Never start a real server in a test.
 - External tools are mocked with Vitest (`vi.mock`): service and worker tests mock the client modules; client tests mock `node:child_process` or `fetch` and assert on the command or request they build and how they parse the output.
 - Unit tests never run yt-dlp, ffmpeg or whisper-server, and never touch the network.
 - Integration tests that use the real tools are named `*.integration.test.ts` and run only through `pnpm test:integration`.

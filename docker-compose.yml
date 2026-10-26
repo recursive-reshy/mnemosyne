@@ -14,7 +14,7 @@ services:
       BACKUP_DIR: /backups
     volumes:
       - mnemosyne-data:/data
-      - ${VAULT_HOST_PATH:?Set VAULT_HOST_PATH in .env to your Obsidian vault folder}:/vault
+      - ${VAULTS_HOST_PATH:?Set VAULTS_HOST_PATH in .env to the folder that holds the vaults}:/vaults
       - ${BACKUP_HOST_PATH:?Set BACKUP_HOST_PATH in .env to your backups folder}:/backups
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -37,10 +37,10 @@ services:
     environment:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?Set ANTHROPIC_API_KEY in .env}
       AGENT_SECRET: ${AGENT_SECRET:?Set AGENT_SECRET in .env}
-      VAULT_PATH: /vault
+      VAULTS_ROOT: /vaults
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
-      - ${VAULT_HOST_PATH:?Set VAULT_HOST_PATH in .env to your Obsidian vault folder}:/vault:ro
+      - ${VAULTS_HOST_PATH:?Set VAULTS_HOST_PATH in .env to the folder that holds the vaults}:/vaults:ro
     read_only: true
     tmpfs:
       - /tmp

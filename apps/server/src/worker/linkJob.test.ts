@@ -37,7 +37,7 @@ import { DEFAULT_LINKER_GUIDANCE } from '../summarizer/prompts.js'
 // Worker
 import { linkJob } from './linkJob.js'
 // Test support
-import { defaultTestAdmin } from '../test-support/auth.js'
+import { defaultTestAdmin, defaultTestVaultPath } from '../test-support/auth.js'
 
 let userId = ''
 
@@ -159,7 +159,7 @@ describe( 'linkJob', () => {
   it( 'uses the profile\'s last folder, when it exists, for a job with no folder', async () => {
     const study = findProfileBySeedKey( userId, 'study' )?.id ?? ''
     setLastFolder( userId, study, 'Learning/React' )
-    await mkdir( join( config.vaultPath, 'Learning/React' ), { recursive: true } )
+    await mkdir( join( defaultTestVaultPath(), 'Learning/React' ), { recursive: true } )
     const id = await queueLinking( study )
 
     await linkJob( userId, id )

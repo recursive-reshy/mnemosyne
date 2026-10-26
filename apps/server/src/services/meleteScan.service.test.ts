@@ -44,7 +44,7 @@ beforeEach( () => {
   userId = defaultTestAdmin().id
 } )
 
-const configMock = vi.hoisted( () => ( { logLevel: 'silent', sessionDays: 30, vaultPath: '' } ) )
+const configMock = vi.hoisted( () => ( { logLevel: 'silent', sessionDays: 30, vaultsPath: '' } ) )
 
 vi.mock( '../config.js', () => ( { config: configMock } ) )
 vi.mock( 'node:fs/promises', async ( importOriginal ) => {
@@ -104,7 +104,7 @@ const snapshot = async ( root: string ): Promise< string[] > => {
 
 beforeEach( async () => {
   vault = await createMeleteVault()
-  configMock.vaultPath = vault.vaultPath
+  configMock.vaultsPath = vault.vaultsPath
   setSetting( userId, 'melete_learning_root', 'Learning' )
   resetScanClock()
   vi.mocked( readFile ).mockClear()
@@ -524,7 +524,8 @@ describe( 'a file that disappears during the scan', () => {
 
 describe( 'scans for two users', () => {
   it( 'gives each user their own subjects and notes from the same folders', async () => {
-    const other = createTestUser().id
+    await vault.clone( 'other' )
+    const other = createTestUser( { vault_dir: 'other' } ).id
 
     setSetting( other, 'melete_learning_root', 'Learning' )
     await scan()
@@ -539,7 +540,8 @@ describe( 'scans for two users', () => {
   } )
 
   it( 'runs the scans of two users at once, each only once', async () => {
-    const other = createTestUser().id
+    await vault.clone( 'other' )
+    const other = createTestUser( { vault_dir: 'other' } ).id
 
     setSetting( other, 'melete_learning_root', 'Learning' )
     await Promise.all( [
@@ -555,7 +557,8 @@ describe( 'scans for two users', () => {
   } )
 
   it( 'skips a fresh scan only for the user who just scanned', async () => {
-    const other = createTestUser().id
+    await vault.clone( 'other' )
+    const other = createTestUser( { vault_dir: 'other' } ).id
 
     setSetting( other, 'melete_learning_root', 'Learning' )
     await scanLearningRoot( userId, { now: at( 0 ) } )
@@ -567,7 +570,8 @@ describe( 'scans for two users', () => {
   } )
 
   it( 'tracks a note moved by one user without touching the other\'s copy', async () => {
-    const other = createTestUser().id
+    await vault.clone( 'other' )
+    const other = createTestUser( { vault_dir: 'other' } ).id
 
     setSetting( other, 'melete_learning_root', 'Learning' )
     await scan()

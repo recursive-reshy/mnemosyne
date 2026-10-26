@@ -1,5 +1,5 @@
 # Layered over docker-compose.yml by e2e/run.sh under the project name mnemosyne-e2e.
-# The vault, the backups folder and the secrets come from run.sh; nothing here touches the real instance.
+# The vaults folder, the backups folder and the secrets come from run.sh; nothing here touches the real instance.
 services:
   fakes:
     build: e2e/fakes

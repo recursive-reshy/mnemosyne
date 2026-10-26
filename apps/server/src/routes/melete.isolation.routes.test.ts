@@ -31,7 +31,7 @@ vi.mock( '../clients/claude.client.js' )
 type Agent = ReturnType< typeof signedInRequest >
 
 let vault: MeleteVault
-let originalVaultPath: string
+let originalVaultsPath: string
 let owner: TestUser
 let other: TestUser
 
@@ -39,17 +39,18 @@ const unknown = (): string => crypto.randomUUID()
 
 beforeEach( async () => {
   vault = await createMeleteVault()
-  originalVaultPath = config.vaultPath
-  config.vaultPath = vault.vaultPath
-  owner = createTestUser( { role: 'admin' } )
-  other = createTestUser()
+  originalVaultsPath = config.vaultsPath
+  config.vaultsPath = vault.vaultsPath
+  await vault.clone( 'other' )
+  owner = createTestUser( { role: 'admin', vault_dir: vault.vaultDir } )
+  other = createTestUser( { vault_dir: 'other' } )
   setSetting( owner.id, 'melete_learning_root', 'Learning' )
   setSetting( other.id, 'melete_learning_root', 'Learning' )
   resetScanClock()
 } )
 
 afterEach( async () => {
-  config.vaultPath = originalVaultPath
+  config.vaultsPath = originalVaultsPath
   await vault.cleanup()
 } )
 

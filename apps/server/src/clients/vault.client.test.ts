@@ -270,7 +270,7 @@ describe( 'assertVaultWritable', () => {
   it( 'names the path when the folder does not exist', async () => {
     const missing = join( vault, 'nope' )
 
-    await expect( assertVaultWritable( missing ) ).rejects.toThrow( `VAULT_PATH ${ missing }` )
+    await expect( assertVaultWritable( missing ) ).rejects.toThrow( `VAULTS_PATH ${ missing }` )
   } )
 
   it( 'rejects a path that is a file', async () => {

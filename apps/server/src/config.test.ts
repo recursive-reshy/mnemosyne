@@ -14,7 +14,6 @@ const google = {
 }
 const base = {
   ANTHROPIC_API_KEY: 'sk-test',
-  VAULT_PATH: '/vault',
   ADMIN_EMAIL: 'Admin@Example.com',
   APP_ORIGINS: 'http://localhost:3100',
   ...google,
@@ -31,7 +30,6 @@ describe( 'loadConfig', () => {
       whisperModel: 'large-v3-turbo',
       webDir: undefined,
       anthropicApiKey: 'sk-test',
-      vaultPath: '/vault',
       defaultNoteFolder: 'Mnemosyne',
       summaryTimeoutMs: 300_000,
       reviewTtlHours: 24,
@@ -62,7 +60,7 @@ describe( 'loadConfig', () => {
   it( 'returns overrides, with numbers as numbers', () => {
     const config = loadConfig( {
       ...base,
-      VAULT_PATH: '/Users/x/Vault',
+      VAULTS_PATH: '/Users/x/Vaults',
       DEFAULT_NOTE_FOLDER: 'Learning/AI',
       PORT: '4000',
       WHISPER_URL: 'http://host.docker.internal:8178',
@@ -92,7 +90,6 @@ describe( 'loadConfig', () => {
       whisperModel: 'large-v3',
       webDir: '/srv/web',
       anthropicApiKey: 'sk-test',
-      vaultPath: '/Users/x/Vault',
       defaultNoteFolder: 'Learning/AI',
       summaryTimeoutMs: 60_000,
       reviewTtlHours: 48,
@@ -107,7 +104,7 @@ describe( 'loadConfig', () => {
       adminEmail: 'admin@example.com',
       appOrigins: [ 'http://localhost:3100' ],
       sessionDays: 30,
-      vaultsPath: '/vaults',
+      vaultsPath: '/Users/x/Vaults',
       agent: null,
       timeZone: 'Europe/London',
       obsidianVaultName: 'My Vault',
@@ -202,8 +199,9 @@ describe( 'loadConfig', () => {
     expect( () => loadConfig( { ANTHROPIC_API_KEY: key } ) ).toThrow( /ANTHROPIC_API_KEY/ )
   } )
 
-  it.each( [ undefined, '' ] )( 'throws naming VAULT_PATH when it is %j', ( path ) => {
-    expect( () => loadConfig( { ...base, VAULT_PATH: path } ) ).toThrow( /VAULT_PATH/ )
+  it( 'no longer needs VAULT_PATH', () => {
+    expect( () => loadConfig( base ) ).not.toThrow()
+    expect( loadConfig( { ...base, VAULT_PATH: '/vault' } ) ).not.toHaveProperty( 'vaultPath' )
   } )
 
   it.each( [ 'abc', '0', '-5', '1.5' ] )( 'throws naming SUMMARY_TIMEOUT_MS for %s', ( value ) => {
@@ -459,6 +457,10 @@ describe( 'loadConfig', () => {
     it( 'names GOOGLE_REDIRECT_URI when it is set', () => {
       expect( ignoredEnv( { ...base, GOOGLE_REDIRECT_URI: 'http://x.test/cb' } ) )
         .toEqual( [ 'GOOGLE_REDIRECT_URI' ] )
+    } )
+
+    it( 'names VAULT_PATH when it is set', () => {
+      expect( ignoredEnv( { ...base, VAULT_PATH: '/vault' } ) ).toEqual( [ 'VAULT_PATH' ] )
     } )
 
     it( 'is empty when no removed variable is set, or the value is empty', () => {

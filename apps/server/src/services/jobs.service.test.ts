@@ -17,7 +17,12 @@ import {
 // Config
 import { config } from '../config.js'
 // Errors
-import { ConflictError, NotFoundError, ValidationError } from '../errors.js'
+import {
+  ConflictError,
+  NotFoundError,
+  ValidationError,
+  VaultNotChosenError,
+} from '../errors.js'
 // Repositories
 import {
   clearJobs,
@@ -92,10 +97,12 @@ import { formatSrt } from '../formatters/srt.formatter.js'
 import { formatTxt } from '../formatters/txt.formatter.js'
 // Fixtures
 import { transcriptFixture } from '../test-support/transcript.fixture.js'
+// Repositories
+import { clearVaultDir } from '../repositories/users.repository.js'
 // Logging
 import { logger } from '../logger.js'
 // Test support
-import { createTestUser, defaultTestAdmin } from '../test-support/auth.js'
+import { createTestUser, defaultTestAdmin, defaultTestVaultPath } from '../test-support/auth.js'
 
 let userId = ''
 
@@ -681,7 +688,8 @@ describe( 'folder memory', () => {
       setLastFolder( userId, study, 'Learning/React' )
 
       expect( findJob( userId, await reviewJob( study ) ).default_folder ).toBe( 'Learning/React' )
-      expect( existingFolderSyncMock ).toHaveBeenCalledWith( config.vaultPath, 'Learning/React' )
+      expect( existingFolderSyncMock )
+        .toHaveBeenCalledWith( defaultTestVaultPath(), 'Learning/React' )
     } )
 
     it( 'is the configured folder when the profile has no last folder', async () => {
@@ -817,6 +825,16 @@ describe( 'saveJob', () => {
 
     return id
   }
+
+  it( 'refuses until the user has chosen a vault, and keeps the job in review', async () => {
+    const id = await queueDrafted()
+
+    clearVaultDir( userId )
+
+    await expect( saveJob( userId, id ) ).rejects.toThrow( VaultNotChosenError )
+    expect( writeNoteMock ).not.toHaveBeenCalled()
+    expect( findJob( userId, id ).status ).toBe( 'ready_for_review' )
+  } )
 
   it( 'writes the stored draft, with locked properties and today as created', async () => {
     const id = await queueDrafted()

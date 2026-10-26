@@ -37,7 +37,7 @@ import { clearModelCache } from '../services/models.service.js'
 import { listProfiles, resolveLinkerPrompt } from '../services/prompts.service.js'
 import { LOCKED_INSTRUCTIONS_ARTICLE, LOCKED_INSTRUCTIONS_VIDEO } from '../summarizer/prompts.js'
 // Test support
-import { defaultTestAdmin } from '../test-support/auth.js'
+import { DEFAULT_TEST_VAULT, defaultTestAdmin } from '../test-support/auth.js'
 
 let userId = ''
 
@@ -164,18 +164,21 @@ describe( 'GET /api/settings with an agent service', () => {
 } )
 
 describe( 'PATCH /api/settings for Melete', () => {
+  let vaultsDir: string
   let vaultDir: string
-  let originalVaultPath: string
+  let originalVaultsPath: string
 
   beforeEach( async () => {
-    vaultDir = await mkdtemp( join( tmpdir(), 'mnemosyne-settings-routes-' ) )
-    originalVaultPath = config.vaultPath
-    config.vaultPath = vaultDir
+    vaultsDir = await mkdtemp( join( tmpdir(), 'mnemosyne-settings-routes-' ) )
+    vaultDir = join( vaultsDir, DEFAULT_TEST_VAULT )
+    await mkdir( vaultDir )
+    originalVaultsPath = config.vaultsPath
+    config.vaultsPath = vaultsDir
   } )
 
   afterEach( async () => {
-    config.vaultPath = originalVaultPath
-    await rm( vaultDir, { recursive: true, force: true } )
+    config.vaultsPath = originalVaultsPath
+    await rm( vaultsDir, { recursive: true, force: true } )
   } )
 
   it( 'saves the learning root, the models and the review mode', async () => {

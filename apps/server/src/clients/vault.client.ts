@@ -179,19 +179,19 @@ export const assertVaultWritable = async ( vaultPath: string ): Promise< void > 
     isFolder = ( await stat( vaultPath ) ).isDirectory()
   } catch( error ) {
     throw new Error(
-      `VAULT_PATH ${ vaultPath } does not exist or cannot be read. `
-      + 'Mount the vault folder there (VAULT_HOST_PATH in Docker).',
+      `VAULTS_PATH ${ vaultPath } does not exist or cannot be read. `
+      + 'Mount the folder that holds the vaults there (VAULTS_HOST_PATH in Docker).',
       { cause: error },
     )
   }
 
   if( !isFolder ) {
-    throw new Error( `VAULT_PATH ${ vaultPath } is not a folder` )
+    throw new Error( `VAULTS_PATH ${ vaultPath } is not a folder` )
   }
 
   try {
     await access( vaultPath, constants.W_OK )
   } catch( error ) {
-    throw new Error( `VAULT_PATH ${ vaultPath } is not writable`, { cause: error } )
+    throw new Error( `VAULTS_PATH ${ vaultPath } is not writable`, { cause: error } )
   }
 }

@@ -25,7 +25,7 @@ import {
 // App
 import { app } from '../app.js'
 // Test support
-import { signedInRequest as request } from '../test-support/auth.js'
+import { createTestUser, signedInRequest as request } from '../test-support/auth.js'
 import { config } from '../config.js'
 // Errors
 import { MeleteError } from '../errors.js'
@@ -53,7 +53,7 @@ vi.mock( '../clients/claude.client.js' )
 const grade = vi.mocked( gradeAnswer )
 
 let vault: MeleteVault
-let originalVaultPath: string
+let originalVaultsPath: string
 
 const scanned = async (): Promise< void > => {
   await request( app ).get( '/api/melete/today' )
@@ -85,8 +85,8 @@ const GENERICS = 'TypeScript/Generics.md'
 
 beforeEach( async () => {
   vault = await createMeleteVault()
-  originalVaultPath = config.vaultPath
-  config.vaultPath = vault.vaultPath
+  originalVaultsPath = config.vaultsPath
+  config.vaultsPath = vault.vaultsPath
   setSetting( userId, 'melete_learning_root', 'Learning' )
   setSetting( userId, 'melete_grading_model', 'claude-haiku-5-5' )
   grade.mockReset()
@@ -94,7 +94,7 @@ beforeEach( async () => {
 } )
 
 afterEach( async () => {
-  config.vaultPath = originalVaultPath
+  config.vaultsPath = originalVaultsPath
   await vault.cleanup()
 } )
 
@@ -107,6 +107,16 @@ describe( 'GET /api/melete/today', () => {
     expect( today.learning_root ).toBe( 'Learning' )
     expect( today.subjects.map( ( { name, note_count } ) => [ name, note_count ] ) )
       .toEqual( [ [ 'Rust', 1 ], [ 'TypeScript', 2 ] ] )
+  } )
+
+  it( 'is 409 for a user who has not chosen a vault', async () => {
+    const member = createTestUser( { modules: [ 'melete' ] } )
+
+    setSetting( member.id, 'melete_learning_root', 'Learning' )
+    const response = await request( app, member ).get( '/api/melete/today' )
+
+    expect( response.status ).toBe( 409 )
+    expect( response.body ).toEqual( { error: 'Choose your vault first' } )
   } )
 
   it( 'answers 200 with a null learning root when none is set', async () => {

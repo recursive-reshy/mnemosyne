@@ -28,6 +28,14 @@ export class ConflictError extends Error {
   }
 }
 
+// A user who hasn't chosen a vault yet (ADR 0063); the web app sends them to choose one first
+export class VaultNotChosenError extends ConflictError {
+  constructor() {
+    super( 'Choose your vault first' )
+    this.name = 'VaultNotChosenError'
+  }
+}
+
 export class UnprocessableError extends Error {
   constructor( message: string ) {
     super( message )

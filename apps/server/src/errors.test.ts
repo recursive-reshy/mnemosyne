@@ -18,6 +18,7 @@ import { z } from 'zod'
 import {
   BadGatewayError,
   ConflictError,
+  VaultNotChosenError,
   NotFoundError,
   UnauthenticatedError,
   UnknownOriginError,
@@ -41,6 +42,9 @@ const buildApp = (): Express => {
   } )
   testApp.get( '/conflict', () => {
     throw new ConflictError( 'Job not done' )
+  } )
+  testApp.get( '/vault-not-chosen', () => {
+    throw new VaultNotChosenError()
   } )
   testApp.get( '/bad-gateway', () => {
     throw new BadGatewayError( "Couldn't reach the site" )
@@ -106,6 +110,13 @@ describe( 'errorMiddleware', () => {
 
     expect( response.status ).toBe( 409 )
     expect( response.body ).toEqual( { error: 'Job not done' } )
+  } )
+
+  it( 'maps VaultNotChosenError to 409 with its fixed message', async () => {
+    const response = await request( buildApp() ).get( '/vault-not-chosen' )
+
+    expect( response.status ).toBe( 409 )
+    expect( response.body ).toEqual( { error: 'Choose your vault first' } )
   } )
 
   it( 'maps UnprocessableError to 422 with its message', async () => {

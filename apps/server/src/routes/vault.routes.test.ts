@@ -15,7 +15,11 @@ import { ListFoldersResponse } from '@mnemosyne/shared'
 // App
 import { app } from '../app.js'
 // Test support
-import { signedInRequest as request } from '../test-support/auth.js'
+import {
+  createTestUser,
+  defaultTestVaultPath,
+  signedInRequest as request,
+} from '../test-support/auth.js'
 import { config } from '../config.js'
 
 const vault = vi.hoisted( () => `/tmp/mnemosyne-vault-routes-${ process.pid }` )
@@ -24,22 +28,22 @@ const vault = vi.hoisted( () => `/tmp/mnemosyne-vault-routes-${ process.pid }` )
 vi.mock( '../config.js', async ( importOriginal ) => {
   const original = await importOriginal< typeof import( '../config.js' ) >()
 
-  return { config: { ...original.config, vaultPath: vault } }
+  return { config: { ...original.config, vaultsPath: vault } }
 } )
 
 beforeEach( async () => {
-  await rm( config.vaultPath, { recursive: true, force: true } )
-  await mkdir( config.vaultPath, { recursive: true } )
+  await rm( config.vaultsPath, { recursive: true, force: true } )
+  await mkdir( defaultTestVaultPath(), { recursive: true } )
 } )
 
 afterEach( async () => {
-  await rm( config.vaultPath, { recursive: true, force: true } )
+  await rm( config.vaultsPath, { recursive: true, force: true } )
 } )
 
 describe( 'GET /api/vault/folders', () => {
   it( 'returns the default folder and the tree', async () => {
-    await mkdir( join( config.vaultPath, 'Learning', 'AI' ), { recursive: true } )
-    await mkdir( join( config.vaultPath, '.obsidian' ) )
+    await mkdir( join( defaultTestVaultPath(), 'Learning', 'AI' ), { recursive: true } )
+    await mkdir( join( defaultTestVaultPath(), '.obsidian' ) )
 
     const response = await request( app ).get( '/api/vault/folders' )
 
@@ -54,6 +58,24 @@ describe( 'GET /api/vault/folders', () => {
         },
       ],
     } )
+  } )
+
+  it( 'is 409 for a user who has not chosen a vault', async () => {
+    const response = await request( app, createTestUser() ).get( '/api/vault/folders' )
+
+    expect( response.status ).toBe( 409 )
+    expect( response.body ).toEqual( { error: 'Choose your vault first' } )
+  } )
+
+  it( 'shows each user only the folders of their own vault', async () => {
+    await mkdir( join( config.vaultsPath, 'brother', 'Private' ), { recursive: true } )
+    await mkdir( join( defaultTestVaultPath(), 'Learning' ), { recursive: true } )
+
+    const response = await request( app, createTestUser( { vault_dir: 'brother' } ) )
+      .get( '/api/vault/folders' )
+
+    expect( ( response.body as ListFoldersResponse ).folders.map( ( { path } ) => path ) )
+      .toEqual( [ 'Private' ] )
   } )
 
   it( 'returns an empty list for an empty vault', async () => {
