@@ -1,6 +1,6 @@
 # Mnemosyne vault agent service
 
-A stateless Python 3.14 / FastAPI service that reads the Obsidian vault (read-only) and runs Claude tool-use agents for the Express server. Its first endpoint, `POST /v1/link`, proposes `[[wikilinks]]` for a new note (ADRs 0042–0046). It has no database, no write access to the vault and no published port; only the server calls it, with a bearer secret.
+A stateless Python 3.14 / FastAPI service that reads the Obsidian vaults (read-only) and runs Claude tool-use agents for the Express server. Its first endpoint, `POST /v1/link`, proposes `[[wikilinks]]` for a new note (ADRs 0042–0046). It has no database, no write access to the vault and no published port; only the server calls it, with a bearer secret.
 
 The setup, configuration and troubleshooting are in the [root README](../../README.md) (Setup, Configuration, Troubleshooting). Working rules are in [CLAUDE.md](CLAUDE.md).
 
@@ -9,10 +9,10 @@ The setup, configuration and troubleshooting are in the [root README](../../READ
 Needs [uv](https://docs.astral.sh/uv/).
 
 ```sh
-ANTHROPIC_API_KEY=… AGENT_SECRET=$(openssl rand -hex 32) VAULT_PATH=/path/to/vault pnpm --filter @mnemosyne/agent dev
+ANTHROPIC_API_KEY=… AGENT_SECRET=$(openssl rand -hex 32) VAULTS_ROOT=/path/to/vaults pnpm --filter @mnemosyne/agent dev
 ```
 
-It listens on port 8100. Use the same `AGENT_SECRET` and `AGENT_URL=http://localhost:8100` in `apps/server/.env`.
+`VAULTS_ROOT` is the folder that holds one folder per user; each request names its user's vault by `vault_dir` (ADR 0063). It listens on port 8100. Use the same `AGENT_SECRET` and `AGENT_URL=http://localhost:8100` in `apps/server/.env`.
 
 ## Checks
 

@@ -21,7 +21,12 @@ def make_body( **note_overrides: Any ) -> dict[ str, Any ]:
         "body": "Usage-based pricing aligns cost with value."
     }
 
-    return { "note": { **note, **note_overrides }, "model": "model-under-test", "guidance": "Prefer a few strong links." }
+    return {
+        "note": { **note, **note_overrides },
+        "vault_dir": "vault",
+        "model": "model-under-test",
+        "guidance": "Prefer a few strong links."
+    }
 
 def make_client( settings: Settings, claude: ScriptedClaude ) -> TestClient:
     return TestClient( create_app( settings, claude ) )
@@ -60,14 +65,41 @@ def test_an_empty_vault_still_gets_concept_suggestions(
     auth_headers: dict[ str, str ],
     tmp_path: Path
 ) -> None:
-    empty = settings.model_copy( update = { "vault_path": tmp_path } )
+    ( tmp_path / "vaults" / "empty" ).mkdir( parents = True )
+    empty = settings.model_copy( update = { "vaults_root": tmp_path / "vaults" } )
     claude = ScriptedClaude(
         [ submit_reply( [ { "target": "Pricing Strategy", "anchor": "Usage-based pricing", "reason": "Core topic." } ] ) ]
     )
 
-    body = make_client( empty, claude ).post( "/v1/link", json = make_body(), headers = auth_headers ).json()
+    body = make_client( empty, claude ).post( "/v1/link", json = { **make_body(), "vault_dir": "empty" }, headers = auth_headers ).json()
 
     assert body[ "suggestions" ][ 0 ][ "kind" ] == "new_concept"
+
+def test_an_unknown_vault_is_a_422_before_claude_is_called( settings: Settings, auth_headers: dict[ str, str ] ) -> None:
+    claude = ScriptedClaude( [] )
+    body = { **make_body(), "vault_dir": "missing" }
+
+    response = make_client( settings, claude ).post( "/v1/link", json = body, headers = auth_headers )
+
+    assert response.status_code == 422
+    assert response.json() == { "error": "unknown_vault" }
+    assert claude.requests == []
+
+def test_a_vault_dir_that_climbs_out_is_a_failed_response( settings: Settings, auth_headers: dict[ str, str ] ) -> None:
+    body = { **make_body(), "vault_dir": "../vault" }
+
+    response = make_client( settings, ScriptedClaude( [] ) ).post( "/v1/link", json = body, headers = auth_headers )
+
+    assert response.status_code == 200
+    assert response.json()[ "outcome" ] == "failed"
+    assert response.json()[ "reason" ] == "Invalid request: 1 error, first at vault_dir"
+
+def test_a_request_for_the_secret_is_still_checked_before_the_vault( settings: Settings ) -> None:
+    body = { **make_body(), "vault_dir": "missing" }
+
+    response = make_client( settings, ScriptedClaude( [] ) ).post( "/v1/link", json = body )
+
+    assert response.status_code == 401
 
 def test_a_claude_api_error_is_a_failed_response_not_an_http_error(
     settings: Settings,
@@ -113,7 +145,7 @@ def test_the_reason_counts_every_error_and_names_the_first_field(
     response = make_client( settings, ScriptedClaude( [] ) ).post( "/v1/link", json = {}, headers = auth_headers )
 
     assert response.status_code == 200
-    assert response.json()[ "reason" ] == "Invalid request: 3 errors, first at note"
+    assert response.json()[ "reason" ] == "Invalid request: 4 errors, first at note"
 
 def test_a_body_that_is_not_json_is_a_failed_response(
     settings: Settings,

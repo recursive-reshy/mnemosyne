@@ -71,6 +71,12 @@ const call = async (
     throw new AgentError( 'Agent service rejected the secret' )
   }
 
+  if( response.status === 422 ) {
+    await response.body?.cancel()
+
+    throw new AgentError( 'The agent service could not find your vault' )
+  }
+
   if( !response.ok ) {
     await response.body?.cancel()
 

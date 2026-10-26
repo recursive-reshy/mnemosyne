@@ -10,6 +10,7 @@
       "folder": "Ideas",
       "body": ""
     },
+    "vault_dir": "naresh",
     "model": "claude-haiku-5-5",
     "guidance": "Link to what the note is genuinely about."
   }

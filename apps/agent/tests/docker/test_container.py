@@ -28,10 +28,10 @@ def container() -> Iterator[ str ]:
         "--read-only",
         "--tmpfs", "/tmp",
         "--publish", "127.0.0.1::8100",
-        "--volume", f"{FIXTURE_VAULT}:/vault:ro",
+        "--volume", f"{FIXTURE_VAULT}:/vaults/vault:ro",
         "--env", "ANTHROPIC_API_KEY=sk-test-key",
         "--env", f"AGENT_SECRET={SECRET}",
-        "--env", "VAULT_PATH=/vault",
+        "--env", "VAULTS_ROOT=/vaults",
         IMAGE
     )
     container_id = started.stdout.strip()
@@ -83,7 +83,7 @@ def test_the_link_routes_need_the_secret( container: str ) -> None:
 def test_the_vault_cannot_be_written_to( container: str ) -> None:
     wait_for_health( container )
 
-    attempt = run_docker( "exec", container, "python", "-c", "open( '/vault/x.md', 'w' ).write( 'x' )", check = False )
+    attempt = run_docker( "exec", container, "python", "-c", "open( '/vaults/vault/x.md', 'w' ).write( 'x' )", check = False )
 
     assert attempt.returncode != 0
     assert "Read-only file system" in attempt.stderr

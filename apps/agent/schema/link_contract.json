@@ -78,10 +78,16 @@
         },
         "note": {
           "$ref": "#/$defs/LinkNote"
+        },
+        "vault_dir": {
+          "pattern": "^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$",
+          "title": "Vault Dir",
+          "type": "string"
         }
       },
       "required": [
         "note",
+        "vault_dir",
         "model",
         "guidance"
       ],

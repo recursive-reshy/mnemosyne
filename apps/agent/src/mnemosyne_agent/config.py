@@ -26,7 +26,7 @@ class ConfigError( Exception ):
 class Settings( BaseModel ):
     anthropic_api_key: str
     agent_secret: str
-    vault_path: Path
+    vaults_root: Path
     log_level: str = "info"
     max_turns: int = LIMIT_DEFAULTS[ "max_turns" ]
     max_tool_calls: int = LIMIT_DEFAULTS[ "max_tool_calls" ]
@@ -43,7 +43,7 @@ def load_settings( environ: Mapping[ str, str ] ) -> Settings:
     problems: list[ str ] = []
     api_key = environ.get( "ANTHROPIC_API_KEY", "" )
     secret = environ.get( "AGENT_SECRET", "" )
-    vault_value = environ.get( "VAULT_PATH", "" )
+    vaults_value = environ.get( "VAULTS_ROOT", "" )
     log_level = environ.get( "LOG_LEVEL", "" ).lower() or "info"
 
     if not api_key:
@@ -52,10 +52,10 @@ def load_settings( environ: Mapping[ str, str ] ) -> Settings:
     if len( secret ) < SECRET_MINIMUM_LENGTH:
         problems.append( f"AGENT_SECRET is required and must be at least {SECRET_MINIMUM_LENGTH} characters" )
 
-    if not vault_value:
-        problems.append( "VAULT_PATH is required" )
-    elif not Path( vault_value ).is_dir():
-        problems.append( "VAULT_PATH must be an existing directory" )
+    if not vaults_value:
+        problems.append( "VAULTS_ROOT is required" )
+    elif not Path( vaults_value ).is_dir():
+        problems.append( "VAULTS_ROOT must be an existing directory" )
 
     if log_level not in LOG_LEVELS:
         problems.append( f"LOG_LEVEL must be one of {', '.join( LOG_LEVELS )}" )
@@ -79,7 +79,7 @@ def load_settings( environ: Mapping[ str, str ] ) -> Settings:
     if problems:
         raise ConfigError( f"Invalid configuration: {'; '.join( problems )}" )
 
-    return Settings( anthropic_api_key = api_key, agent_secret = secret, vault_path = Path( vault_value ),
+    return Settings( anthropic_api_key = api_key, agent_secret = secret, vaults_root = Path( vaults_value ),
         log_level = log_level,
         **limits
     )

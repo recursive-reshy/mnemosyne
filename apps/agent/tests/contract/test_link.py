@@ -18,6 +18,10 @@ def make_note( **overrides: Any ) -> dict[ str, Any ]:
     note: dict[ str, Any ] = { "title": "Pricing", "tags": [ "saas" ], "folder": "Ideas", "body": "Body text" }
     return { **note, **overrides }
 
+def make_request( **overrides: Any ) -> dict[ str, Any ]:
+    request: dict[ str, Any ] = { "note": make_note(), "vault_dir": "naresh", "model": "m", "guidance": "" }
+    return { **request, **overrides }
+
 def make_suggestion( **overrides: Any ) -> dict[ str, Any ]:
     suggestion: dict[ str, Any ] = {
         "target": "Pricing Strategy",
@@ -83,23 +87,43 @@ class TestLinkNote:
 
 class TestLinkRequest:
     def test_accepts_a_valid_request( self ) -> None:
-        request = LinkRequest.model_validate( { "note": make_note(), "model": "m", "guidance": "" } )
+        request = LinkRequest.model_validate( make_request() )
 
         assert request.note.title == "Pricing"
+        assert request.vault_dir == "naresh"
 
     def test_rejects_an_empty_model( self ) -> None:
         with pytest.raises( ValidationError ):
-            LinkRequest.model_validate( { "note": make_note(), "model": "", "guidance": "" } )
+            LinkRequest.model_validate( make_request( model = "" ) )
 
     def test_limits_guidance_to_twenty_thousand_characters( self ) -> None:
-        LinkRequest.model_validate( { "note": make_note(), "model": "m", "guidance": "a" * 20_000 } )
+        LinkRequest.model_validate( make_request( guidance = "a" * 20_000 ) )
 
         with pytest.raises( ValidationError ):
-            LinkRequest.model_validate( { "note": make_note(), "model": "m", "guidance": "a" * 20_001 } )
+            LinkRequest.model_validate( make_request( guidance = "a" * 20_001 ) )
 
     def test_validates_the_nested_note( self ) -> None:
         with pytest.raises( ValidationError ):
-            LinkRequest.model_validate( { "note": make_note( body = "" ), "model": "m", "guidance": "" } )
+            LinkRequest.model_validate( make_request( note = make_note( body = "" ) ) )
+
+    def test_requires_a_vault_dir( self ) -> None:
+        request = make_request()
+        del request[ "vault_dir" ]
+
+        with pytest.raises( ValidationError ):
+            LinkRequest.model_validate( request )
+
+    @pytest.mark.parametrize( "vault_dir", [ "a", "naresh", "my-vault-2", "a" * 40 ] )
+    def test_accepts_a_vault_folder_name( self, vault_dir: str ) -> None:
+        assert LinkRequest.model_validate( make_request( vault_dir = vault_dir ) ).vault_dir == vault_dir
+
+    @pytest.mark.parametrize(
+        "vault_dir",
+        [ "", "..", "../x", "a/b", "/abs", "UPPER", "has space", ".hidden", "-lead", "trail-", "a" * 41 ]
+    )
+    def test_rejects_anything_that_is_not_a_vault_folder_name( self, vault_dir: str ) -> None:
+        with pytest.raises( ValidationError ):
+            LinkRequest.model_validate( make_request( vault_dir = vault_dir ) )
 
 class TestLinkSuggestion:
     def test_accepts_every_kind( self ) -> None:

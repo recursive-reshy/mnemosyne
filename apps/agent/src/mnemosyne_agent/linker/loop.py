@@ -1,4 +1,5 @@
 import asyncio
+from pathlib import Path
 
 from pydantic import BaseModel, ValidationError
 
@@ -25,6 +26,7 @@ from mnemosyne_agent.linker.instructions import build_instructions
 from mnemosyne_agent.linker.tools import SubmitSuggestions, ToolResult, build_tool_definitions, run_vault_tool
 from mnemosyne_agent.vault.links import collect_link_targets
 from mnemosyne_agent.vault.notes import list_all_notes
+from mnemosyne_agent.vault.paths import vault_for
 
 SUBMIT_TOOL_NAME = "submit_suggestions"
 
@@ -47,7 +49,13 @@ def describe_validation_errors( error: ValidationError ) -> str:
 
     return f"Invalid suggestions ({error.error_count()} errors): {'; '.join( details )}"
 
-async def converse( request: LinkRequest, settings: Settings, claude: ClaudeClient, state: RunState ) -> LinkResponse:
+async def converse(
+    request: LinkRequest,
+    settings: Settings,
+    claude: ClaudeClient,
+    state: RunState,
+    vault: Path
+) -> LinkResponse:
     system_text = build_instructions( settings.max_suggestions )
 
     if request.guidance.strip():
@@ -135,8 +143,8 @@ async def converse( request: LinkRequest, settings: Settings, claude: ClaudeClie
             suggestions = apply_checks(
                 submitted.suggestions,
                 note,
-                list_all_notes( settings.vault_path ),
-                collect_link_targets( settings.vault_path ),
+                list_all_notes( vault ),
+                collect_link_targets( vault ),
                 settings
             )
 
@@ -157,7 +165,7 @@ async def converse( request: LinkRequest, settings: Settings, claude: ClaudeClie
                 )
 
             state.tool_calls += 1
-            result: ToolResult = run_vault_tool( tool_use.name, tool_use.input, settings )
+            result: ToolResult = run_vault_tool( tool_use.name, tool_use.input, settings, vault )
             results.append(
                 ToolResultBlock( tool_use_id = tool_use.id, content = result.content, is_error = result.is_error )
             )
@@ -165,10 +173,11 @@ async def converse( request: LinkRequest, settings: Settings, claude: ClaudeClie
         messages.append( Message( role = "user", content = [ *results ] ) )
 
 async def run_linker( request: LinkRequest, settings: Settings, claude: ClaudeClient ) -> LinkResponse:
+    vault = vault_for( settings, request.vault_dir )
     state = RunState()
 
     try:
         async with asyncio.timeout( settings.run_timeout_seconds ):
-            return await converse( request, settings, claude, state )
+            return await converse( request, settings, claude, state, vault )
     except TimeoutError:
         return build_failure( f"Timed out after {settings.run_timeout_seconds} s", state )

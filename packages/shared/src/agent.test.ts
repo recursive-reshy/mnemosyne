@@ -64,7 +64,7 @@ describe( 'LinkNote', () => {
 } )
 
 describe( 'LinkRequest', () => {
-  const request = { note, model: 'm', guidance: '' }
+  const request = { note, vault_dir: 'naresh', model: 'm', guidance: '' }
 
   it( 'accepts a valid request', () => {
     expect( accepts( LinkRequest, request ) ).toBe( true )
@@ -82,6 +82,36 @@ describe( 'LinkRequest', () => {
   it( 'validates the nested note', () => {
     expect( accepts( LinkRequest, { ...request, note: { ...note, body: '' } } ) ).toBe( false )
   } )
+
+  it( 'requires a vault_dir', () => {
+    expect( accepts( LinkRequest, { note, model: 'm', guidance: '' } ) ).toBe( false )
+  } )
+
+  it.each( [ 'a', 'naresh', 'my-vault-2', 'a'.repeat( 40 ) ] )(
+    'accepts the vault folder name %s',
+    ( vault_dir ) => {
+      expect( accepts( LinkRequest, { ...request, vault_dir } ) ).toBe( true )
+    },
+  )
+
+  it.each( [
+    '',
+    '..',
+    '../x',
+    'a/b',
+    '/abs',
+    'UPPER',
+    'has space',
+    '.hidden',
+    '-lead',
+    'trail-',
+    'a'.repeat( 41 ),
+  ] )(
+    'rejects %j as a vault folder name',
+    ( vault_dir ) => {
+      expect( accepts( LinkRequest, { ...request, vault_dir } ) ).toBe( false )
+    },
+  )
 } )
 
 describe( 'LinkSuggestion', () => {

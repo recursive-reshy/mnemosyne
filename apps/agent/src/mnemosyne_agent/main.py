@@ -22,6 +22,7 @@ from mnemosyne_agent.contract.link import (
 from mnemosyne_agent.linker.instructions import build_instructions
 from mnemosyne_agent.linker.loop import run_linker
 from mnemosyne_agent.logging_setup import configure_logging, job_id_var
+from mnemosyne_agent.vault.paths import UnknownVaultError
 
 logger = logging.getLogger( "mnemosyne_agent" )
 
@@ -86,7 +87,7 @@ def create_app( settings: Settings, claude: ClaudeClient ) -> FastAPI:
     @app.get( "/health" )
     def read_health() -> JSONResponse:
         try:
-            next( settings.vault_path.iterdir(), None )
+            next( settings.vaults_root.iterdir(), None )
         except OSError:
             return JSONResponse( status_code = 503, content = { "status": "error", "vault": "unreadable" } )
 
@@ -98,9 +99,13 @@ def create_app( settings: Settings, claude: ClaudeClient ) -> FastAPI:
     def read_instructions() -> InstructionsResponse:
         return InstructionsResponse( instructions = build_instructions( settings.max_suggestions ) )
 
-    @v1.post( "/link" )
-    async def create_links( link_request: LinkRequest, request: Request ) -> LinkResponse:
-        link_response = await run_linker( link_request, settings, claude )
+    @v1.post( "/link", response_model = LinkResponse )
+    async def create_links( link_request: LinkRequest, request: Request ) -> LinkResponse | JSONResponse:
+        try:
+            link_response = await run_linker( link_request, settings, claude )
+        except UnknownVaultError:
+            return JSONResponse( status_code = 422, content = { "error": "unknown_vault" } )
+
         request.state.link_response = link_response
 
         return link_response

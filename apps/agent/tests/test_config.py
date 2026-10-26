@@ -7,7 +7,7 @@ from mnemosyne_agent.config import ConfigError, load_settings
 SECRET = "s" * 32
 
 def make_environ( vault: Path, **overrides: str ) -> dict[ str, str ]:
-    environ = { "ANTHROPIC_API_KEY": "sk-test-key", "AGENT_SECRET": SECRET, "VAULT_PATH": str( vault ) }
+    environ = { "ANTHROPIC_API_KEY": "sk-test-key", "AGENT_SECRET": SECRET, "VAULTS_ROOT": str( vault ) }
     return { **environ, **overrides }
 
 def test_reads_the_required_variables( fixture_vault: Path ) -> None:
@@ -15,7 +15,7 @@ def test_reads_the_required_variables( fixture_vault: Path ) -> None:
 
     assert settings.anthropic_api_key == "sk-test-key"
     assert settings.agent_secret == SECRET
-    assert settings.vault_path == fixture_vault
+    assert settings.vaults_root == fixture_vault
 
 def test_limits_have_the_documented_defaults( fixture_vault: Path ) -> None:
     settings = load_settings( make_environ( fixture_vault ) )
@@ -52,16 +52,23 @@ def test_a_short_secret_names_the_variable_and_does_not_echo_it( fixture_vault: 
     assert "at least 32 characters" in str( error.value )
     assert "too-short" not in str( error.value )
 
-def test_a_missing_vault_path_names_the_variable( fixture_vault: Path ) -> None:
+def test_a_missing_vaults_root_names_the_variable( fixture_vault: Path ) -> None:
     environ = make_environ( fixture_vault )
-    del environ[ "VAULT_PATH" ]
+    del environ[ "VAULTS_ROOT" ]
 
-    with pytest.raises( ConfigError, match = "VAULT_PATH" ):
+    with pytest.raises( ConfigError, match = "VAULTS_ROOT" ):
         load_settings( environ )
 
-def test_a_vault_path_that_is_not_a_directory_names_the_variable( tmp_path: Path ) -> None:
-    with pytest.raises( ConfigError, match = "VAULT_PATH" ):
+def test_a_vaults_root_that_is_not_a_directory_names_the_variable( tmp_path: Path ) -> None:
+    with pytest.raises( ConfigError, match = "VAULTS_ROOT" ):
         load_settings( make_environ( tmp_path / "nope" ) )
+
+def test_the_old_vault_path_variable_is_not_read( fixture_vault: Path ) -> None:
+    environ = make_environ( fixture_vault )
+    del environ[ "VAULTS_ROOT" ]
+
+    with pytest.raises( ConfigError, match = "VAULTS_ROOT" ):
+        load_settings( { **environ, "VAULT_PATH": str( fixture_vault ) } )
 
 def test_an_invalid_limit_names_the_variable( fixture_vault: Path ) -> None:
     with pytest.raises( ConfigError, match = "AGENT_MAX_TURNS" ):
@@ -69,13 +76,13 @@ def test_an_invalid_limit_names_the_variable( fixture_vault: Path ) -> None:
 
 def test_every_problem_is_reported_together( tmp_path: Path ) -> None:
     with pytest.raises( ConfigError ) as error:
-        load_settings( { "AGENT_SECRET": "short", "VAULT_PATH": str( tmp_path / "nope" ) } )
+        load_settings( { "AGENT_SECRET": "short", "VAULTS_ROOT": str( tmp_path / "nope" ) } )
 
     message = str( error.value )
 
     assert "ANTHROPIC_API_KEY" in message
     assert "AGENT_SECRET" in message
-    assert "VAULT_PATH" in message
+    assert "VAULTS_ROOT" in message
 
 @pytest.mark.parametrize( "name", [ "fatal", "error", "warn", "info", "debug", "trace", "silent" ] )
 def test_log_level_accepts_the_server_names( fixture_vault: Path, name: str ) -> None:

@@ -4,6 +4,8 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+from mnemosyne_agent.config import Settings
+
 class NotePathOutcome( StrEnum ):
     OK = "ok"
     OUTSIDE_VAULT = "outside_vault"
@@ -15,6 +17,23 @@ class ResolvedNote( BaseModel ):
     outcome: NotePathOutcome
     reason: str | None = None
     path: Path | None = None
+
+class UnknownVaultError( Exception ):
+    pass
+
+def vault_for( settings: Settings, vault_dir: str ) -> Path:
+    root = settings.vaults_root.resolve()
+    candidate = root / vault_dir
+
+    try:
+        vault = candidate.resolve( strict = True )
+    except OSError as error:
+        raise UnknownVaultError( f"No vault folder '{vault_dir}'" ) from error
+
+    if candidate.is_symlink() or vault.parent != root or not vault.is_dir():
+        raise UnknownVaultError( f"'{vault_dir}' is not a vault folder" )
+
+    return vault
 
 def resolve_note( root: Path, relative: str ) -> ResolvedNote:
     vault_root = root.resolve()

@@ -23,12 +23,12 @@ def test_health_is_ok_without_auth( settings: Settings, app_factory: Callable[ [
     assert response.status_code == 200
     assert response.json() == { "status": "ok", "vault": "readable" }
 
-def test_health_is_unavailable_when_the_vault_cannot_be_listed(
+def test_health_is_unavailable_when_the_vaults_root_cannot_be_listed(
     settings: Settings,
     app_factory: Callable[ [ Settings ], FastAPI ]
 ) -> None:
     client = TestClient( app_factory( settings ) )
-    shutil.rmtree( settings.vault_path )
+    shutil.rmtree( settings.vaults_root )
 
     response = client.get( "/health" )
 
@@ -100,7 +100,7 @@ def test_logs_one_line_per_request_without_secrets_or_content(
         assert forbidden not in caplog.text
 
 def test_importing_main_does_not_read_the_environment( monkeypatch: pytest.MonkeyPatch ) -> None:
-    for name in [ "ANTHROPIC_API_KEY", "AGENT_SECRET", "VAULT_PATH" ]:
+    for name in [ "ANTHROPIC_API_KEY", "AGENT_SECRET", "VAULTS_ROOT" ]:
         monkeypatch.delenv( name, raising = False )
 
     reloaded = importlib.reload( main )
@@ -114,7 +114,7 @@ def test_the_module_level_app_is_built_from_the_environment(
 ) -> None:
     monkeypatch.setenv( "ANTHROPIC_API_KEY", "sk-test-key" )
     monkeypatch.setenv( "AGENT_SECRET", "s" * 32 )
-    monkeypatch.setenv( "VAULT_PATH", str( fixture_vault ) )
+    monkeypatch.setenv( "VAULTS_ROOT", str( fixture_vault ) )
 
     assert TestClient( main.app ).get( "/health" ).status_code == 200
 
@@ -124,7 +124,7 @@ def test_the_module_level_app_uses_the_anthropic_client(
 ) -> None:
     monkeypatch.setenv( "ANTHROPIC_API_KEY", "sk-test-key" )
     monkeypatch.setenv( "AGENT_SECRET", "s" * 32 )
-    monkeypatch.setenv( "VAULT_PATH", str( fixture_vault ) )
+    monkeypatch.setenv( "VAULTS_ROOT", str( fixture_vault ) )
 
     assert isinstance( main.app.state.claude, AnthropicClaude )
 

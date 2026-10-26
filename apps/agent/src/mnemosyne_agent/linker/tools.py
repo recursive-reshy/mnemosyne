@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -63,8 +64,7 @@ def build_tool_definitions() -> list[ ToolDefinition ]:
         )
     ]
 
-def run_vault_tool( name: str, arguments: dict[ str, Any ], settings: Settings ) -> ToolResult:
-    root = settings.vault_path
+def run_vault_tool( name: str, arguments: dict[ str, Any ], settings: Settings, root: Path ) -> ToolResult:
 
     if name == "list_notes":
         return ToolResult( content = list_notes( root, settings.list_notes_limit ).model_dump_json() )

@@ -18,8 +18,11 @@ class LinkNote( BaseModel ):
     folder: str | None
     body: str = Field( min_length = 1, max_length = 200_000 )
 
+VAULT_DIR_PATTERN = r"^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$"
+
 class LinkRequest( BaseModel ):
     note: LinkNote
+    vault_dir: str = Field( pattern = VAULT_DIR_PATTERN )
     model: str = Field( min_length = 1 )
     guidance: str = Field( max_length = 20_000 )
 

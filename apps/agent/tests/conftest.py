@@ -21,14 +21,18 @@ def fixture_vault() -> Path:
     return FIXTURE_VAULT
 
 @pytest.fixture
-def vault_copy( tmp_path: Path ) -> Path:
-    vault = tmp_path / "vault"
+def vault_dir() -> str:
+    return "vault"
+
+@pytest.fixture
+def vault_copy( tmp_path: Path, vault_dir: str ) -> Path:
+    vault = tmp_path / vault_dir
     shutil.copytree( FIXTURE_VAULT, vault )
     return vault
 
 @pytest.fixture
 def settings( vault_copy: Path ) -> Settings:
-    return Settings( anthropic_api_key = "test-api-key", agent_secret = "s" * 32, vault_path = vault_copy )
+    return Settings( anthropic_api_key = "test-api-key", agent_secret = "s" * 32, vaults_root = vault_copy.parent )
 
 @pytest.fixture
 def auth_headers( settings: Settings ) -> dict[ str, str ]:

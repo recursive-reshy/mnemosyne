@@ -3,6 +3,8 @@ import type { LinkResponse } from '@mnemosyne/shared'
 import { parseNote } from '@mnemosyne/shared'
 // Clients
 import { requestLinks } from '../clients/agent.client.js'
+// Repositories
+import { findUserById } from '../repositories/users.repository.js'
 // Services
 import {
   completeLinking,
@@ -23,6 +25,12 @@ export const linkJob = async ( userId: string, jobId: string ): Promise< void > 
       throw new Error( 'The job has no note to link' )
     }
 
+    const vaultDir = findUserById( userId )?.vault_dir
+
+    if( vaultDir === null || vaultDir === undefined ) {
+      throw new Error( 'Choose a vault first' )
+    }
+
     const { properties, body } = parseNote( job.note_markdown )
     const { version } = resolveLinkerPrompt( userId )
     const model = await resolveLinkingModel( userId )
@@ -37,6 +45,7 @@ export const linkJob = async ( userId: string, jobId: string ): Promise< void > 
           folder: job.target_folder ?? defaultFolderFor( userId, job ),
           body,
         },
+        vault_dir: vaultDir,
         model,
         guidance: version.guidance,
       } )

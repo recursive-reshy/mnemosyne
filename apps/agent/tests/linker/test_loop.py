@@ -9,6 +9,7 @@ from mnemosyne_agent.config import Settings
 from mnemosyne_agent.contract.link import LinkNote, LinkOutcome, LinkRequest, LinkResponse
 from mnemosyne_agent.linker.instructions import build_instructions
 from mnemosyne_agent.linker.loop import run_linker
+from mnemosyne_agent.vault.paths import UnknownVaultError
 from tests.fakes import ScriptedClaude, submit_reply, text_reply, tool_reply
 
 pytestmark = pytest.mark.anyio
@@ -21,7 +22,7 @@ def make_request( guidance: str = "Prefer a few strong links." ) -> LinkRequest:
         body = "Usage-based pricing aligns cost with value."
     )
 
-    return LinkRequest( note = note, model = "model-under-test", guidance = guidance )
+    return LinkRequest( note = note, vault_dir = "vault", model = "model-under-test", guidance = guidance )
 
 def good_suggestion( target: str = "Pricing Playbook" ) -> dict[ str, Any ]:
     return { "target": target, "anchor": "Usage-based pricing", "reason": "Same topic." }
@@ -256,8 +257,8 @@ async def test_only_the_submit_is_acted_on_when_it_comes_with_other_tool_calls( 
     assert response.outcome == LinkOutcome.LINKED
     assert response.usage.tool_calls == 1
 
-async def test_never_writes_to_the_vault( settings: Settings ) -> None:
-    before = snapshot( settings.vault_path )
+async def test_never_writes_to_the_vault( settings: Settings, vault_copy: Path ) -> None:
+    before = snapshot( vault_copy )
     claude = ScriptedClaude(
         [
             tool_reply( ( "list_notes", {} ), ( "read_note", { "path": "Index.md" } ), ( "read_note", { "path": "../x.md" } ) ),
@@ -267,7 +268,7 @@ async def test_never_writes_to_the_vault( settings: Settings ) -> None:
 
     await run_linker( make_request(), settings, claude )
 
-    assert snapshot( settings.vault_path ) == before
+    assert snapshot( vault_copy ) == before
 
 async def test_every_response_is_a_valid_link_response( settings: Settings ) -> None:
     claude = ScriptedClaude( [ submit_reply( [ good_suggestion() ] ) ] )
@@ -306,3 +307,31 @@ async def test_caps_and_deduplicates_the_submitted_suggestions( settings: Settin
     response = await run_linker( make_request(), limited, claude )
 
     assert [ suggestion.target for suggestion in response.suggestions ] == [ "A", "B" ]
+
+async def test_the_tools_and_checks_read_only_the_requested_vault( settings: Settings, vault_copy: Path ) -> None:
+    other = vault_copy.parent / "other"
+    other.mkdir()
+    ( other / "Only Here.md" ).write_text( "# Only Here\n\nSecret of the other vault.\n" )
+    claude = ScriptedClaude(
+        [
+            tool_reply( ( "list_notes", {} ) ),
+            submit_reply( [ { "target": "Only Here", "anchor": None, "reason": "Mentioned." } ] )
+        ]
+    )
+    request = make_request().model_copy( update = { "vault_dir": "other" } )
+
+    response = await run_linker( request, settings, claude )
+    listing = last_tool_results( claude.requests[ 1 ] )[ 0 ].content
+
+    assert "Only Here" in listing
+    assert "Pricing Playbook" not in listing
+    assert response.suggestions[ 0 ].kind.value == "existing_note"
+
+async def test_an_unknown_vault_is_refused_before_claude_is_called( settings: Settings ) -> None:
+    claude = ScriptedClaude( [] )
+    request = make_request().model_copy( update = { "vault_dir": "missing" } )
+
+    with pytest.raises( UnknownVaultError ):
+        await run_linker( request, settings, claude )
+
+    assert claude.requests == []

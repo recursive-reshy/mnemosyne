@@ -1,5 +1,7 @@
 // Packages
 import { z } from 'zod'
+// Shared
+import { VaultDir } from './auth.js'
 
 export const LinkNote = z.object( {
   title: z.string().min( 1 ).max( 300 ),
@@ -11,6 +13,7 @@ export type LinkNote = z.infer< typeof LinkNote >
 
 export const LinkRequest = z.object( {
   note: LinkNote,
+  vault_dir: VaultDir,
   model: z.string().min( 1 ),
   guidance: z.string().max( 20_000 ),
 } )

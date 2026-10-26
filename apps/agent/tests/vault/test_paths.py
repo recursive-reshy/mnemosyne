@@ -1,6 +1,15 @@
 from pathlib import Path
 
-from mnemosyne_agent.vault.paths import NotePathOutcome, iter_note_paths, resolve_note
+import pytest
+
+from mnemosyne_agent.config import Settings
+from mnemosyne_agent.vault.paths import (
+    NotePathOutcome,
+    UnknownVaultError,
+    iter_note_paths,
+    resolve_note,
+    vault_for
+)
 
 def test_resolves_a_note_inside_the_vault( fixture_vault: Path ) -> None:
     resolved = resolve_note( fixture_vault, "Ideas/Pricing Playbook.md" )
@@ -92,3 +101,37 @@ def test_listing_leaves_out_symlinks_that_leave_the_vault( vault_copy: Path, tmp
 
     assert "Note.md" not in names
     assert "Link.md" not in names
+
+def test_vault_for_resolves_a_folder_in_the_vaults_root( settings: Settings, vault_copy: Path, vault_dir: str ) -> None:
+    assert vault_for( settings, vault_dir ) == vault_copy.resolve()
+
+def test_vault_for_tells_two_vaults_apart( settings: Settings, vault_copy: Path ) -> None:
+    other = vault_copy.parent / "other"
+    other.mkdir()
+
+    assert vault_for( settings, "other" ) == other.resolve()
+    assert vault_for( settings, "other" ) != vault_for( settings, vault_copy.name )
+
+@pytest.mark.parametrize( "name", [ "missing", "", "..", "../vault", "vault/..", "/etc", "vault/Ideas" ] )
+def test_vault_for_refuses_a_name_that_is_not_a_vault_folder( settings: Settings, name: str ) -> None:
+    with pytest.raises( UnknownVaultError ):
+        vault_for( settings, name )
+
+def test_vault_for_refuses_a_file( settings: Settings ) -> None:
+    ( settings.vaults_root / "file" ).write_text( "x" )
+
+    with pytest.raises( UnknownVaultError ):
+        vault_for( settings, "file" )
+
+def test_vault_for_refuses_a_symlink_to_a_folder_outside_the_root( settings: Settings, tmp_path_factory: pytest.TempPathFactory ) -> None:
+    outside = tmp_path_factory.mktemp( "outside" )
+    ( settings.vaults_root / "escape" ).symlink_to( outside, target_is_directory = True )
+
+    with pytest.raises( UnknownVaultError ):
+        vault_for( settings, "escape" )
+
+def test_vault_for_refuses_a_symlink_to_another_vault_inside_the_root( settings: Settings, vault_copy: Path ) -> None:
+    ( settings.vaults_root / "alias" ).symlink_to( vault_copy, target_is_directory = True )
+
+    with pytest.raises( UnknownVaultError ):
+        vault_for( settings, "alias" )

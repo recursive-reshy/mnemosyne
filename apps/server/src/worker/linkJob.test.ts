@@ -37,7 +37,7 @@ import { DEFAULT_LINKER_GUIDANCE } from '../summarizer/prompts.js'
 // Worker
 import { linkJob } from './linkJob.js'
 // Test support
-import { defaultTestAdmin, defaultTestVaultPath } from '../test-support/auth.js'
+import { createTestUser, defaultTestAdmin, defaultTestVaultPath } from '../test-support/auth.js'
 
 let userId = ''
 
@@ -79,13 +79,16 @@ const linkedResponse = ( ...targets: string[] ): LinkResponse => ( {
   usage,
 } )
 
-const queueLinking = async ( profile_id?: string ): Promise< string > => {
-  const { id } = await queueJob( userId, { url: source, profile_id } )
+const queueLinking = async (
+  profile_id?: string,
+  owner: string = userId,
+): Promise< string > => {
+  const { id } = await queueJob( owner, { url: source, profile_id } )
 
-  markStatus( userId, id, 'downloading' )
-  markStatus( userId, id, 'converting' )
-  markStatus( userId, id, 'transcribing' )
-  completeAcquisition( userId, id, {
+  markStatus( owner, id, 'downloading' )
+  markStatus( owner, id, 'converting' )
+  markStatus( owner, id, 'transcribing' )
+  completeAcquisition( owner, id, {
     kind: 'video',
     meta: {
       title: 'A talk',
@@ -97,7 +100,7 @@ const queueLinking = async ( profile_id?: string ): Promise< string > => {
     },
     segments: [ { start: 0, end: 5, text: 'Rust has an ownership model.' } ],
   } )
-  completeSummary( userId, id, '## Summary\n\nAbout ownership.', [ 'rust', 'memory' ] )
+  completeSummary( owner, id, '## Summary\n\nAbout ownership.', [ 'rust', 'memory' ] )
 
   return id
 }
@@ -132,8 +135,32 @@ describe( 'linkJob', () => {
         folder: 'Learning/Rust',
         body: expect.stringContaining( 'About ownership.' ) as string,
       },
+      vault_dir: 'vault',
       model: 'claude-haiku-5-5',
       guidance: DEFAULT_LINKER_GUIDANCE,
+    } )
+  } )
+
+  it( 'sends the vault folder of the job\'s owner', async () => {
+    const member = createTestUser( { vault_dir: 'brother' } )
+    const id = await queueLinking( undefined, member.id )
+
+    await linkJob( member.id, id )
+
+    expect( requestLinksMock.mock.calls[ 0 ]?.[ 0 ].vault_dir ).toBe( 'brother' )
+  } )
+
+  it( 'ends in review with a link error, and calls no agent, when no vault is chosen', async () => {
+    const member = createTestUser()
+    const id = await queueLinking( undefined, member.id )
+
+    await linkJob( member.id, id )
+
+    expect( requestLinksMock ).not.toHaveBeenCalled()
+    expect( findJob( member.id, id ) ).toMatchObject( {
+      status: 'ready_for_review',
+      link_state: 'failed',
+      link_error: 'Choose a vault first',
     } )
   } )
 

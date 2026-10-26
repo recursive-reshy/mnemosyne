@@ -37,6 +37,8 @@ REQUIRED_VALID = [
 REQUIRED_INVALID = [
     "link-request-empty-body.json",
     "link-request-no-model.json",
+    "link-request-no-vault-dir.json",
+    "link-request-bad-vault-dir.json",
     "link-response-unknown-kind.json",
     "link-response-failed-no-reason.json",
     "link-response-failed-with-suggestions.json",

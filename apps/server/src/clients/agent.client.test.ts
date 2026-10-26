@@ -31,6 +31,7 @@ vi.mock( '../config.js', () => ( { config: agentConfig } ) )
 
 const request: LinkRequest = {
   note: { title: 'T', tags: [ 'a' ], folder: 'Notes', body: 'Body about pricing.' },
+  vault_dir: 'naresh',
   model: 'claude-haiku-5-5',
   guidance: 'Link well.',
 }
@@ -173,6 +174,13 @@ describe( 'requestLinks', () => {
 
     expect( ( await rejection( () => requestLinks( request ) ) ).message )
       .toBe( 'Agent service returned an invalid response' )
+  } )
+
+  it( 'says the vault was not found when the agent answers 422', async () => {
+    fetchMock.mockResolvedValue( json( { error: 'unknown_vault' }, 422 ) )
+
+    expect( ( await rejection( () => requestLinks( request ) ) ).message )
+      .toBe( 'The agent service could not find your vault' )
   } )
 
   it( 'never puts the secret in an error message', async () => {
