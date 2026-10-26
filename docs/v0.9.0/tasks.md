@@ -64,7 +64,7 @@ Each task adds `user_id` to its tables in the baseline (TRD §3.2), threads `use
 | 4.6 | `requireModule` (TRD §5.3) on every module route, prompt-profile and settings filtering by module; the schema guard's unconverted list is now empty and the test asserts it; signature guard green | 0062, 0068 | ✅ |
 
 ## Checkpoint D: Phase 5 (vaults, agent and loops)
-**Plan:** ⬜ [`plans/checkpoint-d.md`](plans/checkpoint-d.md)
+**Plan:** ✅ [`plans/checkpoint-d.md`](plans/checkpoint-d.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
