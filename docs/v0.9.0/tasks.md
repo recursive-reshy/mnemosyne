@@ -49,7 +49,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | 3.6 | `auth.routes.ts` and `auth.service.ts`: google, callback (all TRD §11.1 cases, first-admin creation with `seedUser`), signout; `GET /api/me`; middleware order in `app.ts`; `test-support/auth.ts` and every existing route test switched to it | 0061, 0068 | ✅ |
 
 ## Checkpoint C: Phase 4 (ownership)
-**Plan:** ⬜ [`plans/checkpoint-c.md`](plans/checkpoint-c.md)
+**Plan:** ✅ [`plans/checkpoint-c.md`](plans/checkpoint-c.md)
 
 Each task adds `user_id` to its tables in the baseline (TRD §3.2), threads `userId` through repositories, services and controllers (§5.1), adds two-user repository and route isolation tests (§11.1), and removes its tables from the schema guard's unconverted list.
 
