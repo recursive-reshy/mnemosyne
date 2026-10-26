@@ -45,7 +45,7 @@ import {
 // Logging
 import { logger } from '../logger.js'
 // Test support
-import { defaultTestAdmin } from '../test-support/auth.js'
+import { createTestUser, defaultTestAdmin } from '../test-support/auth.js'
 
 let userId = ''
 
@@ -497,5 +497,56 @@ describe( 'the Melete profiles', () => {
 
     expect( resolvePrompt( userId, gradingId() ).profile.id ).toBe( defaultId() )
     expect( error ).toHaveBeenCalled()
+  } )
+} )
+
+describe( 'profiles by module', () => {
+  const purposes = ( id: string ): string[] => {
+    return [ ...new Set( listProfiles( id, 'all' ).map( ( { purpose } ) => purpose ) ) ]
+  }
+
+  it( 'lists the purposes of the user\'s modules only', () => {
+    const transcriber = createTestUser( { modules: [ 'transcriber' ] } ).id
+    const melete = createTestUser( { modules: [ 'melete' ] } ).id
+    const nothing = createTestUser( { modules: [] } ).id
+
+    expect( purposes( transcriber ) ).toEqual( [ 'summary', 'linker' ] )
+    expect( purposes( melete ) ).toEqual( [ 'melete_questions', 'melete_grading' ] )
+    expect( purposes( nothing ) ).toEqual( [] )
+    expect( purposes( userId ) )
+      .toEqual( [ 'summary', 'linker', 'melete_questions', 'melete_grading' ] )
+  } )
+
+  it( 'lists nothing for a purpose the user\'s modules do not cover', () => {
+    const melete = createTestUser( { modules: [ 'melete' ] } ).id
+
+    expect( listProfiles( melete, 'summary' ) ).toEqual( [] )
+    expect( listProfiles( melete, 'linker' ) ).toEqual( [] )
+  } )
+
+  it( 'answers not found for a profile of a module the user does not have', () => {
+    const melete = createTestUser( { modules: [ 'melete' ] } ).id
+    const summary = listProfiles( melete, 'all' ).length
+    const transcriber = createTestUser( { modules: [ 'transcriber' ] } ).id
+    const mine = listProfiles( transcriber, 'summary' )[ 0 ]?.id ?? ''
+
+    expect( summary ).toBe( 2 )
+    expect( () => findProfile( melete, mine ) ).toThrow( NotFoundError )
+    expect( () => findProfile( transcriber, mine ) ).not.toThrow()
+  } )
+
+  it( 'refuses to create a summary profile without the Transcriber module', () => {
+    const melete = createTestUser( { modules: [ 'melete' ] } ).id
+
+    expect( () => createProfile( melete, { name: 'Mine', guidance: 'x' } ) )
+      .toThrow( NotFoundError )
+    expect( purposes( melete ) ).toEqual( [ 'melete_questions', 'melete_grading' ] )
+  } )
+
+  it( 'still resolves a prompt the user\'s own module needs', () => {
+    const melete = createTestUser( { modules: [ 'melete' ] } ).id
+
+    expect( resolveMeletePrompt( melete, 'melete_questions' ).profile.purpose )
+      .toBe( 'melete_questions' )
   } )
 } )

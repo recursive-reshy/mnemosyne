@@ -1,9 +1,11 @@
 // Packages
 import { z } from 'zod'
 // Shared
+import type { ModuleId } from '@mnemosyne/shared'
 import { PromptProfile, PromptPurpose, PromptVersion } from '@mnemosyne/shared'
 // Errors
 import { ConflictError, NotFoundError, ValidationError } from '../errors.js'
+import { modulesFor } from './modules.service.js'
 // Melete
 import {
   DEFAULT_MELETE_GRADING_GUIDANCE,
@@ -57,10 +59,23 @@ const toProfile = ( userId: string, record: ProfileRecord ): PromptProfile => {
   }
 }
 
+// A profile belongs to the module that uses it (TRD §5.3): the summary and linker prompts to
+// Transcriber, the two Melete prompts to Melete
+const PURPOSE_MODULE: Record< PromptPurpose, ModuleId > = {
+  summary: 'transcriber',
+  linker: 'transcriber',
+  melete_questions: 'melete',
+  melete_grading: 'melete',
+}
+
+const allows = ( userId: string, purpose: PromptPurpose ): boolean => {
+  return modulesFor( userId ).includes( PURPOSE_MODULE[ purpose ] )
+}
+
 const requireActive = ( userId: string, id: string ): ProfileRecord => {
   const record = findProfileById( userId, id )
 
-  if( record === undefined || record.deleted_at !== null ) {
+  if( record === undefined || record.deleted_at !== null || !allows( userId, record.purpose ) ) {
     throw new NotFoundError( 'Prompt profile not found' )
   }
 
@@ -83,7 +98,8 @@ export const listProfiles = (
   userId: string,
   purpose: PromptPurpose | 'all' = 'summary',
 ): PromptProfile[] => {
-  const purposes = purpose === 'all' ? PURPOSE_ORDER : [ purpose ]
+  const purposes = ( purpose === 'all' ? PURPOSE_ORDER : [ purpose ] )
+    .filter( ( each ) => allows( userId, each ) )
 
   return purposes.flatMap( ( each ) => {
     return listActiveProfiles( userId, each ).map( ( record ) => toProfile( userId, record ) )
@@ -104,6 +120,10 @@ export const createProfile = (
   userId: string,
   { name, guidance }: { name: string, guidance: string },
 ): PromptProfile => {
+  if( !allows( userId, 'summary' ) ) {
+    throw new NotFoundError( 'Not Found' )
+  }
+
   const id = crypto.randomUUID()
   const result = insertProfile( userId, {
     id,

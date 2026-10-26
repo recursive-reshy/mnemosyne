@@ -18,7 +18,7 @@ import {
   afterEach,
 } from 'vitest'
 // Errors
-import { ValidationError } from '../errors.js'
+import { NotFoundError, ValidationError } from '../errors.js'
 // Repositories
 import { findProfileBySeedKey } from '../repositories/promptProfiles.repository.js'
 import { setAppSetting } from '../repositories/appSettings.repository.js'
@@ -51,7 +51,7 @@ import {
   updateSettings,
 } from './settings.service.js'
 // Test support
-import { defaultTestAdmin } from '../test-support/auth.js'
+import { createTestUser, defaultTestAdmin } from '../test-support/auth.js'
 
 let userId = ''
 
@@ -518,5 +518,44 @@ describe( 'updateSettings', () => {
 
     await expect( updateSettings( userId, true, { default_profile_id: coding } ) )
       .rejects.toThrow( ValidationError )
+  } )
+} )
+
+describe( 'updateSettings by module', () => {
+  it( 'refuses a key of a module the user lacks, saving nothing of the request', async () => {
+    const transcriber = createTestUser( { modules: [ 'transcriber' ] } ).id
+
+    await expect( updateSettings(
+      transcriber,
+      false,
+      { linking_enabled: false, melete_review_mode: 'quick' },
+    ) ).rejects.toThrow( NotFoundError )
+
+    expect( getSetting( transcriber, 'linking_enabled' ) ).toBeUndefined()
+    expect( getSetting( transcriber, 'melete_review_mode' ) ).toBeUndefined()
+  } )
+
+  it( 'refuses a Transcriber key to a user with only Melete', async () => {
+    const melete = createTestUser( { modules: [ 'melete' ] } ).id
+
+    await expect( updateSettings( melete, false, { linking_enabled: false } ) )
+      .rejects.toThrow( NotFoundError )
+    await expect( updateSettings( melete, false, { default_profile_id: crypto.randomUUID() } ) )
+      .rejects.toThrow( NotFoundError )
+  } )
+
+  it( 'accepts the keys of the user\'s own modules', async () => {
+    const both = createTestUser().id
+
+    await updateSettings( both, false, { linking_enabled: false, melete_review_mode: 'quick' } )
+
+    expect( getSetting( both, 'linking_enabled' ) ).toBe( false )
+    expect( getSetting( both, 'melete_review_mode' ) ).toBe( 'quick' )
+  } )
+
+  it( 'lets the admin set any key', async () => {
+    await updateSettings( userId, true, { linking_enabled: false, melete_review_mode: 'quick' } )
+
+    expect( getSetting( userId, 'melete_review_mode' ) ).toBe( 'quick' )
   } )
 } )

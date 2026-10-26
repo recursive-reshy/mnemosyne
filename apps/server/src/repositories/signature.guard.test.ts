@@ -27,13 +27,8 @@ import * as summaryRuns from './summaryRuns.repository.js'
 import * as userModules from './userModules.repository.js'
 
 // Repositories that hold users, sessions or app-wide values, or that read across users for the
-// background loops, take no `userId` (ADR 0062). `system` joins in Checkpoint D.
+// background loops, take no `userId` (ADR 0062)
 const EXEMPT = [ 'system', 'users', 'sessions', 'appSettings' ]
-
-// Data repositories whose functions don't yet take `userId` first. Each Phase 4 task removes its
-// repositories from this list; task 4.6 un-skips the test that needs it empty.
-// Empty since task 4.5; task 4.6 deletes it with the 'has no unconverted' test
-const UNCONVERTED: string[] = []
 
 type AnyFunction = ( ...args: never[] ) => unknown
 
@@ -81,18 +76,10 @@ const offenders = ( name: string ): string[] => {
     .map( ( [ exported ] ) => exported )
 }
 
-const converted = Object.keys( DATA_REPOSITORIES )
-  .filter( ( name ) => !UNCONVERTED.includes( name ) )
-
 describe( 'the repository signature guard', () => {
   it( 'maps every repository file that is not exempt', () => {
     expect( files.filter( ( name ) => !EXEMPT.includes( name ) ).sort() )
       .toEqual( Object.keys( DATA_REPOSITORIES ).sort() )
-  } )
-
-  it( 'lists only mapped repositories, once each', () => {
-    expect( new Set( UNCONVERTED ).size ).toBe( UNCONVERTED.length )
-    expect( UNCONVERTED.filter( ( name ) => !( name in DATA_REPOSITORIES ) ) ).toEqual( [] )
   } )
 
   it( 'reads the first parameter of arrow, async and plain functions', () => {
@@ -106,20 +93,14 @@ describe( 'the repository signature guard', () => {
     expect( firstParameter( ( { userId }: { userId: string } ) => userId ) ).toBeNull()
   } )
 
-  it( 'has userId first in every function of every converted repository', () => {
-    for( const name of converted ) {
+  it( 'has userId first in every function of every data repository', () => {
+    for( const name of Object.keys( DATA_REPOSITORIES ) ) {
       expect( offenders( name ), `${ name }.repository.ts` ).toEqual( [] )
     }
   } )
 
-  it( 'drops a repository from the unconverted list once all its functions take userId', () => {
-    const done = UNCONVERTED.filter( ( name ) => offenders( name ).length === 0 )
-
-    expect( done, 'remove these from UNCONVERTED' ).toEqual( [] )
-  } )
-
-  // Un-skipped by task 4.6, when every data repository takes the owner first.
-  it.skip( 'has no unconverted repositories left', () => {
-    expect( UNCONVERTED ).toEqual( [] )
+  it( 'keeps the exempt repositories to the ones that look across users or hold users', () => {
+    expect( EXEMPT.toSorted() ).toEqual( [ 'appSettings', 'sessions', 'system', 'users' ] )
+    expect( files ).toEqual( expect.arrayContaining( EXEMPT ) )
   } )
 } )

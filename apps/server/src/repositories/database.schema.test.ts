@@ -12,11 +12,6 @@ const USER_TABLES = [ 'users', 'user_modules', 'sessions', 'app_settings' ]
 // app kinds and only for them (ADR 0065).
 const HEALTH_TABLES = [ 'health_status', 'health_errors' ]
 
-// Data tables that don't yet carry `user_id`. Each Phase 4 task removes its tables from this
-// list as it adds the column (ADR 0062); task 4.6 un-skips the test that needs it empty.
-// Empty since task 4.5; task 4.6 deletes it with the 'has no unconverted' test
-const UNCONVERTED: string[] = []
-
 type Column = { name: string, notnull: number }
 type ForeignKey = { table: string, from: string, to: string, on_delete: string }
 
@@ -43,36 +38,30 @@ const cascadesToUsers = ( table: string ): boolean => {
 const dataTables = (): string[] => tables().filter( ( table ) => !USER_TABLES.includes( table ) )
 
 describe( 'the schema guard', () => {
-  it( 'knows only tables that exist', () => {
-    expect( UNCONVERTED.filter( ( table ) => !tables().includes( table ) ) ).toEqual( [] )
+  it( 'knows the data tables: everything but the user and access tables', () => {
+    expect( USER_TABLES.filter( ( table ) => !tables().includes( table ) ) ).toEqual( [] )
+    expect( dataTables().length ).toBeGreaterThan( 0 )
   } )
 
-  it( 'lists each unconverted table once, and every data table is listed or has an owner', () => {
-    expect( new Set( UNCONVERTED ).size ).toBe( UNCONVERTED.length )
-    expect( dataTables().filter( ( table ) => {
-      return !UNCONVERTED.includes( table ) && userIdColumn( table ) === undefined
-    } ) ).toEqual( [] )
-  } )
-
-  it( 'gives users, user_modules and sessions a cascading user_id', () => {
+  it( 'gives user_modules and sessions a cascading user_id', () => {
     for( const table of [ 'user_modules', 'sessions' ] ) {
       expect( userIdColumn( table )?.notnull, table ).toBe( 1 )
       expect( cascadesToUsers( table ), table ).toBe( true )
     }
   } )
 
-  it( 'gives every converted data table a NOT NULL user_id that cascades from users', () => {
-    const converted = dataTables()
-      .filter( ( table ) => !UNCONVERTED.includes( table ) && !HEALTH_TABLES.includes( table ) )
+  it( 'gives every data table a NOT NULL user_id that cascades from users', () => {
+    const owned = dataTables().filter( ( table ) => !HEALTH_TABLES.includes( table ) )
 
-    for( const table of converted ) {
+    for( const table of owned ) {
       expect( userIdColumn( table )?.notnull, `${ table }.user_id NOT NULL` ).toBe( 1 )
       expect( cascadesToUsers( table ), `${ table } cascades from users` ).toBe( true )
     }
   } )
 
-  it( 'gives converted health tables a nullable user_id that is null for app kinds only', () => {
-    for( const table of HEALTH_TABLES.filter( ( name ) => !UNCONVERTED.includes( name ) ) ) {
+  it( 'gives the health tables a nullable user_id that is null for app kinds only', () => {
+    for( const table of HEALTH_TABLES ) {
+      expect( tables(), table ).toContain( table )
       expect( userIdColumn( table )?.notnull, `${ table }.user_id nullable` ).toBe( 0 )
       expect( cascadesToUsers( table ), `${ table } cascades from users` ).toBe( true )
 
@@ -86,14 +75,7 @@ describe( 'the schema guard', () => {
     }
   } )
 
-  it( 'drops a table from the unconverted list once it has user_id', () => {
-    const stale = UNCONVERTED.filter( ( table ) => userIdColumn( table ) !== undefined )
-
-    expect( stale, 'remove these from UNCONVERTED' ).toEqual( [] )
-  } )
-
-  // Un-skipped by task 4.6, when every data table has an owner.
-  it.skip( 'has no unconverted tables left', () => {
-    expect( UNCONVERTED ).toEqual( [] )
+  it( 'finishes Phase 4: no data table is left without an owner', () => {
+    expect( dataTables().filter( ( table ) => userIdColumn( table ) === undefined ) ).toEqual( [] )
   } )
 } )

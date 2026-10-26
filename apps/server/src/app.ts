@@ -8,6 +8,7 @@ import { errorMiddleware, notFoundHandler } from './errors.js'
 import { requireUser } from './middleware/auth.js'
 import { jsonOnly } from './middleware/jsonOnly.js'
 import { requestLog } from './middleware/requestLog.js'
+import { requireModule } from './middleware/requireModule.js'
 // Routes
 import { authRoutes } from './routes/auth.routes.js'
 import { backupsRoutes } from './routes/backups.routes.js'
@@ -35,6 +36,13 @@ app.use( '/api', healthRoutes )
 app.use( '/api', authRoutes )
 app.use( '/api', requireUser )
 app.use( '/api', meRoutes )
+// Each module's routes are refused, as if unknown, to a user without the module (ADR 0068).
+// Settings, models, prompt profiles and status are shared and filter by module themselves.
+app.use(
+  [ '/api/jobs', '/api/feeds', '/api/inbox', '/api/gmail', '/api/vault' ],
+  requireModule( 'transcriber' ),
+)
+app.use( '/api/melete', requireModule( 'melete' ) )
 app.use( '/api', jobsRoutes )
 app.use( '/api', feedsRoutes )
 app.use( '/api', inboxRoutes )

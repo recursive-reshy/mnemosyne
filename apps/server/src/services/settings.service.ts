@@ -8,6 +8,7 @@ import {
   Settings,
   UpdateSettingsBody,
 } from '@mnemosyne/shared'
+import type { ModuleId } from '@mnemosyne/shared'
 // Clients
 import { AgentError, checkHealth, fetchInstructions } from '../clients/agent.client.js'
 import { resolveExistingFolder } from '../clients/vault.client.js'
@@ -31,6 +32,7 @@ import { LOCKED_INSTRUCTIONS_ARTICLE, LOCKED_INSTRUCTIONS_VIDEO } from '../summa
 // Services
 import { assertKnownModel, listModels } from './models.service.js'
 import { NotFoundError } from '../errors.js'
+import { modulesFor } from './modules.service.js'
 import { vaultRootFor } from './vault.service.js'
 import {
   assertActiveProfile,
@@ -167,13 +169,38 @@ export const getSettingsResponse = async ( userId: string ): Promise< GetSetting
   }
 }
 
-// The feed interval is the app's, not a user's: only the admin may set it (ADR 0065)
+// The settings of each module; a user can only change those of the modules they have
+const MODULE_KEYS: Record< ModuleId, ( keyof UpdateSettingsBody )[] > = {
+  transcriber: [
+    'default_model',
+    'extraction_model',
+    'linking_model',
+    'linking_enabled',
+    'default_profile_id',
+    'feed_check_interval_minutes',
+  ],
+  melete: [
+    'melete_learning_root',
+    'melete_question_model',
+    'melete_grading_model',
+    'melete_review_mode',
+  ],
+}
+
+// The feed interval is the app's, not a user's: only the admin may set it (ADR 0065). A request
+// that touches a setting the user may not change is refused whole (a 404), saving nothing.
 export const updateSettings = async (
   userId: string,
   isAdmin: boolean,
   body: UpdateSettingsBody,
 ): Promise< Settings > => {
-  if( body.feed_check_interval_minutes !== undefined && !isAdmin ) {
+  const modules = modulesFor( userId )
+  const refused = ( Object.keys( MODULE_KEYS ) as ModuleId[] )
+    .filter( ( module ) => !modules.includes( module ) )
+    .flatMap( ( module ) => MODULE_KEYS[ module ] )
+
+  if( refused.some( ( key ) => body[ key ] !== undefined )
+    || ( body.feed_check_interval_minutes !== undefined && !isAdmin ) ) {
     throw new NotFoundError( 'Not Found' )
   }
 
