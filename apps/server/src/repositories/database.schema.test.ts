@@ -78,4 +78,24 @@ describe( 'the schema guard', () => {
   it( 'finishes Phase 4: no data table is left without an owner', () => {
     expect( dataTables().filter( ( table ) => userIdColumn( table ) === undefined ) ).toEqual( [] )
   } )
+
+  it( 'keeps a video\'s duration on the job, after its transcript is gone', () => {
+    const columns = getDatabase().pragma( 'table_info(jobs)' ) as Column[]
+
+    expect( columns.map( ( { name } ) => name ) ).toContain( 'duration_seconds' )
+  } )
+
+  it( 'has a usage_events view over the four run tables', () => {
+    const columns = ( getDatabase().pragma( 'table_info(usage_events)' ) as Column[] )
+      .map( ( { name } ) => name )
+
+    expect( columns ).toEqual( [
+      'user_id',
+      'category',
+      'input_tokens',
+      'output_tokens',
+      'cost_usd',
+      'created_at',
+    ] )
+  } )
 } )

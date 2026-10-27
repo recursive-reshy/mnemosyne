@@ -88,8 +88,9 @@ Each significant decision is recorded as a short ADR (Architecture Decision Reco
 | [0064](decisions/0064-shared-background-loops.md) | One background loop of each kind, round-robin by user | Accepted |
 | [0065](decisions/0065-user-and-app-settings.md) | Per-user settings, app settings, per-user seeding, split health | Accepted |
 | [0066](decisions/0066-fresh-baseline-schema.md) | A fresh baseline schema; old databases set aside | Accepted |
-| [0067](decisions/0067-admin-and-usage.md) | Admin routes and a usage rollup | Accepted |
+| [0067](decisions/0067-admin-and-usage.md) | Admin routes and a usage rollup | Accepted (amended by 0069) |
 | [0068](decisions/0068-web-gate-and-module-guards.md) | Web: one gate, module guards, filtered navigation | Accepted |
+| [0069](decisions/0069-job-keeps-video-duration.md) | A job keeps its video's duration | Accepted (amends TRD §3.2, §8.2) |
 
 ## Template for new ADRs
 

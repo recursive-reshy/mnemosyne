@@ -2,7 +2,7 @@
 import type { Request, Response } from 'express'
 // Shared
 import { CreateUserBody, DeleteUserBody, UpdateUserBody } from '@mnemosyne/shared'
-import type { AdminUser } from '@mnemosyne/shared'
+import type { AdminUser, UsageResponse } from '@mnemosyne/shared'
 // Middleware
 import { currentUser } from '../middleware/auth.js'
 // Services
@@ -10,6 +10,7 @@ import {
   changeUser,
   createUser,
   deleteUserAccount,
+  getUsage,
   listAdminUsers,
   resetVault,
 } from '../services/admin.service.js'
@@ -40,4 +41,10 @@ export const removeUser = ( req: Request, res: Response ): void => {
   )
 
   res.status( 204 ).end()
+}
+
+export const getUsageReport = ( { query }: Request, res: Response< UsageResponse > ): void => {
+  const month = typeof query.month === 'string' ? query.month : undefined
+
+  res.status( 200 ).json( getUsage( month, new Date() ) )
 }

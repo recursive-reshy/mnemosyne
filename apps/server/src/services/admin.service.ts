@@ -1,6 +1,15 @@
 // Shared
-import { ModuleId } from '@mnemosyne/shared'
-import type { AdminUser, CreateUserBody, UpdateUserBody } from '@mnemosyne/shared'
+import { ModuleId, UsageCategory } from '@mnemosyne/shared'
+import type {
+  AdminUser,
+  CreateUserBody,
+  UpdateUserBody,
+  UsageResponse,
+  UsageTotals,
+  UserUsage,
+} from '@mnemosyne/shared'
+// Config
+import { config } from '../config.js'
 // Errors
 import { ConflictError, NotFoundError, ValidationError } from '../errors.js'
 // Repositories
@@ -16,6 +25,10 @@ import {
   updateUser,
 } from '../repositories/users.repository.js'
 import type { StoredUser } from '../repositories/users.repository.js'
+import { transcriptionSeconds, usageTotals } from '../repositories/system.repository.js'
+import type { UsageRange, UsageRow } from '../repositories/system.repository.js'
+// Melete
+import { instantAt, wallTime } from '../melete/day.js'
 // Services
 import { seedUser } from './seedUser.service.js'
 
@@ -115,4 +128,75 @@ export const deleteUserAccount = ( adminId: string, id: string, confirm: string 
   }
 
   deleteUser( id )
+}
+
+const MONTH = /^(\d{4})-(0[1-9]|1[0-2])$/
+
+const currentMonth = ( now: Date, timeZone: string ): string => {
+  const { year, month } = wallTime( now.getTime(), timeZone )
+
+  return `${ year }-${ String( month ).padStart( 2, '0' ) }`
+}
+
+// The month's first and next-month's first instants on the zone's clock, as UTC ISO strings
+const monthBounds = ( month: string, timeZone: string ): { from: string, to: string } => {
+  const [ , year, number ] = MONTH.exec( month ) ?? []
+  const start = instantAt( Number( year ), Number( number ), 1, 0, timeZone )
+  const next = instantAt( Number( year ), Number( number ) + 1, 1, 0, timeZone )
+
+  return { from: new Date( start ).toISOString(), to: new Date( next ).toISOString() }
+}
+
+const emptyTotals = (): UsageTotals => ( {
+  input_tokens: 0,
+  output_tokens: 0,
+  cost_usd: null,
+  runs: 0,
+} )
+
+const categoriesOf = ( rows: UsageRow[], userId: string ): UserUsage[ 'month' ] => {
+  const totals = Object.fromEntries(
+    UsageCategory.options.map( ( category ) => [ category, emptyTotals() ] ),
+  ) as UserUsage[ 'month' ]
+
+  for( const { user_id, category, ...sums } of rows ) {
+    if( user_id === userId ) {
+      totals[ category ] = sums
+    }
+  }
+
+  return totals
+}
+
+// Month defaults to the current one on the app's clock; every user appears, idle or removed
+export const getUsage = (
+  month: string | undefined,
+  now: Date,
+  timeZone: string = config.timeZone,
+): UsageResponse => {
+  const chosen = month ?? currentMonth( now, timeZone )
+
+  if( !MONTH.test( chosen ) ) {
+    throw new ValidationError( 'month must look like 2026-10' )
+  }
+
+  const range: UsageRange = monthBounds( chosen, timeZone )
+  const monthRows = usageTotals( range )
+  const allRows = usageTotals( null )
+  const monthSeconds = transcriptionSeconds( range )
+  const allSeconds = transcriptionSeconds( null )
+
+  return {
+    month: chosen,
+    time_zone: timeZone,
+    users: listUsers().map( ( { id } ) => ( {
+      user_id: id,
+      month: categoriesOf( monthRows, id ),
+      all_time: categoriesOf( allRows, id ),
+      transcription: {
+        month_seconds: monthSeconds.get( id ) ?? 0,
+        all_time_seconds: allSeconds.get( id ) ?? 0,
+      },
+    } ) ),
+  }
 }

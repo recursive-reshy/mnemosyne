@@ -159,3 +159,49 @@ export const requeueGenerating = (): number => {
     .prepare( 'UPDATE melete_notes SET generation = \'queued\' WHERE generation = \'generating\'' )
     .run().changes
 }
+
+export type UsageRange = { from: string, to: string } | null
+
+const UsageRow = z.object( {
+  user_id: z.string(),
+  category: z.enum( [ 'summary', 'linking', 'melete', 'extraction' ] ),
+  input_tokens: z.number(),
+  output_tokens: z.number(),
+  cost_usd: z.number().nullable(),
+  runs: z.number(),
+} )
+export type UsageRow = z.infer< typeof UsageRow >
+
+// Admin usage (ADR 0067): counts and sums across every user, never content. A null range is all
+// time; `to` is exclusive. `cost_usd` stays null while no run in the bucket has a cost.
+export const usageTotals = ( range: UsageRange ): UsageRow[] => {
+  return getDatabase()
+    .prepare( `SELECT user_id, category,
+        COALESCE( SUM( input_tokens ), 0 ) AS input_tokens,
+        COALESCE( SUM( output_tokens ), 0 ) AS output_tokens,
+        SUM( cost_usd ) AS cost_usd,
+        COUNT(*) AS runs
+      FROM usage_events
+      WHERE ( @from IS NULL OR created_at >= @from ) AND ( @to IS NULL OR created_at < @to )
+      GROUP BY user_id, category` )
+    .all( { from: range?.from ?? null, to: range?.to ?? null } )
+    .map( ( row ) => UsageRow.parse( row ) )
+}
+
+// Seconds of audio sent for transcription, from the length each video job kept (ADR 0069)
+export const transcriptionSeconds = ( range: UsageRange ): Map< string, number > => {
+  const rows = getDatabase()
+    .prepare( `SELECT user_id, SUM( duration_seconds ) AS seconds
+      FROM jobs
+      WHERE duration_seconds IS NOT NULL
+        AND ( @from IS NULL OR created_at >= @from ) AND ( @to IS NULL OR created_at < @to )
+      GROUP BY user_id` )
+    .all( { from: range?.from ?? null, to: range?.to ?? null } )
+
+  return new Map( rows.map( ( row ) => {
+    const { user_id, seconds } = z.object( { user_id: z.string(), seconds: z.number() } )
+      .parse( row )
+
+    return [ user_id, seconds ]
+  } ) )
+}

@@ -74,7 +74,8 @@ CREATE TABLE jobs (
   feed_id TEXT,
   gmail_source_id TEXT,
   link_state TEXT,
-  link_error TEXT
+  link_error TEXT,
+  duration_seconds INTEGER
 );
 CREATE INDEX jobs_user_status ON jobs ( user_id, status, created_at );
 CREATE INDEX jobs_user_queue ON jobs ( user_id, status );
@@ -390,7 +391,18 @@ CREATE TABLE melete_runs (
   error TEXT,
   created_at TEXT NOT NULL
 );
-CREATE INDEX melete_runs_note ON melete_runs ( note_id, id );`
+CREATE INDEX melete_runs_note ON melete_runs ( note_id, id );
+
+CREATE VIEW usage_events AS
+  SELECT user_id, 'summary' AS category, input_tokens, output_tokens, cost_usd, created_at
+    FROM summary_runs
+  UNION ALL
+  SELECT user_id, 'linking', input_tokens, output_tokens, cost_usd, created_at FROM link_runs
+  UNION ALL
+  SELECT user_id, 'melete', input_tokens, output_tokens, cost_usd, created_at FROM melete_runs
+  UNION ALL
+  SELECT user_id, 'extraction', input_tokens, output_tokens, cost_usd, created_at
+    FROM extraction_runs;`
 
 // Migration N is stored as version SCHEMA_BASE + N; migrations 1–9 became the baseline (ADR 0066).
 export const SCHEMA_BASE = 9

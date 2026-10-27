@@ -3,6 +3,7 @@ import { Router } from 'express'
 // Controllers
 import {
   addUser,
+  getUsageReport,
   getUsers,
   patchUser,
   removeUser,
@@ -16,3 +17,4 @@ adminRoutes.post( '/users', addUser )
 adminRoutes.patch( '/users/:id', patchUser )
 adminRoutes.post( '/users/:id/reset-vault', resetUserVault )
 adminRoutes.delete( '/users/:id', removeUser )
+adminRoutes.get( '/usage', getUsageReport )

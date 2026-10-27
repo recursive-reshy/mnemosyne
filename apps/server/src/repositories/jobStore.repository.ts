@@ -22,11 +22,12 @@ export const insertJob = ( userId: string, job: StoredJob ): void => {
   db.prepare( `INSERT INTO jobs (
       id, user_id, url, status, error, title, source_document, note_markdown, target_folder,
       summary_model, prompt_profile_id, link_state, link_error, source_type, feed_id,
-      gmail_source_id, saved_path, expires_at, created_at, updated_at
+      gmail_source_id, saved_path, expires_at, created_at, updated_at, duration_seconds
     ) VALUES (
       @id, @user_id, @url, @status, @error, @title, @source_document, @note_markdown,
       @target_folder, @summary_model, @prompt_profile_id, @link_state, @link_error,
-      @source_type, @feed_id, @gmail_source_id, @saved_path, @expires_at, @created_at, @updated_at
+      @source_type, @feed_id, @gmail_source_id, @saved_path, @expires_at, @created_at, @updated_at,
+      @duration_seconds
     )` ).run( { ...toRow( job ), user_id: userId } )
 }
 
@@ -58,7 +59,8 @@ export const updateJob = (
       prompt_profile_id = @prompt_profile_id, link_state = @link_state,
       link_error = @link_error, source_type = @source_type,
       feed_id = @feed_id, gmail_source_id = @gmail_source_id, saved_path = @saved_path,
-      expires_at = @expires_at, created_at = @created_at, updated_at = @updated_at
+      expires_at = @expires_at, created_at = @created_at, updated_at = @updated_at,
+      duration_seconds = COALESCE( @duration_seconds, duration_seconds )
     WHERE id = @id AND user_id = @user_id` ).run( { ...toRow( updated ), user_id: userId } )
 
   return updated

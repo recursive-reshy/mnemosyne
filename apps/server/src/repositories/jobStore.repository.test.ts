@@ -83,6 +83,46 @@ describe( 'link fields', () => {
   } )
 } )
 
+describe( 'duration_seconds', () => {
+  const durationOf = ( id: string ): unknown => {
+    return ( getDatabase().prepare( 'SELECT duration_seconds FROM jobs WHERE id = ?' ).get( id ) as
+      { duration_seconds: number | null } ).duration_seconds
+  }
+
+  it( 'is stored with a video transcript and survives the transcript being cleared', () => {
+    const job = buildJob( { source_document: { kind: 'video', ...transcriptFixture } } )
+
+    insertJob( userId, job )
+
+    expect( durationOf( job.id ) ).toBe( transcriptFixture.meta.duration_seconds )
+
+    updateJob( userId, job.id, { source_document: null, status: 'saved' } )
+
+    expect( durationOf( job.id ) ).toBe( transcriptFixture.meta.duration_seconds )
+  } )
+
+  it( 'is stored when the transcript arrives on a later update', () => {
+    const job = buildJob()
+
+    insertJob( userId, job )
+
+    expect( durationOf( job.id ) ).toBeNull()
+
+    updateJob( userId, job.id, { source_document: { kind: 'video', ...transcriptFixture } } )
+
+    expect( durationOf( job.id ) ).toBe( transcriptFixture.meta.duration_seconds )
+  } )
+
+  it( 'stays null for an article', () => {
+    const job = buildJob( { source_type: 'article' } )
+
+    insertJob( userId, job )
+    updateJob( userId, job.id, { title: 'Changed' } )
+
+    expect( durationOf( job.id ) ).toBeNull()
+  } )
+} )
+
 describe( 'insertJob and findJobById', () => {
   it( 'returns an equal job after insert', () => {
     const job = buildJob()

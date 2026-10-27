@@ -10,7 +10,7 @@ import {
   vi,
 } from 'vitest'
 // Shared
-import { AdminUser } from '@mnemosyne/shared'
+import { AdminUser, UsageResponse } from '@mnemosyne/shared'
 // App
 import { app } from '../app.js'
 import { config } from '../config.js'
@@ -76,6 +76,7 @@ describe( 'admin routes: access', () => {
 
     for( const response of [
       await agent.get( '/api/admin/users' ),
+      await agent.get( '/api/admin/usage' ),
       await agent.post( '/api/admin/users' ).send( {} ),
       await agent.patch( `/api/admin/users/${ other.id }` ).send( { name: 'x' } ),
       await agent.post( `/api/admin/users/${ other.id }/reset-vault` ),
@@ -345,5 +346,36 @@ describe( 'DELETE /api/admin/users/:id', () => {
       .send( { confirm: admin.email } ) ).status ).toBe( 409 )
     expect( ( await agent.delete( `/api/admin/users/${ crypto.randomUUID() }` )
       .send( { confirm: 'x' } ) ).status ).toBe( 404 )
+  } )
+} )
+
+describe( 'GET /api/admin/usage', () => {
+  it( 'gives every user\'s totals for the month', async () => {
+    const admin = createTestUser( { role: 'admin' } )
+    const member = createTestUser()
+    const response = await signedInRequest( app, admin ).get( '/api/admin/usage?month=2026-10' )
+    const usage = UsageResponse.parse( response.body )
+
+    expect( response.status ).toBe( 200 )
+    expect( usage.month ).toBe( '2026-10' )
+    expect( usage.time_zone ).toBe( config.timeZone )
+    expect( usage.users.map( ( user ) => user.user_id ) )
+      .toEqual( expect.arrayContaining( [ admin.id, member.id ] ) )
+  } )
+
+  it( 'defaults to the current month', async () => {
+    const admin = createTestUser( { role: 'admin' } )
+    const response = await signedInRequest( app, admin ).get( '/api/admin/usage' )
+
+    expect( response.status ).toBe( 200 )
+    expect( UsageResponse.parse( response.body ).month ).toMatch( /^\d{4}-\d{2}$/ )
+  } )
+
+  it( 'refuses a month that isn\'t YYYY-MM with 400', async () => {
+    const agent = signedInRequest( app, createTestUser( { role: 'admin' } ) )
+
+    for( const month of [ '2026-13', 'abc', '2026-1' ] ) {
+      expect( ( await agent.get( `/api/admin/usage?month=${ month }` ) ).status, month ).toBe( 400 )
+    }
   } )
 } )

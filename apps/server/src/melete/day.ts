@@ -16,7 +16,7 @@ interface WallTime {
 }
 
 // Local time in a zone from Intl parts, so the container's TZ doesn't matter.
-const wallTime = ( instant: number, timeZone: string ): WallTime => {
+export const wallTime = ( instant: number, timeZone: string ): WallTime => {
   const parts = Object.fromEntries(
     new Intl.DateTimeFormat( 'en-GB', {
       timeZone,
@@ -50,7 +50,7 @@ const offsetAt = ( instant: number, timeZone: string ): number => {
 
 // The instant a zone's clock shows `hour`:00 on the given date. An hour that happens twice
 // gives its first occurrence; an hour the clocks skip gives the moment they jump.
-const instantAt = (
+export const instantAt = (
   year: number,
   month: number,
   day: number,

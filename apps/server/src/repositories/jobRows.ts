@@ -67,7 +67,9 @@ export const toOwnedJob = ( raw: unknown ): OwnedJob => {
   return { ...toStoredJob( raw ), user_id: JobRow.parse( raw ).user_id }
 }
 
-export const toRow = ( job: StoredJob ): Record< string, string | null > => {
+// A video's length is kept on the job after its transcript is deleted (ADR 0069); an update
+// without a transcript passes null, which `COALESCE` in the update leaves alone
+export const toRow = ( job: StoredJob ): Record< string, string | number | null > => {
   return {
     id: job.id,
     url: job.url,
@@ -88,5 +90,8 @@ export const toRow = ( job: StoredJob ): Record< string, string | null > => {
     expires_at: job.expires_at,
     created_at: job.created_at,
     updated_at: job.updated_at,
+    duration_seconds: job.source_document?.kind === 'video'
+      ? job.source_document.meta.duration_seconds
+      : null,
   }
 }

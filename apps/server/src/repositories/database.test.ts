@@ -230,6 +230,7 @@ const BASELINE_COLUMNS: Record< string, string[] > = {
     'gmail_source_id',
     'link_state',
     'link_error',
+    'duration_seconds',
   ],
   settings: [
     'user_id',
@@ -575,13 +576,13 @@ describe( 'the baseline schema', () => {
     expect( indexes.sort() ).toEqual( [ ...BASELINE_INDEXES ].sort() )
   } )
 
-  it( 'creates the eligible_users view', () => {
+  it( 'creates the eligible_users and usage_events views', () => {
     const view = getDatabase()
       .prepare( "SELECT name FROM sqlite_master WHERE type = 'view'" )
       .all()
       .map( ( row ) => ( row as { name: string } ).name )
 
-    expect( view ).toEqual( [ 'eligible_users' ] )
+    expect( view ).toEqual( [ 'eligible_users', 'usage_events' ] )
   } )
 
   it( 'seeds nothing itself', () => {
