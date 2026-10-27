@@ -5,13 +5,14 @@ import { config } from './config.js'
 // Errors
 import { errorMiddleware, notFoundHandler } from './errors.js'
 // Middleware
-import { requireUser } from './middleware/auth.js'
+import { requireAdmin, requireUser } from './middleware/auth.js'
 import { jsonOnly } from './middleware/jsonOnly.js'
 import { requestLog } from './middleware/requestLog.js'
 import { requireModule } from './middleware/requireModule.js'
 // Routes
 import { authRoutes } from './routes/auth.routes.js'
 import { backupsRoutes } from './routes/backups.routes.js'
+import { adminRoutes } from './routes/admin.routes.js'
 import { feedsRoutes } from './routes/feeds.routes.js'
 import { gmailRoutes } from './routes/gmail.routes.js'
 import { gmailSourcesRoutes } from './routes/gmailSources.routes.js'
@@ -36,6 +37,7 @@ app.use( '/api', healthRoutes )
 app.use( '/api', authRoutes )
 app.use( '/api', requireUser )
 app.use( '/api', meRoutes )
+app.use( '/api/admin', requireAdmin, adminRoutes )
 // Each module's routes are refused, as if unknown, to a user without the module (ADR 0068).
 // Settings, models, prompt profiles and status are shared and filter by module themselves.
 app.use(
