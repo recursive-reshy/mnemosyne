@@ -75,7 +75,7 @@ Each task adds `user_id` to its tables in the baseline (TRD §3.2), threads `use
 | 5.4 | `system.repository.ts` and the `eligible_users` view (TRD §6.1); worker round-robin, linking without a vault, intake poller, Melete generator, sweeper, service monitor, restart requeue (§6.2); loop tests in §11.1 | 0064 | ✅ |
 
 ## Checkpoint E: Phase 6 (admin and usage)
-**Plan:** ⬜ [`plans/checkpoint-e.md`](plans/checkpoint-e.md)
+**Plan:** ✅ [`plans/checkpoint-e.md`](plans/checkpoint-e.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
