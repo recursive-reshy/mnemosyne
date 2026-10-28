@@ -1,5 +1,6 @@
 // Node
 import {
+  chmod,
   readFile,
   readdir,
   stat,
@@ -17,8 +18,11 @@ import {
 } from 'vitest'
 // Errors
 import { ConflictError, ValidationError } from '../errors.js'
+// Logger
+import { logger } from '../logger.js'
 // Melete
 import { bodyHash, splitFrontMatter } from '../melete/scan.js'
+import { lastSkipped, resetScanOutcome } from '../melete/scanOutcome.js'
 // Repositories
 import { listNotesUnder, setEnrolled, updateNote } from '../repositories/meleteNotes.repository.js'
 import { listForNote } from '../repositories/meleteQuestions.repository.js'
@@ -107,6 +111,7 @@ beforeEach( async () => {
   configMock.vaultsPath = vault.vaultsPath
   setSetting( userId, 'melete_learning_root', 'Learning' )
   resetScanClock()
+  resetScanOutcome()
   vi.mocked( readFile ).mockClear()
 } )
 
@@ -585,5 +590,141 @@ describe( 'scans for two users', () => {
     expect( noteAt( 'Learning/Rust/Moved.md' ).id ).toBe( mine )
     expect( listNotesUnder( other, 'Learning' ).map( ( { path } ) => path ) )
       .toContain( 'Learning/Rust/Ownership.md' )
+  } )
+} )
+
+describe( 'a folder or note that cannot be read', () => {
+  const isRoot = process.getuid?.() === 0
+  const advanced = (): string => join( vault.vaultPath, 'Learning/TypeScript/Advanced' )
+  const rust = (): string => join( vault.vaultPath, 'Learning/Rust' )
+
+  afterEach( async () => {
+    await chmod( advanced(), 0o755 ).catch( () => undefined )
+    await chmod( rust(), 0o755 ).catch( () => undefined )
+  } )
+
+  it.skipIf( isRoot )( 'leaves the notes under it as they were, and updates the rest', async () => {
+    await scan()
+    const conditional = noteAt( 'Learning/TypeScript/Advanced/Conditional Types.md' )
+    enroll( conditional.id )
+    const questionId = addQuestion( userId, conditional.id )
+
+    await vault.write( 'Learning/TypeScript/Generics.md', `${ GENERICS_NOTE }\nMore.\n` )
+    await chmod( advanced(), 0o000 )
+    await scan( 1 )
+
+    const kept = noteAt( 'Learning/TypeScript/Advanced/Conditional Types.md' )
+
+    expect( kept ).toMatchObject( { missing_at: null, enrolled: true } )
+    expect( kept.body_hash ).toBe( conditional.body_hash )
+    expect( listForNote( userId, conditional.id ).map( ( { id } ) => id ) )
+      .toEqual( [ questionId ] )
+    expect( noteAt( 'Learning/TypeScript/Generics.md' ).body_hash )
+      .not.toBe( bodyHash( splitFrontMatter( GENERICS_NOTE ).body ) )
+    expect( lastSkipped( userId ) ).toEqual( [ 'Learning/TypeScript/Advanced' ] )
+  } )
+
+  it.skipIf( isRoot )( 'marks notes missing once the folder is readable again', async () => {
+    await scan()
+    await chmod( advanced(), 0o000 )
+    await scan( 1 )
+    await chmod( advanced(), 0o755 )
+    await vault.remove( 'Learning/TypeScript/Advanced/Conditional Types.md' )
+    await scan( 2 )
+
+    expect( lastSkipped( userId ) ).toEqual( [] )
+    expect( notes().find( ( { path } ) => path.endsWith( 'Conditional Types.md' ) )?.missing_at )
+      .not.toBeNull()
+  } )
+
+  it.skipIf( isRoot )( 'does not treat an unreadable note as moved', async () => {
+    await scan()
+    const conditional = noteAt( 'Learning/TypeScript/Advanced/Conditional Types.md' )
+
+    await chmod( advanced(), 0o000 )
+    await vault.write( 'Learning/Rust/Copy.md', CONDITIONAL_NOTE )
+    await scan( 1 )
+
+    expect( noteAt( 'Learning/Rust/Copy.md' ).id ).not.toBe( conditional.id )
+    expect( noteAt( 'Learning/TypeScript/Advanced/Conditional Types.md' ).id )
+      .toBe( conditional.id )
+  } )
+
+  it.skipIf( isRoot )( 'counts a subject folder it cannot enter as one path', async () => {
+    await scan()
+
+    await chmod( rust(), 0o000 )
+    await scan( 1 )
+
+    expect( lastSkipped( userId ) ).toEqual( [ 'Learning/Rust' ] )
+    expect( noteAt( 'Learning/Rust/Ownership.md' ).missing_at ).toBeNull()
+    expect( notes().filter( ( { path } ) => path.startsWith( 'Learning/TypeScript' ) ) )
+      .toHaveLength( 2 )
+  } )
+
+  it( 'skips a note it cannot read and keeps it as it was', async () => {
+    await scan()
+    const ownership = noteAt( 'Learning/Rust/Ownership.md' )
+
+    await vault.write( 'Learning/Rust/Ownership.md', `${ OWNERSHIP_NOTE }\nBorrowing too.\n` )
+    vi.mocked( readFile ).mockRejectedValueOnce(
+      Object.assign( new Error( 'denied' ), { code: 'EACCES' } ),
+    )
+    await scan( 1 )
+
+    expect( noteAt( 'Learning/Rust/Ownership.md' ).body_hash ).toBe( ownership.body_hash )
+    expect( lastSkipped( userId ) ).toEqual( [ 'Learning/Rust/Ownership.md' ] )
+  } )
+
+  it( 'still fails on any other read error', async () => {
+    await scan()
+    await vault.write( 'Learning/Rust/Ownership.md', `${ OWNERSHIP_NOTE }\nBorrowing too.\n` )
+    vi.mocked( readFile ).mockRejectedValueOnce(
+      Object.assign( new Error( 'io' ), { code: 'EIO' } ),
+    )
+
+    await expect( scan( 1 ) ).rejects.toThrow( 'io' )
+  } )
+
+  it( 'keeps the remembered paths when a fresh scan does not run', async () => {
+    await scan()
+    vi.mocked( readFile ).mockRejectedValueOnce(
+      Object.assign( new Error( 'denied' ), { code: 'EACCES' } ),
+    )
+    await vault.write( 'Learning/Rust/Ownership.md', `${ OWNERSHIP_NOTE }\nMore.\n` )
+    await scan( 1 )
+
+    await scanLearningRoot( userId, { now: at( 2 ) } )
+
+    expect( lastSkipped( userId ) ).toEqual( [ 'Learning/Rust/Ownership.md' ] )
+
+    await scan( 3 )
+
+    expect( lastSkipped( userId ) ).toEqual( [] )
+  } )
+
+  it( 'logs one warning with the paths, and none when nothing was skipped', async () => {
+    const warn = vi.spyOn( logger, 'warn' ).mockImplementation( () => undefined )
+
+    await scan()
+
+    expect( warn ).not.toHaveBeenCalled()
+
+    await vault.write( 'Learning/Rust/Ownership.md', `${ OWNERSHIP_NOTE }\nMore.\n` )
+    vi.mocked( readFile ).mockRejectedValueOnce(
+      Object.assign( new Error( 'denied' ), { code: 'EACCES' } ),
+    )
+    await scan( 1 )
+
+    expect( warn ).toHaveBeenCalledTimes( 1 )
+    expect( warn ).toHaveBeenCalledWith(
+      {
+        user_id: userId,
+        learning_root: 'Learning',
+        skipped_count: 1,
+        skipped: [ 'Learning/Rust/Ownership.md' ],
+      },
+      'Scan skipped paths it could not read',
+    )
   } )
 } )

@@ -1,11 +1,16 @@
 // Node
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
+// Clients
+import { isSkippable } from '../clients/vault.client.js'
 // Errors
 import { ConflictError } from '../errors.js'
+// Logger
+import { logger } from '../logger.js'
 // Melete
 import {
   ScannedFile,
+  SubjectWalk,
   bodyHash,
   listSubjectFolders,
   noteTitle,
@@ -13,6 +18,7 @@ import {
   walkSubject,
 } from '../melete/scan.js'
 import { isScanFresh, markScanned, resetScanClock } from '../melete/scanClock.js'
+import { rememberSkipped } from '../melete/scanOutcome.js'
 // Repositories
 import { getDatabase } from '../repositories/database.js'
 import {
@@ -44,7 +50,7 @@ const readNote = async (
   vaultRoot: string,
   subjectFolder: string,
   file: ScannedFile,
-): Promise< ReadFile | null > => {
+): Promise< ReadFile | 'gone' | 'unreadable' > => {
   try {
     const text = await readFile( join( vaultRoot, file.path ), 'utf8' )
     const { frontMatter, body } = splitFrontMatter( text )
@@ -58,7 +64,11 @@ const readNote = async (
   } catch( error ) {
     // Removed between the walk and the read; the next scan sorts it out
     if( isGone( error ) ) {
-      return null
+      return 'gone'
+    }
+
+    if( isSkippable( error ) ) {
+      return 'unreadable'
     }
 
     throw error
@@ -71,6 +81,7 @@ const applyScan = (
   subjectFolders: string[],
   seen: Set< string >,
   changed: ReadFile[],
+  skipped: string[],
   now: string,
 ): void => {
   const subjects = new Map< string, SubjectRecord >(
@@ -80,6 +91,11 @@ const applyScan = (
   const live = new Map( stored.filter( ( note ) => note.missing_at === null )
     .map( ( note ) => [ note.path, note ] ) )
   const claimed = new Set< string >()
+
+  // A note the scan could not reach says nothing about whether it is still there
+  const underSkipped = ( path: string ): boolean => {
+    return skipped.some( ( folder ) => path === folder || path.startsWith( `${ folder }/` ) )
+  }
 
   const subjectOf = ( file: ReadFile ): SubjectRecord => {
     const subject = subjects.get( file.subjectFolder )
@@ -141,6 +157,7 @@ const applyScan = (
     const candidates = stored.filter( ( note ) => {
       return note.body_hash === file.hash
         && !claimed.has( note.id )
+        && !underSkipped( note.path )
         && ( note.missing_at !== null || !seen.has( note.path ) )
     } )
 
@@ -174,7 +191,7 @@ const applyScan = (
   }
 
   for( const note of live.values() ) {
-    if( !seen.has( note.path ) && !claimed.has( note.id ) ) {
+    if( !seen.has( note.path ) && !claimed.has( note.id ) && !underSkipped( note.path ) ) {
       updateNote( userId, note.id, { missing_at: now } )
     }
   }
@@ -188,9 +205,27 @@ const runScan = async ( userId: string, learningRoot: string, now: Date ): Promi
     .map( ( note ) => [ note.path, note ] ) )
   const seen = new Set< string >()
   const changed: ReadFile[] = []
+  const skipped = new Set< string >()
 
   for( const subjectFolder of subjectFolders ) {
-    for( const file of await walkSubject( vaultRoot, subjectFolder ) ) {
+    let walk: SubjectWalk
+
+    try {
+      walk = await walkSubject( vaultRoot, subjectFolder )
+    } catch( error ) {
+      // The subject's own folder can't be entered: all of it is one skipped path
+      if( !isSkippable( error ) ) {
+        throw error
+      }
+
+      skipped.add( subjectFolder )
+
+      continue
+    }
+
+    walk.skipped.forEach( ( path ) => skipped.add( path ) )
+
+    for( const file of walk.files ) {
       const note = known.get( file.path )
 
       if( note?.mtime_ms === file.mtimeMs && note.size === file.size ) {
@@ -200,16 +235,42 @@ const runScan = async ( userId: string, learningRoot: string, now: Date ): Promi
 
       const read = await readNote( vaultRoot, subjectFolder, file )
 
-      if( read !== null ) {
+      if( read === 'unreadable' ) {
+        skipped.add( file.path )
+      } else if( read !== 'gone' ) {
         seen.add( file.path )
         changed.push( read )
       }
     }
   }
 
+  const skippedPaths = [ ...skipped ].sort()
+
   getDatabase().transaction( () => {
-    applyScan( userId, learningRoot, subjectFolders, seen, changed, now.toISOString() )
+    applyScan(
+      userId,
+      learningRoot,
+      subjectFolders,
+      seen,
+      changed,
+      skippedPaths,
+      now.toISOString(),
+    )
   } )()
+
+  rememberSkipped( userId, skippedPaths )
+
+  if( skippedPaths.length > 0 ) {
+    logger.warn(
+      {
+        user_id: userId,
+        learning_root: learningRoot,
+        skipped_count: skippedPaths.length,
+        skipped: skippedPaths,
+      },
+      'Scan skipped paths it could not read',
+    )
+  }
 
   markScanned( userId, now )
 }

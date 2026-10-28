@@ -1,5 +1,5 @@
 // Node
-import { readdir, symlink } from 'node:fs/promises'
+import { chmod, readdir, symlink } from 'node:fs/promises'
 import { join } from 'node:path'
 // Packages
 import {
@@ -21,6 +21,8 @@ import {
 import { ValidationError } from '../errors.js'
 // Test support
 import { MeleteVault, createMeleteVault } from '../test-support/meleteVault.fixture.js'
+
+const isRoot = process.getuid?.() === 0
 
 describe( 'splitFrontMatter', () => {
   it( 'separates the front-matter from the body', () => {
@@ -132,7 +134,7 @@ describe( 'on a vault', () => {
 
   describe( 'walkSubject', () => {
     it( 'lists the Markdown files of a subject, nested, relative to the vault', async () => {
-      const files = await walkSubject( vault.vaultPath, 'Learning/TypeScript' )
+      const { files } = await walkSubject( vault.vaultPath, 'Learning/TypeScript' )
 
       expect( files.map( ( { path } ) => path ).sort() ).toEqual( [
         'Learning/TypeScript/Advanced/Conditional Types.md',
@@ -141,14 +143,14 @@ describe( 'on a vault', () => {
     } )
 
     it( 'returns the modification time and size of each file', async () => {
-      const [ file ] = await walkSubject( vault.vaultPath, 'Learning/Rust' )
+      const { files: [ file ] } = await walkSubject( vault.vaultPath, 'Learning/Rust' )
 
       expect( file?.size ).toBeGreaterThan( 0 )
       expect( file?.mtimeMs ).toBeGreaterThan( 0 )
     } )
 
     it( 'skips dot-folders, other file types and links that leave the vault', async () => {
-      const paths = ( await walkSubject( vault.vaultPath, 'Learning/TypeScript' ) )
+      const paths = ( await walkSubject( vault.vaultPath, 'Learning/TypeScript' ) ).files
         .map( ( { path } ) => path )
 
       expect( paths.some( ( path ) => path.includes( '.trash' ) ) ).toBe( false )
@@ -163,7 +165,7 @@ describe( 'on a vault', () => {
         join( vault.vaultPath, 'Learning/Rust/Alias.md' ),
       )
 
-      const paths = ( await walkSubject( vault.vaultPath, 'Learning/Rust' ) )
+      const paths = ( await walkSubject( vault.vaultPath, 'Learning/Rust' ) ).files
         .map( ( { path } ) => path )
         .sort()
 
@@ -178,8 +180,52 @@ describe( 'on a vault', () => {
     } )
 
     it( 'accepts exactly the cap', async () => {
-      await expect( walkSubject( vault.vaultPath, 'Learning/TypeScript', 2 ) )
-        .resolves.toHaveLength( 2 )
+      const { files } = await walkSubject( vault.vaultPath, 'Learning/TypeScript', 2 )
+
+      expect( files ).toHaveLength( 2 )
+    } )
+
+    it( 'skips nothing on a readable subject', async () => {
+      const { skipped } = await walkSubject( vault.vaultPath, 'Learning/TypeScript' )
+
+      expect( skipped ).toEqual( [] )
+    } )
+
+    describe( 'with something that cannot be read', () => {
+      const advanced = (): string => join( vault.vaultPath, 'Learning/TypeScript/Advanced' )
+
+      afterEach( async () => {
+        await chmod( advanced(), 0o755 ).catch( () => undefined )
+      } )
+
+      it.skipIf( isRoot )( 'skips an unreadable subdirectory and reads its siblings', async () => {
+        await chmod( advanced(), 0o000 )
+
+        const { files, skipped } = await walkSubject( vault.vaultPath, 'Learning/TypeScript' )
+
+        expect( files.map( ( { path } ) => path ) )
+          .toEqual( [ 'Learning/TypeScript/Generics.md' ] )
+        expect( skipped ).toEqual( [ 'Learning/TypeScript/Advanced' ] )
+      } )
+
+      it.skipIf( isRoot )( 'skips a note it can list but not stat', async () => {
+        // Readable without search permission: the names list, but each stat fails
+        await chmod( advanced(), 0o444 )
+
+        const { files, skipped } = await walkSubject( vault.vaultPath, 'Learning/TypeScript' )
+
+        expect( files.map( ( { path } ) => path ) )
+          .toEqual( [ 'Learning/TypeScript/Generics.md' ] )
+        expect( skipped ).toEqual( [ 'Learning/TypeScript/Advanced/Conditional Types.md' ] )
+      } )
+
+      it.skipIf( isRoot )( 'still throws when the subject folder cannot be entered', async () => {
+        await chmod( join( vault.vaultPath, 'Learning/Rust' ), 0o000 )
+
+        await expect( walkSubject( vault.vaultPath, 'Learning/Rust' ) ).rejects.toThrow( /EACCES/ )
+
+        await chmod( join( vault.vaultPath, 'Learning/Rust' ), 0o755 )
+      } )
     } )
 
     it( 'fails for a subject folder that does not exist', async () => {

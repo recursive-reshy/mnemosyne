@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto'
 import { readdir, realpath, stat } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 // Clients
-import { isInside, resolveExistingFolder } from '../clients/vault.client.js'
+import { isInside, isSkippable, resolveExistingFolder } from '../clients/vault.client.js'
 // Errors
 import { ValidationError } from '../errors.js'
 
@@ -63,14 +63,19 @@ export const bodyHash = ( body: string ): string => {
   return createHash( 'sha256' ).update( normalised ).digest( 'hex' )
 }
 
+export type SubjectWalk = { files: ScannedFile[], skipped: string[] }
+
+// A folder or note that can't be read is reported in `skipped` and left alone; the subject's own
+// folder is the root of the walk, so its errors still throw
 export const walkSubject = async (
   vaultPath: string,
   folder: string,
   maxFiles = MAX_FILES_PER_SCAN,
-): Promise< ScannedFile[] > => {
+): Promise< SubjectWalk > => {
   const start = await resolveExistingFolder( vaultPath, folder )
   const root = await realpath( vaultPath )
   const files: ScannedFile[] = []
+  const skipped: string[] = []
 
   const walk = async ( directory: string, relative: string ): Promise< void > => {
     const entries = await readdir( directory, { withFileTypes: true } )
@@ -84,7 +89,15 @@ export const walkSubject = async (
       const relativePath = `${ relative }/${ entry.name }`
 
       if( entry.isDirectory() ) {
-        await walk( path, relativePath )
+        try {
+          await walk( path, relativePath )
+        } catch( error ) {
+          if( !isSkippable( error ) ) {
+            throw error
+          }
+
+          skipped.push( relativePath )
+        }
       } else if( entry.name.endsWith( '.md' ) && ( entry.isFile() || entry.isSymbolicLink() ) ) {
         // A link counts only when it ends at a file inside the vault
         const target = entry.isSymbolicLink() ? await realpath( path ).catch( () => null ) : path
@@ -93,9 +106,17 @@ export const walkSubject = async (
           continue
         }
 
-        const info = await stat( target )
+        const info = await stat( target ).catch( ( error: unknown ) => {
+          if( !isSkippable( error ) ) {
+            throw error
+          }
 
-        if( !info.isFile() ) {
+          skipped.push( relativePath )
+
+          return null
+        } )
+
+        if( info === null || !info.isFile() ) {
           continue
         }
 
@@ -112,7 +133,7 @@ export const walkSubject = async (
 
   await walk( start, folder )
 
-  return files
+  return { files, skipped }
 }
 
 export const listSubjectFolders = async (
