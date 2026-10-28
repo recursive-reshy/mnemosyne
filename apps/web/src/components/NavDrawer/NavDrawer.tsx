@@ -4,27 +4,25 @@ import type { ReactElement } from 'react'
 import MeleteIcon from '@mui/icons-material/SchoolOutlined'
 import SettingsIcon from '@mui/icons-material/Settings'
 import TranscriberIcon from '@mui/icons-material/GraphicEq'
-import Badge from '@mui/material/Badge'
 import Box from '@mui/material/Box'
 import Divider from '@mui/material/Divider'
 import Drawer from '@mui/material/Drawer'
 import List from '@mui/material/List'
-import ListItem from '@mui/material/ListItem'
-import ListItemButton from '@mui/material/ListItemButton'
-import ListItemIcon from '@mui/material/ListItemIcon'
-import ListItemText from '@mui/material/ListItemText'
 import Toolbar from '@mui/material/Toolbar'
-import Tooltip from '@mui/material/Tooltip'
-import { Link, useLocation } from 'react-router'
+import { useLocation } from 'react-router'
 // App
+import { useMe } from '#src/hooks/useMe'
 import { useStatus } from '#src/hooks/useStatus'
 import { ColorModeControl } from '../ColorModeControl'
+import { NavItem } from '../NavItem'
+import { SignOutItem } from '../SignOutItem'
 
 export const DRAWER_WIDTH = 240
 export const MINI_DRAWER_WIDTH = 64
 
 const NAV_ITEMS = [
   {
+    module: 'transcriber',
     label: 'Transcriber',
     to: '/',
     icon: <TranscriberIcon />,
@@ -33,6 +31,7 @@ const NAV_ITEMS = [
     ),
   },
   {
+    module: 'melete',
     label: 'Melete',
     to: '/melete',
     icon: <MeleteIcon />,
@@ -41,45 +40,6 @@ const NAV_ITEMS = [
     ),
   },
 ] as const
-
-type NavItemProps = {
-  label: string
-  to: string
-  icon: ReactElement
-  isSelected: boolean
-  isMini: boolean
-  onNavigate: ( () => void ) | undefined
-  failingCount?: number
-}
-
-function NavItem(
-  { label, to, icon, isSelected, isMini, onNavigate, failingCount = 0 }: NavItemProps,
-): ReactElement {
-  const name = failingCount === 0 ? label : `${ label }, ${ failingCount } failing`
-
-  return (
-    <ListItem disablePadding>
-      <Tooltip title={ isMini ? name : '' } placement="right">
-        <ListItemButton
-          component={ Link }
-          to={ to }
-          selected={ isSelected }
-          aria-current={ isSelected ? 'page' : undefined }
-          { ...( failingCount === 0 ? {} : { 'aria-label': name } ) }
-          onClick={ onNavigate }
-          sx={ { minHeight: 48, px: 2.5 } }
-        >
-          <ListItemIcon sx={ { minWidth: 0, mr: isMini ? 0 : 2 } }>
-            <Badge badgeContent={ failingCount } color="warning" invisible={ failingCount === 0 }>
-              { icon }
-            </Badge>
-          </ListItemIcon>
-          { !isMini && <ListItemText primary={ label } /> }
-        </ListItemButton>
-      </Tooltip>
-    </ListItem>
-  )
-}
 
 type NavDrawerProps = {
   id: string
@@ -94,6 +54,8 @@ export function NavDrawer(
 ): ReactElement {
   const { pathname } = useLocation()
   const { failingCount } = useStatus()
+  const modules = useMe().me?.modules ?? []
+  const items = NAV_ITEMS.filter( ( { module } ) => modules.includes( module ) )
   const isMini = !isNarrow && !isExpanded
   const width = isMini ? MINI_DRAWER_WIDTH : DRAWER_WIDTH
   const onNavigate = isNarrow ? onClose : undefined
@@ -102,7 +64,7 @@ export function NavDrawer(
     <>
       <Toolbar variant="dense" />
       <List component="nav" aria-label="Main">
-        { NAV_ITEMS.map( ( { label, to, icon, isCurrent } ) => (
+        { items.map( ( { label, to, icon, isCurrent } ) => (
           <NavItem
             key={ to }
             label={ label }
@@ -126,6 +88,7 @@ export function NavDrawer(
             onNavigate={ onNavigate }
             failingCount={ failingCount }
           />
+          <SignOutItem isMini={ isMini } />
         </List>
         <Box sx={ { p: 1 } }>
           <ColorModeControl isCollapsed={ isMini } />

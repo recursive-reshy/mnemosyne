@@ -5,6 +5,7 @@ import type { RouteObject } from 'react-router'
 import { App } from './App'
 import { AuthGate } from './components/AuthGate'
 import { HomePage } from './components/HomePage'
+import { HomeRedirect } from './components/HomeRedirect'
 import { JobPage } from './components/JobPage'
 import { MeleteNote } from './components/MeleteNote'
 import { MeleteReview } from './components/MeleteReview'
@@ -12,6 +13,7 @@ import { MeleteSubject } from './components/MeleteSubject'
 import { MeleteToday } from './components/MeleteToday'
 import { ModelsTab } from './components/ModelsTab'
 import { PromptsTab } from './components/PromptsTab'
+import { RequireModule } from './components/RequireModule'
 import { SettingsIndexRedirect } from './components/SettingsIndexRedirect'
 import { SettingsLayout } from './components/SettingsLayout'
 import { SignInPage } from './components/SignInPage'
@@ -26,12 +28,22 @@ export const routes: RouteObject[] = [
       {
         element: <App />,
         children: [
-          { index: true, element: <HomePage /> },
-          { path: 'jobs/:id', element: <JobPage /> },
-          { path: 'melete', element: <MeleteToday /> },
-          { path: 'melete/subjects/:subjectId', element: <MeleteSubject /> },
-          { path: 'melete/notes/:noteId', element: <MeleteNote /> },
-          { path: 'melete/review', element: <MeleteReview /> },
+          {
+            element: <RequireModule module="transcriber" />,
+            children: [
+              { index: true, element: <HomePage /> },
+              { path: 'jobs/:id', element: <JobPage /> },
+            ],
+          },
+          {
+            element: <RequireModule module="melete" />,
+            children: [
+              { path: 'melete', element: <MeleteToday /> },
+              { path: 'melete/subjects/:subjectId', element: <MeleteSubject /> },
+              { path: 'melete/notes/:noteId', element: <MeleteNote /> },
+              { path: 'melete/review', element: <MeleteReview /> },
+            ],
+          },
           {
             path: 'settings',
             element: <SettingsLayout />,
@@ -44,7 +56,7 @@ export const routes: RouteObject[] = [
               { path: '*', element: <Navigate to="/settings/prompts" replace /> },
             ],
           },
-          { path: '*', element: <Navigate to="/" replace /> },
+          { path: '*', element: <HomeRedirect /> },
         ],
       },
     ],

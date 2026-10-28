@@ -12,15 +12,19 @@ import {
 // App
 import { AppShell } from './AppShell'
 import { getGmailAccount } from '#src/api/gmail.api'
+import { useMe } from '#src/hooks/useMe'
 import { gmailAccountFixture } from '#src/test-support/gmail.fixture'
+import { meFixture } from '#src/test-support/me.fixture'
 import { mockMatchMedia } from '#src/test-support/matchMedia'
 import { renderWithClient } from '#src/test-support/renderWithClient'
 
 vi.mock( '#src/api/gmail.api' )
+vi.mock( '#src/hooks/useMe' )
 
 const hamburger = (): HTMLElement => screen.getByRole( 'button', { name: /navigation$/ } )
 
 beforeEach( () => {
+  vi.mocked( useMe ).mockReturnValue( { me: meFixture(), isLoading: false, error: null } )
   vi.mocked( getGmailAccount ).mockResolvedValue( gmailAccountFixture() )
   window.localStorage.clear()
 } )

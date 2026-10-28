@@ -13,6 +13,10 @@ import {
 import { NavDrawer } from './NavDrawer'
 import { ApiError } from '#src/api/apiError'
 import { getStatus } from '#src/api/status.api'
+import { useMe } from '#src/hooks/useMe'
+import { useSignOut } from '#src/hooks/useSignOut'
+import { meFixture, memberFixture } from '#src/test-support/me.fixture'
+import { mutationStub } from '#src/test-support/mutationStub'
 import { renderWithClient } from '#src/test-support/renderWithClient'
 import {
   failingRowFixture,
@@ -21,10 +25,21 @@ import {
 } from '#src/test-support/status.fixture'
 
 vi.mock( '#src/api/status.api' )
+vi.mock( '#src/hooks/useMe' )
+vi.mock( '#src/hooks/useSignOut' )
 
 const mockedGetStatus = vi.mocked( getStatus )
 
+const signOut = vi.fn()
+
+const signedInAs = ( me = meFixture() ): void => {
+  vi.mocked( useMe ).mockReturnValue( { me, isLoading: false, error: null } )
+}
+
 beforeEach( () => {
+  signOut.mockReset()
+  signedInAs()
+  vi.mocked( useSignOut ).mockReturnValue( mutationStub( { mutate: signOut } ) )
   mockedGetStatus.mockReset()
   mockedGetStatus.mockResolvedValue( statusFixture( [ statusRowFixture() ] ) )
 } )
@@ -308,5 +323,65 @@ describe( 'NavDrawer, failing badge on Settings', () => {
     await vi.waitFor( () => expect( mockedGetStatus ).toHaveBeenCalled() )
     expect( screen.queryByRole( 'link', { name: /failing/ } ) ).not.toBeInTheDocument()
     expect( badgeOf( screen.getByRole( 'link', { name: 'Settings' } ) ) ).toBeNull()
+  } )
+} )
+
+describe( 'NavDrawer, by module', () => {
+  it( 'lists both modules for the admin', () => {
+    renderWithClient( <NavDrawer { ...defaults } /> )
+
+    expect( screen.getByRole( 'link', { name: 'Transcriber' } ) ).toBeInTheDocument()
+    expect( screen.getByRole( 'link', { name: 'Melete' } ) ).toBeInTheDocument()
+  } )
+
+  it( 'lists only Transcriber for a Transcriber-only member', () => {
+    signedInAs( memberFixture( { modules: [ 'transcriber' ] } ) )
+    renderWithClient( <NavDrawer { ...defaults } /> )
+
+    expect( screen.getByRole( 'link', { name: 'Transcriber' } ) ).toBeInTheDocument()
+    expect( screen.queryByRole( 'link', { name: 'Melete' } ) ).not.toBeInTheDocument()
+  } )
+
+  it( 'lists only Melete for a Melete-only member', () => {
+    signedInAs( memberFixture( { modules: [ 'melete' ] } ) )
+    renderWithClient( <NavDrawer { ...defaults } /> )
+
+    expect( screen.getByRole( 'link', { name: 'Melete' } ) ).toBeInTheDocument()
+    expect( screen.queryByRole( 'link', { name: 'Transcriber' } ) ).not.toBeInTheDocument()
+  } )
+
+  it( 'keeps Settings for every member', () => {
+    signedInAs( memberFixture( { modules: [ 'melete' ] } ) )
+    renderWithClient( <NavDrawer { ...defaults } /> )
+
+    expect( screen.getByRole( 'link', { name: /^Settings/ } ) ).toBeInTheDocument()
+  } )
+} )
+
+describe( 'NavDrawer, sign out', () => {
+  it( 'has a Sign out button that signs out', async () => {
+    renderWithClient( <NavDrawer { ...defaults } /> )
+
+    await userEvent.click( screen.getByRole( 'button', { name: 'Sign out' } ) )
+
+    expect( signOut ).toHaveBeenCalledTimes( 1 )
+  } )
+
+  it( 'keeps Sign out as a named button when collapsed, with a tooltip', async () => {
+    renderWithClient( <NavDrawer { ...defaults } isExpanded={ false } /> )
+
+    await userEvent.hover( screen.getByRole( 'button', { name: 'Sign out' } ) )
+
+    expect( await screen.findByRole( 'tooltip' ) ).toHaveTextContent( 'Sign out' )
+  } )
+
+  it( 'puts Sign out after Settings', () => {
+    renderWithClient( <NavDrawer { ...defaults } /> )
+
+    const settings = screen.getByRole( 'link', { name: /^Settings/ } )
+    const signOutButton = screen.getByRole( 'button', { name: 'Sign out' } )
+
+    expect( settings.compareDocumentPosition( signOutButton ) )
+      .toBe( Node.DOCUMENT_POSITION_FOLLOWING )
   } )
 } )

@@ -1,0 +1,1 @@
+export { HomeRedirect } from './HomeRedirect'
