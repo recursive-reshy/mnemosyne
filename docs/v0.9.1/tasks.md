@@ -25,7 +25,7 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
 | **Phase 1** | **Kick-off** | | |
-| 1.1 | Version 0.9.1 in every `package.json`, `apps/agent/pyproject.toml`, the agent's `uv.lock` entry and the README status line; confirm `docs/README.md` lists v0.9.1 and ADR 0072 (added with the plan) | | ⬜ |
+| 1.1 | Version 0.9.1 in every `package.json`, `apps/agent/pyproject.toml`, the agent's `uv.lock` entry and the README status line; confirm `docs/README.md` lists v0.9.1 and ADR 0072 (added with the plan) | | ✅ |
 | **Phase 2** | **Learning root created on save (TRD §3)** | | |
 | 2.1 | `resolveFolder` maps `EEXIST` / `ENOTDIR` from `mkdir` to a 400 `ValidationError` ("A file is in the way of folder …"); `updateSettings` validates `melete_learning_root` with `resolveFolder`; guard test that `settings.service.ts` is the only importer of `resolveFolder` (the job save uses `writeNote`) and no Melete module imports it; tests first in `vault.client.test.ts`, `settings.service.test.ts`, `settings.routes.test.ts` | 0054, 0072 | ⬜ |
 | 2.2 | Web: `LearningRootSetup` test for a new folder's path; e2e `melete.spec.ts` sets the learning root with **New folder** and asserts the folder exists in the e2e vault | 0053, 0072 | ⬜ |
@@ -57,4 +57,4 @@ Built from `prd.md` and `trd.md` in this folder. Tasks run strictly in order. Ea
 ---
 
 ## Log
-- (empty)
+- 1.1: version 0.9.1 in the root, e2e, web, server, agent and shared `package.json`, `pyproject.toml`, the agent's `uv.lock` entry and the README status line; `docs/README.md` already lists v0.9.1 and ADR 0072. No test changed. (The first web test run hit a vitest-cache error; the rerun passed, 184 files.)
