@@ -25,7 +25,12 @@ const NAME_RULE = '1 to 40 characters: lowercase letters, digits and hyphens, '
 
 const TAP_SX = { minHeight: 44 } as const
 
-export function ChooseVault(): ReactElement {
+interface ChooseVaultProps {
+  // The folder the user chose before, when it has since gone
+  missingVault?: string | null
+}
+
+export function ChooseVault( { missingVault = null }: ChooseVaultProps ): ReactElement {
   const { folders, isLoading, error, claim, create } = useVaultChoices()
   const signOut = useSignOut()
   const [ selected, setSelected ] = useState( '' )
@@ -50,6 +55,11 @@ export function ChooseVault(): ReactElement {
         Your vault is the folder that holds your notes. Pick one nobody has claimed, or make a
         new one.
       </Typography>
+      { missingVault !== null && (
+        <Alert severity="warning" sx={ { wordBreak: 'break-all' } }>
+          Your vault folder { missingVault } is missing. Pick another folder, or create a new one.
+        </Alert>
+      ) }
       { failure !== null && <Alert severity="error">{ failure.message }</Alert> }
       { error !== null && <Alert severity="error">{ error }</Alert> }
       { isLoading && <Typography role="status">Loading vaults…</Typography> }

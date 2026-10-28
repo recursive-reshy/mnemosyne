@@ -45,6 +45,25 @@ beforeEach( () => {
 } )
 
 describe( 'ChooseVault', () => {
+  it( 'says nothing about a missing folder when none is given', () => {
+    renderWithClient( <ChooseVault /> )
+
+    expect( screen.queryByText( /is missing/ ) ).not.toBeInTheDocument()
+  } )
+
+  it( 'names the folder that is missing and offers the same choices', async () => {
+    renderWithClient( <ChooseVault missingVault="old-vault" /> )
+
+    expect( screen.getByRole( 'alert' ) )
+      .toHaveTextContent( 'Your vault folder old-vault is missing' )
+    expect( screen.getByRole( 'button', { name: 'Create vault' } ) ).toBeInTheDocument()
+
+    await userEvent.click( screen.getByRole( 'radio', { name: 'naresh' } ) )
+    await userEvent.click( screen.getByRole( 'button', { name: 'Use this vault' } ) )
+
+    expect( claim ).toHaveBeenCalledWith( 'naresh' )
+  } )
+
   it( 'lists the unclaimed folders as radio buttons and claims the chosen one', async () => {
     renderWithClient( <ChooseVault /> )
     const button = screen.getByRole( 'button', { name: 'Use this vault' } )

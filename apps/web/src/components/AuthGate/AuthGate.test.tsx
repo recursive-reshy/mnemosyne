@@ -23,7 +23,11 @@ import { AuthGate } from './AuthGate'
 
 vi.mock( '#src/hooks/useMe' )
 vi.mock( '../SignIn', () => ( { SignIn: () => <p>sign in screen</p> } ) )
-vi.mock( '../ChooseVault', () => ( { ChooseVault: () => <p>choose vault screen</p> } ) )
+vi.mock( '../ChooseVault', () => ( {
+  ChooseVault: ( { missingVault = null }: { missingVault?: string | null } ) => (
+    <p>choose vault screen{ missingVault === null ? '' : ` (missing: ${ missingVault })` }</p>
+  ),
+} ) )
 vi.mock( '../NoModules', () => ( { NoModules: () => <p>no modules screen</p> } ) )
 
 const renderGate = (): void => {
@@ -84,6 +88,28 @@ describe( 'AuthGate', () => {
 
     expect( screen.getByText( 'choose vault screen' ) ).toBeInTheDocument()
     expect( screen.queryByText( 'the app' ) ).not.toBeInTheDocument()
+  } )
+
+  it( 'asks for a vault again when the folder is missing, naming it', () => {
+    state( memberFixture( { vault_dir: 'gone', vault_missing: true } ) )
+    renderGate()
+
+    expect( screen.getByText( 'choose vault screen (missing: gone)' ) ).toBeInTheDocument()
+    expect( screen.queryByText( 'the app' ) ).not.toBeInTheDocument()
+  } )
+
+  it( 'asks the admin for a vault again too', () => {
+    state( meFixture( { vault_dir: 'gone', vault_missing: true } ) )
+    renderGate()
+
+    expect( screen.getByText( /choose vault screen/ ) ).toBeInTheDocument()
+  } )
+
+  it( 'lets a user with a vault that is there into the app', () => {
+    state( memberFixture( { vault_dir: 'brother', vault_missing: false } ) )
+    renderGate()
+
+    expect( screen.getByText( 'the app' ) ).toBeInTheDocument()
   } )
 
   it( 'asks for the vault before telling a member they have no modules', () => {

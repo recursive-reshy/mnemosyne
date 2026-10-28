@@ -34,9 +34,12 @@ const MODES = [ 'light', 'dark' ] as const
 
 const LONG_FOLDER = 'a-very-long-vault-folder-name-for-testing'
 
-const renderPage = ( mode: ( typeof MODES )[ number ] ): void => {
+const renderPage = (
+  mode: ( typeof MODES )[ number ],
+  missingVault: string | null = null,
+): void => {
   const router = createMemoryRouter(
-    [ { path: '/', element: <ChooseVault /> } ],
+    [ { path: '/', element: <ChooseVault missingVault={ missingVault } /> } ],
     { initialEntries: [ '/' ] },
   )
 
@@ -82,5 +85,21 @@ describe.each( SIZES )( 'ChooseVault at $name size', ( { width, height } ) => {
       expect( box.height ).toBeGreaterThanOrEqual( MIN_TAP_HEIGHT )
       expect( box.right ).toBeLessThanOrEqual( window.innerWidth )
     }
+  } )
+} )
+
+describe.each( SIZES )( 'ChooseVault with a missing vault at $name size', ( { width, height } ) => {
+  it.each( MODES )( 'shows the notice without a sideways scroll, %s', async ( mode ) => {
+    await page.viewport( width, height )
+    renderPage( mode, LONG_FOLDER )
+
+    const alert = screen.getByRole( 'alert' )
+
+    expect( alert ).toHaveTextContent( `Your vault folder ${ LONG_FOLDER } is missing` )
+    expect( alert.getBoundingClientRect().right ).toBeLessThanOrEqual( window.innerWidth )
+
+    const { scrollWidth, clientWidth } = document.documentElement
+
+    expect( scrollWidth ).toBeLessThanOrEqual( clientWidth )
   } )
 } )

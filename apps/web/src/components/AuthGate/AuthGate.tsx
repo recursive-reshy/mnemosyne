@@ -10,7 +10,8 @@ import { GatePage } from '../GatePage'
 import { NoModules } from '../NoModules'
 import { SignIn } from '../SignIn'
 
-// Shows exactly one of: loading, sign in, choose a vault, no modules, or the app (ADR 0068).
+// Shows exactly one of: loading, sign in, choose a vault (none yet, or its folder is gone, ADR
+// 0070), no modules, or the app (ADR 0068).
 export function AuthGate(): ReactElement {
   const { me, isLoading, error } = useMe()
 
@@ -26,8 +27,8 @@ export function AuthGate(): ReactElement {
     return <SignIn />
   }
 
-  if( me.vault_dir === null ) {
-    return <ChooseVault />
+  if( me.vault_dir === null || me.vault_missing ) {
+    return <ChooseVault missingVault={ me.vault_missing ? me.vault_dir : null } />
   }
 
   if( me.modules.length === 0 ) {
