@@ -299,13 +299,27 @@ describe( 'responses', () => {
     } ) ).toBe( true )
   } )
 
+  it( 'requires skipped_paths on the Today response, as strings', () => {
+    const today = { learning_root: null, subjects: [], totals: counts }
+
+    expect( accepts( GetMeleteTodayResponse, today ) ).toBe( false )
+    expect( accepts( GetMeleteTodayResponse, { ...today, skipped_paths: [ 'A/B' ] } ) ).toBe( true )
+    expect( accepts( GetMeleteTodayResponse, { ...today, skipped_paths: [ 1 ] } ) ).toBe( false )
+    expect( accepts( GetMeleteTodayResponse, { ...today, skipped_paths: 'A' } ) ).toBe( false )
+  } )
+
   it( 'parses each response shape', () => {
-    expect( GetMeleteTodayResponse.parse( { learning_root: null, subjects: [], totals: counts } ) )
-      .toMatchObject( { learning_root: null } )
+    expect( GetMeleteTodayResponse.parse( {
+      learning_root: null,
+      subjects: [],
+      totals: counts,
+      skipped_paths: [],
+    } ) ).toMatchObject( { learning_root: null } )
     expect( GetMeleteTodayResponse.parse( {
       learning_root: 'Learning',
       subjects: [ subject ],
       totals: counts,
+      skipped_paths: [ 'Learning/Locked' ],
     } ).subjects ).toHaveLength( 1 )
     expect( GetMeleteSubjectResponse.parse( { subject, notes: [ note ] } ).notes )
       .toHaveLength( 1 )

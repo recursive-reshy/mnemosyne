@@ -332,6 +332,7 @@ describe( 'getToday', () => {
       learning_root: null,
       subjects: [],
       totals: { due: 0, new_remaining: 0, learning_soon: 0 },
+      skipped_paths: [],
     } )
   } )
 

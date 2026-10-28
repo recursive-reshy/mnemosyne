@@ -324,6 +324,7 @@ export const getToday = async (
       learning_root: null,
       subjects: [],
       totals: { due: 0, new_remaining: 0, learning_soon: 0 },
+      skipped_paths: [],
     }
   }
 
@@ -334,7 +335,12 @@ export const getToday = async (
     .map( ( subject ) => toMeleteSubject( userId, subject, now ) )
     .sort( ( a, b ) => a.name.localeCompare( b.name, undefined, { sensitivity: 'base' } ) )
 
-  return { learning_root: learningRoot, subjects, totals: reviewCounts( userId, records, now ) }
+  return {
+    learning_root: learningRoot,
+    subjects,
+    totals: reviewCounts( userId, records, now ),
+    skipped_paths: [],
+  }
 }
 
 export const getSubject = async (

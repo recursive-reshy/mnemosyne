@@ -73,6 +73,7 @@ export const meleteTodayFixture = (
     learning_root: 'Learning',
     subjects: [ meleteSubjectFixture() ],
     totals: { due: 4, new_remaining: 5, learning_soon: 0 },
+    skipped_paths: [],
     ...overrides,
   }
 }

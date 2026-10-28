@@ -106,6 +106,8 @@ export const GetMeleteTodayResponse = z.object( {
   learning_root: z.string().nullable(),
   subjects: z.array( MeleteSubject ),
   totals: MeleteReviewCounts,
+  // Vault paths the last scan could not read; [] when none or before the first scan
+  skipped_paths: z.array( z.string() ),
 } )
 export type GetMeleteTodayResponse = z.infer< typeof GetMeleteTodayResponse >
 
