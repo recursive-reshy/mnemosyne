@@ -117,7 +117,7 @@ Open **Melete** in the navigation drawer.
    - Rate with **Again**, **Hard**, **Good** or **Easy** (a suggested one is pre-selected; **Next** confirms it). On a keyboard, 1–4 select and Enter confirms. The toggle in the header switches mode from the next question on, and the choice is remembered.
    - **More → Drop question** removes a question from review. The screen ends with *All done for now*.
 6. **Models and prompts.** Settings → Models has a **Melete** section for the question and grading models (Haiku by default). Settings → Prompts has two more prompts under **Melete**, one for questions and one for grading, with versions and reset like the others.
-7. **From your phone.** Follow [`docs/phone-access.md`](docs/phone-access.md), then Add to Home Screen; the icon opens Melete. Set `OBSIDIAN_VAULT_NAME` for **Open in Obsidian** links to work.
+7. **From your phone.** Follow [`docs/phone-access.md`](docs/phone-access.md), then Add to Home Screen; the icon opens Melete.
 
 ### Settings
 
@@ -189,7 +189,6 @@ The server reads these environment variables. Empty values count as unset.
 | `AGENT_TIMEOUT_MS` | `120000` | default |
 | `LOG_LEVEL` | `info` | `${LOG_LEVEL:-info}`, for the app and the agent |
 | `STATUS_CHECK_INTERVAL_MINUTES` | `2` | from `.env`, default `2` |
-| `OBSIDIAN_VAULT_NAME` | unset (no Open in Obsidian links) | from `.env` |
 | `APP_TIME_ZONE` | `Asia/Singapore` | from `.env`, default as left |
 | `MELETE_DAY_START_HOUR` | `4` | from `.env`, default `4` |
 | `MELETE_REQUEST_RETENTION` | `0.9` | from `.env`, default `0.9` |
@@ -198,7 +197,7 @@ The server reads these environment variables. Empty values count as unset.
 
 - `LOG_LEVEL` is `fatal`, `error`, `warn`, `info`, `debug`, `trace` or `silent`. Both services write one JSON object per line to the container's output, with a level and a time. A line about a job carries its `job_id` (the agent's lines for a link run carry it too), and the pollers' lines carry the feed or source. Follow one job with `docker compose logs mnemosyne agent | grep <job id>`. Request bodies, note and transcript text, prompts, email content and tokens are never logged. Under `pnpm dev` the server's output is pretty-printed.
 - `STATUS_CHECK_INTERVAL_MINUTES` is how often the server checks the agent service and whisper-server in the background.
-- The Melete variables are all optional. `OBSIDIAN_VAULT_NAME` is your vault's name in Obsidian (the folder name, as Obsidian shows it); with it, **Open in Obsidian** links appear. `APP_TIME_ZONE` (an IANA name such as `Asia/Singapore`) and `MELETE_DAY_START_HOUR` (0–23) decide when "today" starts for the new-questions-per-day limit. `MELETE_REQUEST_RETENTION` (above 0.7, up to 0.99) is the share of questions you aim to remember when they come back; higher means more reviews. The two timeouts bound one question-generation call and one grading call.
+- The Melete variables are all optional. `APP_TIME_ZONE` (an IANA name such as `Asia/Singapore`) and `MELETE_DAY_START_HOUR` (0–23) decide when "today" starts for the new-questions-per-day limit. `MELETE_REQUEST_RETENTION` (above 0.7, up to 0.99) is the share of questions you aim to remember when they come back; higher means more reviews. The two timeouts bound one question-generation call and one grading call.
 - `WORK_DIR` holds audio files while a job runs; the folder is emptied when the server starts.
 - `WHISPER_MODEL` is only the label stored on each transcript (whisper-server doesn't report its model). Keep it in step with the model the agent runs.
 - `WEB_DIR` is the folder with the built web app; when set, Express serves it.
@@ -281,7 +280,7 @@ On a stop signal the server stops taking work and lets a running job finish, for
 - **Melete shows no subjects.** Subjects are the folders directly inside the learning root. Add a folder there; notes placed directly in the root are ignored.
 - **A note shows Failed or "Note is too long for question generation".** The reason is on the note. A long note over 60,000 characters must be split. Other failures (a Claude error, no usable questions) can be retried with **Retry**.
 - **"Couldn't grade this one; rate it yourself".** The grading call failed or timed out (`MELETE_GRADING_TIMEOUT_MS`). Rate the question yourself; the review is recorded either way.
-- **There is no Open in Obsidian button.** Set `OBSIDIAN_VAULT_NAME` in `.env` and restart the app. It is one name for the whole app, so it matches only one person's vault.
+- **Open in Obsidian says the vault isn't found.** The link uses the name of your vault folder, which is what Obsidian calls a vault it opened as a folder. If you opened a parent folder in Obsidian, or renamed the vault there, the name differs; open your vault folder itself as the vault. `OBSIDIAN_VAULT_NAME` in `.env` is no longer read (0.9.1) and is logged as ignored at startup; delete it.
 - **The phone can't reach the app.** The port is published on `127.0.0.1` only, so the phone needs Tailscale; see [`docs/phone-access.md`](docs/phone-access.md) (it also covers a sleeping Mac).
 - **A YouTube video fails with HTTP 403.** The server retries once after three seconds. If it still fails, submit the URL again later. The container updates yt-dlp each time it starts, so `docker compose restart` can also help.
 

@@ -48,7 +48,6 @@ describe( 'loadConfig', () => {
       vaultsPath: '/vaults',
       agent: null,
       timeZone: 'Asia/Singapore',
-      obsidianVaultName: undefined,
       melete: {
         requestRetention: 0.9,
         dayStartHour: 4,
@@ -75,7 +74,6 @@ describe( 'loadConfig', () => {
       CLEANUP_INTERVAL_MINUTES: '5',
       STATUS_CHECK_INTERVAL_MINUTES: '3',
       APP_TIME_ZONE: 'Europe/London',
-      OBSIDIAN_VAULT_NAME: 'My Vault',
       MELETE_DAY_START_HOUR: '0',
       MELETE_REQUEST_RETENTION: '0.85',
       MELETE_GRADING_TIMEOUT_MS: '10000',
@@ -109,7 +107,6 @@ describe( 'loadConfig', () => {
       vaultsPath: '/Users/x/Vaults',
       agent: null,
       timeZone: 'Europe/London',
-      obsidianVaultName: 'My Vault',
       melete: {
         requestRetention: 0.85,
         dayStartHour: 0,
@@ -302,7 +299,6 @@ describe( 'loadConfig', () => {
       const config = loadConfig( {
         ...base,
         APP_TIME_ZONE: '',
-        OBSIDIAN_VAULT_NAME: '',
         MELETE_DAY_START_HOUR: '',
         MELETE_REQUEST_RETENTION: '',
         MELETE_GRADING_TIMEOUT_MS: '',
@@ -310,7 +306,6 @@ describe( 'loadConfig', () => {
       } )
 
       expect( config.timeZone ).toBe( 'Asia/Singapore' )
-      expect( config.obsidianVaultName ).toBeUndefined()
       expect( config.melete ).toEqual( {
         requestRetention: 0.9,
         dayStartHour: 4,
@@ -463,6 +458,13 @@ describe( 'loadConfig', () => {
 
     it( 'names VAULT_PATH when it is set', () => {
       expect( ignoredEnv( { ...base, VAULT_PATH: '/vault' } ) ).toEqual( [ 'VAULT_PATH' ] )
+    } )
+
+    it( 'names OBSIDIAN_VAULT_NAME when it is set, and the config no longer has it', () => {
+      const env = { ...base, OBSIDIAN_VAULT_NAME: 'My Vault' }
+
+      expect( ignoredEnv( env ) ).toEqual( [ 'OBSIDIAN_VAULT_NAME' ] )
+      expect( loadConfig( env ) ).not.toHaveProperty( 'obsidianVaultName' )
     } )
 
     it( 'is empty when no removed variable is set, or the value is empty', () => {

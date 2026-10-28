@@ -103,7 +103,7 @@ const originsSchema = z
   } )
 
 // Removed variables that are still read by nothing; a leftover value is reported at startup
-const IGNORED_VARIABLES = [ 'GOOGLE_REDIRECT_URI', 'VAULT_PATH' ]
+const IGNORED_VARIABLES = [ 'GOOGLE_REDIRECT_URI', 'VAULT_PATH', 'OBSIDIAN_VAULT_NAME' ]
 
 export const ignoredEnv = ( env: NodeJS.ProcessEnv ): string[] => {
   return IGNORED_VARIABLES.filter( ( name ) => env[ name ] !== undefined && env[ name ] !== '' )
@@ -137,7 +137,6 @@ const EnvSchema = z
     AGENT_SECRET: z.preprocess( emptyAsUnset, z.string().min( 32 ).optional() ),
     AGENT_TIMEOUT_MS: z.preprocess( emptyAsUnset, agentTimeoutSchema ),
     APP_TIME_ZONE: z.preprocess( emptyAsUnset, timeZoneSchema ),
-    OBSIDIAN_VAULT_NAME: z.preprocess( emptyAsUnset, z.string().min( 1 ).optional() ),
     MELETE_DAY_START_HOUR: z.preprocess( emptyAsUnset, dayStartHourSchema ),
     MELETE_REQUEST_RETENTION: z.preprocess( emptyAsUnset, requestRetentionSchema ),
     MELETE_GRADING_TIMEOUT_MS: z.preprocess( emptyAsUnset, gradingTimeoutSchema ),
@@ -174,7 +173,6 @@ const EnvSchema = z
       ? null
       : { url: env.AGENT_URL, secret: env.AGENT_SECRET, timeoutMs: env.AGENT_TIMEOUT_MS },
     timeZone: env.APP_TIME_ZONE,
-    obsidianVaultName: env.OBSIDIAN_VAULT_NAME,
     melete: {
       requestRetention: env.MELETE_REQUEST_RETENTION,
       dayStartHour: env.MELETE_DAY_START_HOUR,
