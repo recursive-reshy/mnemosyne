@@ -12,6 +12,7 @@ import Typography from '@mui/material/Typography'
 import { FeedCheckInterval } from '@mnemosyne/shared'
 // App
 import { useFeeds } from '#src/hooks/useFeeds'
+import { useMe } from '#src/hooks/useMe'
 import { usePromptProfiles } from '#src/hooks/usePromptProfiles'
 import { useSettings } from '#src/hooks/useSettings'
 import { FeedList } from '../FeedList'
@@ -33,6 +34,7 @@ export function FeedSettings(): ReactElement {
   const { settings, updateSettings } = useSettings()
   const { profiles } = usePromptProfiles()
   const feeds = useFeeds()
+  const isAdmin = useMe().me?.role === 'admin'
   const [ dialog, setDialog ] = useState< FeedDialog | null >( null )
   const failure = [ feeds.updateFeed, feeds.checkFeed, feeds.checkAllFeeds, updateSettings ]
     .find( ( mutation ) => mutation.isError )?.error
@@ -54,19 +56,21 @@ export function FeedSettings(): ReactElement {
     <Stack spacing={ 2 }>
       <Typography variant="h6" component="h3">Feeds</Typography>
       <Stack direction={ { xs: 'column', sm: 'row' } } spacing={ 1 }>
-        <TextField
-          select
-          size="small"
-          label="Check feeds every"
-          value={ settings?.feed_check_interval_minutes ?? '' }
-          onChange={ handleInterval }
-          disabled={ settings === null }
-          sx={ { flex: 1 } }
-        >
-          { INTERVALS.map( ( minutes ) => (
-            <MenuItem key={ minutes } value={ minutes }>{ INTERVAL_LABELS[ minutes ] }</MenuItem>
-          ) ) }
-        </TextField>
+        { isAdmin && (
+          <TextField
+            select
+            size="small"
+            label="Check feeds every"
+            value={ settings?.feed_check_interval_minutes ?? '' }
+            onChange={ handleInterval }
+            disabled={ settings === null }
+            sx={ { flex: 1 } }
+          >
+            { INTERVALS.map( ( minutes ) => (
+              <MenuItem key={ minutes } value={ minutes }>{ INTERVAL_LABELS[ minutes ] }</MenuItem>
+            ) ) }
+          </TextField>
+        ) }
         <Button
           variant="outlined"
           onClick={ () => feeds.checkAllFeeds.mutate() }

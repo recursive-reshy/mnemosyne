@@ -1,8 +1,8 @@
 // Packages
-import { Navigate } from 'react-router'
 import type { RouteObject } from 'react-router'
 // App
 import { App } from './App'
+import { AdminTab } from './components/AdminTab'
 import { AuthGate } from './components/AuthGate'
 import { HomePage } from './components/HomePage'
 import { HomeRedirect } from './components/HomeRedirect'
@@ -53,7 +53,8 @@ export const routes: RouteObject[] = [
               { path: 'prompts/:promptId', element: <PromptsTab /> },
               { path: 'models', element: <ModelsTab /> },
               { path: 'sources', element: <SourcesTab /> },
-              { path: '*', element: <Navigate to="/settings/prompts" replace /> },
+              { path: 'admin', element: <AdminTab /> },
+              { path: '*', element: <SettingsIndexRedirect /> },
             ],
           },
           { path: '*', element: <HomeRedirect /> },

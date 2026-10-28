@@ -8,6 +8,7 @@ import useMediaQuery from '@mui/material/useMediaQuery'
 import { useTheme } from '@mui/material/styles'
 import { Link, Navigate, useParams } from 'react-router'
 // App
+import { useMe } from '#src/hooks/useMe'
 import { useMeleteProfiles } from '#src/hooks/useMeleteProfiles'
 import { usePromptProfiles } from '#src/hooks/usePromptProfiles'
 import { useSettings } from '#src/hooks/useSettings'
@@ -21,23 +22,32 @@ export function PromptsTab(): ReactElement {
   const { promptId = null } = useParams()
   const isNarrow = useMediaQuery( useTheme().breakpoints.down( 'md' ) )
   const defaultId = useSettings().settings?.default_profile_id
-  const { profiles } = usePromptProfiles()
-  const meleteProfiles = useMeleteProfiles().profiles
+  const modules = useMe().me?.modules ?? []
+  const hasSummary = modules.includes( 'transcriber' )
+  const profiles = usePromptProfiles().profiles
+  const meleteProfiles = useMeleteProfiles().profiles.filter( () => modules.includes( 'melete' ) )
+  const startId = hasSummary ? defaultId : meleteProfiles[ 0 ]?.id
 
-  // On a wide window the editor is always open; the default profile is the one to start on.
-  if( !isNarrow && promptId === null && profiles.some( ( { id } ) => id === defaultId ) ) {
-    return <Navigate to={ `/settings/prompts/${ defaultId }` } replace />
+  // On a wide window the editor is always open; the default profile is the one to start on, or
+  // for a user without Transcriber, the first Melete prompt.
+  const hasStart = hasSummary
+    ? profiles.some( ( { id } ) => id === startId )
+    : startId !== undefined
+
+  if( !isNarrow && promptId === null && hasStart ) {
+    return <Navigate to={ `/settings/prompts/${ startId }` } replace />
   }
 
   const list = (
     <Stack spacing={ 1 } sx={ { flex: { md: `0 0 ${ LIST_WIDTH }px` }, minWidth: 0 } }>
       <PromptList
+        hasSummary={ hasSummary }
         profiles={ profiles }
         meleteProfiles={ meleteProfiles }
         defaultId={ defaultId }
         selectedId={ promptId }
       />
-      <ProfileManager selectedId={ promptId } />
+      { hasSummary && <ProfileManager selectedId={ promptId } /> }
     </Stack>
   )
   const panel = promptId === null ? null : (

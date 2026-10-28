@@ -13,6 +13,7 @@ import type { PromptProfile } from '@mnemosyne/shared'
 const LINKER = 'linker'
 
 interface PromptListProps {
+  hasSummary: boolean
   profiles: PromptProfile[]
   meleteProfiles: PromptProfile[]
   defaultId: string | undefined
@@ -43,27 +44,31 @@ function Item( { id, name, isDefault = false, selectedId }: ItemProps ): ReactEl
 }
 
 export function PromptList(
-  { profiles, meleteProfiles, defaultId, selectedId }: PromptListProps,
+  { hasSummary, profiles, meleteProfiles, defaultId, selectedId }: PromptListProps,
 ): ReactElement {
   return (
     <>
-      <List
-        dense
-        aria-labelledby="summary-profiles"
-        subheader={ <ListSubheader id="summary-profiles">Summary profiles</ListSubheader> }
-      >
-        { profiles.map( ( { id, name } ) => (
-          <Item key={ id } id={ id } name={ name } isDefault={ id === defaultId }
-            selectedId={ selectedId } />
-        ) ) }
-      </List>
-      <List
-        dense
-        aria-labelledby="linking-prompt"
-        subheader={ <ListSubheader id="linking-prompt">Linking</ListSubheader> }
-      >
-        <Item id={ LINKER } name="Linker prompt" selectedId={ selectedId } />
-      </List>
+      { hasSummary && (
+        <>
+          <List
+            dense
+            aria-labelledby="summary-profiles"
+            subheader={ <ListSubheader id="summary-profiles">Summary profiles</ListSubheader> }
+          >
+            { profiles.map( ( { id, name } ) => (
+              <Item key={ id } id={ id } name={ name } isDefault={ id === defaultId }
+                selectedId={ selectedId } />
+            ) ) }
+          </List>
+          <List
+            dense
+            aria-labelledby="linking-prompt"
+            subheader={ <ListSubheader id="linking-prompt">Linking</ListSubheader> }
+          >
+            <Item id={ LINKER } name="Linker prompt" selectedId={ selectedId } />
+          </List>
+        </>
+      ) }
       { meleteProfiles.length > 0 && (
         <List
           dense

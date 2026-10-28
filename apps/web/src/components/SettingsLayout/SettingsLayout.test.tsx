@@ -14,6 +14,7 @@ import { getGmailAccount } from '#src/api/gmail.api'
 import { useSettings } from '#src/hooks/useSettings'
 import { gmailAccountFixture } from '#src/test-support/gmail.fixture'
 import { settingsState } from '#src/test-support/hookStates'
+import { memberFixture } from '#src/test-support/me.fixture'
 import { renderWithRouter } from '#src/test-support/renderWithRouter'
 
 vi.mock( '#src/api/gmail.api' )
@@ -21,6 +22,7 @@ vi.mock( '#src/hooks/useSettings' )
 vi.mock( '../PromptsTab', () => ( { PromptsTab: () => <p>prompts content</p> } ) )
 vi.mock( '../ModelsTab', () => ( { ModelsTab: () => <p>models content</p> } ) )
 vi.mock( '../SourcesTab', () => ( { SourcesTab: () => <p>sources content</p> } ) )
+vi.mock( '../AdminTab', () => ( { AdminTab: () => <p>admin content</p> } ) )
 
 beforeEach( () => {
   vi.mocked( getGmailAccount ).mockResolvedValue( gmailAccountFixture() )
@@ -28,18 +30,19 @@ beforeEach( () => {
 } )
 
 describe( 'SettingsLayout tabs', () => {
-  it( 'has the heading and three tabs', () => {
+  it( 'has the heading and the admin\'s four tabs', () => {
     renderWithRouter( '/settings/prompts' )
 
     expect( screen.getByRole( 'heading', { level: 2, name: 'Settings' } ) ).toBeInTheDocument()
     expect( screen.getAllByRole( 'tab' ).map( ( tab ) => tab.textContent ) )
-      .toEqual( [ 'Prompts', 'Models', 'Sources' ] )
+      .toEqual( [ 'Prompts', 'Models', 'Sources', 'Admin' ] )
   } )
 
   it.each( [
     [ 'prompts', 'Prompts', 'prompts content' ],
     [ 'models', 'Models', 'models content' ],
     [ 'sources', 'Sources', 'sources content' ],
+    [ 'admin', 'Admin', 'admin content' ],
   ] )( 'selects the %s tab and shows its content', ( path, name, content ) => {
     renderWithRouter( `/settings/${ path }` )
 
@@ -112,7 +115,7 @@ describe( 'SettingsLayout loading', () => {
 
     expect( screen.getByRole( 'status' ) ).toHaveTextContent( 'Loading settings…' )
     expect( screen.queryByText( 'models content' ) ).not.toBeInTheDocument()
-    expect( screen.getAllByRole( 'tab' ) ).toHaveLength( 3 )
+    expect( screen.getAllByRole( 'tab' ) ).toHaveLength( 4 )
   } )
 
   it( 'shows an error when the settings cannot be loaded', () => {
@@ -125,5 +128,40 @@ describe( 'SettingsLayout loading', () => {
 
     expect( screen.getByRole( 'alert' ) ).toHaveTextContent( 'Could not reach the server' )
     expect( screen.queryByText( 'models content' ) ).not.toBeInTheDocument()
+  } )
+} )
+
+describe( 'SettingsLayout by user', () => {
+  const tabNames = (): string[] => {
+    return screen.getAllByRole( 'tab' ).map( ( tab ) => tab.textContent ?? '' )
+  }
+
+  it( 'shows a Transcriber member no Admin tab', () => {
+    const me = memberFixture( { modules: [ 'transcriber' ] } )
+    renderWithRouter( '/settings/prompts', { me } )
+
+    expect( tabNames() ).toEqual( [ 'Prompts', 'Models', 'Sources' ] )
+  } )
+
+  it( 'shows a Melete-only member Prompts and Models', () => {
+    renderWithRouter( '/settings/prompts', { me: memberFixture( { modules: [ 'melete' ] } ) } )
+
+    expect( tabNames() ).toEqual( [ 'Prompts', 'Models' ] )
+  } )
+
+  it.each( [ 'admin', 'sources' ] )( 'sends a Melete-only member from %s to Prompts', ( tab ) => {
+    const me = memberFixture( { modules: [ 'melete' ] } )
+    const { location } = renderWithRouter( `/settings/${ tab }`, { me } )
+
+    expect( location().pathname ).toBe( '/settings/prompts' )
+    expect( screen.queryByText( 'admin content' ) ).not.toBeInTheDocument()
+    expect( screen.queryByText( 'sources content' ) ).not.toBeInTheDocument()
+  } )
+
+  it( 'sends a member from /settings/admin to Prompts', () => {
+    const { location } = renderWithRouter( '/settings/admin', { me: memberFixture() } )
+
+    expect( location().pathname ).toBe( '/settings/prompts' )
+    expect( screen.queryByText( 'admin content' ) ).not.toBeInTheDocument()
   } )
 } )

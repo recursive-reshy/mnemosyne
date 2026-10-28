@@ -21,8 +21,13 @@ import {
   settingsState,
 } from '#src/test-support/hookStates'
 import { mockMatchMedia } from '#src/test-support/matchMedia'
+import { memberFixture } from '#src/test-support/me.fixture'
 import { renderWithRouter } from '#src/test-support/renderWithRouter'
-import { BUSINESS_ID, CODING_ID } from '#src/test-support/summarizer.fixture'
+import {
+  BUSINESS_ID,
+  CODING_ID,
+  MELETE_QUESTIONS_ID,
+} from '#src/test-support/summarizer.fixture'
 
 vi.mock( '#src/api/gmail.api' )
 vi.mock( '#src/hooks/useSettings' )
@@ -31,8 +36,11 @@ vi.mock( '#src/hooks/useMeleteProfiles' )
 vi.mock( '../ModelsTab', () => ( { ModelsTab: () => <p>models content</p> } ) )
 vi.mock( '../SourcesTab', () => ( { SourcesTab: () => <p>sources content</p> } ) )
 vi.mock( '../PromptList', () => ( {
-  PromptList: ( props: { selectedId: string | null, meleteProfiles: unknown[] } ) => (
+  PromptList: (
+    props: { selectedId: string | null, meleteProfiles: unknown[], hasSummary: boolean },
+  ) => (
     <>
+      <p>{ `summary group ${ props.hasSummary }` }</p>
       <p>{ `list, selected ${ props.selectedId ?? 'none' }` }</p>
       <p>{ `${ props.meleteProfiles.length } Melete prompts in the list` }</p>
     </>
@@ -118,5 +126,32 @@ describe( 'PromptsTab, narrow window', () => {
 
     expect( location().pathname ).toBe( '/settings/prompts' )
     expect( screen.getByText( 'list, selected none' ) ).toBeInTheDocument()
+  } )
+} )
+
+describe( 'PromptsTab, by module', () => {
+  it( 'gives a Transcriber-only member no Melete prompts', () => {
+    const me = memberFixture( { modules: [ 'transcriber' ] } )
+    renderWithRouter( `/settings/prompts/${ CODING_ID }`, { me } )
+
+    expect( screen.getByText( '0 Melete prompts in the list' ) ).toBeInTheDocument()
+    expect( screen.getByText( 'summary group true' ) ).toBeInTheDocument()
+    expect( screen.getByText( `manager for ${ CODING_ID }` ) ).toBeInTheDocument()
+  } )
+
+  it( 'gives a Melete-only member only the Melete prompts, with no profile manager', () => {
+    const me = memberFixture( { modules: [ 'melete' ] } )
+    renderWithRouter( `/settings/prompts/${ MELETE_QUESTIONS_ID }`, { me } )
+
+    expect( screen.getByText( '2 Melete prompts in the list' ) ).toBeInTheDocument()
+    expect( screen.getByText( 'summary group false' ) ).toBeInTheDocument()
+    expect( screen.queryByText( /^manager for/ ) ).not.toBeInTheDocument()
+  } )
+
+  it( 'opens the first Melete prompt for a Melete-only member on a wide window', () => {
+    const me = memberFixture( { modules: [ 'melete' ] } )
+    const { location } = renderWithRouter( '/settings/prompts', { me } )
+
+    expect( location().pathname ).toBe( `/settings/prompts/${ MELETE_QUESTIONS_ID }` )
   } )
 } )

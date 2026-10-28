@@ -14,9 +14,14 @@ import {
 } from '#src/test-support/summarizer.fixture'
 import { PromptList } from './PromptList'
 
-const setup = ( selectedId: string | null = null, meleteProfiles = meleteProfilesFixture() ) => {
+const setup = (
+  selectedId: string | null = null,
+  meleteProfiles = meleteProfilesFixture(),
+  hasSummary = true,
+) => {
   return renderWithClient(
     <PromptList
+      hasSummary={ hasSummary }
       profiles={ profilesFixture() }
       meleteProfiles={ meleteProfiles }
       defaultId={ BUSINESS_ID }
@@ -50,6 +55,14 @@ describe( 'PromptList', () => {
     expect( within( melete ).getByRole( 'link', { name: 'Melete grading' } ) )
       .toHaveAttribute( 'href', `/settings/prompts/${ MELETE_GRADING_ID }` )
     expect( within( melete ).queryByText( 'Default' ) ).not.toBeInTheDocument()
+  } )
+
+  it( 'leaves the summary profiles and the linker out for a user without Transcriber', () => {
+    setup( null, meleteProfilesFixture(), false )
+
+    expect( screen.queryByRole( 'list', { name: 'Summary profiles' } ) ).not.toBeInTheDocument()
+    expect( screen.queryByRole( 'list', { name: 'Linking' } ) ).not.toBeInTheDocument()
+    expect( screen.getByRole( 'list', { name: 'Melete' } ) ).toBeInTheDocument()
   } )
 
   it( 'leaves the Melete group out until its prompts are loaded', () => {

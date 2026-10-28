@@ -12,16 +12,19 @@ import {
 // App
 import { previewFeed } from '#src/api/feeds.api'
 import { useFeeds } from '#src/hooks/useFeeds'
+import { useMe } from '#src/hooks/useMe'
 import { usePromptProfiles } from '#src/hooks/usePromptProfiles'
 import { useSettings } from '#src/hooks/useSettings'
 import { FEED_ID, feedFixture } from '#src/test-support/feed.fixture'
 import { profilesState, settingsState } from '#src/test-support/hookStates'
+import { meFixture, memberFixture } from '#src/test-support/me.fixture'
 import { mutationStub } from '#src/test-support/mutationStub'
 import { renderWithClient } from '#src/test-support/renderWithClient'
 import { settingsFixture } from '#src/test-support/summarizer.fixture'
 import { FeedSettings } from './FeedSettings'
 
 vi.mock( '#src/hooks/useFeeds' )
+vi.mock( '#src/hooks/useMe' )
 vi.mock( '#src/api/feeds.api' )
 vi.mock( '#src/hooks/useSettings' )
 vi.mock( '#src/hooks/usePromptProfiles' )
@@ -46,6 +49,7 @@ const feedsState = ( overrides: Partial< FeedsState > = {} ): FeedsState => ( {
 } )
 
 beforeEach( () => {
+  vi.mocked( useMe ).mockReturnValue( { me: meFixture(), isLoading: false, error: null } )
   mockedFeeds.mockReturnValue( feedsState() )
   mockedSettings.mockReturnValue( settingsState() )
   mockedProfiles.mockReturnValue( profilesState() )
@@ -255,5 +259,25 @@ describe( 'FeedSettings', () => {
 
     expect( within( screen.getByRole( 'dialog' ) ).getByRole( 'alert' ) )
       .toHaveTextContent( 'Feed not found' )
+  } )
+} )
+
+describe( 'FeedSettings, by role', () => {
+  it( 'lets the admin set how often feeds are checked', () => {
+    renderWithClient( <FeedSettings /> )
+
+    expect( screen.getByRole( 'combobox', { name: 'Check feeds every' } ) ).toBeInTheDocument()
+  } )
+
+  it( 'leaves the check interval to the admin, but keeps the rest for a member', () => {
+    vi.mocked( useMe ).mockReturnValue(
+      { me: memberFixture(), isLoading: false, error: null },
+    )
+    renderWithClient( <FeedSettings /> )
+
+    expect( screen.queryByRole( 'combobox', { name: 'Check feeds every' } ) )
+      .not.toBeInTheDocument()
+    expect( screen.getByRole( 'button', { name: 'Add feed' } ) ).toBeInTheDocument()
+    expect( screen.getByRole( 'button', { name: 'Check all now' } ) ).toBeInTheDocument()
   } )
 } )
