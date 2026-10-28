@@ -187,6 +187,20 @@ describe( 'resolveFolder', () => {
       .resolves.toBe( join( vault, 'real', 'sub' ) )
   } )
 
+  it( 'refuses a folder whose name is taken by a file', async () => {
+    await writeFile( join( vault, 'Learning' ), 'x' )
+
+    await expect( resolveFolder( vault, 'Learning' ) )
+      .rejects.toThrow( new ValidationError( 'A file is in the way of folder "Learning"' ) )
+  } )
+
+  it( 'refuses a folder below a file', async () => {
+    await writeFile( join( vault, 'Learning' ), 'x' )
+
+    await expect( resolveFolder( vault, 'Learning/Sub' ) )
+      .rejects.toThrow( new ValidationError( 'A file is in the way of folder "Learning/Sub"' ) )
+  } )
+
   it( 'rejects a sibling folder that merely shares the vault name as a prefix', async () => {
     const sibling = `${ vault }-sibling`
     await mkdir( sibling )

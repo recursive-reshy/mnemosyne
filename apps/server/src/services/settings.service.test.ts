@@ -4,7 +4,9 @@ import {
   mkdtemp,
   readdir,
   rm,
+  stat,
   symlink,
+  writeFile,
 } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -255,9 +257,30 @@ describe( 'updateSettings for Melete', () => {
     expect( isScanFresh( userId, new Date() ) ).toBe( false )
   } )
 
-  it( 'refuses a folder that is not in the vault, and does not create it', async () => {
+  it( 'creates a learning root that is not in the vault yet', async () => {
+    const settings = await updateSettings(
+      userId,
+      true,
+      { melete_learning_root: 'Notes/Learning' },
+    )
+
+    expect( settings.melete_learning_root ).toBe( 'Notes/Learning' )
+    expect( getSetting( userId, 'melete_learning_root' ) ).toBe( 'Notes/Learning' )
+    expect( ( await stat( join( vaultDir, 'Notes/Learning' ) ) ).isDirectory() ).toBe( true )
+  } )
+
+  it( 'refuses a folder name that a file already holds', async () => {
+    await writeFile( join( vaultDir, 'Learning' ), 'x' )
+
     await expect( updateSettings( userId, true, { melete_learning_root: 'Learning' } ) )
-      .rejects.toThrow( new ValidationError( 'Folder doesn\'t exist in the vault' ) )
+      .rejects.toThrow( new ValidationError( 'A file is in the way of folder "Learning"' ) )
+
+    expect( getSetting( userId, 'melete_learning_root' ) ).toBeUndefined()
+  } )
+
+  it( 'refuses a path that leaves the vault, and creates nothing', async () => {
+    await expect( updateSettings( userId, true, { melete_learning_root: '../Elsewhere' } ) )
+      .rejects.toThrow( ValidationError )
 
     expect( await readdir( vaultDir ) ).toEqual( [] )
     expect( getSetting( userId, 'melete_learning_root' ) ).toBeUndefined()
@@ -321,7 +344,7 @@ describe( 'updateSettings for Melete', () => {
   it( 'saves nothing when the learning root is refused', async () => {
     await expect( updateSettings( userId, true, {
       melete_review_mode: 'quick',
-      melete_learning_root: 'Nowhere',
+      melete_learning_root: '../Nowhere',
     } ) ).rejects.toThrow( ValidationError )
 
     expect( getSetting( userId, 'melete_review_mode' ) ).toBeUndefined()

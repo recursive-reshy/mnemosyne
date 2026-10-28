@@ -57,11 +57,21 @@ export const resolveFolder = async (
   const target = resolve( root, ...segments )
   const outside = new ValidationError( `Folder "${ relativeFolder }" is outside the vault` )
 
-  if( !isInside( root, await realpathOfNearestAncestor( target ) ) ) {
-    throw outside
-  }
+  try {
+    if( !isInside( root, await realpathOfNearestAncestor( target ) ) ) {
+      throw outside
+    }
 
-  await mkdir( target, { recursive: true } )
+    await mkdir( target, { recursive: true } )
+  } catch( error ) {
+    const code = ( error as NodeJS.ErrnoException ).code
+
+    if( code === 'EEXIST' || code === 'ENOTDIR' ) {
+      throw new ValidationError( `A file is in the way of folder "${ relativeFolder }"` )
+    }
+
+    throw error
+  }
 
   const created = await realpath( target )
 

@@ -3,6 +3,8 @@ import {
   mkdir,
   mkdtemp,
   rm,
+  stat,
+  writeFile,
 } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -200,13 +202,34 @@ describe( 'PATCH /api/settings for Melete', () => {
     } )
   } )
 
-  it( 'returns 400 for a learning root that is not in the vault', async () => {
+  it( 'creates a learning root that is not in the vault yet', async () => {
+    const response = await request( app )
+      .patch( '/api/settings' )
+      .send( { melete_learning_root: 'Learning' } )
+
+    expect( response.status ).toBe( 200 )
+    expect( GetSettingsResponse.parse( response.body ).settings.melete_learning_root )
+      .toBe( 'Learning' )
+    expect( ( await stat( join( vaultDir, 'Learning' ) ) ).isDirectory() ).toBe( true )
+  } )
+
+  it( 'returns 400 for a learning root that a file is in the way of', async () => {
+    await writeFile( join( vaultDir, 'Learning' ), 'x' )
+
     const response = await request( app )
       .patch( '/api/settings' )
       .send( { melete_learning_root: 'Learning' } )
 
     expect( response.status ).toBe( 400 )
-    expect( response.body ).toEqual( { error: 'Folder doesn\'t exist in the vault' } )
+    expect( response.body ).toEqual( { error: 'A file is in the way of folder "Learning"' } )
+  } )
+
+  it( 'returns 400 for a learning root outside the vault', async () => {
+    const response = await request( app )
+      .patch( '/api/settings' )
+      .send( { melete_learning_root: '../Learning' } )
+
+    expect( response.status ).toBe( 400 )
   } )
 
   it( 'returns 400 for an unknown Melete model', async () => {

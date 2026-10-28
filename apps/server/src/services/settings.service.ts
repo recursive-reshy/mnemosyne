@@ -11,7 +11,7 @@ import {
 import type { ModuleId } from '@mnemosyne/shared'
 // Clients
 import { AgentError, checkHealth, fetchInstructions } from '../clients/agent.client.js'
-import { resolveExistingFolder } from '../clients/vault.client.js'
+import { resolveFolder } from '../clients/vault.client.js'
 // Config
 import { config } from '../config.js'
 // Repositories
@@ -229,7 +229,7 @@ export const updateSettings = async (
   }
 
   if( typeof body.melete_learning_root === 'string' ) {
-    await resolveExistingFolder( vaultRootFor( userId ), body.melete_learning_root )
+    await resolveFolder( vaultRootFor( userId ), body.melete_learning_root )
   }
 
   if( body.default_model !== undefined ) {
