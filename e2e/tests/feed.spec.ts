@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './signedIn.js'
 
 test( 'a feed is added, checked and its items wait in the inbox', async ( { page } ) => {
   await page.goto( '/settings/sources' )
@@ -14,7 +14,8 @@ test( 'a feed is added, checked and its items wait in the inbox', async ( { page
 
   await expect( feeds.getByText( 'Fixture Feed' ) ).toBeVisible()
 
-  await page.getByRole( 'button', { name: 'Check all now' } ).click()
+  // Gmail has its own (disabled, as it is not connected) button of the same name since 0.9
+  await page.getByRole( 'button', { name: 'Check all now', disabled: false } ).click()
 
   await page.goto( '/' )
 

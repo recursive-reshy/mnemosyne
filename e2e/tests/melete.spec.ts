@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './signedIn.js'
 
 test( 'a note is enrolled, quizzed in typed and quick modes, and the app is installable', async ( {
   page,

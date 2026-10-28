@@ -128,6 +128,7 @@ const EnvSchema = z
     ADMIN_EMAIL: z.email().transform( ( value ) => value.toLowerCase() ),
     APP_ORIGINS: originsSchema,
     SESSION_DAYS: z.preprocess( emptyAsUnset, sessionDaysSchema ),
+    E2E_TEST_SIGNIN: z.preprocess( emptyAsUnset, z.enum( [ '1' ] ).optional() ),
     VAULTS_PATH: z.preprocess( emptyAsUnset, z.string().min( 1 ).default( '/vaults' ) ),
     GOOGLE_CLIENT_ID: z.string().min( 1 ),
     GOOGLE_CLIENT_SECRET: z.string().min( 1 ),
@@ -155,6 +156,8 @@ const EnvSchema = z
     adminEmail: env.ADMIN_EMAIL,
     appOrigins: env.APP_ORIGINS,
     sessionDays: env.SESSION_DAYS,
+    // Mounts the test-only sign-in route (TRD §11.4); never set outside the e2e stack
+    e2eTestSignin: env.E2E_TEST_SIGNIN === '1',
     defaultNoteFolder: env.DEFAULT_NOTE_FOLDER,
     summaryTimeoutMs: env.SUMMARY_TIMEOUT_MS,
     reviewTtlHours: env.REVIEW_TTL_HOURS,
@@ -192,8 +195,19 @@ export const loadConfig = ( env: NodeJS.ProcessEnv ): Config => {
   return result.data
 }
 
+// The test sign-in route hands out a session to anyone who asks, so it needs NODE_ENV=test
+export const assertTestSigninAllowed = ( env: NodeJS.ProcessEnv ): void => {
+  const on = env.E2E_TEST_SIGNIN !== undefined && env.E2E_TEST_SIGNIN !== ''
+
+  if( on && env.NODE_ENV !== 'test' ) {
+    throw new Error( 'E2E_TEST_SIGNIN is only allowed with NODE_ENV=test' )
+  }
+}
+
 const loadConfigOrExit = ( env: NodeJS.ProcessEnv ): Config => {
   try {
+    assertTestSigninAllowed( env )
+
     return loadConfig( env )
   } catch( error ) {
     // eslint-disable-next-line no-console -- runs before the logger, which needs the config

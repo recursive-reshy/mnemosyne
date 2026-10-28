@@ -4,7 +4,7 @@ import { join } from 'node:path'
 // Packages
 import { describe, it, expect } from 'vitest'
 // Config
-import { ignoredEnv, loadConfig } from './config.js'
+import { assertTestSigninAllowed, ignoredEnv, loadConfig } from './config.js'
 
 const key = Buffer.alloc( 32, 7 ).toString( 'base64' )
 const google = {
@@ -44,6 +44,7 @@ describe( 'loadConfig', () => {
       adminEmail: 'admin@example.com',
       appOrigins: [ 'http://localhost:3100' ],
       sessionDays: 30,
+      e2eTestSignin: false,
       vaultsPath: '/vaults',
       agent: null,
       timeZone: 'Asia/Singapore',
@@ -103,6 +104,7 @@ describe( 'loadConfig', () => {
       },
       adminEmail: 'admin@example.com',
       appOrigins: [ 'http://localhost:3100' ],
+      e2eTestSignin: false,
       sessionDays: 30,
       vaultsPath: '/Users/x/Vaults',
       agent: null,
@@ -471,5 +473,36 @@ describe( 'loadConfig', () => {
 
   it( 'ignores unrelated variables', () => {
     expect( () => loadConfig( { ...base, HOME: '/Users/x', PATH: '/usr/bin' } ) ).not.toThrow()
+  } )
+} )
+
+describe( 'E2E_TEST_SIGNIN', () => {
+  it( 'is off by default and on only for 1', () => {
+    expect( loadConfig( base ).e2eTestSignin ).toBe( false )
+    expect( loadConfig( { ...base, E2E_TEST_SIGNIN: '' } ).e2eTestSignin ).toBe( false )
+    expect( loadConfig( { ...base, E2E_TEST_SIGNIN: '1' } ).e2eTestSignin ).toBe( true )
+  } )
+
+  it( 'refuses any other value', () => {
+    expect( () => loadConfig( { ...base, E2E_TEST_SIGNIN: 'true' } ) ).toThrow( /E2E_TEST_SIGNIN/ )
+  } )
+} )
+
+describe( 'assertTestSigninAllowed', () => {
+  it( 'passes when the flag is not set, whatever NODE_ENV is', () => {
+    expect( () => assertTestSigninAllowed( { NODE_ENV: 'production' } ) ).not.toThrow()
+    expect( () => assertTestSigninAllowed( {} ) ).not.toThrow()
+    expect( () => assertTestSigninAllowed( { E2E_TEST_SIGNIN: '' } ) ).not.toThrow()
+  } )
+
+  it( 'passes when the flag is set and NODE_ENV is test', () => {
+    expect( () => assertTestSigninAllowed( { E2E_TEST_SIGNIN: '1', NODE_ENV: 'test' } ) )
+      .not.toThrow()
+  } )
+
+  it( 'refuses to start with the flag set outside NODE_ENV=test', () => {
+    expect( () => assertTestSigninAllowed( { E2E_TEST_SIGNIN: '1', NODE_ENV: 'production' } ) )
+      .toThrow( /E2E_TEST_SIGNIN/ )
+    expect( () => assertTestSigninAllowed( { E2E_TEST_SIGNIN: '1' } ) ).toThrow( /E2E_TEST_SIGNIN/ )
   } )
 } )

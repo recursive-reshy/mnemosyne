@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { expect, test } from '@playwright/test'
+import { expect, test } from './signedIn.js'
 
 const vaultDir = (): string => {
   const dir = process.env.E2E_VAULT_DIR

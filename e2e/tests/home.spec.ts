@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './signedIn.js'
 
 test( 'the home page loads with the submit form', async ( { page } ) => {
   await page.goto( '/' )

@@ -25,6 +25,7 @@ import { modelsRoutes } from './routes/models.routes.js'
 import { promptProfilesRoutes } from './routes/promptProfiles.routes.js'
 import { settingsRoutes } from './routes/settings.routes.js'
 import { statusRoutes } from './routes/status.routes.js'
+import { testSessionRoutes } from './routes/testSession.routes.js'
 import { vaultRoutes } from './routes/vault.routes.js'
 import { webRoutes } from './routes/web.routes.js'
 
@@ -35,6 +36,12 @@ app.use( '/api', express.json( { limit: '2mb' } ) )
 app.use( '/api', jsonOnly )
 app.use( '/api', healthRoutes )
 app.use( '/api', authRoutes )
+
+// Only the e2e stack mounts this, and the server refuses to start with it outside NODE_ENV=test
+if( config.e2eTestSignin ) {
+  app.use( '/api', testSessionRoutes )
+}
+
 app.use( '/api', requireUser )
 app.use( '/api', meRoutes )
 app.use( '/api/admin', requireAdmin, adminRoutes )

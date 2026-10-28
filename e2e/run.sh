@@ -11,7 +11,7 @@ PROJECT=mnemosyne-e2e
 COMPOSE=( docker compose -p "$PROJECT" --project-directory "$ROOT" -f "$ROOT/docker-compose.yml" -f "$ROOT/e2e/docker-compose.e2e.yml" )
 
 VAULTS_HOST_PATH="$( mktemp -d )"
-# One vault per e2e user; 8.1 signs the specs in as these users
+# One vault per e2e user; the specs sign in as these users through the test-only session route
 E2E_ADMIN_VAULT="$VAULTS_HOST_PATH/admin"
 mkdir "$E2E_ADMIN_VAULT" "$VAULTS_HOST_PATH/member"
 BACKUP_HOST_PATH="$( mktemp -d )"

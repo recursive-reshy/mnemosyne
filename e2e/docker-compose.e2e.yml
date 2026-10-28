@@ -26,6 +26,9 @@ services:
       AGENT_SECRET: ${AGENT_SECRET:?run e2e/run.sh}
       WHISPER_URL: http://fakes:4000
       ADMIN_EMAIL: admin@e2e.test
+      # Mounts POST /api/test/session, which the server only allows under NODE_ENV=test (TRD §11.4)
+      NODE_ENV: test
+      E2E_TEST_SIGNIN: "1"
       APP_ORIGINS: http://localhost:3101
       GOOGLE_CLIENT_ID: e2e
       GOOGLE_CLIENT_SECRET: e2e
