@@ -8,9 +8,13 @@ import type { InitialEntry, Location } from 'react-router'
 // Testing Library
 import { render } from '@testing-library/react'
 import type { RenderResult } from '@testing-library/react'
+// Shared
+import type { Me } from '@mnemosyne/shared'
 // App
+import { meKeys } from '#src/hooks/queryKeys'
 import { createQueryClient } from '#src/queryClient'
 import { routes } from '#src/routes'
+import { meFixture } from '#src/test-support/me.fixture'
 import { theme } from '#src/theme'
 
 interface RouterRender extends RenderResult {
@@ -18,9 +22,16 @@ interface RouterRender extends RenderResult {
   location: () => Location
 }
 
-// Renders the app's real routes in a memory data router, as main.tsx does in the browser.
-export const renderWithRouter = ( path: InitialEntry = '/' ): RouterRender => {
+// Renders the app's real routes in a memory data router, as main.tsx does in the browser. The
+// signed-in user is already in the cache (the admin unless `me` says otherwise; null is signed
+// out), so the gate lets the page through at once.
+export const renderWithRouter = (
+  path: InitialEntry = '/',
+  { me = meFixture() }: { me?: Me | null } = {},
+): RouterRender => {
   const queryClient = createQueryClient()
+  queryClient.setQueryDefaults( meKeys.all, { staleTime: Infinity } )
+  queryClient.setQueryData( meKeys.all, me )
   const router = createMemoryRouter( routes, { initialEntries: [ path ] } )
   const ui: ReactElement = (
     <ThemeProvider theme={ theme } defaultMode="system" noSsr>

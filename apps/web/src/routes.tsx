@@ -3,6 +3,7 @@ import { Navigate } from 'react-router'
 import type { RouteObject } from 'react-router'
 // App
 import { App } from './App'
+import { AuthGate } from './components/AuthGate'
 import { HomePage } from './components/HomePage'
 import { JobPage } from './components/JobPage'
 import { MeleteNote } from './components/MeleteNote'
@@ -13,32 +14,39 @@ import { ModelsTab } from './components/ModelsTab'
 import { PromptsTab } from './components/PromptsTab'
 import { SettingsIndexRedirect } from './components/SettingsIndexRedirect'
 import { SettingsLayout } from './components/SettingsLayout'
+import { SignInPage } from './components/SignInPage'
 import { SourcesTab } from './components/SourcesTab'
 
 export const routes: RouteObject[] = [
+  { path: '/signin', element: <SignInPage /> },
   {
     path: '/',
-    element: <App />,
+    element: <AuthGate />,
     children: [
-      { index: true, element: <HomePage /> },
-      { path: 'jobs/:id', element: <JobPage /> },
-      { path: 'melete', element: <MeleteToday /> },
-      { path: 'melete/subjects/:subjectId', element: <MeleteSubject /> },
-      { path: 'melete/notes/:noteId', element: <MeleteNote /> },
-      { path: 'melete/review', element: <MeleteReview /> },
       {
-        path: 'settings',
-        element: <SettingsLayout />,
+        element: <App />,
         children: [
-          { index: true, element: <SettingsIndexRedirect /> },
-          { path: 'prompts', element: <PromptsTab /> },
-          { path: 'prompts/:promptId', element: <PromptsTab /> },
-          { path: 'models', element: <ModelsTab /> },
-          { path: 'sources', element: <SourcesTab /> },
-          { path: '*', element: <Navigate to="/settings/prompts" replace /> },
+          { index: true, element: <HomePage /> },
+          { path: 'jobs/:id', element: <JobPage /> },
+          { path: 'melete', element: <MeleteToday /> },
+          { path: 'melete/subjects/:subjectId', element: <MeleteSubject /> },
+          { path: 'melete/notes/:noteId', element: <MeleteNote /> },
+          { path: 'melete/review', element: <MeleteReview /> },
+          {
+            path: 'settings',
+            element: <SettingsLayout />,
+            children: [
+              { index: true, element: <SettingsIndexRedirect /> },
+              { path: 'prompts', element: <PromptsTab /> },
+              { path: 'prompts/:promptId', element: <PromptsTab /> },
+              { path: 'models', element: <ModelsTab /> },
+              { path: 'sources', element: <SourcesTab /> },
+              { path: '*', element: <Navigate to="/settings/prompts" replace /> },
+            ],
+          },
+          { path: '*', element: <Navigate to="/" replace /> },
         ],
       },
-      { path: '*', element: <Navigate to="/" replace /> },
     ],
   },
 ]

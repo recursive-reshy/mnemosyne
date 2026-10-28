@@ -1,5 +1,7 @@
 // Packages
 import { describe, it, expect } from 'vitest'
+// Packages
+import type { RouteObject } from 'react-router'
 // App
 import indexHtml from '../index.html?raw'
 import manifestText from '../public/manifest.webmanifest?raw'
@@ -30,8 +32,11 @@ describe( 'manifest.webmanifest', () => {
   } )
 
   it( 'starts on a route the app has', () => {
-    const children = routes.flatMap( ( route ) => route.children ?? [] )
-    const paths = children.map( ( route ) => `/${ route.path }` )
+    const pathsOf = ( list: RouteObject[] ): string[] => list.flatMap( ( route ) => [
+      ...( route.path === undefined ? [] : [ `/${ route.path }` ] ),
+      ...pathsOf( route.children ?? [] ),
+    ] )
+    const paths = pathsOf( routes )
 
     expect( paths ).toContain( manifest.start_url )
   } )
