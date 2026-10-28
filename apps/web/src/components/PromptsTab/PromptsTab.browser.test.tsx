@@ -14,6 +14,7 @@ import {
 } from 'vitest'
 import { page } from 'vitest/browser'
 // App
+import { useMe } from '#src/hooks/useMe'
 import { useMeleteProfiles } from '#src/hooks/useMeleteProfiles'
 import { usePromptProfiles } from '#src/hooks/usePromptProfiles'
 import { usePromptVersions } from '#src/hooks/usePromptVersions'
@@ -24,10 +25,12 @@ import {
   settingsState,
 } from '#src/test-support/hookStates'
 import { createQueryClient } from '#src/queryClient'
+import { meFixture } from '#src/test-support/me.fixture'
 import { CODING_ID } from '#src/test-support/summarizer.fixture'
 import { theme } from '#src/theme'
 import { PromptsTab } from './PromptsTab'
 
+vi.mock( '#src/hooks/useMe' )
 vi.mock( '#src/hooks/useSettings' )
 vi.mock( '#src/hooks/usePromptProfiles' )
 vi.mock( '#src/hooks/useMeleteProfiles' )
@@ -55,6 +58,7 @@ const renderTab = ( path: string ): void => {
 }
 
 beforeEach( () => {
+  vi.mocked( useMe ).mockReturnValue( { me: meFixture(), isLoading: false, error: null } )
   vi.mocked( useSettings ).mockReturnValue( settingsState() )
   vi.mocked( usePromptProfiles ).mockReturnValue( profilesState() )
   vi.mocked( useMeleteProfiles ).mockReturnValue( meleteProfilesState() )
