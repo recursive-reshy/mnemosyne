@@ -17,6 +17,7 @@ import {
 } from './gmail.api'
 
 const fetchMock = vi.fn()
+const EMPTY_JSON = { headers: { 'Content-Type': 'application/json' }, body: '{}' }
 
 const json = ( body: unknown, status = 200 ): Response => {
   return new Response( JSON.stringify( body ), { status } )
@@ -78,7 +79,10 @@ describe( 'disconnectGmail', () => {
     fetchMock.mockResolvedValue( new Response( null, { status: 204 } ) )
 
     await expect( disconnectGmail() ).resolves.toBeUndefined()
-    expect( fetchMock ).toHaveBeenCalledWith( '/api/gmail/disconnect', { method: 'POST' } )
+    expect( fetchMock ).toHaveBeenCalledWith(
+      '/api/gmail/disconnect',
+      { method: 'POST', ...EMPTY_JSON },
+    )
   } )
 
   it( 'throws on an error response', async () => {

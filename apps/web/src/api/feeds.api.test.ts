@@ -20,6 +20,7 @@ import {
 } from './feeds.api'
 
 const fetchMock = vi.fn()
+const EMPTY_JSON = { headers: { 'Content-Type': 'application/json' }, body: '{}' }
 
 const json = ( body: unknown, status = 200 ): Response => {
   return new Response( JSON.stringify( body ), { status } )
@@ -132,7 +133,7 @@ describe( 'deleteFeed', () => {
     await expect( deleteFeed( FEED_ID, false ) ).resolves.toBeUndefined()
     expect( fetchMock ).toHaveBeenCalledWith(
       `/api/feeds/${ FEED_ID }?remove_items=false`,
-      { method: 'DELETE' },
+      { method: 'DELETE', ...EMPTY_JSON },
     )
   } )
 
@@ -143,7 +144,7 @@ describe( 'deleteFeed', () => {
 
     expect( fetchMock ).toHaveBeenCalledWith(
       `/api/feeds/${ FEED_ID }?remove_items=true`,
-      { method: 'DELETE' },
+      { method: 'DELETE', ...EMPTY_JSON },
     )
   } )
 
@@ -160,7 +161,10 @@ describe( 'checkFeed', () => {
     fetchMock.mockResolvedValue( json( { feed } ) )
 
     await expect( checkFeed( FEED_ID ) ).resolves.toEqual( feed )
-    expect( fetchMock ).toHaveBeenCalledWith( `/api/feeds/${ FEED_ID }/check`, { method: 'POST' } )
+    expect( fetchMock ).toHaveBeenCalledWith(
+      `/api/feeds/${ FEED_ID }/check`,
+      { method: 'POST', ...EMPTY_JSON },
+    )
   } )
 } )
 
@@ -169,6 +173,9 @@ describe( 'checkAllFeeds', () => {
     fetchMock.mockResolvedValue( json( { feeds: [ feedFixture() ] } ) )
 
     await expect( checkAllFeeds() ).resolves.toEqual( [ feedFixture() ] )
-    expect( fetchMock ).toHaveBeenCalledWith( '/api/feeds/check', { method: 'POST' } )
+    expect( fetchMock ).toHaveBeenCalledWith(
+      '/api/feeds/check',
+      { method: 'POST', ...EMPTY_JSON },
+    )
   } )
 } )

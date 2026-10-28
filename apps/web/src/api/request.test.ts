@@ -33,8 +33,36 @@ describe( 'send', () => {
     const response = new Response( null, { status: 204 } )
     fetchMock.mockResolvedValue( response )
 
-    await expect( send( '/api/x', { method: 'DELETE' } ) ).resolves.toBe( response )
-    expect( fetchMock ).toHaveBeenCalledWith( '/api/x', { method: 'DELETE' } )
+    await expect( send( '/api/x', { method: 'GET' } ) ).resolves.toBe( response )
+    expect( fetchMock ).toHaveBeenCalledWith( '/api/x', { method: 'GET' } )
+  } )
+
+  it.each( [ 'POST', 'PUT', 'PATCH', 'DELETE' ] )(
+    'sends %s as JSON with an empty object when it has no body',
+    async ( method ) => {
+      fetchMock.mockResolvedValue( new Response( null, { status: 204 } ) )
+
+      await send( '/api/x', { method } )
+
+      expect( fetchMock ).toHaveBeenCalledWith( '/api/x', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      } )
+    },
+  )
+
+  it( 'leaves a mutating request that already has a body alone', async () => {
+    fetchMock.mockResolvedValue( new Response( null, { status: 204 } ) )
+    const init = {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"a":1}',
+    }
+
+    await send( '/api/x', init )
+
+    expect( fetchMock ).toHaveBeenCalledWith( '/api/x', init )
   } )
 
   it( 'reports an unreachable server', async () => {

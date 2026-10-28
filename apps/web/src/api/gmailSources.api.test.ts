@@ -26,6 +26,7 @@ import {
 } from './gmailSources.api'
 
 const fetchMock = vi.fn()
+const EMPTY_JSON = { headers: { 'Content-Type': 'application/json' }, body: '{}' }
 
 const json = ( body: unknown, status = 200 ): Response => {
   return new Response( JSON.stringify( body ), { status } )
@@ -139,7 +140,7 @@ describe( 'deleteGmailSource', () => {
     await expect( deleteGmailSource( SOURCE_ID, false ) ).resolves.toBeUndefined()
     expect( fetchMock ).toHaveBeenCalledWith(
       `/api/gmail/sources/${ SOURCE_ID }?remove_inbox_items=false`,
-      { method: 'DELETE' },
+      { method: 'DELETE', ...EMPTY_JSON },
     )
   } )
 
@@ -150,7 +151,7 @@ describe( 'deleteGmailSource', () => {
 
     expect( fetchMock ).toHaveBeenCalledWith(
       `/api/gmail/sources/${ SOURCE_ID }?remove_inbox_items=true`,
-      { method: 'DELETE' },
+      { method: 'DELETE', ...EMPTY_JSON },
     )
   } )
 
@@ -170,7 +171,7 @@ describe( 'checkGmailSource', () => {
     await expect( checkGmailSource( SOURCE_ID ) ).resolves.toEqual( source )
     expect( fetchMock ).toHaveBeenCalledWith(
       `/api/gmail/sources/${ SOURCE_ID }/check`,
-      { method: 'POST' },
+      { method: 'POST', ...EMPTY_JSON },
     )
   } )
 } )
@@ -180,6 +181,9 @@ describe( 'checkAllGmailSources', () => {
     fetchMock.mockResolvedValue( json( { sources: [ gmailSourceFixture() ] } ) )
 
     await expect( checkAllGmailSources() ).resolves.toEqual( [ gmailSourceFixture() ] )
-    expect( fetchMock ).toHaveBeenCalledWith( '/api/gmail/sources/check', { method: 'POST' } )
+    expect( fetchMock ).toHaveBeenCalledWith(
+      '/api/gmail/sources/check',
+      { method: 'POST', ...EMPTY_JSON },
+    )
   } )
 } )

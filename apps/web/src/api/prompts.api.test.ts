@@ -26,6 +26,7 @@ import {
 } from './prompts.api'
 
 const fetchMock = vi.fn()
+const EMPTY_JSON = { headers: { 'Content-Type': 'application/json' }, body: '{}' }
 
 const json = ( body: unknown, status = 200 ): Response => {
   return new Response( JSON.stringify( body ), { status } )
@@ -110,7 +111,7 @@ describe( 'deleteProfile', () => {
     await expect( deleteProfile( CODING_ID ) ).resolves.toBeUndefined()
     expect( fetchMock ).toHaveBeenCalledWith(
       `/api/prompt-profiles/${ CODING_ID }`,
-      { method: 'DELETE' },
+      { method: 'DELETE', ...EMPTY_JSON },
     )
   } )
 
@@ -152,7 +153,7 @@ describe( 'restoreVersion', () => {
     await expect( restoreVersion( profile.id, 7 ) ).resolves.toEqual( profile )
     expect( fetchMock ).toHaveBeenCalledWith(
       `/api/prompt-profiles/${ profile.id }/versions/7/restore`,
-      { method: 'POST' },
+      { method: 'POST', ...EMPTY_JSON },
     )
   } )
 } )
@@ -165,7 +166,7 @@ describe( 'resetProfile', () => {
     await expect( resetProfile( profile.id ) ).resolves.toEqual( profile )
     expect( fetchMock ).toHaveBeenCalledWith(
       `/api/prompt-profiles/${ profile.id }/reset`,
-      { method: 'POST' },
+      { method: 'POST', ...EMPTY_JSON },
     )
   } )
 } )

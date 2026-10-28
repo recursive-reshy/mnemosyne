@@ -53,3 +53,13 @@ export const meleteKeys = {
   note: ( id: string ) => [ 'melete', 'notes', id ] as const,
   review: ( subjectId: string | null ) => [ 'melete', 'review', subjectId ?? 'all' ] as const,
 }
+
+export const meKeys = {
+  all: [ 'me' ] as const,
+  vaults: [ 'me', 'vaults' ] as const,
+}
+
+export const adminKeys = {
+  users: [ 'admin', 'users' ] as const,
+  usage: ( month: string | null ) => [ 'admin', 'usage', month ?? 'current' ] as const,
+}

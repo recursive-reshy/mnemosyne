@@ -13,6 +13,7 @@ import { ApiError } from './apiError'
 import { getHealthErrors, getStatus, refreshStatus } from './status.api'
 
 const fetchMock = vi.fn()
+const EMPTY_JSON = { headers: { 'Content-Type': 'application/json' }, body: '{}' }
 
 beforeEach( () => {
   fetchMock.mockReset()
@@ -55,7 +56,10 @@ describe( 'refreshStatus', () => {
     fetchMock.mockResolvedValue( new Response( JSON.stringify( body ), { status: 200 } ) )
 
     await expect( refreshStatus() ).resolves.toEqual( body )
-    expect( fetchMock ).toHaveBeenCalledWith( '/api/status/refresh', { method: 'POST' } )
+    expect( fetchMock ).toHaveBeenCalledWith(
+      '/api/status/refresh',
+      { method: 'POST', ...EMPTY_JSON },
+    )
   } )
 } )
 

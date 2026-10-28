@@ -27,6 +27,7 @@ import {
 } from './jobs.api'
 
 const fetchMock = vi.fn()
+const EMPTY_JSON = { headers: { 'Content-Type': 'application/json' }, body: '{}' }
 const jobId = '3f2b8c1e-5d4a-4e6f-9a7b-1c2d3e4f5a6b'
 
 const jsonResponse = ( body: unknown, status: number ): Response => {
@@ -286,7 +287,10 @@ describe( 'saveJob', () => {
     fetchMock.mockResolvedValue( jsonResponse( { saved_path: 'Mnemosyne/A talk.md' }, 200 ) )
 
     await expect( saveJob( 'a/b' ) ).resolves.toBe( 'Mnemosyne/A talk.md' )
-    expect( fetchMock ).toHaveBeenCalledWith( '/api/jobs/a%2Fb/save', { method: 'POST' } )
+    expect( fetchMock ).toHaveBeenCalledWith(
+      '/api/jobs/a%2Fb/save',
+      { method: 'POST', ...EMPTY_JSON },
+    )
   } )
 
   it( 'uses the server message when the job cannot be saved', async () => {
@@ -325,6 +329,7 @@ describe( 'retrySummary', () => {
     await expect( retrySummary( 'a/b' ) ).resolves.toEqual( job )
     expect( fetchMock ).toHaveBeenCalledWith( '/api/jobs/a%2Fb/retry-summary', {
       method: 'POST',
+      ...EMPTY_JSON,
     } )
   } )
 
@@ -345,7 +350,10 @@ describe( 'discardJob', () => {
     fetchMock.mockResolvedValue( new Response( null, { status: 204 } ) )
 
     await expect( discardJob( 'a/b' ) ).resolves.toBeUndefined()
-    expect( fetchMock ).toHaveBeenCalledWith( '/api/jobs/a%2Fb', { method: 'DELETE' } )
+    expect( fetchMock ).toHaveBeenCalledWith(
+      '/api/jobs/a%2Fb',
+      { method: 'DELETE', ...EMPTY_JSON },
+    )
   } )
 
   it( 'uses the server message for a missing job', async () => {

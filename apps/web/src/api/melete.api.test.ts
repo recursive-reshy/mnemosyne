@@ -34,6 +34,7 @@ import {
 } from './melete.api'
 
 const fetchMock = vi.fn()
+const EMPTY_JSON = { headers: { 'Content-Type': 'application/json' }, body: '{}' }
 
 const json = ( body: unknown, status = 200 ): Response => {
   return new Response( JSON.stringify( body ), { status } )
@@ -141,13 +142,13 @@ describe( 'melete api changes', () => {
     await regenerateNote( NOTE_ID )
     expect( fetchMock ).toHaveBeenLastCalledWith(
       `/api/melete/notes/${ NOTE_ID }/regenerate`,
-      { method: 'POST' },
+      { method: 'POST', ...EMPTY_JSON },
     )
 
     await retryGeneration( NOTE_ID )
     expect( fetchMock ).toHaveBeenLastCalledWith(
       `/api/melete/notes/${ NOTE_ID }/retry`,
-      { method: 'POST' },
+      { method: 'POST', ...EMPTY_JSON },
     )
   } )
 
@@ -158,7 +159,7 @@ describe( 'melete api changes', () => {
     await expect( dropQuestion( QUESTION_ID ) ).resolves.toEqual( question )
     expect( fetchMock ).toHaveBeenCalledWith(
       `/api/melete/questions/${ QUESTION_ID }/drop`,
-      { method: 'POST' },
+      { method: 'POST', ...EMPTY_JSON },
     )
   } )
 

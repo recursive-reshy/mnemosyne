@@ -12,6 +12,7 @@ import { ApiError } from './apiError'
 import { runBackup } from './backups.api'
 
 const fetchMock = vi.fn()
+const EMPTY_JSON = { headers: { 'Content-Type': 'application/json' }, body: '{}' }
 const result = { file: 'mnemosyne-20261023-043000.db', bytes: 4096, at: '2026-10-22T20:30:00.000Z' }
 
 beforeEach( () => {
@@ -28,7 +29,7 @@ describe( 'runBackup', () => {
     fetchMock.mockResolvedValue( new Response( JSON.stringify( result ), { status: 201 } ) )
 
     await expect( runBackup() ).resolves.toEqual( result )
-    expect( fetchMock ).toHaveBeenCalledWith( '/api/backups', { method: 'POST' } )
+    expect( fetchMock ).toHaveBeenCalledWith( '/api/backups', { method: 'POST', ...EMPTY_JSON } )
   } )
 
   it( 'rejects a response that does not match the schema', async () => {
