@@ -1,0 +1,86 @@
+// Packages
+import CssBaseline from '@mui/material/CssBaseline'
+import { ThemeProvider } from '@mui/material/styles'
+import { QueryClientProvider } from '@tanstack/react-query'
+import { createMemoryRouter, RouterProvider } from 'react-router'
+// Testing Library
+import { render, screen } from '@testing-library/react'
+// Vitest
+import {
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
+import { page } from 'vitest/browser'
+// App
+import { useSignOut } from '#src/hooks/useSignOut'
+import { useVaultChoices } from '#src/hooks/useVaultChoices'
+import { createQueryClient } from '#src/queryClient'
+import { mutationStub } from '#src/test-support/mutationStub'
+import { theme } from '#src/theme'
+import { ChooseVault } from './ChooseVault'
+
+vi.mock( '#src/hooks/useVaultChoices' )
+vi.mock( '#src/hooks/useSignOut' )
+
+const MIN_TAP_HEIGHT = 44
+const SIZES = [
+  { name: 'phone', width: 390, height: 844 },
+  { name: 'desktop', width: 1280, height: 800 },
+] as const
+const MODES = [ 'light', 'dark' ] as const
+
+const LONG_FOLDER = 'a-very-long-vault-folder-name-for-testing'
+
+const renderPage = ( mode: ( typeof MODES )[ number ] ): void => {
+  const router = createMemoryRouter(
+    [ { path: '/', element: <ChooseVault /> } ],
+    { initialEntries: [ '/' ] },
+  )
+
+  render(
+    <ThemeProvider theme={ theme } defaultMode={ mode } storageManager={ null } noSsr>
+      <CssBaseline />
+      <QueryClientProvider client={ createQueryClient() }>
+        <RouterProvider router={ router } />
+      </QueryClientProvider>
+    </ThemeProvider>,
+  )
+}
+
+beforeEach( () => {
+  vi.mocked( useSignOut ).mockReturnValue( mutationStub() )
+  vi.mocked( useVaultChoices ).mockReturnValue( {
+    folders: [ 'naresh', LONG_FOLDER ],
+    isLoading: false,
+    error: null,
+    claim: mutationStub(),
+    create: mutationStub(),
+  } )
+} )
+
+describe.each( SIZES )( 'ChooseVault at $name size', ( { width, height } ) => {
+  it.each( MODES )( 'fits the window and has tappable controls, %s', async ( mode ) => {
+    await page.viewport( width, height )
+    renderPage( mode )
+
+    const { scrollWidth, clientWidth } = document.documentElement
+    expect( scrollWidth ).toBeLessThanOrEqual( clientWidth )
+
+    const controls = [
+      ...screen.getAllByRole( 'radio' ),
+      screen.getByRole( 'button', { name: 'Use this vault' } ),
+      screen.getByRole( 'button', { name: 'Create vault' } ),
+      screen.getByRole( 'textbox', { name: 'New vault name' } ),
+    ]
+
+    for( const control of controls ) {
+      const box = ( control.closest( 'label' ) ?? control ).getBoundingClientRect()
+
+      expect( box.height ).toBeGreaterThanOrEqual( MIN_TAP_HEIGHT )
+      expect( box.right ).toBeLessThanOrEqual( window.innerWidth )
+    }
+  } )
+} )
