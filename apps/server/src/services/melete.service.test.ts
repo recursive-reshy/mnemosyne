@@ -25,6 +25,7 @@ import { findQuestion } from '../repositories/meleteQuestions.repository.js'
 import { insertReview } from '../repositories/meleteReviews.repository.js'
 import { listSubjects } from '../repositories/meleteSubjects.repository.js'
 import { setSetting } from '../repositories/settings.repository.js'
+import { clearVaultDir } from '../repositories/users.repository.js'
 // Services
 import {
   dropQuestion,
@@ -42,7 +43,7 @@ import { resetScanClock, scanLearningRoot } from './meleteScan.service.js'
 import { addQuestion } from '../test-support/meleteData.fixture.js'
 import { MeleteVault, createMeleteVault } from '../test-support/meleteVault.fixture.js'
 // Test support
-import { defaultTestAdmin } from '../test-support/auth.js'
+import { createTestUser, defaultTestAdmin } from '../test-support/auth.js'
 
 let userId = ''
 
@@ -55,7 +56,6 @@ const configMock = vi.hoisted( () => ( {
   sessionDays: 30,
   vaultsPath: '',
   timeZone: 'Asia/Singapore',
-  obsidianVaultName: undefined as string | undefined,
   melete: { requestRetention: 0.9, dayStartHour: 4 },
 } ) )
 
@@ -490,19 +490,35 @@ describe( 'getSubject', () => {
 } )
 
 describe( 'getNote, Obsidian link', () => {
-  it( 'is null without a vault name and the note\'s link with one', () => {
+  it( 'opens the user\'s own vault at the note', () => {
+    expect( getNote( userId, noteId( GENERICS ) ).obsidian_url ).toBe(
+      'obsidian://open?vault=vault&file=Learning%2FTypeScript%2FGenerics',
+    )
+  } )
+
+  it( 'gives two users with the same note path two different links', async () => {
+    await vault.clone( 'My Brain' )
+    const other = createTestUser( { vault_dir: 'My Brain' } ).id
+    setSetting( other, 'melete_learning_root', 'Learning' )
+    await scanLearningRoot( other, { force: true, now: at( 1 ) } )
+    const theirs = listNotesUnder( other, 'Learning' ).find( ( note ) => {
+      return note.path === `Learning/${ GENERICS }`
+    } )
+
+    expect( getNote( other, theirs?.id ?? '' ).obsidian_url ).toBe(
+      'obsidian://open?vault=My%20Brain&file=Learning%2FTypeScript%2FGenerics',
+    )
+    expect( getNote( userId, noteId( GENERICS ) ).obsidian_url ).toBe(
+      'obsidian://open?vault=vault&file=Learning%2FTypeScript%2FGenerics',
+    )
+  } )
+
+  it( 'is null for a user without a vault', () => {
     const id = noteId( GENERICS )
 
-    expect( getNote( userId, id ).obsidian_url ).toBeNull()
+    clearVaultDir( userId )
 
-    configMock.obsidianVaultName = 'My Brain'
-    try {
-      expect( getNote( userId, id ).obsidian_url ).toBe(
-        'obsidian://open?vault=My%20Brain&file=Learning%2FTypeScript%2FGenerics',
-      )
-    } finally {
-      configMock.obsidianVaultName = undefined
-    }
+    expect( getNote( userId, id ).obsidian_url ).toBeNull()
   } )
 } )
 

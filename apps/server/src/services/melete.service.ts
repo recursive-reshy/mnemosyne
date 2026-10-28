@@ -8,8 +8,6 @@ import {
   MeleteSubject,
   UpdateMeleteSubjectBody,
 } from '@mnemosyne/shared'
-// Config
-import { config } from '../config.js'
 // Errors
 import { ConflictError, NotFoundError } from '../errors.js'
 // Melete
@@ -42,7 +40,7 @@ import {
 // Services
 import { scanLearningRoot } from './meleteScan.service.js'
 import { getLearningRoot } from './settings.service.js'
-import { vaultRootFor } from './vault.service.js'
+import { vaultDirFor, vaultRootFor } from './vault.service.js'
 
 const requireNote = ( userId: string, id: string ): NoteRecord => {
   const note = findNote( userId, id )
@@ -102,7 +100,7 @@ const noteView = ( userId: string, note: NoteRecord ): GetMeleteNoteResponse => 
   return {
     note: toMeleteNote( note, questions ),
     questions: questions.map( toMeleteQuestion ),
-    obsidian_url: obsidianUrl( config.obsidianVaultName, note.path ),
+    obsidian_url: obsidianUrl( vaultDirFor( userId ), note.path ),
   }
 }
 

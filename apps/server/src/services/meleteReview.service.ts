@@ -9,8 +9,6 @@ import type {
   RecordReviewBody,
   RecordReviewResponse,
 } from '@mnemosyne/shared'
-// Config
-import { config } from '../config.js'
 // Errors
 import {
   ConflictError,
@@ -65,6 +63,7 @@ import {
 import { scanLearningRoot } from './meleteScan.service.js'
 import { resolveMeletePrompt } from './prompts.service.js'
 import { getLearningRoot, resolveMeleteGradingModel } from './settings.service.js'
+import { vaultDirFor } from './vault.service.js'
 // Logging
 import { logger } from '../logger.js'
 
@@ -144,7 +143,7 @@ export const getNextReview = async (
           subjects.find( ( { id } ) => id === note.subject_id )?.folder ?? '',
         ),
       },
-      obsidian_url: obsidianUrl( config.obsidianVaultName, note.path ),
+      obsidian_url: obsidianUrl( vaultDirFor( userId ), note.path ),
     },
     counts,
   }

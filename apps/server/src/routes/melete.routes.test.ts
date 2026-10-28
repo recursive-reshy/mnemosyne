@@ -254,7 +254,8 @@ describe( 'the note routes', () => {
     expect( response.status ).toBe( 200 )
     expect( body.note ).toMatchObject( { id, title: 'Generics in TypeScript', question_count: 1 } )
     expect( body.questions ).toHaveLength( 1 )
-    expect( body.obsidian_url ).toBeNull()
+    expect( body.obsidian_url )
+      .toBe( 'obsidian://open?vault=vault&file=Learning%2FTypeScript%2FGenerics' )
   } )
 
   it( 'PATCH enrols and unenrols a note', async () => {
@@ -434,19 +435,13 @@ describe( 'GET /api/melete/review/next', () => {
     expect( GetNextReviewResponse.parse( typescript.body ).item ).not.toBeNull()
   } )
 
-  it( 'links to the note in Obsidian when the vault is named', async () => {
+  it( 'links to the note in the user\'s own Obsidian vault', async () => {
     await dueQuestion()
-    const original = config.obsidianVaultName
-    config.obsidianVaultName = 'Brain'
 
-    try {
-      const response = await request( app ).get( '/api/melete/review/next' )
+    const response = await request( app ).get( '/api/melete/review/next' )
 
-      expect( GetNextReviewResponse.parse( response.body ).item?.obsidian_url )
-        .toBe( 'obsidian://open?vault=Brain&file=Learning%2FTypeScript%2FGenerics' )
-    } finally {
-      config.obsidianVaultName = original
-    }
+    expect( GetNextReviewResponse.parse( response.body ).item?.obsidian_url )
+      .toBe( 'obsidian://open?vault=vault&file=Learning%2FTypeScript%2FGenerics' )
   } )
 
   it( 'answers 400 for a subject that is not a uuid and 404 for an unknown one', async () => {

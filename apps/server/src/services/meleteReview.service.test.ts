@@ -70,7 +70,6 @@ const configMock = vi.hoisted( () => ( {
   sessionDays: 30,
   vaultsPath: '',
   timeZone: 'Asia/Singapore',
-  obsidianVaultName: undefined as string | undefined,
   melete: { requestRetention: 0.9, dayStartHour: 4, gradingTimeoutMs: 20_000 },
 } ) )
 
@@ -129,7 +128,6 @@ const reviewNew = ( questionId: string, atTime: string ): void => {
 beforeEach( async () => {
   vault = await createMeleteVault()
   configMock.vaultsPath = vault.vaultsPath
-  configMock.obsidianVaultName = undefined
   configMock.melete.dayStartHour = 4
   setSetting( userId, 'melete_learning_root', 'Learning' )
   setSetting( userId, 'melete_grading_model', 'claude-haiku-5-5' )
@@ -358,8 +356,7 @@ describe( 'getNextReview', () => {
       .rejects.toThrow( NotFoundError )
   } )
 
-  it( 'describes the note and links to it in Obsidian when the vault is named', async () => {
-    configMock.obsidianVaultName = 'Brain'
+  it( 'describes the note and links to it in the user\'s own Obsidian vault', async () => {
     addQuestion( userId, noteId( GENERICS ), { fsrsState: 'review', due: iso( -60 ) } )
 
     const response = GetNextReviewResponse.parse( await getNextReview( userId, { now: at( 0 ) } ) )
@@ -370,13 +367,26 @@ describe( 'getNextReview', () => {
       subject_name: 'TypeScript',
     } )
     expect( response.item?.obsidian_url )
-      .toBe( 'obsidian://open?vault=Brain&file=Learning%2FTypeScript%2FGenerics' )
+      .toBe( 'obsidian://open?vault=vault&file=Learning%2FTypeScript%2FGenerics' )
   } )
 
-  it( 'has no Obsidian link when the vault is not named', async () => {
-    addQuestion( userId, noteId( GENERICS ), { fsrsState: 'review', due: iso( -60 ) } )
+  it( 'links to the other user\'s vault for the same note path', async () => {
+    await vault.clone( 'Brain' )
+    const other = createTestUser( { vault_dir: 'Brain' } ).id
+    setSetting( other, 'melete_learning_root', 'Learning' )
+    await scanLearningRoot( other, { force: true, now: at( -60 ) } )
+    const theirSubject = listSubjects( other )
+      .find( ( { folder } ) => folder === 'Learning/TypeScript' )
+    await setSubjectEnrolled( other, theirSubject?.id ?? '', true, at( -50 ) )
+    const theirs = listNotesUnder( other, 'Learning' ).find( ( found ) => {
+      return found.path === `Learning/${ GENERICS }`
+    } )
+    addQuestion( other, theirs?.id ?? '', { fsrsState: 'review', due: iso( -60 ) } )
 
-    expect( ( await getNextReview( userId, { now: at( 0 ) } ) ).item?.obsidian_url ).toBeNull()
+    const response = await getNextReview( other, { now: at( 0 ) } )
+
+    expect( response.item?.obsidian_url )
+      .toBe( 'obsidian://open?vault=Brain&file=Learning%2FTypeScript%2FGenerics' )
   } )
 
   it( 'notices a note edited in the vault before building the queue', async () => {

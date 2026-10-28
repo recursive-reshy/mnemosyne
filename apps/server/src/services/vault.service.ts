@@ -51,6 +51,12 @@ export const vaultRootFor = ( userId: string ): string => {
   return join( config.vaultsPath, user.vault_dir )
 }
 
+// The name Obsidian gives the user's vault is its folder's name (ADR 0063). No `lstat`: a link to a
+// vault that has gone missing is harmless.
+export const vaultDirFor = ( userId: string ): string | null => {
+  return findUserById( userId )?.vault_dir ?? null
+}
+
 export const vaultIsMissing = ( userId: string ): boolean => {
   return vaultFolderMissing( findUserById( userId )?.vault_dir ?? null )
 }

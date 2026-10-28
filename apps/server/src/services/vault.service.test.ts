@@ -23,7 +23,7 @@ import { NotFoundError, VaultMissingError, VaultNotChosenError } from '../errors
 // Test support
 import { createTestUser } from '../test-support/auth.js'
 // Services
-import { vaultIsMissing, vaultRootFor } from './vault.service.js'
+import { vaultDirFor, vaultIsMissing, vaultRootFor } from './vault.service.js'
 
 let base: string
 let originalVaultsPath: string
@@ -37,6 +37,19 @@ beforeEach( async () => {
 afterEach( async () => {
   config.vaultsPath = originalVaultsPath
   await rm( base, { recursive: true, force: true } )
+} )
+
+describe( 'vaultDirFor', () => {
+  it( 'is the user\'s vault folder name, whether or not the folder exists', () => {
+    const user = createTestUser( { vault_dir: 'gone' } )
+
+    expect( vaultDirFor( user.id ) ).toBe( 'gone' )
+  } )
+
+  it( 'is null for a user without a vault and for an unknown user', () => {
+    expect( vaultDirFor( createTestUser().id ) ).toBeNull()
+    expect( vaultDirFor( crypto.randomUUID() ) ).toBeNull()
+  } )
 } )
 
 describe( 'vaultRootFor', () => {
