@@ -97,7 +97,7 @@ Each task adds `user_id` to its tables in the baseline (TRD §3.2), threads `use
 | 7.6 | **Admin** tab: users table, add, module switches, remove/restore, reset vault, delete confirm, usage with month picker (TRD §9.5); `apps/web/CLAUDE.md` | 0067 | ✅ |
 
 ## Checkpoint G: Phase 8 (e2e, docs and release)
-**Plan:** ⬜ [`plans/checkpoint-g.md`](plans/checkpoint-g.md)
+**Plan:** ✅ [`plans/checkpoint-g.md`](plans/checkpoint-g.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
