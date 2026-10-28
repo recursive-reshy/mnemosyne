@@ -134,23 +134,47 @@ export const existingFolderSync = ( vaultPath: string, relativeFolder: string ):
   }
 }
 
+const SKIPPABLE_CODES = [ 'EACCES', 'EPERM', 'ENOENT', 'ENOTDIR', 'ELOOP' ]
+
+// No permission, gone or changed since it was listed, or a link loop; anything else is a real fault
+export const isSkippable = ( error: unknown ): boolean => {
+  return error instanceof Error && 'code' in error
+    && typeof error.code === 'string' && SKIPPABLE_CODES.includes( error.code )
+}
+
 export const listFolderTree = async (
   vaultPath: string,
   relativeFolder = '',
+  onSkip?: ( path: string, code: string ) => void,
 ): Promise< FolderNode[] > => {
-  const entries = await readdir( join( vaultPath, relativeFolder ), { withFileTypes: true } )
+  const list = async ( folder: string ): Promise< FolderNode[] > => {
+    const entries = await readdir( join( vaultPath, folder ), { withFileTypes: true } )
 
-  const folders = entries
-    .filter( ( entry ) => entry.isDirectory() && !entry.name.startsWith( '.' ) )
-    .sort( ( a, b ) => {
-      return a.name.localeCompare( b.name, undefined, { sensitivity: 'base' } )
-    } )
+    const folders = entries
+      .filter( ( entry ) => entry.isDirectory() && !entry.name.startsWith( '.' ) )
+      .sort( ( a, b ) => {
+        return a.name.localeCompare( b.name, undefined, { sensitivity: 'base' } )
+      } )
 
-  return Promise.all( folders.map( async ( { name } ) => {
-    const path = relativeFolder === '' ? name : `${ relativeFolder }/${ name }`
+    return Promise.all( folders.map( async ( { name } ) => {
+      const path = folder === '' ? name : `${ folder }/${ name }`
 
-    return { name, path, children: await listFolderTree( vaultPath, path ) }
-  } ) )
+      try {
+        return { name, path, children: await list( path ) }
+      } catch( error ) {
+        // The folder stays in the tree; only what is inside it is lost
+        if( !isSkippable( error ) ) {
+          throw error
+        }
+
+        onSkip?.( path, ( error as NodeJS.ErrnoException ).code ?? 'UNKNOWN' )
+
+        return { name, path, children: [] }
+      }
+    } ) )
+  }
+
+  return list( relativeFolder )
 }
 
 export const writeNote = async (

@@ -1,5 +1,6 @@
 // Node
 import {
+  chmod,
   mkdir,
   mkdtemp,
   rm,
@@ -15,15 +16,23 @@ import {
   expect,
   beforeEach,
   afterEach,
+  vi,
 } from 'vitest'
 // Config
 import { config } from '../config.js'
+// Logger
+import { logger } from '../logger.js'
 // Errors
 import { NotFoundError, VaultMissingError, VaultNotChosenError } from '../errors.js'
 // Test support
 import { createTestUser } from '../test-support/auth.js'
 // Services
-import { vaultDirFor, vaultIsMissing, vaultRootFor } from './vault.service.js'
+import {
+  listFolders,
+  vaultDirFor,
+  vaultIsMissing,
+  vaultRootFor,
+} from './vault.service.js'
 
 let base: string
 let originalVaultsPath: string
@@ -118,5 +127,42 @@ describe( 'vaultIsMissing', () => {
 
   it( 'is true when the folder is gone', () => {
     expect( vaultIsMissing( createTestUser( { vault_dir: 'gone' } ).id ) ).toBe( true )
+  } )
+} )
+
+describe( 'listFolders', () => {
+  const isRoot = process.getuid?.() === 0
+
+  afterEach( async () => {
+    await chmod( join( base, 'naresh', 'Locked' ), 0o755 ).catch( () => undefined )
+  } )
+
+  it.skipIf( isRoot )( 'logs one warning for each folder it cannot read', async () => {
+    await mkdir( join( base, 'naresh', 'Locked' ), { recursive: true } )
+    await mkdir( join( base, 'naresh', 'Open' ) )
+    await chmod( join( base, 'naresh', 'Locked' ), 0o000 )
+
+    const user = createTestUser( { vault_dir: 'naresh' } )
+    const warn = vi.spyOn( logger, 'warn' ).mockImplementation( () => undefined )
+
+    const { folders } = await listFolders( user.id )
+
+    expect( folders.map( ( { name } ) => name ) ).toEqual( [ 'Locked', 'Open' ] )
+    expect( warn ).toHaveBeenCalledTimes( 1 )
+    expect( warn ).toHaveBeenCalledWith(
+      { user_id: user.id, path: 'Locked', code: 'EACCES' },
+      'Skipped a vault folder that could not be read',
+    )
+  } )
+
+  it( 'logs nothing when every folder can be read', async () => {
+    await mkdir( join( base, 'naresh', 'Open' ), { recursive: true } )
+
+    const user = createTestUser( { vault_dir: 'naresh' } )
+    const warn = vi.spyOn( logger, 'warn' ).mockImplementation( () => undefined )
+
+    await listFolders( user.id )
+
+    expect( warn ).not.toHaveBeenCalled()
   } )
 } )

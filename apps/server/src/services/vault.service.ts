@@ -9,6 +9,8 @@ import { listFolderTree } from '../clients/vault.client.js'
 import { config } from '../config.js'
 // Errors
 import { NotFoundError, VaultMissingError, VaultNotChosenError } from '../errors.js'
+// Logger
+import { logger } from '../logger.js'
 // Repositories
 import { findUserById } from '../repositories/users.repository.js'
 
@@ -64,6 +66,11 @@ export const vaultIsMissing = ( userId: string ): boolean => {
 export const listFolders = async ( userId: string ): Promise< ListFoldersResponse > => {
   return {
     default_folder: config.defaultNoteFolder,
-    folders: await listFolderTree( vaultRootFor( userId ) ),
+    folders: await listFolderTree( vaultRootFor( userId ), '', ( path, code ) => {
+      logger.warn(
+        { user_id: userId, path, code },
+        'Skipped a vault folder that could not be read',
+      )
+    } ),
   }
 }

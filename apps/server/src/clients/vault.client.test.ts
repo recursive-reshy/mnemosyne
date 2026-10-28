@@ -20,11 +20,13 @@ import {
   expect,
   beforeEach,
   afterEach,
+  vi,
 } from 'vitest'
 // Clients
 import {
   assertVaultWritable,
   existingFolderSync,
+  isSkippable,
   listFolderTree,
   resolveExistingFolder,
   resolveFolder,
@@ -273,6 +275,76 @@ describe( 'listFolderTree', () => {
 
     expect( tree.map( ( { name } ) => name ) ).toEqual( [ 'Alpha', 'beta', 'Delta', 'gamma' ] )
     expect( tree[ 3 ]?.children.map( ( { name } ) => name ) ).toEqual( [ 'A', 'b', 'c' ] )
+  } )
+
+  describe( 'with a folder that cannot be read', () => {
+    afterEach( async () => {
+      await chmod( join( vault, 'Locked' ), 0o755 ).catch( () => undefined )
+    } )
+
+    it.skipIf( isRoot )( 'lists the readable siblings and reports the bad folder', async () => {
+      await mkdir( join( vault, 'Locked' ) )
+      await mkdir( join( vault, 'Open', 'Inner' ), { recursive: true } )
+      await chmod( join( vault, 'Locked' ), 0o000 )
+
+      const onSkip = vi.fn()
+
+      await expect( listFolderTree( vault, '', onSkip ) ).resolves.toEqual( [
+        { name: 'Locked', path: 'Locked', children: [] },
+        {
+          name: 'Open',
+          path: 'Open',
+          children: [ { name: 'Inner', path: 'Open/Inner', children: [] } ],
+        },
+      ] )
+      expect( onSkip ).toHaveBeenCalledTimes( 1 )
+      expect( onSkip ).toHaveBeenCalledWith( 'Locked', 'EACCES' )
+    } )
+
+    it.skipIf( isRoot )( 'costs only the subtree of a nested unreadable folder', async () => {
+      await mkdir( join( vault, 'Locked', 'Deep' ), { recursive: true } )
+      await mkdir( join( vault, 'Other' ) )
+      await chmod( join( vault, 'Locked' ), 0o000 )
+
+      const onSkip = vi.fn()
+      const tree = await listFolderTree( vault, '', onSkip )
+
+      expect( tree.map( ( { name } ) => name ) ).toEqual( [ 'Locked', 'Other' ] )
+      expect( onSkip ).toHaveBeenCalledWith( 'Locked', 'EACCES' )
+    } )
+
+    it.skipIf( isRoot )( 'skips quietly when no callback is given', async () => {
+      await mkdir( join( vault, 'Locked' ) )
+      await chmod( join( vault, 'Locked' ), 0o000 )
+
+      await expect( listFolderTree( vault ) ).resolves.toEqual( [
+        { name: 'Locked', path: 'Locked', children: [] },
+      ] )
+    } )
+
+    it( 'still throws when the root cannot be read', async () => {
+      const onSkip = vi.fn()
+
+      await expect( listFolderTree( join( vault, 'missing' ), '', onSkip ) )
+        .rejects.toThrow( /ENOENT/ )
+      expect( onSkip ).not.toHaveBeenCalled()
+    } )
+  } )
+} )
+
+describe( 'isSkippable', () => {
+  it.each( [ 'EACCES', 'EPERM', 'ENOENT', 'ENOTDIR', 'ELOOP' ] )( 'is true for %s', ( code ) => {
+    expect( isSkippable( Object.assign( new Error( code ), { code } ) ) ).toBe( true )
+  } )
+
+  it.each( [ 'EIO', 'EMFILE', 'ENAMETOOLONG' ] )( 'is false for %s', ( code ) => {
+    expect( isSkippable( Object.assign( new Error( code ), { code } ) ) ).toBe( false )
+  } )
+
+  it( 'is false for an error without a code and for a non-error', () => {
+    expect( isSkippable( new Error( 'x' ) ) ).toBe( false )
+    expect( isSkippable( 'EACCES' ) ).toBe( false )
+    expect( isSkippable( undefined ) ).toBe( false )
   } )
 } )
 
