@@ -1,6 +1,6 @@
 # 0054. Modules share the vault and own their data
 
-- Status: Accepted
+- Status: Accepted (amended by 0072: the learning-root folder may be created on save in Settings)
 - Date: 2026-10-22
 
 ## Context
