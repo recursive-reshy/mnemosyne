@@ -82,7 +82,7 @@ Each significant decision is recorded as a short ADR (Architecture Decision Reco
 | [0058](decisions/0058-melete-data-and-generator-loop.md) | Melete's data model and generator loop | Accepted |
 | [0059](decisions/0059-study-profile-and-folder-memory.md) | Study profile and per-profile folder memory | Accepted |
 | [0060](decisions/0060-phone-access.md) | Phone access: localhost-only port, Tailscale Serve, installable web app | Accepted (amended by 0061) |
-| [0061](decisions/0061-google-sign-in-and-sessions.md) | Google sign-in and server-side sessions | Accepted |
+| [0061](decisions/0061-google-sign-in-and-sessions.md) | Google sign-in and server-side sessions | Accepted (amended by 0071) |
 | [0062](decisions/0062-per-user-ownership-and-isolation.md) | Every row has an owner; isolation in the repositories | Accepted |
 | [0063](decisions/0063-per-user-vaults-and-onboarding.md) | Per-user vaults under one root, chosen at first sign-in | Accepted (amended by 0070) |
 | [0064](decisions/0064-shared-background-loops.md) | One background loop of each kind, round-robin by user | Accepted |
@@ -92,6 +92,7 @@ Each significant decision is recorded as a short ADR (Architecture Decision Reco
 | [0068](decisions/0068-web-gate-and-module-guards.md) | Web: one gate, module guards, filtered navigation | Accepted |
 | [0069](decisions/0069-job-keeps-video-duration.md) | A job keeps its video's duration | Accepted (amends TRD §3.2, §8.2) |
 | [0070](decisions/0070-choose-a-new-vault-when-missing.md) | A user can choose a new vault when their folder is missing | Accepted (amends ADR 0063, TRD §2.1) |
+| [0071](decisions/0071-trusted-proxy-peers.md) | Forwarded headers are trusted from loopback and private-network peers | Accepted (amends ADR 0061, task 3.3) |
 
 ## Template for new ADRs
 

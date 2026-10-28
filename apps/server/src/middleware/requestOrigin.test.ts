@@ -76,6 +76,66 @@ describe( 'requestOrigin', () => {
     expect( () => requestOrigin( req, ORIGINS ) ).toThrow( UnknownOriginError )
   } )
 
+  // Docker Desktop shows a request through a published port as coming from its gateway (observed:
+  // 192.168.65.1), so private peers are trusted proxies like loopback (ADR 0071)
+  it.each( [
+    '192.168.65.1',
+    '192.168.0.1',
+    '10.0.0.5',
+    '172.16.0.1',
+    '172.31.255.255',
+    'fc00::1',
+    'fd12:3456::1',
+    '::ffff:192.168.65.1',
+    '::ffff:10.1.2.3',
+    '::ffff:172.20.0.1',
+  ] )( 'reads the forwarded headers from the private peer %s', ( peer ) => {
+    const req = buildRequest( {
+      peer,
+      headers: {
+        host: 'localhost:3100',
+        'x-forwarded-proto': 'https',
+        'x-forwarded-host': 'mac.tail1234.ts.net',
+      },
+    } )
+
+    expect( requestOrigin( req, ORIGINS ) ).toBe( 'https://mac.tail1234.ts.net' )
+  } )
+
+  it.each( [
+    '8.8.8.8',
+    '11.0.0.1',
+    '172.15.255.255',
+    '172.32.0.1',
+    '192.167.0.1',
+    '192.169.0.1',
+    '100.64.0.7',
+    '169.254.1.1',
+    'fe80::1',
+    '2001:db8::1',
+    '::ffff:8.8.8.8',
+    '::ffff:172.32.0.1',
+    '',
+  ] )( 'ignores the forwarded headers from the peer %s', ( peer ) => {
+    const req = buildRequest( {
+      peer,
+      headers: {
+        host: 'localhost:3100',
+        'x-forwarded-proto': 'https',
+        'x-forwarded-host': 'mac.tail1234.ts.net',
+      },
+    } )
+
+    // The socket's scheme and Host decide, as for a direct request
+    expect( requestOrigin( req, ORIGINS ) ).toBe( 'http://localhost:3100' )
+  } )
+
+  it( 'matches the https origin for a Docker-gateway request with only the Tailscale Host', () => {
+    const req = buildRequest( { peer: '192.168.65.1', headers: { host: 'mac.tail1234.ts.net' } } )
+
+    expect( requestOrigin( req, ORIGINS ) ).toBe( 'https://mac.tail1234.ts.net' )
+  } )
+
   it( 'uses the first value of a comma-separated forwarded header', () => {
     const req = buildRequest( {
       headers: {
@@ -149,6 +209,13 @@ describe( 'requestScheme', () => {
 
     expect( requestScheme( buildRequest( { headers } ) ) ).toBe( 'https' )
     expect( requestScheme( buildRequest( { peer: '100.64.0.7', headers } ) ) ).toBe( 'http' )
+  } )
+
+  it( 'believes X-Forwarded-Proto from a private peer such as the Docker gateway', () => {
+    const headers = { 'x-forwarded-proto': 'https' }
+
+    expect( requestScheme( buildRequest( { peer: '192.168.65.1', headers } ) ) ).toBe( 'https' )
+    expect( requestScheme( buildRequest( { peer: '8.8.8.8', headers } ) ) ).toBe( 'http' )
   } )
 
   it( 'ignores a forwarded scheme that is neither http nor https', () => {
