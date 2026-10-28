@@ -84,7 +84,7 @@ Each task adds `user_id` to its tables in the baseline (TRD §3.2), threads `use
 | 6.2 | `usage_events` view and `GET /api/admin/usage` with Singapore month bounds and transcription seconds (TRD §8.2) | 0067, 0069 | ✅ |
 
 ## Checkpoint F: Phase 7 (web)
-**Plan:** ⬜ [`plans/checkpoint-f.md`](plans/checkpoint-f.md)
+**Plan:** ✅ [`plans/checkpoint-f.md`](plans/checkpoint-f.md)
 
 | ID | Task | ADRs | Status |
 | --- | --- | --- | --- |
