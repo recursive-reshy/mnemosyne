@@ -1,4 +1,16 @@
+import { existsSync, statSync } from 'node:fs'
+import { join } from 'node:path'
 import { expect, test } from './signedIn.js'
+
+const vaultDir = (): string => {
+  const adminVault = process.env.E2E_VAULT_DIR
+
+  if( adminVault === undefined ) {
+    throw new Error( 'E2E_VAULT_DIR is not set; run the tests with pnpm e2e' )
+  }
+
+  return adminVault
+}
 
 test( 'a note is enrolled, quizzed in typed and quick modes, and the app is installable', async ( {
   page,
@@ -9,6 +21,18 @@ test( 'a note is enrolled, quizzed in typed and quick modes, and the app is inst
 
   const dialog = page.getByRole( 'dialog', { name: 'Learning root' } )
 
+  // A learning root that doesn't exist yet is created by the save (ADR 0072)
+  await dialog.getByRole( 'button', { name: 'Change folder' } ).click()
+  await dialog.getByRole( 'textbox', { name: 'New folder name' } ).fill( 'Study' )
+  await dialog.getByRole( 'button', { name: 'New folder', exact: true } ).click()
+  await dialog.getByRole( 'button', { name: 'Save' } ).click()
+  await expect( dialog ).toHaveCount( 0 )
+
+  expect( existsSync( join( vaultDir(), 'Study' ) ) ).toBe( true )
+  expect( statSync( join( vaultDir(), 'Study' ) ).isDirectory() ).toBe( true )
+
+  // The rest of the flow runs on the seeded Learning folder
+  await page.getByRole( 'button', { name: 'Change learning root' } ).click()
   await dialog.getByRole( 'button', { name: 'Change folder' } ).click()
   await dialog.getByRole( 'treeitem', { name: 'Learning' } ).click()
   await dialog.getByRole( 'button', { name: 'Save' } ).click()

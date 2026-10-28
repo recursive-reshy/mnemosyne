@@ -83,6 +83,20 @@ describe( 'LearningRootSetup', () => {
     )
   } )
 
+  it( 'saves a new folder\'s path, which the server creates (ADR 0072)', async () => {
+    const { mutate, onClose, user } = setup()
+
+    await user.click( screen.getByRole( 'button', { name: 'Change folder' } ) )
+    await user.type( screen.getByRole( 'textbox', { name: 'New folder name' } ), 'Study' )
+    await user.click( screen.getByRole( 'button', { name: 'New folder' } ) )
+    await user.click( screen.getByRole( 'button', { name: 'Save' } ) )
+
+    expect( mutate ).toHaveBeenCalledWith(
+      { melete_learning_root: 'Study' },
+      expect.objectContaining( { onSuccess: onClose } ),
+    )
+  } )
+
   it( 'starts on the current root', () => {
     setup( { currentRoot: 'Learning' } )
 
