@@ -60,6 +60,7 @@ export const meKeys = {
 }
 
 export const adminKeys = {
+  all: [ 'admin' ] as const,
   users: [ 'admin', 'users' ] as const,
   usage: ( month: string | null ) => [ 'admin', 'usage', month ?? 'current' ] as const,
 }
