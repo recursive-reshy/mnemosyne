@@ -164,6 +164,45 @@ describe( 'setVaultDir and clearVaultDir', () => {
   } )
 } )
 
+describe( 'setVaultDir with an expected value', () => {
+  it( 'replaces the folder only if it is still the one the caller saw', () => {
+    const user = buildUser()
+
+    insertUser( user )
+    setVaultDir( user.id, 'old' )
+
+    expect( setVaultDir( user.id, 'new', 'old' ) ).toEqual( { ok: true } )
+    expect( findUserById( user.id )?.vault_dir ).toBe( 'new' )
+    expect( setVaultDir( user.id, 'newer', 'old' ) )
+      .toEqual( { ok: false, reason: 'vault_changed' } )
+    expect( findUserById( user.id )?.vault_dir ).toBe( 'new' )
+  } )
+
+  it( 'treats null as "no vault yet"', () => {
+    const user = buildUser()
+
+    insertUser( user )
+
+    expect( setVaultDir( user.id, 'first', null ) ).toEqual( { ok: true } )
+    expect( setVaultDir( user.id, 'second', null ) )
+      .toEqual( { ok: false, reason: 'vault_changed' } )
+  } )
+
+  it( 'still refuses a folder another user holds', () => {
+    const first = buildUser( { email: 'a@x.test' } )
+    const second = buildUser( { email: 'b@x.test' } )
+
+    insertUser( first )
+    insertUser( second )
+    setVaultDir( first.id, 'taken' )
+    setVaultDir( second.id, 'old' )
+
+    expect( setVaultDir( second.id, 'taken', 'old' ) )
+      .toEqual( { ok: false, reason: 'vault_taken' } )
+    expect( findUserById( second.id )?.vault_dir ).toBe( 'old' )
+  } )
+} )
+
 describe( 'updateUser', () => {
   it( 'changes only the fields given and reports whether a row changed', () => {
     const user = buildUser()

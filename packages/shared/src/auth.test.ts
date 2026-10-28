@@ -9,6 +9,7 @@ import {
   Role,
   UserStatus,
   VaultChoice,
+  VAULT_MISSING_MESSAGE,
   VaultDir,
 } from './auth.js'
 
@@ -19,6 +20,7 @@ const me = {
   role: 'admin',
   modules: [ 'transcriber', 'melete' ],
   vault_dir: 'naresh',
+  vault_missing: false,
 }
 
 describe( 'ModuleId, Role and UserStatus', () => {
@@ -61,9 +63,19 @@ describe( 'Me', () => {
   } )
 
   it( 'allows a null vault_dir and no modules', () => {
-    const member = { ...me, role: 'member', modules: [], vault_dir: null }
+    const member = { ...me, role: 'member', modules: [], vault_dir: null, vault_missing: false }
 
     expect( Me.parse( member ) ).toEqual( member )
+  } )
+
+  it( 'carries a vault that is missing, with the old folder name', () => {
+    const missing = { ...me, vault_missing: true }
+
+    expect( Me.parse( missing ) ).toEqual( missing )
+  } )
+
+  it( 'requires vault_missing to be a boolean', () => {
+    expect( Me.safeParse( { ...me, vault_missing: 'yes' } ).success ).toBe( false )
   } )
 
   it( 'rejects a bad id, email, role, module or vault_dir', () => {
@@ -80,6 +92,12 @@ describe( 'Me', () => {
     delete rest.vault_dir
 
     expect( Me.safeParse( rest ).success ).toBe( false )
+
+    const noFlag: Record< string, unknown > = { ...me }
+
+    delete noFlag.vault_missing
+
+    expect( Me.safeParse( noFlag ).success ).toBe( false )
   } )
 } )
 
@@ -100,5 +118,11 @@ describe( 'ClaimVaultBody and CreateVaultBody', () => {
     expect( schema.parse( { vault_dir: 'brother' } ) ).toEqual( { vault_dir: 'brother' } )
     expect( schema.safeParse( {} ).success ).toBe( false )
     expect( schema.safeParse( { vault_dir: 'a/b' } ).success ).toBe( false )
+  } )
+} )
+
+describe( 'VAULT_MISSING_MESSAGE', () => {
+  it( 'is the text the server sends and the web app matches', () => {
+    expect( VAULT_MISSING_MESSAGE ).toBe( 'Your vault folder is missing' )
   } )
 } )

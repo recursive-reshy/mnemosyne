@@ -82,6 +82,7 @@ describe( 'listUnclaimedVaults', () => {
   } )
 
   it( 'is a conflict for a user who already has a vault', async () => {
+    await folder( 'mine' )
     const user = createTestUser( { vault_dir: 'mine' } )
 
     await expect( listUnclaimedVaults( user.id ) ).rejects.toThrow( ConflictError )
@@ -152,6 +153,7 @@ describe( 'claimVault', () => {
 
   it( 'refuses a user who already has a vault', async () => {
     await folder( 'other' )
+    await folder( 'mine' )
     const user = createTestUser( { vault_dir: 'mine' } )
 
     await expect( claimVault( user.id, 'other' ) ).rejects.toThrow( ConflictError )
@@ -202,9 +204,78 @@ describe( 'createVault', () => {
   } )
 
   it( 'refuses a user who already has a vault, without making a folder', async () => {
+    await folder( 'mine' )
     const user = createTestUser( { vault_dir: 'mine' } )
 
     await expect( createVault( user.id, 'another' ) ).rejects.toThrow( ConflictError )
     expect( await exists( join( config.vaultsPath, 'another' ) ) ).toBe( false )
+  } )
+} )
+
+describe( 'a user whose vault folder is missing (ADR 0070)', () => {
+  it( 'is offered the unclaimed folders', async () => {
+    await folder( 'brother' )
+    const user = createTestUser( { vault_dir: 'gone' } )
+
+    await expect( listUnclaimedVaults( user.id ) ).resolves.toEqual( { folders: [ 'brother' ] } )
+  } )
+
+  it( 'can claim another folder, which replaces the missing one', async () => {
+    await folder( 'brother' )
+    const user = createTestUser( { vault_dir: 'gone' } )
+
+    await claimVault( user.id, 'brother' )
+
+    expect( findUserById( user.id )?.vault_dir ).toBe( 'brother' )
+  } )
+
+  it( 'can create a new vault', async () => {
+    const user = createTestUser( { vault_dir: 'gone' } )
+
+    await createVault( user.id, 'fresh' )
+
+    expect( findUserById( user.id )?.vault_dir ).toBe( 'fresh' )
+    expect( await exists( join( config.vaultsPath, 'fresh' ) ) ).toBe( true )
+  } )
+
+  it( 'can recreate the folder under its old name', async () => {
+    const user = createTestUser( { vault_dir: 'gone' } )
+
+    await createVault( user.id, 'gone' )
+
+    expect( findUserById( user.id )?.vault_dir ).toBe( 'gone' )
+    expect( await exists( join( config.vaultsPath, 'gone' ) ) ).toBe( true )
+  } )
+
+  it( 'still cannot take a folder someone else has', async () => {
+    await folder( 'theirs' )
+    createTestUser( { vault_dir: 'theirs' } )
+    const user = createTestUser( { vault_dir: 'gone' } )
+
+    await expect( claimVault( user.id, 'theirs' ) ).rejects.toThrow( 'That vault is already taken' )
+    expect( findUserById( user.id )?.vault_dir ).toBe( 'gone' )
+  } )
+
+  it( 'is refused once the folder is back', async () => {
+    const user = createTestUser( { vault_dir: 'gone' } )
+
+    await folder( 'gone' )
+    await folder( 'other' )
+
+    await expect( claimVault( user.id, 'other' ) ).rejects.toThrow( 'You already have a vault' )
+    expect( findUserById( user.id )?.vault_dir ).toBe( 'gone' )
+  } )
+
+  it( 'lets two simultaneous choices bind only one folder', async () => {
+    await folder( 'one' )
+    await folder( 'two' )
+    const user = createTestUser( { vault_dir: 'gone' } )
+
+    const results = await Promise.allSettled( [
+      claimVault( user.id, 'one' ),
+      claimVault( user.id, 'two' ),
+    ] )
+
+    expect( results.filter( ( { status } ) => status === 'fulfilled' ) ).toHaveLength( 1 )
   } )
 } )

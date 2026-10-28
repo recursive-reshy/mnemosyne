@@ -1,12 +1,37 @@
 // Packages
 import request from 'supertest'
-import { describe, it, expect } from 'vitest'
+import { mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+} from 'vitest'
 // Shared
 import { Me } from '@mnemosyne/shared'
 // App
 import { app } from '../app.js'
+// Config
+import { config } from '../config.js'
 // Test support
 import { createTestUser, signedInRequest } from '../test-support/auth.js'
+
+let base: string
+let originalVaultsPath: string
+
+beforeEach( async () => {
+  base = await mkdtemp( join( tmpdir(), 'mnemosyne-me-' ) )
+  originalVaultsPath = config.vaultsPath
+  config.vaultsPath = base
+} )
+
+afterEach( async () => {
+  config.vaultsPath = originalVaultsPath
+  await rm( base, { recursive: true, force: true } )
+} )
 
 describe( 'GET /api/me', () => {
   it( 'is 401 without a session', async () => {
@@ -31,6 +56,8 @@ describe( 'GET /api/me', () => {
   } )
 
   it( 'gives a member their modules and vault', async () => {
+    await mkdir( join( base, 'brother' ) )
+
     const member = createTestUser( { modules: [ 'melete' ], vault_dir: 'brother' } )
     const response = await signedInRequest( app, member ).get( '/api/me' )
 
@@ -40,7 +67,22 @@ describe( 'GET /api/me', () => {
       name: 'Test member',
       modules: [ 'melete' ],
       vault_dir: 'brother',
+      vault_missing: false,
     } )
+  } )
+
+  it( 'says the vault is missing, and keeps its name, when the folder is gone', async () => {
+    const member = createTestUser( { modules: [ 'melete' ], vault_dir: 'gone' } )
+    const response = await signedInRequest( app, member ).get( '/api/me' )
+
+    expect( Me.parse( response.body ) ).toMatchObject( { vault_dir: 'gone', vault_missing: true } )
+  } )
+
+  it( 'does not call a user with no vault missing one', async () => {
+    const member = createTestUser( { modules: [] } )
+    const response = await signedInRequest( app, member ).get( '/api/me' )
+
+    expect( Me.parse( response.body ) ).toMatchObject( { vault_dir: null, vault_missing: false } )
   } )
 
   it( 'gives a member with no modules an empty list', async () => {

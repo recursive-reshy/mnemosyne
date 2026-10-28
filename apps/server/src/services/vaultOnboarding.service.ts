@@ -20,31 +20,44 @@ import {
   listClaimedVaultDirs,
   setVaultDir,
 } from '../repositories/users.repository.js'
+// Services
+import { vaultFolderMissing } from './vault.service.js'
 
-const requireUserWithoutVault = ( userId: string ): void => {
+// A user may choose when they have no vault, or when theirs has gone missing (ADR 0070).
+// Returns the vault they have now, which `bind` replaces only if it is still that one.
+const requireCanChoose = ( userId: string ): string | null => {
   const user = findUserById( userId )
 
   if( user === undefined ) {
     throw new NotFoundError( 'User not found' )
   }
 
-  if( user.vault_dir !== null ) {
+  if( user.vault_dir !== null && !vaultFolderMissing( user.vault_dir ) ) {
     throw new ConflictError( 'You already have a vault' )
   }
+
+  return user.vault_dir
 }
 
-// The unique column is what decides a race; the check before it only gives a friendlier message.
-// There is no await between the two, so one user's two requests can't both get through.
-const bind = ( userId: string, vaultDir: string ): void => {
-  requireUserWithoutVault( userId )
+// The unique column is what decides a race for a folder, and the compare-and-set on the old value
+// decides a race between two choices by one user; the check before it only gives a friendlier
+// message. There is no await between the two.
+const bind = (
+  userId: string,
+  vaultDir: string,
+  expected: string | null = requireCanChoose( userId ),
+): void => {
+  const result = setVaultDir( userId, vaultDir, expected )
 
-  if( !setVaultDir( userId, vaultDir ).ok ) {
-    throw new ConflictError( 'That vault is already taken' )
+  if( !result.ok ) {
+    throw new ConflictError(
+      result.reason === 'vault_taken' ? 'That vault is already taken' : 'You already have a vault',
+    )
   }
 }
 
 export const listUnclaimedVaults = async ( userId: string ): Promise< VaultChoice > => {
-  requireUserWithoutVault( userId )
+  requireCanChoose( userId )
 
   const claimed = new Set( listClaimedVaultDirs() )
   const entries = await readdir( config.vaultsPath, { withFileTypes: true } )
@@ -75,14 +88,15 @@ const assertPlainVaultFolder = async ( vaultDir: string ): Promise< void > => {
 }
 
 export const claimVault = async ( userId: string, vaultDir: string ): Promise< void > => {
-  requireUserWithoutVault( userId )
+  requireCanChoose( userId )
   await assertPlainVaultFolder( vaultDir )
 
   bind( userId, vaultDir )
 }
 
 export const createVault = async ( userId: string, vaultDir: string ): Promise< void > => {
-  requireUserWithoutVault( userId )
+  // Taken before the folder is made: recreating a missing vault's own name must still bind
+  const expected = requireCanChoose( userId )
 
   try {
     await mkdir( join( config.vaultsPath, vaultDir ) )
@@ -95,7 +109,7 @@ export const createVault = async ( userId: string, vaultDir: string ): Promise< 
   }
 
   try {
-    bind( userId, vaultDir )
+    bind( userId, vaultDir, expected )
   } catch( error ) {
     // Only the empty folder just made; rmdir refuses anything that has files in it
     await rmdir( join( config.vaultsPath, vaultDir ) ).catch( () => undefined )

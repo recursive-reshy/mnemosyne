@@ -14,6 +14,7 @@ import {
   recordLinkRun,
   recordLinkSuggestions,
 } from '../services/jobs.service.js'
+import { vaultRootFor } from '../services/vault.service.js'
 import { resolveLinkerPrompt } from '../services/prompts.service.js'
 import { resolveLinkingModel } from '../services/settings.service.js'
 
@@ -30,6 +31,9 @@ export const linkJob = async ( userId: string, jobId: string ): Promise< void > 
     if( vaultDir === null || vaultDir === undefined ) {
       throw new Error( 'Choose a vault first' )
     }
+
+    // Throws VaultMissingError ("Your vault folder is missing"), so the agent is never asked
+    vaultRootFor( userId )
 
     const { properties, body } = parseNote( job.note_markdown )
     const { version } = resolveLinkerPrompt( userId )

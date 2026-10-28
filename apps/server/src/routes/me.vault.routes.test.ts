@@ -58,6 +58,7 @@ describe( 'GET /api/me/vaults', () => {
   } )
 
   it( 'is 409 for a user who already has a vault', async () => {
+    await mkdir( join( base, 'mine' ) )
     const member = createTestUser( { vault_dir: 'mine' } )
     const response = await signedInRequest( app, member ).get( '/api/me/vaults' )
 
@@ -113,6 +114,7 @@ describe( 'POST /api/me/vault', () => {
 
   it( 'is 409 for a user who already has a vault', async () => {
     await mkdir( join( base, 'another' ) )
+    await mkdir( join( base, 'mine' ) )
     const member = createTestUser( { vault_dir: 'mine' } )
 
     const response = await signedInRequest( app, member ).post( '/api/me/vault' )
@@ -151,5 +153,42 @@ describe( 'POST /api/me/vault/new', () => {
       .send( { vault_dir: '../up' } )
 
     expect( response.status ).toBe( 400 )
+  } )
+} )
+
+describe( 'choosing again when the vault folder is missing (ADR 0070)', () => {
+  it.each( [ 'member', 'admin' ] as const )( 'lets a %s list, claim and create', async ( role ) => {
+    await mkdir( join( base, 'free' ) )
+    const user = createTestUser( { role, vault_dir: 'gone' } )
+    const agent = signedInRequest( app, user )
+
+    const listed = await agent.get( '/api/me/vaults' )
+
+    expect( VaultChoice.parse( listed.body ) ).toEqual( { folders: [ 'free' ] } )
+
+    const claimed = await agent.post( '/api/me/vault' ).send( { vault_dir: 'free' } )
+
+    expect( claimed.status ).toBe( 200 )
+    expect( Me.parse( claimed.body ) ).toMatchObject( { vault_dir: 'free', vault_missing: false } )
+  } )
+
+  it( 'lets a user whose folder is gone create a vault, answering with the user', async () => {
+    const user = createTestUser( { vault_dir: 'gone' } )
+
+    const response = await signedInRequest( app, user ).post( '/api/me/vault/new' )
+      .send( { vault_dir: 'fresh' } )
+
+    expect( response.status ).toBe( 201 )
+    expect( Me.parse( response.body ) )
+      .toMatchObject( { vault_dir: 'fresh', vault_missing: false } )
+  } )
+
+  it( 'answers a vault route with the 409 message, not a 500', async () => {
+    const user = createTestUser( { vault_dir: 'gone' } )
+
+    const response = await signedInRequest( app, user ).get( '/api/vault/folders' )
+
+    expect( response.status ).toBe( 409 )
+    expect( response.body ).toEqual( { error: 'Your vault folder is missing' } )
   } )
 } )

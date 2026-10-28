@@ -1,5 +1,6 @@
 // Node
 import { randomUUID } from 'node:crypto'
+import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 // Express
 import type { Express } from 'express'
@@ -69,8 +70,19 @@ export const defaultTestVaultPath = (): string => join( config.vaultsPath, DEFAU
 
 let cached: TestUser | undefined
 
-// The admin every signed-in route test acts as; made on first use, as each test has a new database
+// The admin every signed-in route test acts as, with a vault folder on disk; made on first use,
+// as each test has a new database
 export const defaultTestAdmin = (): TestUser => {
+  // A vault must exist to be used (ADR 0070); tests that remove it do so on purpose. A test that
+  // mocks the config has no vaults folder and doesn't use the vault.
+  try {
+    mkdirSync( defaultTestVaultPath(), { recursive: true } )
+  } catch( error ) {
+    if( !( error instanceof TypeError ) ) {
+      throw error
+    }
+  }
+
   if( cached === undefined || findUserById( cached.id ) === undefined ) {
     cached = createTestUser( {
       role: 'admin',

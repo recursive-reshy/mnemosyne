@@ -31,6 +31,7 @@ import {
 } from '../repositories/users.repository.js'
 // Services
 import { seedUser } from './seedUser.service.js'
+import { vaultFolderMissing } from './vault.service.js'
 import { createSession } from './session.service.js'
 
 export const OAUTH_COOKIE = 'mnemosyne_oauth'
@@ -264,5 +265,6 @@ export const getMe = ( userId: string ): Me => {
     role: user.role,
     modules: user.role === 'admin' ? ModuleId.options : listModules( user.id ),
     vault_dir: user.vault_dir,
+    vault_missing: vaultFolderMissing( user.vault_dir ),
   }
 }

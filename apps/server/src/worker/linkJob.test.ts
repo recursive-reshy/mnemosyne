@@ -142,6 +142,8 @@ describe( 'linkJob', () => {
   } )
 
   it( 'sends the vault folder of the job\'s owner', async () => {
+    await mkdir( join( config.vaultsPath, 'brother' ), { recursive: true } )
+
     const member = createTestUser( { vault_dir: 'brother' } )
     const id = await queueLinking( undefined, member.id )
 
@@ -161,6 +163,20 @@ describe( 'linkJob', () => {
       status: 'ready_for_review',
       link_state: 'failed',
       link_error: 'Choose a vault first',
+    } )
+  } )
+
+  it( 'ends in review with a link error, calling no agent, when the vault is missing', async () => {
+    const member = createTestUser( { vault_dir: 'link-gone' } )
+    const id = await queueLinking( undefined, member.id )
+
+    await linkJob( member.id, id )
+
+    expect( requestLinksMock ).not.toHaveBeenCalled()
+    expect( findJob( member.id, id ) ).toMatchObject( {
+      status: 'ready_for_review',
+      link_state: 'failed',
+      link_error: 'Your vault folder is missing',
     } )
   } )
 

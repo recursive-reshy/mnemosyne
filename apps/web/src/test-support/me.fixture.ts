@@ -8,6 +8,7 @@ export const meFixture = ( overrides: Partial< Me > = {} ): Me => ( {
   role: 'admin',
   modules: [ 'transcriber', 'melete' ],
   vault_dir: 'naresh',
+  vault_missing: false,
   ...overrides,
 } )
 

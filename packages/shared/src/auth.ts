@@ -14,7 +14,12 @@ export type UserStatus = z.infer< typeof UserStatus >
 export const VaultDir = z.string().regex( /^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$/ )
 export type VaultDir = z.infer< typeof VaultDir >
 
-// For the admin, `modules` is always every ModuleId.
+// What the server answers (409) when a user's vault folder is gone, and what the web app matches
+// to send them back to the vault page (ADR 0070).
+export const VAULT_MISSING_MESSAGE = 'Your vault folder is missing'
+
+// For the admin, `modules` is always every ModuleId. `vault_missing` is true when `vault_dir` is
+// set but its folder no longer exists; `vault_dir` then keeps the old name (ADR 0070).
 export const Me = z.object( {
   id: z.uuid(),
   email: z.email(),
@@ -22,6 +27,7 @@ export const Me = z.object( {
   role: Role,
   modules: z.array( ModuleId ),
   vault_dir: VaultDir.nullable(),
+  vault_missing: z.boolean(),
 } )
 export type Me = z.infer< typeof Me >
 

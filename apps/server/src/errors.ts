@@ -3,7 +3,7 @@ import { NextFunction, Request, Response } from 'express'
 // Packages
 import { ZodError } from 'zod'
 // Shared
-import { ErrorResponse } from '@mnemosyne/shared'
+import { ErrorResponse, VAULT_MISSING_MESSAGE } from '@mnemosyne/shared'
 // Logging
 import { logger } from './logger.js'
 
@@ -33,6 +33,14 @@ export class VaultNotChosenError extends ConflictError {
   constructor() {
     super( 'Choose your vault first' )
     this.name = 'VaultNotChosenError'
+  }
+}
+
+// The user's vault folder has gone since they chose it (ADR 0070); they can choose again
+export class VaultMissingError extends ConflictError {
+  constructor() {
+    super( VAULT_MISSING_MESSAGE )
+    this.name = 'VaultMissingError'
   }
 }
 

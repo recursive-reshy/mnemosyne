@@ -23,7 +23,7 @@ export type UserChange = Partial< Pick< StoredUser, 'name' | 'status' > >
 
 export type InsertUserResult = { ok: true } | { ok: false, reason: 'email_taken' }
 export type BindResult = { ok: true } | { ok: false, reason: 'sub_taken' }
-export type VaultResult = { ok: true } | { ok: false, reason: 'vault_taken' }
+export type VaultResult = { ok: true } | { ok: false, reason: 'vault_taken' | 'vault_changed' }
 
 const COLUMNS = `id, email, google_sub, name, role, status, vault_dir, last_signin_at, created_at`
 
@@ -116,11 +116,22 @@ export const bindGoogleSub = ( id: string, sub: string ): BindResult => {
   }
 }
 
-export const setVaultDir = ( id: string, vaultDir: string ): VaultResult => {
+// With `expected` (the folder the caller saw, or null for none) the update only happens if the
+// user still has it, so two requests that both saw the same state can't both win (ADR 0070).
+export const setVaultDir = (
+  id: string,
+  vaultDir: string,
+  expected?: string | null,
+): VaultResult => {
   try {
-    getDatabase().prepare( 'UPDATE users SET vault_dir = ? WHERE id = ?' ).run( vaultDir, id )
+    const result = expected === undefined
+      ? getDatabase().prepare( 'UPDATE users SET vault_dir = ? WHERE id = ?' ).run( vaultDir, id )
+      : getDatabase().prepare( 'UPDATE users SET vault_dir = ? WHERE id = ? AND vault_dir IS ?' )
+        .run( vaultDir, id, expected )
 
-    return { ok: true }
+    return expected !== undefined && result.changes === 0
+      ? { ok: false, reason: 'vault_changed' }
+      : { ok: true }
   } catch( error ) {
     if( uniqueColumn( error ) === 'vault_dir' ) {
       return { ok: false, reason: 'vault_taken' }
